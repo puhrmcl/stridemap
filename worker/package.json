@@ -1,0 +1,15 @@
+{
+  "name": "stridemap-strava-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloudflare Worker that proxies Strava OAuth token exchange for StrideMap, keeping the client secret server-side.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250109.0",
+    "typescript": "^5.6.3",
+    "wrangler": "^3.99.0"
+  }
+}

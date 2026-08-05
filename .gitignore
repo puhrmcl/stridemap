@@ -14,5 +14,11 @@ xcuserdata/
 # macOS
 .DS_Store
 
+# Cloudflare Worker (token proxy)
+worker/node_modules/
+worker/.wrangler/
+worker/dist/
+.dev.vars
+
 # Secrets — if you move Strava keys into an xcconfig, ignore it here.
 Secrets.xcconfig

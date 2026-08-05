@@ -5,20 +5,22 @@ import Foundation
 /// To connect the app to your own Strava API application:
 ///  1. Create an API application at https://www.strava.com/settings/api
 ///  2. Set the "Authorization Callback Domain" to `stridemap` (the URL scheme below).
-///  3. Paste your Client ID and Client Secret here (or better, inject them via an
-///     `.xcconfig` / environment so they are not committed to source control).
+///  3. Paste your **Client ID** below (it is public and safe to ship).
+///  4. Deploy the token proxy in `worker/` (see `worker/README.md`) and paste its URL
+///     into `tokenProxyURL`.
 ///
-/// - Important: Strava's token exchange requires the client secret. Embedding a
-///   secret in a shipping app is inherently insecure — for a production release you
-///   should proxy the token exchange through a small backend you control. For a
-///   personal build the values below are sufficient.
+/// - Important: The Strava **client secret is never stored in the app**. Token exchange
+///   and refresh are performed by the Cloudflare Worker in `worker/`, which holds the
+///   secret server-side. This avoids shipping a secret inside the app bundle.
 enum StravaConfig {
 
-    /// Your Strava application's Client ID.
+    /// Your Strava application's Client ID. Public — safe to ship in the app.
     static let clientID = "YOUR_STRAVA_CLIENT_ID"
 
-    /// Your Strava application's Client Secret.
-    static let clientSecret = "YOUR_STRAVA_CLIENT_SECRET"
+    /// URL of your deployed token proxy Worker (see `worker/README.md`), e.g.
+    /// `https://stridemap-strava-proxy.<your-subdomain>.workers.dev`.
+    /// The app POSTs `{ grant_type, code | refresh_token }` to `<tokenProxyURL>/oauth/token`.
+    static let tokenProxyURL = "https://stridemap-strava-proxy.YOUR-SUBDOMAIN.workers.dev"
 
     /// Custom URL scheme registered in Info.plist (`CFBundleURLSchemes`).
     static let urlScheme = "stridemap"
@@ -33,11 +35,16 @@ enum StravaConfig {
     // MARK: Endpoints
 
     static let authorizeURL = URL(string: "https://www.strava.com/oauth/mobile/authorize")!
-    static let tokenURL = URL(string: "https://www.strava.com/oauth/token")!
     static let apiBaseURL = URL(string: "https://www.strava.com/api/v3")!
 
-    /// Whether the developer has filled in real credentials.
+    /// The token-proxy token endpoint the app calls for exchange/refresh.
+    static var tokenEndpoint: URL {
+        URL(string: tokenProxyURL)!.appendingPathComponent("oauth/token")
+    }
+
+    /// Whether the developer has filled in real credentials (Client ID + proxy URL).
     static var isConfigured: Bool {
         clientID != "YOUR_STRAVA_CLIENT_ID" && !clientID.isEmpty
+            && !tokenProxyURL.contains("YOUR-SUBDOMAIN")
     }
 }

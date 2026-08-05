@@ -1,0 +1,11 @@
+name = "stridemap-strava-proxy"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# Secrets are NOT stored here. Set them once with:
+#   wrangler secret put STRAVA_CLIENT_ID
+#   wrangler secret put STRAVA_CLIENT_SECRET
+#
+# After `wrangler deploy`, the Worker is reachable at:
+#   https://stridemap-strava-proxy.<your-subdomain>.workers.dev
+# Paste that URL into StrideMap/Config/StravaConfig.swift (tokenProxyURL).

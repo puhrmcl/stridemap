@@ -94,13 +94,12 @@ final class StravaAuthService: NSObject {
     // MARK: Token exchange & refresh
 
     private func exchangeCode(_ code: String) async throws {
-        let body: [String: String] = [
-            "client_id": StravaConfig.clientID,
-            "client_secret": StravaConfig.clientSecret,
-            "code": code,
+        // The client secret lives only in the token-proxy Worker; the app sends just the
+        // short-lived authorization code.
+        let token = try await postToken([
             "grant_type": "authorization_code",
-        ]
-        let token = try await postToken(body)
+            "code": code,
+        ])
         self.token = token
         KeychainStore.save(token, for: tokenKey)
     }
@@ -117,26 +116,23 @@ final class StravaAuthService: NSObject {
     }
 
     private func refresh(_ token: StravaToken) async throws -> StravaToken {
-        let body: [String: String] = [
-            "client_id": StravaConfig.clientID,
-            "client_secret": StravaConfig.clientSecret,
+        var refreshed = try await postToken([
             "grant_type": "refresh_token",
             "refresh_token": token.refreshToken,
-        ]
-        var refreshed = try await postToken(body)
+        ])
         // The refresh response omits the athlete; keep the one we already have.
         if refreshed.athlete == nil { refreshed.athlete = token.athlete }
         return refreshed
     }
 
-    private func postToken(_ body: [String: String]) async throws -> StravaToken {
-        var request = URLRequest(url: StravaConfig.tokenURL)
+    /// Posts a token request to the proxy Worker as JSON. The Worker adds the client
+    /// secret and forwards to Strava, returning Strava's token JSON verbatim.
+    private func postToken(_ payload: [String: String]) async throws -> StravaToken {
+        var request = URLRequest(url: StravaConfig.tokenEndpoint)
         request.httpMethod = "POST"
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        request.httpBody = body
-            .map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? $0.value)" }
-            .joined(separator: "&")
-            .data(using: .utf8)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {

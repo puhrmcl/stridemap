@@ -63,16 +63,18 @@ Built with SwiftUI, MapKit, SwiftData, HealthKit, and Strava OAuth for iOS 26.
    run — HealthKit is enabled from the entitlements file.
 3. Run on a device (or a simulator with sample workouts added in the Health app). On first
    launch, grant Apple Health access — your entire running history imports and maps.
-4. *(Optional)* To enable Strava enrichment, create an API application at
-   <https://www.strava.com/settings/api>, set the **Authorization Callback Domain** to
-   `stridemap`, and paste your **Client ID** / **Client Secret** into
-   `StrideMap/Config/StravaConfig.swift`. Then connect Strava from onboarding or Settings.
+4. *(Optional)* To enable Strava enrichment:
+   - Create an API application at <https://www.strava.com/settings/api> and set the
+     **Authorization Callback Domain** to `stridemap`.
+   - Deploy the token-proxy Worker in [`worker/`](worker/README.md) (Cloudflare, free) —
+     it holds your Strava **client secret** server-side so it never ships in the app.
+   - Paste your **Client ID** and the Worker URL into `StrideMap/Config/StravaConfig.swift`
+     (`clientID`, `tokenProxyURL`). Then connect Strava from onboarding or Settings.
 
 > **Notes.** HealthKit needs a real device or a simulator seeded with running workouts;
-> it isn't available on Mac (Designed for iPad). Strava's token exchange requires the
-> client secret — embedding it in a shipping app is insecure, so for a public release
-> proxy the exchange through a small backend you control. For a personal build the values
-> in `StravaConfig` are sufficient; consider a git-ignored `Secrets.xcconfig`.
+> it isn't available on Mac (Designed for iPad). The Strava client secret is **never** in
+> the app — the Cloudflare Worker in `worker/` performs token exchange/refresh (see
+> `worker/README.md`). The app ships only the public Client ID.
 
 ## Architecture
 
