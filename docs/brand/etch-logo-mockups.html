@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Etch — Logo & Icon Concepts</title>
+<style>
+  :root{
+    --bg:#f4f4f5; --panel:#fff; --fg:#161618; --muted:#6b6b70; --border:#e4e4e8;
+    --ember:#fc5c44; --ember2:#ff8a5b; --ink:#0e0e11;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0b0b0d; --panel:#141417; --fg:#ececee; --muted:#9a9aa0; --border:#26262b; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:48px 22px 90px}
+  h1{font-size:30px;letter-spacing:-.02em;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 34px}
+  h2{font-size:15px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);
+    margin:44px 0 16px;font-weight:700}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:18px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:20px;text-align:center}
+  .card .name{font-weight:650;margin-top:14px;font-size:14px}
+  .card .desc{color:var(--muted);font-size:12.5px;margin-top:3px}
+  .tile{width:150px;height:150px;margin:0 auto;display:block}
+  .row{display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+  .wordmark{background:var(--panel);border:1px solid var(--border);border-radius:20px;
+    padding:30px 34px;display:flex;align-items:center;justify-content:center;min-width:230px;flex:1}
+  .note{color:var(--muted);font-size:13px;margin-top:26px;border-top:1px solid var(--border);padding-top:18px}
+  .swatches{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap}
+  .sw{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)}
+  .chip{width:22px;height:22px;border-radius:6px;border:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Etch — Logo &amp; Icon Concepts</h1>
+  <p class="sub">Directional vector concepts. Core idea: <em>your run etches a glowing line into the map.</em> Ember (#fc5c44) on ink, dark-mode-first — the same accent as the app's "recent-run glow."</p>
+
+  <h2>App icon directions</h2>
+  <div class="grid">
+
+    <!-- A: Route-as-E (crisp) -->
+    <div class="card">
+      <svg class="tile" viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Route E icon">
+        <defs>
+          <linearGradient id="bgA" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#17171b"/><stop offset="1" stop-color="#0a0a0c"/>
+          </linearGradient>
+          <linearGradient id="emA" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#ff8a5b"/><stop offset="1" stop-color="#fc4d33"/>
+          </linearGradient>
+          <filter id="gA" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="6" result="b"/><feMerge>
+            <feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <rect width="220" height="220" rx="48" fill="url(#bgA)"/>
+        <g filter="url(#gA)" stroke="url(#emA)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M150 60 L74 60 L74 160 L150 160" fill="none"/>
+          <path d="M74 110 L132 110" fill="none"/>
+        </g>
+        <circle cx="150" cy="60" r="10" fill="#fff"/>
+        <circle cx="150" cy="60" r="4.5" fill="#fc4d33"/>
+      </svg>
+      <div class="name">A · Route-E</div>
+      <div class="desc">The letter E drawn as one running route + a GPS start dot. Distinctive, verbable.</div>
+    </div>
+
+    <!-- B: Organic GPS trace E -->
+    <div class="card">
+      <svg class="tile" viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Trace E icon">
+        <defs>
+          <linearGradient id="emB" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#ff8a5b"/><stop offset="1" stop-color="#fc4d33"/>
+          </linearGradient>
+          <filter id="gB" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="5" result="b"/><feMerge>
+            <feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <rect width="220" height="220" rx="48" fill="#0c0c0f"/>
+        <g filter="url(#gB)" stroke="url(#emB)" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path d="M148 58 C120 56 92 62 76 60 C70 78 74 96 74 110 C74 128 71 146 76 162 C98 164 126 158 150 160"/>
+          <path d="M76 110 C96 108 118 113 130 110"/>
+        </g>
+        <circle cx="148" cy="58" r="9" fill="#fff"/>
+        <circle cx="148" cy="58" r="4" fill="#fc4d33"/>
+      </svg>
+      <div class="name">B · Trace-E (organic)</div>
+      <div class="desc">Same idea with real GPS-trace wobble — friendlier, more "human run."</div>
+    </div>
+
+    <!-- C: Glow web (literal) -->
+    <div class="card">
+      <svg class="tile" viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Glow web icon">
+        <defs>
+          <linearGradient id="emC" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#ff8a5b"/><stop offset="1" stop-color="#fc4d33"/>
+          </linearGradient>
+          <filter id="gC" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="6" result="b"/><feMerge>
+            <feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <rect width="220" height="220" rx="48" fill="#0a0a0c"/>
+        <g stroke="#2b2b31" stroke-width="6" stroke-linecap="round">
+          <path d="M40 78 L180 78"/><path d="M40 120 L180 120"/><path d="M40 162 L180 162"/>
+          <path d="M72 44 L72 176"/><path d="M124 44 L124 176"/><path d="M164 44 L164 176"/>
+        </g>
+        <g filter="url(#gC)" stroke="url(#emC)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path d="M72 162 L72 78 L124 78 L124 120 L164 120"/>
+        </g>
+        <circle cx="72" cy="162" r="8.5" fill="#fff"/>
+      </svg>
+      <div class="name">C · Glow-web</div>
+      <div class="desc">One ember route lit up over faint streets — literally the app in a tile.</div>
+    </div>
+
+    <!-- D: Inverted / ember tile -->
+    <div class="card">
+      <svg class="tile" viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Inverted E icon">
+        <defs>
+          <linearGradient id="bgD" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#ff7a4d"/><stop offset="1" stop-color="#f4472c"/>
+          </linearGradient>
+        </defs>
+        <rect width="220" height="220" rx="48" fill="url(#bgD)"/>
+        <g stroke="#141013" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path d="M150 60 L74 60 L74 160 L150 160"/>
+          <path d="M74 110 L132 110"/>
+        </g>
+        <circle cx="150" cy="60" r="10" fill="#141013"/>
+      </svg>
+      <div class="name">D · Ember tile</div>
+      <div class="desc">Inverted lockup for stickers, the marketing site, and a light-mode alt.</div>
+    </div>
+  </div>
+
+  <h2>Wordmark &amp; lockup</h2>
+  <div class="row">
+    <div class="wordmark">
+      <!-- lowercase etch with route flourish -->
+      <svg width="230" height="92" viewBox="0 0 230 92" xmlns="http://www.w3.org/2000/svg" aria-label="etch wordmark">
+        <defs>
+          <linearGradient id="wm" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#ff8a5b"/><stop offset="1" stop-color="#fc4d33"/>
+          </linearGradient>
+        </defs>
+        <text x="0" y="58" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
+              font-size="62" font-weight="800" letter-spacing="-3" fill="url(#wm)">etch</text>
+        <!-- route underline starting with a pin -->
+        <circle cx="6" cy="76" r="4.5" fill="#fc4d33"/>
+        <path d="M6 76 C40 70 60 82 96 76 C130 70 150 82 196 74" stroke="url(#wm)" stroke-width="4.5"
+              fill="none" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="wordmark" style="background:#0c0c0f;border-color:#26262b">
+      <svg width="150" height="92" viewBox="0 0 150 92" xmlns="http://www.w3.org/2000/svg" aria-label="Etch lockup">
+        <defs>
+          <linearGradient id="lk" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#ff8a5b"/><stop offset="1" stop-color="#fc4d33"/>
+          </linearGradient>
+        </defs>
+        <g stroke="url(#lk)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none" transform="translate(6,10)">
+          <path d="M52 6 L10 6 L10 62 L52 62"/><path d="M10 34 L40 34"/>
+        </g>
+        <circle cx="58" cy="16" r="6" fill="#fff"/>
+        <text x="78" y="52" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
+              font-size="30" font-weight="800" letter-spacing="-1.5" fill="#ececee">etch</text>
+      </svg>
+    </div>
+  </div>
+
+  <h2>Palette</h2>
+  <div class="swatches">
+    <div class="sw"><span class="chip" style="background:#fc5c44"></span> Ember #fc5c44</div>
+    <div class="sw"><span class="chip" style="background:#ff8a5b"></span> Ember glow #ff8a5b</div>
+    <div class="sw"><span class="chip" style="background:#0c0c0f"></span> Ink #0c0c0f</div>
+    <div class="sw"><span class="chip" style="background:#ececee"></span> Bone #ececee</div>
+  </div>
+
+  <p class="note">
+    These are vector <em>directions</em>, not final art — each is exportable to the required 1024×1024 icon
+    and a monochrome variant. My pick: <strong>A (Route-E)</strong> for the icon — it's the most ownable and
+    reinforces "Etch" as a verb — with the <strong>lowercase "etch" + route flourish</strong> as the wordmark.
+    A designer would refine curve tension, the squircle grid, and optical spacing for production.
+  </p>
+</div>
+</body>
+</html>
