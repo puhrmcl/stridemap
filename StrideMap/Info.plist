@@ -18,6 +18,10 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>StrideMap shows your position on the map so you can see where you've run.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>StrideMap reads your running workouts and GPS routes from Apple Health to map every run you've taken.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>StrideMap does not write to Apple Health.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

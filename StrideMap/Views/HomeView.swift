@@ -12,7 +12,7 @@ struct HomeView: View {
     /// Runs passing the active filter.
     private var visibleRuns: [Run] {
         let prs = appModel.filter.mode == .prs ? stats.prRunIDs : []
-        return allRuns.filter { appModel.filter.matches($0, isPR: prs.contains($0.activityID)) }
+        return allRuns.filter { appModel.filter.matches($0, isPR: prs.contains($0.id)) }
     }
 
     private var visibleStats: RunStatistics { RunStatistics(visibleRuns) }
@@ -149,7 +149,7 @@ struct HomeView: View {
                     .foregroundStyle(.secondary)
                 Text("No runs yet")
                     .font(.system(.title3, design: .rounded).weight(.semibold))
-                Button("Sync from Strava") {
+                Button("Sync Now") {
                     Task { await sync.sync() }
                 }
                 .buttonStyle(.borderedProminent)
@@ -171,8 +171,8 @@ struct HomeView: View {
 
     private var selectedRunBinding: Binding<Run?> {
         Binding(
-            get: { allRuns.first { $0.activityID == appModel.selectedRunID } },
-            set: { appModel.selectedRunID = $0?.activityID }
+            get: { allRuns.first { $0.id == appModel.selectedRunID } },
+            set: { appModel.selectedRunID = $0?.id }
         )
     }
 

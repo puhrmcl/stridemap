@@ -9,7 +9,7 @@ struct RunMapView: UIViewRepresentable {
     /// The currently visible (already filtered) runs.
     var runs: [Run]
     /// Selected run's activity id.
-    @Binding var selectedRunID: Int64?
+    @Binding var selectedRunID: UUID?
     /// A one-shot camera command; cleared after it's applied.
     @Binding var command: MapCameraCommand?
     /// Whether older routes should fade (the "web through time" look).
@@ -60,8 +60,8 @@ struct RunMapView: UIViewRepresentable {
         weak var map: MKMapView?
         var lastCommandID: UUID?
 
-        /// activityID → overlay, so we can diff efficiently between updates.
-        private var overlaysByID: [Int64: RunPolyline] = [:]
+        /// run id → overlay, so we can diff efficiently between updates.
+        private var overlaysByID: [UUID: RunPolyline] = [:]
 
         init(_ parent: RunMapView) { self.parent = parent }
 
@@ -70,7 +70,7 @@ struct RunMapView: UIViewRepresentable {
         func updateOverlays(with runs: [Run], fadeWithAge: Bool) {
             guard let map else { return }
             let routed = runs.filter { $0.hasRoute }
-            let newIDs = Set(routed.map { $0.activityID })
+            let newIDs = Set(routed.map { $0.id })
             let oldIDs = Set(overlaysByID.keys)
 
             // Remove overlays no longer visible.
@@ -90,7 +90,7 @@ struct RunMapView: UIViewRepresentable {
             var toAdd: [RunPolyline] = []
             for run in routed {
                 let fraction = fadeWithAge ? Double(run.ageInDays) / Double(maxAge) : 0
-                if let existing = overlaysByID[run.activityID] {
+                if let existing = overlaysByID[run.id] {
                     // Refresh styling if the age fraction shifted meaningfully.
                     if abs(existing.ageFraction - fraction) > 0.001 {
                         existing.ageFraction = fraction
@@ -103,16 +103,16 @@ struct RunMapView: UIViewRepresentable {
                 let coords = run.coordinates
                 guard coords.count > 1 else { continue }
                 let polyline = RunPolyline(coordinates: coords, count: coords.count)
-                polyline.runID = run.activityID
+                polyline.runID = run.id
                 polyline.ageFraction = fraction
                 polyline.emphasised = run.isRace
-                overlaysByID[run.activityID] = polyline
+                overlaysByID[run.id] = polyline
                 toAdd.append(polyline)
             }
             if !toAdd.isEmpty { map.addOverlays(toAdd, level: .aboveRoads) }
         }
 
-        func updateSelection(_ selectedID: Int64?) {
+        func updateSelection(_ selectedID: UUID?) {
             for (id, overlay) in overlaysByID {
                 let shouldSelect = id == selectedID
                 if overlay.isSelected != shouldSelect {
@@ -153,10 +153,10 @@ struct RunMapView: UIViewRepresentable {
             guard let map else { return }
             switch command.target {
             case .fit(let ids):
-                let subset = runs.filter { ids.contains($0.activityID) }
+                let subset = runs.filter { ids.contains($0.id) }
                 fit(runs: subset.isEmpty ? runs : subset)
             case .focus(let id):
-                if let run = runs.first(where: { $0.activityID == id }) {
+                if let run = runs.first(where: { $0.id == id }) {
                     fit(runs: [run], padding: 80, animated: true)
                 }
             case .region(let lat, let lon, let span):
@@ -196,7 +196,7 @@ struct RunMapView: UIViewRepresentable {
             // Tolerance scales with zoom so taps stay forgiving when zoomed out.
             let tolerance = 12 * map.visibleMapRect.width / Double(map.bounds.width)
 
-            var best: (id: Int64, distance: Double)?
+            var best: (id: UUID, distance: Double)?
             for (id, overlay) in overlaysByID {
                 let distance = overlay.distance(to: tapMapPoint)
                 if distance < tolerance, best == nil || distance < best!.distance {

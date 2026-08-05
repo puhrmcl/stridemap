@@ -3,10 +3,12 @@ import Observation
 import SwiftData
 import CoreLocation
 
-/// Imports runs from Strava into the local SwiftData store.
+/// Orchestrates importing runs from every configured `ActivityProvider` into the local
+/// SwiftData store, merging duplicates so the map never shows the same run twice.
 ///
-/// The first sync pages through the entire history; subsequent syncs pass the most
-/// recent stored `startDate` as an `after` cursor so only new activities are fetched.
+/// HealthKit is the primary source. Strava (when connected) enriches matching runs and
+/// contributes any runs HealthKit doesn't have. Additional providers can be slotted in by
+/// adding them to `primaryProviders` / `enrichmentProviders` — nothing else changes.
 @MainActor
 @Observable
 final class SyncService {
@@ -27,14 +29,20 @@ final class SyncService {
         }
     }
 
-    private let auth: StravaAuthService
-    private let client: StravaAPIClient
     private let context: ModelContext
+    private let healthKit: HealthKitService
+    private let auth: StravaAuthService
 
-    init(auth: StravaAuthService, context: ModelContext) {
+    private let healthKitProvider: HealthKitProvider
+    private let stravaProvider: StravaProvider
+    private let locationEnricher = LocationEnricher()
+
+    init(healthKit: HealthKitService, auth: StravaAuthService, context: ModelContext) {
+        self.healthKit = healthKit
         self.auth = auth
-        self.client = StravaAPIClient(auth: auth)
         self.context = context
+        self.healthKitProvider = HealthKitProvider(store: healthKit.store)
+        self.stravaProvider = StravaProvider(auth: auth)
         self.lastSyncDate = UserDefaults.standard.object(forKey: "lastSyncDate") as? Date
     }
 
@@ -43,105 +51,243 @@ final class SyncService {
         return false
     }
 
-    /// Runs an incremental sync (or a full import on first run).
-    func sync(enrichLocations: Bool = true) async {
-        guard auth.isAuthenticated, !isSyncing else { return }
+    /// Whether there is anything to sync from (HealthKit available or Strava connected).
+    var hasAnySource: Bool {
+        healthKitProvider.isAvailable || stravaProvider.isAvailable
+    }
+
+    // MARK: Sync
+
+    func sync() async {
+        guard !isSyncing, hasAnySource else { return }
         status = .syncing(imported: 0)
+        var imported = 0
 
         do {
-            let after = try mostRecentStartDate()?.timeIntervalSince1970
-            var page = 1
-            var importedCount = 0
+            let since = lastSyncDate
 
-            while true {
-                let activities = try await client.activities(page: page, perPage: 100, after: after)
-                if activities.isEmpty { break }
-
-                for activity in activities where activity.isRunLike {
-                    if try await upsert(activity, enrichLocations: enrichLocations) {
-                        importedCount += 1
-                        status = .syncing(imported: importedCount)
+            // 1. Primary: HealthKit (and any future primary providers).
+            if healthKitProvider.isAvailable {
+                let activities = try await healthKitProvider.fetchActivities(since: since)
+                for activity in activities {
+                    if try importPrimary(activity) {
+                        imported += 1
+                        status = .syncing(imported: imported)
                     }
                 }
                 try context.save()
-                if activities.count < 100 { break }
-                page += 1
             }
 
+            // 2. Enrichment: Strava merges into primary runs or adds its own.
+            if stravaProvider.isAvailable {
+                let activities = try await stravaProvider.fetchActivities(since: since)
+                for activity in activities {
+                    var activity = activity
+                    if try await importEnrichment(&activity) {
+                        imported += 1
+                        status = .syncing(imported: imported)
+                    }
+                }
+                try context.save()
+            }
+
+            // Best-effort: fill in place names for runs that arrived without them
+            // (HealthKit doesn't geocode). Bounded so we never hit CLGeocoder limits.
+            await enrichMissingLocations(limit: 40)
+
             lastSyncDate = Date()
-            status = .finished(imported: importedCount)
+            status = .finished(imported: imported)
         } catch {
             status = .failed(error.localizedDescription)
         }
     }
 
-    // MARK: Helpers
+    /// Reverse-geocodes up to `limit` runs that have a start coordinate but no city.
+    private func enrichMissingLocations(limit: Int) async {
+        var descriptor = FetchDescriptor<Run>(
+            predicate: #Predicate { $0.city == nil && $0.startLatitude != nil },
+            sortBy: [SortDescriptor(\.startDate, order: .reverse)]
+        )
+        descriptor.fetchLimit = limit
+        guard let candidates = try? context.fetch(descriptor), !candidates.isEmpty else { return }
 
-    private func mostRecentStartDate() throws -> Date? {
-        var descriptor = FetchDescriptor<Run>(sortBy: [SortDescriptor(\.startDate, order: .reverse)])
-        descriptor.fetchLimit = 1
-        return try context.fetch(descriptor).first?.startDate
+        for run in candidates {
+            guard let coordinate = run.startCoordinate else { continue }
+            if let place = await locationEnricher.place(for: coordinate) {
+                run.city = place.city
+                run.state = place.state
+                run.country = place.country
+            }
+        }
+        try? context.save()
     }
 
-    /// Inserts an activity if not already stored. Returns true when a new run was added.
-    private func upsert(_ activity: StravaActivity, enrichLocations: Bool) async throws -> Bool {
-        let id = activity.id
-        var descriptor = FetchDescriptor<Run>(predicate: #Predicate { $0.activityID == id })
+    // MARK: Primary import (HealthKit)
+
+    /// Creates a run from a primary provider activity. De-duplicates on the HealthKit id,
+    /// and — so ordering never matters — merges into a matching run that some other
+    /// provider (e.g. Strava) created first. Returns true only when a new run was inserted.
+    private func importPrimary(_ activity: ImportedActivity) throws -> Bool {
+        let hkID = activity.externalID
+        var descriptor = FetchDescriptor<Run>(predicate: #Predicate { $0.healthKitID == hkID })
         descriptor.fetchLimit = 1
         if try !context.fetch(descriptor).isEmpty { return false }
 
-        let polyline = activity.map?.bestPolyline ?? ""
-        let coords = PolylineDecoder.decode(polyline)
-        let box = boundingBox(of: coords, fallback: activity.startLatlng)
+        // A provider-created run without a HealthKit id may be this same activity.
+        if let match = try bestMatch(for: activity), match.healthKitID == nil {
+            mergeHealthKit(activity, into: match)
+            return false
+        }
 
+        let run = makeRun(from: activity)
+        run.healthKitID = activity.externalID
+        context.insert(run)
+        return true
+    }
+
+    /// Fills a run with HealthKit-specific data (rich metrics + route) without clobbering
+    /// existing metadata from another provider.
+    private func mergeHealthKit(_ activity: ImportedActivity, into run: Run) {
+        run.healthKitID = activity.externalID
+        if run.originApp == nil { run.originApp = activity.originApp }
+        if run.averageHeartRate == nil { run.averageHeartRate = activity.averageHeartRate }
+        if run.maxHeartRate == nil { run.maxHeartRate = activity.maxHeartRate }
+        if run.activeEnergy == nil { run.activeEnergy = activity.activeEnergy }
+        if run.averageCadence == nil { run.averageCadence = activity.averageCadence }
+        if !run.hasRoute, !activity.coordinates.isEmpty {
+            run.summaryPolyline = activity.encodedPolyline ?? PolylineDecoder.encode(activity.coordinates)
+            applyGeometry(activity.coordinates, to: run)
+        }
+        if run.elevationGain == 0, let gain = activity.elevationGain { run.elevationGain = gain }
+        run.updatedAt = Date()
+    }
+
+    // MARK: Enrichment import (Strava)
+
+    /// Merges a Strava activity into a matching run, or creates a standalone run when no
+    /// HealthKit counterpart exists. Returns true only when a *new* run was inserted.
+    private func importEnrichment(_ activity: inout ImportedActivity) async throws -> Bool {
+        // Already linked to a run from a previous sync? Refresh lightweight metadata only.
+        if let stravaID = Int64(activity.externalID),
+           let existing = try runLinkedToStrava(stravaID) {
+            await stravaProvider.enrich(&activity)
+            merge(activity, into: existing)
+            return false
+        }
+
+        // Try to match an existing (HealthKit) run that isn't yet Strava-linked.
+        if let match = try bestMatch(for: activity), match.stravaActivityID == nil {
+            await stravaProvider.enrich(&activity)
+            merge(activity, into: match)
+            return false
+        }
+
+        // No match — this is a Strava-only run. Create it.
+        await stravaProvider.enrich(&activity)
+        let run = makeRun(from: activity)
+        run.stravaActivityID = Int64(activity.externalID)
+        context.insert(run)
+        return true
+    }
+
+    private func runLinkedToStrava(_ stravaID: Int64) throws -> Run? {
+        var descriptor = FetchDescriptor<Run>(predicate: #Predicate { $0.stravaActivityID == stravaID })
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).first
+    }
+
+    /// Finds the best-scoring existing run within a time window around the activity.
+    private func bestMatch(for activity: ImportedActivity) throws -> Run? {
+        let window: TimeInterval = 20 * 60
+        let start = activity.startDate.addingTimeInterval(-window)
+        let end = activity.startDate.addingTimeInterval(window)
+        let candidates = try context.fetch(
+            FetchDescriptor<Run>(predicate: #Predicate { $0.startDate >= start && $0.startDate <= end })
+        )
+        return candidates
+            .map { ($0, ActivityMatcher.confidence($0, activity)) }
+            .filter { $0.1 >= ActivityMatcher.matchThreshold }
+            .max { $0.1 < $1.1 }?
+            .0
+    }
+
+    /// Merges Strava metadata into an existing run, keeping the richest available value
+    /// for each field and never overwriting good data with nil.
+    private func merge(_ activity: ImportedActivity, into run: Run) {
+        if let stravaID = Int64(activity.externalID) { run.stravaActivityID = stravaID }
+
+        // Strava titles are almost always more descriptive than HealthKit's.
+        if let name = activity.name, !name.isEmpty { run.name = name }
+        if let gear = activity.gear { run.gear = gear }
+        if let notes = activity.notes, run.notes == nil { run.notes = notes }
+        if activity.isRace == true { run.isRace = true }
+        if let trail = activity.isTrail { run.isTrail = run.isTrail || trail }
+        if let commute = activity.isCommute { run.isCommute = run.isCommute || commute }
+
+        if run.city == nil { run.city = activity.city }
+        if run.state == nil { run.state = activity.state }
+        if run.country == nil { run.country = activity.country }
+
+        // Fill route/elevation only if HealthKit didn't provide them.
+        if !run.hasRoute, let polyline = activity.encodedPolyline, !polyline.isEmpty {
+            run.summaryPolyline = polyline
+            applyGeometry(activity.coordinates, to: run)
+        }
+        if run.elevationGain == 0, let gain = activity.elevationGain { run.elevationGain = gain }
+        run.updatedAt = Date()
+    }
+
+    // MARK: Run construction
+
+    private func makeRun(from activity: ImportedActivity) -> Run {
+        let polyline = activity.encodedPolyline ?? PolylineDecoder.encode(activity.coordinates)
         let run = Run(
-            activityID: id,
-            name: activity.name,
+            provider: activity.provider,
+            originApp: activity.originApp,
+            name: resolvedName(activity),
             startDate: activity.startDate,
             distance: activity.distance,
             movingTime: activity.movingTime,
             elapsedTime: activity.elapsedTime,
-            elevationGain: activity.totalElevationGain,
+            elevationGain: activity.elevationGain ?? 0,
             summaryPolyline: polyline,
-            sportType: activity.sportType ?? activity.type,
-            isRace: activity.resolvedIsRace,
-            isCommute: activity.commute ?? false,
-            isTrail: activity.isTrail,
-            startLatitude: activity.startLatlng?.first ?? coords.first?.latitude,
-            startLongitude: activity.startLatlng?.last ?? coords.first?.longitude,
-            minLatitude: box.minLat,
-            maxLatitude: box.maxLat,
-            minLongitude: box.minLon,
-            maxLongitude: box.maxLon
+            averageHeartRate: activity.averageHeartRate,
+            maxHeartRate: activity.maxHeartRate,
+            activeEnergy: activity.activeEnergy,
+            averageCadence: activity.averageCadence,
+            city: activity.city,
+            state: activity.state,
+            country: activity.country,
+            sportType: activity.sportType ?? "Run",
+            isRace: activity.isRace ?? false,
+            isCommute: activity.isCommute ?? false,
+            isTrail: activity.isTrail ?? false
         )
-        context.insert(run)
-
-        if enrichLocations {
-            // Best-effort location enrichment; failures shouldn't abort the import.
-            if let detail = try? await client.activityDetail(id: id) {
-                run.city = detail.locationCity
-                run.state = detail.locationState
-                run.country = detail.locationCountry
-            }
-        }
-        return true
+        applyGeometry(activity.coordinates, to: run)
+        return run
     }
 
-    private func boundingBox(
-        of coords: [CLLocationCoordinate2D],
-        fallback: [Double]?
-    ) -> (minLat: Double, maxLat: Double, minLon: Double, maxLon: Double) {
-        if coords.isEmpty {
-            let lat = fallback?.first ?? 0
-            let lon = fallback?.last ?? 0
-            return (lat, lat, lon, lon)
+    private func applyGeometry(_ coordinates: [CLLocationCoordinate2D], to run: Run) {
+        let box = RouteGeometry.boundingBox(of: coordinates, fallbackStart: coordinates.first)
+        run.startLatitude = coordinates.first?.latitude ?? run.startLatitude
+        run.startLongitude = coordinates.first?.longitude ?? run.startLongitude
+        run.minLatitude = box.minLat
+        run.maxLatitude = box.maxLat
+        run.minLongitude = box.minLon
+        run.maxLongitude = box.maxLon
+    }
+
+    /// Uses the provider's title when present; otherwise a calm time-of-day name.
+    private func resolvedName(_ activity: ImportedActivity) -> String {
+        if let name = activity.name, !name.isEmpty { return name }
+        let hour = Calendar.current.component(.hour, from: activity.startDate)
+        let part: String
+        switch hour {
+        case 5..<12: part = "Morning"
+        case 12..<17: part = "Afternoon"
+        case 17..<21: part = "Evening"
+        default: part = "Night"
         }
-        var minLat = coords[0].latitude, maxLat = coords[0].latitude
-        var minLon = coords[0].longitude, maxLon = coords[0].longitude
-        for c in coords {
-            minLat = min(minLat, c.latitude); maxLat = max(maxLat, c.latitude)
-            minLon = min(minLon, c.longitude); maxLon = max(maxLon, c.longitude)
-        }
-        return (minLat, maxLat, minLon, maxLon)
+        return "\(part) Run"
     }
 }

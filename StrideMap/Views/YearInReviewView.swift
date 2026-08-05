@@ -46,7 +46,7 @@ struct YearInReviewView: View {
     private var playbackMap: some View {
         ZStack(alignment: .bottom) {
             Map(initialPosition: .region(overallRegion), interactionModes: []) {
-                ForEach(Array(runs.prefix(revealed).enumerated()), id: \.element.activityID) { index, run in
+                ForEach(Array(runs.prefix(revealed).enumerated()), id: \.element.id) { index, run in
                     let coords = run.coordinates
                     if coords.count > 1 {
                         let fraction = Double(index) / Double(max(runs.count - 1, 1))

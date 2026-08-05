@@ -64,13 +64,13 @@ struct RunStatistics {
 
     /// Activity ids that set a new all-time longest-distance record when they happened.
     /// A run is a "PR" if, in chronological order, it exceeded every prior run's distance.
-    var prRunIDs: Set<Int64> {
+    var prRunIDs: Set<UUID> {
         var best = 0.0
-        var ids: Set<Int64> = []
+        var ids: Set<UUID> = []
         for run in runs.sorted(by: { $0.startDate < $1.startDate }) {
             if run.distance > best {
                 best = run.distance
-                ids.insert(run.activityID)
+                ids.insert(run.id)
             }
         }
         return ids

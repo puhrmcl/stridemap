@@ -8,6 +8,7 @@ struct StrideMapApp: App {
     let modelContainer: ModelContainer
 
     @State private var auth = StravaAuthService.shared
+    @State private var healthKit: HealthKitService
     @State private var appModel = AppModel()
     @State private var sync: SyncService
 
@@ -17,8 +18,11 @@ struct StrideMapApp: App {
         do {
             let container = try ModelContainer(for: Run.self)
             self.modelContainer = container
+            let health = HealthKitService()
+            _healthKit = State(initialValue: health)
             _sync = State(
                 initialValue: SyncService(
+                    healthKit: health,
                     auth: StravaAuthService.shared,
                     context: container.mainContext
                 )
@@ -32,6 +36,7 @@ struct StrideMapApp: App {
         WindowGroup {
             RootView()
                 .environment(auth)
+                .environment(healthKit)
                 .environment(appModel)
                 .environment(sync)
                 .preferredColorScheme(Appearance(rawValue: appearance)?.colorScheme)

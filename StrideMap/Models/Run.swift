@@ -2,45 +2,74 @@ import Foundation
 import SwiftData
 import CoreLocation
 
-/// A single run imported from Strava, persisted locally with SwiftData.
+/// A single run, unified across every provider (HealthKit, Strava, and future
+/// integrations). This is the *only* activity model the UI consumes — providers feed
+/// `ImportedActivity` values into the import service, which creates or merges `Run`s.
 ///
-/// Only new activities are fetched on subsequent syncs (see `SyncService`), so this
-/// is the durable local cache of a user's entire running history.
+/// Fields are intentionally permissive: no provider is assumed to supply everything, so
+/// most enrichment fields are optional.
 @Model
 final class Run {
 
-    /// Strava activity identifier. Unique — used to de-duplicate on incremental sync.
-    @Attribute(.unique) var activityID: Int64
+    /// The app's stable identity, independent of any provider.
+    @Attribute(.unique) var id: UUID
+
+    // MARK: Provenance
+
+    /// The primary source this run was imported from (usually `.healthKit`).
+    var providerRaw: String
+    /// The true originating app when known (e.g. a HealthKit workout authored by Nike
+    /// Run Club). Shown, subtly, on the detail screen.
+    var originAppRaw: String?
+
+    /// HealthKit workout UUID (string) — the primary de-duplication key.
+    var healthKitID: String?
+    /// Strava activity id, present once a run has been matched/enriched with Strava.
+    var stravaActivityID: Int64?
+
+    // MARK: Core
 
     var name: String
     var startDate: Date
-
-    /// Metres.
-    var distance: Double
-    /// Seconds (moving time).
-    var movingTime: Int
-    /// Seconds (elapsed time).
-    var elapsedTime: Int
-    /// Metres of total elevation gain.
+    var distance: Double        // metres
+    var movingTime: Int         // seconds
+    var elapsedTime: Int        // seconds
     var elevationGain: Double
 
-    /// The encoded (Google-format) summary polyline, stored verbatim from Strava.
+    /// Encoded (Google-format) polyline of the route.
     var summaryPolyline: String
 
-    // Reverse-geocoded location metadata (Strava provides these on the detail payload).
+    // MARK: Rich metrics (may be absent depending on source)
+
+    var averageHeartRate: Double?
+    var maxHeartRate: Double?
+    var activeEnergy: Double?       // kcal
+    var averageCadence: Double?     // steps/min
+
+    // MARK: Location metadata
+
     var city: String?
     var state: String?
     var country: String?
 
+    // MARK: Classification
+
     var sportType: String
     var isRace: Bool
     var isCommute: Bool
-
-    /// Whether the activity was recorded on a trail. Derived heuristically at import.
     var isTrail: Bool
 
-    /// Bounding box + start of the decoded route, cached so the map layer and search
-    /// can operate without decoding every polyline up front.
+    // MARK: User & future-proofing
+
+    var gear: String?
+    var notes: String?
+    var isFavorite: Bool
+    var tags: [String]
+    /// Reserved for a future photos feature — stored as opaque references.
+    var photoReferences: [String]
+
+    // MARK: Cached geometry
+
     var startLatitude: Double?
     var startLongitude: Double?
     var minLatitude: Double
@@ -49,9 +78,14 @@ final class Run {
     var maxLongitude: Double
 
     var importedAt: Date
+    var updatedAt: Date
 
     init(
-        activityID: Int64,
+        id: UUID = UUID(),
+        provider: ActivitySource,
+        originApp: ActivitySource? = nil,
+        healthKitID: String? = nil,
+        stravaActivityID: Int64? = nil,
         name: String,
         startDate: Date,
         distance: Double,
@@ -59,6 +93,10 @@ final class Run {
         elapsedTime: Int,
         elevationGain: Double,
         summaryPolyline: String,
+        averageHeartRate: Double? = nil,
+        maxHeartRate: Double? = nil,
+        activeEnergy: Double? = nil,
+        averageCadence: Double? = nil,
         city: String? = nil,
         state: String? = nil,
         country: String? = nil,
@@ -66,6 +104,11 @@ final class Run {
         isRace: Bool = false,
         isCommute: Bool = false,
         isTrail: Bool = false,
+        gear: String? = nil,
+        notes: String? = nil,
+        isFavorite: Bool = false,
+        tags: [String] = [],
+        photoReferences: [String] = [],
         startLatitude: Double? = nil,
         startLongitude: Double? = nil,
         minLatitude: Double = 0,
@@ -73,7 +116,11 @@ final class Run {
         minLongitude: Double = 0,
         maxLongitude: Double = 0
     ) {
-        self.activityID = activityID
+        self.id = id
+        self.providerRaw = provider.rawValue
+        self.originAppRaw = originApp?.rawValue
+        self.healthKitID = healthKitID
+        self.stravaActivityID = stravaActivityID
         self.name = name
         self.startDate = startDate
         self.distance = distance
@@ -81,6 +128,10 @@ final class Run {
         self.elapsedTime = elapsedTime
         self.elevationGain = elevationGain
         self.summaryPolyline = summaryPolyline
+        self.averageHeartRate = averageHeartRate
+        self.maxHeartRate = maxHeartRate
+        self.activeEnergy = activeEnergy
+        self.averageCadence = averageCadence
         self.city = city
         self.state = state
         self.country = country
@@ -88,6 +139,11 @@ final class Run {
         self.isRace = isRace
         self.isCommute = isCommute
         self.isTrail = isTrail
+        self.gear = gear
+        self.notes = notes
+        self.isFavorite = isFavorite
+        self.tags = tags
+        self.photoReferences = photoReferences
         self.startLatitude = startLatitude
         self.startLongitude = startLongitude
         self.minLatitude = minLatitude
@@ -95,7 +151,32 @@ final class Run {
         self.minLongitude = minLongitude
         self.maxLongitude = maxLongitude
         self.importedAt = Date()
+        self.updatedAt = Date()
     }
+}
+
+// MARK: - Provenance helpers
+
+extension Run {
+
+    var provider: ActivitySource {
+        get { ActivitySource(rawValue: providerRaw) }
+        set { providerRaw = newValue.rawValue }
+    }
+
+    var originApp: ActivitySource? {
+        get { originAppRaw.map { ActivitySource(rawValue: $0) } }
+        set { originAppRaw = newValue?.rawValue }
+    }
+
+    /// The source shown to the user: the true origin app when known, otherwise the
+    /// importing provider. If the run has been enriched by Strava we still surface the
+    /// original recording app, because that's where the run actually came from.
+    var displaySource: ActivitySource {
+        originApp ?? provider
+    }
+
+    var isStravaLinked: Bool { stravaActivityID != nil }
 }
 
 // MARK: - Derived values
@@ -120,12 +201,10 @@ extension Run {
 
     var hasRoute: Bool { !summaryPolyline.isEmpty }
 
-    /// A human place label, e.g. "Scottsdale, AZ".
     var placeLabel: String {
         [city, state].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
     }
 
-    /// Age of the run in days, used to fade older routes on the map.
     var ageInDays: Int {
         Calendar.current.dateComponents([.day], from: startDate, to: Date()).day ?? 0
     }

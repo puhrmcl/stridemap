@@ -3,6 +3,7 @@ import SwiftData
 
 struct SettingsView: View {
     @Environment(StravaAuthService.self) private var auth
+    @Environment(HealthKitService.self) private var healthKit
     @Environment(SyncService.self) private var sync
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
@@ -13,11 +14,13 @@ struct SettingsView: View {
 
     @State private var exportURL: URL?
     @State private var showDeleteConfirm = false
+    @State private var isConnectingStrava = false
 
     var body: some View {
         NavigationStack {
             Form {
-                accountSection
+                sourcesSection
+                syncSection
                 appearanceSection
                 dataSection
                 aboutSection
@@ -33,15 +36,49 @@ struct SettingsView: View {
         }
     }
 
-    private var accountSection: some View {
-        Section("Strava") {
-            if let athlete = auth.athlete, !athlete.displayName.isEmpty {
-                LabeledContent("Connected as", value: athlete.displayName)
-            } else {
-                Label("Connected", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+    private var sourcesSection: some View {
+        Section {
+            // Apple Health — the primary source.
+            HStack {
+                Label("Apple Health", systemImage: "heart.fill")
+                Spacer()
+                if healthKit.isAvailable && healthKit.hasRequestedAuthorization {
+                    Text("Connected").foregroundStyle(.green).font(.subheadline)
+                } else if !healthKit.isAvailable {
+                    Text("Unavailable").foregroundStyle(.secondary).font(.subheadline)
+                } else {
+                    Button("Connect") { Task { try? await healthKit.requestAuthorization() } }
+                        .font(.subheadline)
+                }
             }
 
+            // Strava — optional enrichment.
+            HStack {
+                Label("Strava", systemImage: "figure.run")
+                Spacer()
+                if auth.isAuthenticated {
+                    Menu {
+                        Button("Disconnect", role: .destructive) { auth.signOut() }
+                    } label: {
+                        Text(auth.athlete?.displayName.isEmpty == false ? auth.athlete!.displayName : "Connected")
+                            .foregroundStyle(.green).font(.subheadline)
+                    }
+                } else if isConnectingStrava {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Button("Connect") { Task { await connectStrava() } }
+                        .font(.subheadline)
+                }
+            }
+        } header: {
+            Text("Sources")
+        } footer: {
+            Text("Runs come from Apple Health, including workouts recorded by Nike Run Club, Garmin, COROS, Polar, Wahoo, and others. Connect Strava to add titles, gear, and race details.")
+        }
+    }
+
+    private var syncSection: some View {
+        Section {
             Button {
                 Task { await sync.sync() }
             } label: {
@@ -55,9 +92,18 @@ struct SettingsView: View {
                     }
                 }
             }
-            .disabled(sync.isSyncing)
+            .disabled(sync.isSyncing || !sync.hasAnySource)
+        }
+    }
 
-            Button("Disconnect Strava", role: .destructive) { auth.signOut() }
+    private func connectStrava() async {
+        isConnectingStrava = true
+        defer { isConnectingStrava = false }
+        do {
+            try await auth.signIn()
+            await sync.sync()
+        } catch {
+            if case StravaAuthService.AuthError.cancelled = error { return }
         }
     }
 
@@ -103,7 +149,7 @@ struct SettingsView: View {
                 Label("Privacy", systemImage: "hand.raised")
             }
         } footer: {
-            Text("StrideMap stores your runs on this device only. Strava data is fetched with read-only access.")
+            Text("StrideMap stores your runs on this device only. Apple Health and Strava are both read-only.")
         }
     }
 
@@ -121,13 +167,13 @@ private struct PrivacyView: View {
                 Text("Your Data Stays Yours")
                     .font(.system(.title2, design: .rounded).weight(.bold))
                 Text("""
-                StrideMap connects to Strava using read-only OAuth access to fetch your \
-                activities and their GPS routes. Your access token is stored securely in \
-                the iOS Keychain. All run data is cached locally on this device using \
-                on-device storage.
+                StrideMap reads your running workouts and GPS routes from Apple Health \
+                with read-only access. If you connect Strava, it is used only to enrich \
+                those runs with titles, gear, and race details — its access token is stored \
+                securely in the iOS Keychain. All run data is cached locally on this device.
 
                 StrideMap does not run its own servers, does not upload your data anywhere, \
-                and does not share your information with third parties. Disconnecting Strava \
+                and does not share your information with third parties. Disconnecting a source \
                 or deleting the cache removes the data from this device.
                 """)
                 .foregroundStyle(.secondary)

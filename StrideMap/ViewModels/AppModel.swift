@@ -9,7 +9,7 @@ import Observation
 final class AppModel {
 
     var filter = RunFilter()
-    var selectedRunID: Int64?
+    var selectedRunID: UUID?
     var command: MapCameraCommand?
 
     /// Which full-screen surface (if any) is presented over the map.
@@ -23,12 +23,12 @@ final class AppModel {
 
     func focus(on run: Run) {
         withAnimation(Theme.spring) {
-            command = MapCameraCommand(target: .focus(runID: run.activityID))
+            command = MapCameraCommand(target: .focus(runID: run.id))
         }
     }
 
     func fit(_ runs: [Run]) {
-        command = MapCameraCommand(target: .fit(runIDs: runs.map(\.activityID)))
+        command = MapCameraCommand(target: .fit(runIDs: runs.map(\.id)))
     }
 
     func fitAll(_ runs: [Run]) {
@@ -38,7 +38,7 @@ final class AppModel {
     }
 
     func select(_ run: Run) {
-        selectedRunID = run.activityID
+        selectedRunID = run.id
         focus(on: run)
     }
 

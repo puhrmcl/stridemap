@@ -1,10 +1,14 @@
 import SwiftUI
 
-/// A calm, single-purpose welcome screen: connect Strava to begin.
+/// A calm welcome screen. Apple Health is the primary way in; Strava is an optional
+/// enhancement. Either path (or simply continuing) leads to the map.
 struct OnboardingView: View {
     @Environment(StravaAuthService.self) private var auth
+    @Environment(HealthKitService.self) private var healthKit
 
-    @State private var isSigningIn = false
+    @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding = false
+
+    @State private var isWorking = false
     @State private var errorMessage: String?
 
     var body: some View {
@@ -33,43 +37,36 @@ struct OnboardingView: View {
                 Spacer()
 
                 VStack(spacing: 14) {
-                    connectButton
+                    healthButton
 
-                    if !StravaConfig.isConfigured {
-                        Text("Add your Strava keys in StravaConfig.swift to connect.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
+                    stravaButton
 
-                    Text("We only ever read your activities. Nothing is shared.")
+                    Text("Your runs come from Apple Health — including workouts from Nike Run Club, Garmin, COROS, Strava, and more. Nothing is shared.")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)
+                        .padding(.top, 4)
                 }
                 .padding(.horizontal, 32)
-                .padding(.bottom, 50)
+                .padding(.bottom, 46)
             }
             .padding()
         }
-        .alert("Couldn't Connect", isPresented: .constant(errorMessage != nil)) {
+        .alert("Something Went Wrong", isPresented: .constant(errorMessage != nil)) {
             Button("OK") { errorMessage = nil }
         } message: {
             Text(errorMessage ?? "")
         }
     }
 
-    private var connectButton: some View {
+    private var healthButton: some View {
         Button {
-            Task { await signIn() }
+            Task { await connectHealth() }
         } label: {
             HStack(spacing: 10) {
-                if isSigningIn {
-                    ProgressView().tint(.white)
-                } else {
-                    Image(systemName: "figure.run")
-                }
-                Text(isSigningIn ? "Connecting…" : "Connect with Strava")
+                if isWorking { ProgressView().tint(.white) }
+                else { Image(systemName: "heart.fill") }
+                Text(isWorking ? "Connecting…" : "Connect Apple Health")
                     .font(.system(.headline, design: .rounded))
             }
             .foregroundStyle(.white)
@@ -78,31 +75,54 @@ struct OnboardingView: View {
             .background(Theme.accent, in: .rect(cornerRadius: 18))
         }
         .buttonStyle(.plain)
-        .disabled(isSigningIn)
+        .disabled(isWorking || !healthKit.isAvailable)
+    }
+
+    private var stravaButton: some View {
+        Button {
+            Task { await connectStrava() }
+        } label: {
+            Text("Connect Strava (optional)")
+                .font(.system(.subheadline, design: .rounded).weight(.medium))
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .glassBackground(cornerRadius: 16)
+        }
+        .buttonStyle(.plain)
+        .disabled(isWorking)
+    }
+
+    private func connectHealth() async {
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            try await healthKit.requestAuthorization()
+            didCompleteOnboarding = true
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func connectStrava() async {
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            try await auth.signIn()
+            didCompleteOnboarding = true
+        } catch {
+            if case StravaAuthService.AuthError.cancelled = error { return }
+            errorMessage = error.localizedDescription
+        }
     }
 
     private var backdrop: some View {
         LinearGradient(
-            colors: [
-                Theme.accent.opacity(0.18),
-                Color.clear,
-                Color.clear,
-            ],
+            colors: [Theme.accent.opacity(0.18), Color.clear, Color.clear],
             startPoint: .top,
             endPoint: .bottom
         )
         .ignoresSafeArea()
         .background(Color(.systemBackground))
-    }
-
-    private func signIn() async {
-        isSigningIn = true
-        defer { isSigningIn = false }
-        do {
-            try await auth.signIn()
-        } catch {
-            if case StravaAuthService.AuthError.cancelled = error { return }
-            errorMessage = error.localizedDescription
-        }
     }
 }
