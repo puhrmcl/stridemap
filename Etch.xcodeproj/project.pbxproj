@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		0A0000000000000000000006 /* StrideMap */ = {
+		0A0000000000000000000006 /* Etch */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 			);
@@ -15,7 +15,7 @@
 			};
 			explicitFolders = (
 			);
-			path = StrideMap;
+			path = Etch;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -31,9 +31,9 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXNativeTarget section */
-		0A0000000000000000000004 /* StrideMap */ = {
+		0A0000000000000000000004 /* Etch */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 0A000000000000000000000D /* Build configuration list for PBXNativeTarget "StrideMap" */;
+			buildConfigurationList = 0A000000000000000000000D /* Build configuration list for PBXNativeTarget "Etch" */;
 			buildPhases = (
 				0A0000000000000000000007 /* Sources */,
 				0A0000000000000000000008 /* Frameworks */,
@@ -44,11 +44,11 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				0A0000000000000000000006 /* StrideMap */,
+				0A0000000000000000000006 /* Etch */,
 			);
-			name = StrideMap;
-			productName = StrideMap;
-			productReference = 0A0000000000000000000005 /* StrideMap.app */;
+			name = Etch;
+			productName = Etch;
+			productReference = 0A0000000000000000000005 /* Etch.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -66,7 +66,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 0A000000000000000000000A /* Build configuration list for PBXProject "StrideMap" */;
+			buildConfigurationList = 0A000000000000000000000A /* Build configuration list for PBXProject "Etch" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -80,7 +80,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				0A0000000000000000000004 /* StrideMap */,
+				0A0000000000000000000004 /* Etch */,
 			);
 		};
 /* End PBXProject section */
@@ -109,7 +109,7 @@
 		0A0000000000000000000002 = {
 			isa = PBXGroup;
 			children = (
-				0A0000000000000000000006 /* StrideMap */,
+				0A0000000000000000000006 /* Etch */,
 				0A0000000000000000000003 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -117,7 +117,7 @@
 		0A0000000000000000000003 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				0A0000000000000000000005 /* StrideMap.app */,
+				0A0000000000000000000005 /* Etch.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -125,11 +125,11 @@
 /* End PBXGroup section */
 
 /* Begin PBXFileReference section */
-		0A0000000000000000000005 /* StrideMap.app */ = {
+		0A0000000000000000000005 /* Etch.app */ = {
 			isa = PBXFileReference;
 			explicitFileType = wrapper.application;
 			includeInIndex = 0;
-			path = StrideMap.app;
+			path = Etch.app;
 			sourceTree = BUILT_PRODUCTS_DIR;
 		};
 /* End PBXFileReference section */
@@ -261,12 +261,12 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = UV4A75F95G;
-				CODE_SIGN_ENTITLEMENTS = StrideMap/StrideMap.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Etch/Etch.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = StrideMap/Info.plist;
+				INFOPLIST_FILE = Etch/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -277,7 +277,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.stridemap.StrideMap;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nwagtech.etch;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -292,12 +292,12 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = UV4A75F95G;
-				CODE_SIGN_ENTITLEMENTS = StrideMap/StrideMap.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Etch/Etch.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = StrideMap/Info.plist;
+				INFOPLIST_FILE = Etch/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -308,7 +308,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.stridemap.StrideMap;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nwagtech.etch;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -319,7 +319,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		0A000000000000000000000A /* Build configuration list for PBXProject "StrideMap" */ = {
+		0A000000000000000000000A /* Build configuration list for PBXProject "Etch" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				0A000000000000000000000B /* Debug */,
@@ -328,7 +328,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		0A000000000000000000000D /* Build configuration list for PBXNativeTarget "StrideMap" */ = {
+		0A000000000000000000000D /* Build configuration list for PBXNativeTarget "Etch" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				0A000000000000000000000E /* Debug */,

@@ -1,8 +1,8 @@
 {
-  "name": "stridemap-strava-proxy",
+  "name": "etch-strava-proxy",
   "version": "1.0.0",
   "private": true,
-  "description": "Cloudflare Worker that proxies Strava OAuth token exchange for StrideMap, keeping the client secret server-side.",
+  "description": "Cloudflare Worker that proxies Strava OAuth token exchange for Etch, keeping the client secret server-side.",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy"

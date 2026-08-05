@@ -4,7 +4,7 @@ import Security
 /// A tiny Keychain wrapper for securely persisting the Strava OAuth token set.
 enum KeychainStore {
 
-    private static let service = "com.stridemap.strava"
+    private static let service = "com.nwagtech.etch.strava"
 
     static func save(_ data: Data, for key: String) {
         let query: [String: Any] = [

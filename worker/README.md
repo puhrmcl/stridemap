@@ -1,4 +1,4 @@
-# StrideMap — Strava token proxy (Cloudflare Worker)
+# Etch — Strava token proxy (Cloudflare Worker)
 
 A tiny Cloudflare Worker that performs Strava's OAuth token exchange and refresh so the
 **client secret never ships inside the iOS app**. The app talks only to this Worker; the
@@ -39,26 +39,26 @@ npx wrangler deploy
 `wrangler deploy` prints the live URL, e.g.:
 
 ```
-https://stridemap-strava-proxy.<your-subdomain>.workers.dev
+https://etch-strava-proxy.<your-subdomain>.workers.dev
 ```
 
 ## Wire up the app
 
-Open `StrideMap/Config/StravaConfig.swift` and set:
+Open `Etch/Config/StravaConfig.swift` and set:
 
 ```swift
 static let clientID = "<your Strava Client ID>"     // public, safe in the app
-static let tokenProxyURL = "https://stridemap-strava-proxy.<your-subdomain>.workers.dev"
+static let tokenProxyURL = "https://etch-strava-proxy.<your-subdomain>.workers.dev"
 ```
 
 That's it — there is **no `clientSecret` in the app anymore**. The Strava
-"Authorization Callback Domain" stays `stridemap` (the app's URL scheme); the OAuth
+"Authorization Callback Domain" stays `etch` (the app's URL scheme); the OAuth
 redirect goes to the app, not to this Worker.
 
 ## Test
 
 ```bash
-curl https://stridemap-strava-proxy.<your-subdomain>.workers.dev/health
+curl https://etch-strava-proxy.<your-subdomain>.workers.dev/health
 # → {"ok":true}
 ```
 

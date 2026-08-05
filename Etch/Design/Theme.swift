@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Visual language for StrideMap: calm, premium, minimal. Colours are tuned to sit
+/// Visual language for Etch: calm, premium, minimal. Colours are tuned to sit
 /// beautifully on top of both light and dark Apple Maps.
 enum Theme {
 

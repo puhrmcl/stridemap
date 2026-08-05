@@ -24,7 +24,7 @@ struct OnboardingView: View {
                         .foregroundStyle(Theme.accent)
                         .shadow(color: Theme.accent.opacity(0.4), radius: 24)
 
-                    Text("StrideMap")
+                    Text("Etch")
                         .font(.system(size: 40, weight: .bold, design: .rounded))
 
                     Text("Every run you've ever taken,\nwoven into one living map.")

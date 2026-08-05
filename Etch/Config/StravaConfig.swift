@@ -4,7 +4,7 @@ import Foundation
 ///
 /// To connect the app to your own Strava API application:
 ///  1. Create an API application at https://www.strava.com/settings/api
-///  2. Set the "Authorization Callback Domain" to `stridemap` (the URL scheme below).
+///  2. Set the "Authorization Callback Domain" to `etch` (the URL scheme below).
 ///  3. Paste your **Client ID** below (it is public and safe to ship).
 ///  4. Deploy the token proxy in `worker/` (see `worker/README.md`) and paste its URL
 ///     into `tokenProxyURL`.
@@ -18,12 +18,12 @@ enum StravaConfig {
     static let clientID = "YOUR_STRAVA_CLIENT_ID"
 
     /// URL of your deployed token proxy Worker (see `worker/README.md`), e.g.
-    /// `https://stridemap-strava-proxy.<your-subdomain>.workers.dev`.
+    /// `https://etch-strava-proxy.<your-subdomain>.workers.dev`.
     /// The app POSTs `{ grant_type, code | refresh_token }` to `<tokenProxyURL>/oauth/token`.
-    static let tokenProxyURL = "https://stridemap-strava-proxy.YOUR-SUBDOMAIN.workers.dev"
+    static let tokenProxyURL = "https://etch-strava-proxy.YOUR-SUBDOMAIN.workers.dev"
 
     /// Custom URL scheme registered in Info.plist (`CFBundleURLSchemes`).
-    static let urlScheme = "stridemap"
+    static let urlScheme = "etch"
 
     /// The redirect URI Strava will call back after authorization.
     static let redirectURI = "\(urlScheme)://callback"

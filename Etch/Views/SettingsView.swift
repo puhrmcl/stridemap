@@ -149,7 +149,7 @@ struct SettingsView: View {
                 Label("Privacy", systemImage: "hand.raised")
             }
         } footer: {
-            Text("StrideMap stores your runs on this device only. Apple Health and Strava are both read-only.")
+            Text("Etch stores your runs on this device only. Apple Health and Strava are both read-only.")
         }
     }
 
@@ -167,12 +167,12 @@ private struct PrivacyView: View {
                 Text("Your Data Stays Yours")
                     .font(.system(.title2, design: .rounded).weight(.bold))
                 Text("""
-                StrideMap reads your running workouts and GPS routes from Apple Health \
+                Etch reads your running workouts and GPS routes from Apple Health \
                 with read-only access. If you connect Strava, it is used only to enrich \
                 those runs with titles, gear, and race details — its access token is stored \
                 securely in the iOS Keychain. All run data is cached locally on this device.
 
-                StrideMap does not run its own servers, does not upload your data anywhere, \
+                Etch does not run its own servers, does not upload your data anywhere, \
                 and does not share your information with third parties. Disconnecting a source \
                 or deleting the cache removes the data from this device.
                 """)
