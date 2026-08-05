@@ -18,7 +18,8 @@ paste into App Store Connect.
 | **Primary category** | Health & Fitness |
 | **Secondary category** | Navigation *(or Sports)* |
 | **Price** | Free |
-| **Copyright** | `© 2026 NWAG Tech` *(adjust to your legal entity)* |
+| **Copyright** | `© 2026 Northwest Ag Technologies, L.L.C.` |
+| **Team ID** | `UV4A75F95G` (Northwest Ag Technologies, L.L.C. — Organization) |
 
 ### Name alternatives (if "StrideMap" alone is taken)
 - `StrideMap: Your Run Map`
@@ -107,13 +108,12 @@ one beautiful map. Filter, explore, and relive your year. Thanks for running wit
 | Field | Value |
 |---|---|
 | **Privacy Policy URL** (required) | `https://puhrmcl.github.io/stridemap/privacy.html` |
-| **Support URL** (required) | `https://puhrmcl.github.io/stridemap/` *(needs a simple landing/support page — see note below)* |
-| **Marketing URL** (optional) | leave blank or a landing page |
+| **Support URL** (required) | `https://puhrmcl.github.io/stridemap/` *(served by `docs/index.html`)* |
+| **Marketing URL** (optional) | `https://puhrmcl.github.io/stridemap/` |
 
-> **Support URL note:** Apple requires a reachable Support URL (a web page, not a
-> `mailto:`). The quickest option is a one-page site at the same GitHub Pages host that
-> lists the support email (software@nwagtech.com). I can generate `docs/index.html` for
-> this if you want.
+> Both URLs are served by GitHub Pages from `/docs` once Pages is enabled. When
+> `stridemap.nwagtech.com` is set up (see `PLATFORM.md`), switch these to
+> `https://stridemap.nwagtech.com/privacy.html` and `https://stridemap.nwagtech.com/`.
 
 ---
 

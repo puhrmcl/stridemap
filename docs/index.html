@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StrideMap — Every run you've ever taken, on one map</title>
+<meta name="description" content="StrideMap visualizes your entire running history from Apple Health on a beautiful, interactive map. Private by design.">
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1c1c1e; --muted: #6b6b70;
+    --accent: #fc5c44; --card: #f6f6f7; --border: #e6e6e9; --maxw: 760px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f0f11; --fg: #ececee; --muted: #9a9aa0;
+      --accent: #fc5c44; --card: #1a1a1d; --border: #2a2a2e;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 0 20px;
+  }
+  main { max-width: var(--maxw); margin: 0 auto; padding: 72px 0 96px; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 20px; letter-spacing: -0.01em; }
+  .brand .dot {
+    width: 28px; height: 28px; border-radius: 9px; background: var(--accent);
+    display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 16px;
+  }
+  h1 { font-size: 40px; line-height: 1.1; letter-spacing: -0.03em; margin: 40px 0 12px; }
+  h2 { font-size: 22px; letter-spacing: -0.01em; margin: 44px 0 12px; }
+  .lede { font-size: 19px; color: var(--muted); max-width: 60ch; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; margin: 28px 0; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 18px; border-radius: 14px; font-weight: 600;
+    background: var(--accent); color: #fff;
+  }
+  .btn.secondary { background: transparent; color: var(--fg); border: 1px solid var(--border); }
+  .features { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 20px 0; }
+  @media (max-width: 560px) { .features { grid-template-columns: 1fr; } h1 { font-size: 32px; } }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px; }
+  .card h3 { margin: 0 0 4px; font-size: 16px; }
+  .card p { margin: 0; color: var(--muted); font-size: 15px; }
+  .support { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 22px 24px; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+  footer { color: var(--muted); font-size: 14px; }
+  footer a { color: var(--muted); text-decoration: underline; }
+</style>
+</head>
+<body>
+<main>
+  <span class="brand"><span class="dot">◵</span> StrideMap</span>
+
+  <h1>Every run you've ever taken,<br>woven into one living map.</h1>
+  <p class="lede">
+    StrideMap visualizes your entire running history from Apple Health on a beautiful,
+    interactive map. Not charts — just one calm question: <em>where have I run?</em>
+  </p>
+
+  <div class="row">
+    <a class="btn" href="mailto:software@nwagtech.com">Contact Support</a>
+    <a class="btn secondary" href="privacy.html">Privacy Policy</a>
+  </div>
+
+  <h2>What it does</h2>
+  <div class="features">
+    <div class="card"><h3>Map-first</h3><p>A full-screen map is the whole app. Recent runs glow; older runs fade.</p></div>
+    <div class="card"><h3>From Apple Health</h3><p>Apple Watch, Nike, Garmin, COROS, Strava — any app that saves runs to Health.</p></div>
+    <div class="card"><h3>Explore &amp; recap</h3><p>Cities, records, a travel map, and an animated Year in Review.</p></div>
+    <div class="card"><h3>Private by design</h3><p>Your runs stay on your device. No accounts, no servers, nothing uploaded.</p></div>
+  </div>
+
+  <h2>Support</h2>
+  <div class="support">
+    <p style="margin-top:0">
+      Questions, feedback, or trouble with the app? Email us — we read everything.
+    </p>
+    <p style="margin-bottom:0">
+      <strong>Email:</strong> <a href="mailto:software@nwagtech.com">software@nwagtech.com</a><br>
+      <strong>Response time:</strong> typically within a few business days.
+    </p>
+  </div>
+
+  <h2>Common questions</h2>
+  <p><strong>Why is my map empty?</strong> StrideMap draws runs from Apple Health. Grant the
+  Health permission on first launch, and make sure you have running workouts (with GPS
+  routes) recorded. New runs appear automatically as you record them.</p>
+  <p><strong>Do I need Strava?</strong> No. Strava is optional and only adds extra details
+  (titles, gear, races) to runs already in Apple Health.</p>
+  <p><strong>How do I delete my data?</strong> Use <em>Delete Cache</em> in Settings, or
+  delete the app — everything is stored on your device.</p>
+
+  <hr>
+  <footer>
+    © 2026 Northwest Ag Technologies, L.L.C. ·
+    <a href="privacy.html">Privacy</a> ·
+    <a href="mailto:software@nwagtech.com">software@nwagtech.com</a>
+  </footer>
+</main>
+</body>
+</html>
