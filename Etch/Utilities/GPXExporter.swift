@@ -9,8 +9,8 @@ enum GPXExporter {
         let iso = ISO8601DateFormatter()
         var lines: [String] = []
         lines.append(#"<?xml version="1.0" encoding="UTF-8"?>"#)
-        lines.append(#"<gpx version="1.1" creator="StrideMap" xmlns="http://www.topografix.com/GPX/1/1">"#)
-        lines.append("  <metadata><name>StrideMap Export</name><time>\(iso.string(from: Date()))</time></metadata>")
+        lines.append(#"<gpx version="1.1" creator="Etch" xmlns="http://www.topografix.com/GPX/1/1">"#)
+        lines.append("  <metadata><name>Etch Export</name><time>\(iso.string(from: Date()))</time></metadata>")
 
         for run in runs where run.hasRoute {
             let coords = run.coordinates
@@ -33,7 +33,7 @@ enum GPXExporter {
     static func writeTemporaryFile(for runs: [Run]) throws -> URL {
         let gpx = makeGPX(from: runs)
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("StrideMap-\(Int(Date().timeIntervalSince1970)).gpx")
+            .appendingPathComponent("Etch-\(Int(Date().timeIntervalSince1970)).gpx")
         try gpx.write(to: url, atomically: true, encoding: .utf8)
         return url
     }

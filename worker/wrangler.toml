@@ -1,4 +1,4 @@
-name = "stridemap-strava-proxy"
+name = "etch-strava-proxy"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
 
@@ -7,5 +7,5 @@ compatibility_date = "2025-01-01"
 #   wrangler secret put STRAVA_CLIENT_SECRET
 #
 # After `wrangler deploy`, the Worker is reachable at:
-#   https://stridemap-strava-proxy.<your-subdomain>.workers.dev
-# Paste that URL into StrideMap/Config/StravaConfig.swift (tokenProxyURL).
+#   https://etch-strava-proxy.<your-subdomain>.workers.dev
+# Paste that URL into Etch/Config/StravaConfig.swift (tokenProxyURL).

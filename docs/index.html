@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>StrideMap — Every run you've ever taken, on one map</title>
-<meta name="description" content="StrideMap visualizes your entire running history from Apple Health on a beautiful, interactive map. Private by design.">
+<title>Etch — Every run you've ever taken, on one map</title>
+<meta name="description" content="Etch visualizes your entire running history from Apple Health on a beautiful, interactive map. Private by design.">
 <style>
   :root {
     --bg: #ffffff; --fg: #1c1c1e; --muted: #6b6b70;
-    --accent: #fc5c44; --card: #f6f6f7; --border: #e6e6e9; --maxw: 760px;
+    --accent: #ff5b2b; --card: #f6f6f7; --border: #e6e6e9; --maxw: 760px;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #0f0f11; --fg: #ececee; --muted: #9a9aa0;
-      --accent: #fc5c44; --card: #1a1a1d; --border: #2a2a2e;
+      --accent: #ff5b2b; --card: #1a1a1d; --border: #2a2a2e;
     }
   }
   * { box-sizing: border-box; }
@@ -47,6 +47,8 @@
   .card h3 { margin: 0 0 4px; font-size: 16px; }
   .card p { margin: 0; color: var(--muted); font-size: 15px; }
   .support { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 22px 24px; }
+  .hero { display: flex; justify-content: center; margin: 34px 0 6px; }
+  .hero svg { width: min(74vw, 300px); height: auto; filter: drop-shadow(0 22px 55px rgba(255,91,43,.18)); }
   hr { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
   footer { color: var(--muted); font-size: 14px; }
   footer a { color: var(--muted); text-decoration: underline; }
@@ -54,11 +56,40 @@
 </head>
 <body>
 <main>
-  <span class="brand"><span class="dot">◵</span> StrideMap</span>
+  <span class="brand"><span class="dot">◵</span> Etch</span>
+
+  <!-- Hero: inline-SVG Route-E on a dark tile. Swap for the photographic render
+       by replacing this <div class="hero">…</div> with <img src="brand/etch-hero.png" alt="Etch">. -->
+  <div class="hero">
+    <svg viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Etch icon">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#161619"/><stop offset="1" stop-color="#0a0a0c"/>
+        </linearGradient>
+        <linearGradient id="em" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#ffb27a"/><stop offset="0.5" stop-color="#ff6a2e"/><stop offset="1" stop-color="#f5431f"/>
+        </linearGradient>
+        <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="7" result="b"/><feMerge>
+          <feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <rect width="320" height="320" rx="70" fill="url(#bg)"/>
+      <g stroke="#26262c" stroke-width="5" stroke-linecap="round" opacity="0.55">
+        <path d="M40 120 L280 120"/><path d="M40 210 L280 210"/>
+        <path d="M110 40 L110 280"/><path d="M210 40 L210 280"/>
+      </g>
+      <g filter="url(#glow)" stroke="url(#em)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M96 232 C150 254 210 234 226 196 C246 150 208 98 168 106 C120 116 114 184 156 198 C198 212 150 252 216 232"/>
+      </g>
+      <circle cx="96" cy="232" r="8" fill="#fff2e6"/>
+      <circle cx="216" cy="232" r="8" fill="#fff2e6"/>
+    </svg>
+  </div>
 
   <h1>Every run you've ever taken,<br>woven into one living map.</h1>
   <p class="lede">
-    StrideMap visualizes your entire running history from Apple Health on a beautiful,
+    Etch visualizes your entire running history from Apple Health on a beautiful,
     interactive map. Not charts — just one calm question: <em>where have I run?</em>
   </p>
 
@@ -87,7 +118,7 @@
   </div>
 
   <h2>Common questions</h2>
-  <p><strong>Why is my map empty?</strong> StrideMap draws runs from Apple Health. Grant the
+  <p><strong>Why is my map empty?</strong> Etch draws runs from Apple Health. Grant the
   Health permission on first launch, and make sure you have running workouts (with GPS
   routes) recorded. New runs appear automatically as you record them.</p>
   <p><strong>Do I need Strava?</strong> No. Strava is optional and only adds extra details

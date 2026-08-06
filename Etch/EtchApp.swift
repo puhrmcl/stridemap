@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 @main
-struct StrideMapApp: App {
+struct EtchApp: App {
 
     /// One shared container for the whole app.
     let modelContainer: ModelContainer

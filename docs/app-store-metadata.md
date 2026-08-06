@@ -1,4 +1,4 @@
-# StrideMap — App Store Connect metadata (v1.0)
+# Etch — App Store Connect metadata (v1.0)
 
 Copy-paste reference for the App Store Connect listing. Character limits are Apple's;
 counts are approximate — verify in the form. Nothing here needs a Mac; it's all text you
@@ -10,10 +10,10 @@ paste into App Store Connect.
 
 | Field | Value |
 |---|---|
-| **App Name** (≤30) | `StrideMap` |
+| **App Name** (≤30) | `Etch: Running Map` *(brand is "Etch"; the descriptor aids App Store search)* |
 | **Subtitle** (≤30) | `Map every run you've taken` |
-| **Bundle ID** | `com.stridemap.StrideMap` |
-| **SKU** | `STRIDEMAP-001` |
+| **Bundle ID** | `com.nwagtech.etch` |
+| **SKU** | `ETCH-001` |
 | **Primary language** | English (U.S.) |
 | **Primary category** | Health & Fitness |
 | **Secondary category** | Navigation *(or Sports)* |
@@ -21,9 +21,8 @@ paste into App Store Connect.
 | **Copyright** | `© 2026 Northwest Ag Technologies, L.L.C.` |
 | **Team ID** | `UV4A75F95G` (Northwest Ag Technologies, L.L.C. — Organization) |
 
-### Name alternatives (if "StrideMap" alone is taken)
-- `StrideMap: Your Run Map`
-- `StrideMap — Running Map`
+### Tagline
+- **"Etch your ground."** (primary)  ·  *"Every run you've ever taken."*
 
 ---
 
@@ -39,10 +38,10 @@ _(~150 chars)_
 ## Description (≤4000)
 
 ```
-StrideMap turns your running history into a living map.
+Etch turns your running history into a living map.
 
 Every run you've ever taken — drawn as a glowing web across the streets, trails, and
-cities you've explored. StrideMap isn't about charts or numbers. It's about one simple,
+cities you've explored. Etch isn't about charts or numbers. It's about one simple,
 beautiful question: where have I run?
 
 Your runs come straight from Apple Health, so workouts from Apple Watch, Nike Run Club,
@@ -77,7 +76,7 @@ PRIVATE BY DESIGN
 • No accounts, no servers, nothing uploaded
 • Apple Health access is read-only
 
-StrideMap is calm, minimal, and made for anyone who loves seeing where their feet have
+Etch is calm, minimal, and made for anyone who loves seeing where their feet have
 taken them.
 ```
 
@@ -97,7 +96,7 @@ separately, so they're intentionally omitted here to save space.)_
 ## What's New (release notes, v1.0)
 
 ```
-The first StrideMap. Connect Apple Health and watch every run you've ever taken appear on
+The first Etch. Connect Apple Health and watch every run you've ever taken appear on
 one beautiful map. Filter, explore, and relive your year. Thanks for running with us.
 ```
 
@@ -107,13 +106,13 @@ one beautiful map. Filter, explore, and relive your year. Thanks for running wit
 
 | Field | Value |
 |---|---|
-| **Privacy Policy URL** (required) | `https://puhrmcl.github.io/stridemap/privacy.html` |
-| **Support URL** (required) | `https://puhrmcl.github.io/stridemap/` *(served by `docs/index.html`)* |
-| **Marketing URL** (optional) | `https://puhrmcl.github.io/stridemap/` |
+| **Privacy Policy URL** (required) | `https://puhrmcl.github.io/etch/privacy.html` |
+| **Support URL** (required) | `https://puhrmcl.github.io/etch/` *(served by `docs/index.html`)* |
+| **Marketing URL** (optional) | `https://puhrmcl.github.io/etch/` |
 
 > Both URLs are served by GitHub Pages from `/docs` once Pages is enabled. When
-> `stridemap.nwagtech.com` is set up (see `PLATFORM.md`), switch these to
-> `https://stridemap.nwagtech.com/privacy.html` and `https://stridemap.nwagtech.com/`.
+> `etch.nwagtech.com` is set up (see `PLATFORM.md`), switch these to
+> `https://etch.nwagtech.com/privacy.html` and `https://etch.nwagtech.com/`.
 
 ---
 
@@ -127,7 +126,7 @@ one beautiful map. Filter, explore, and relive your year. Thanks for running wit
 ### Review notes (paste into the "Notes" field — this is what prevents HealthKit rejections)
 
 ```
-StrideMap visualizes the user's running workouts from Apple Health on a map. No account or
+Etch visualizes the user's running workouts from Apple Health on a map. No account or
 login is required — all core functionality works with Apple Health alone.
 
 HEALTHKIT
@@ -158,7 +157,7 @@ Questions: software@nwagtech.com
 
 ## App Privacy ("nutrition labels")
 
-StrideMap does not transmit any user data off the device, so under Apple's definition it
+Etch does not transmit any user data off the device, so under Apple's definition it
 does **not "collect"** data. Recommended answers:
 
 - **Do you or your third-party partners collect data from this app?** → **No, we do not

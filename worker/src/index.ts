@@ -1,5 +1,5 @@
 /**
- * StrideMap — Strava OAuth token proxy (Cloudflare Worker)
+ * Etch — Strava OAuth token proxy (Cloudflare Worker)
  *
  * Strava's token exchange requires the app's `client_secret`. Shipping that secret
  * inside the iOS app is insecure, so this Worker holds it server-side and performs the

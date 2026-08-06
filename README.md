@@ -1,8 +1,8 @@
-# StrideMap
+# Etch
 
 Every run you've ever taken, woven into one living map.
 
-StrideMap visualizes your entire running history on a beautiful, interactive Apple Map.
+Etch visualizes your entire running history on a beautiful, interactive Apple Map.
 The focus isn't analytics — it's *"where have I run?"* As your completed streets
 accumulate, they gradually form a glowing web across the cities you've explored.
 
@@ -12,7 +12,7 @@ Polar, Wahoo, adidas Running, Runna, Strava — anything that writes running wor
 HealthKit — all appear automatically. **Strava is an optional enrichment** that adds
 titles, gear, and race details on top.
 
-Built with SwiftUI, MapKit, SwiftData, HealthKit, and Strava OAuth for iOS 26.
+Built with SwiftUI, MapKit, SwiftData, HealthKit, and Strava OAuth for iOS 18+.
 
 ---
 
@@ -56,8 +56,8 @@ Built with SwiftUI, MapKit, SwiftData, HealthKit, and Strava OAuth for iOS 26.
 
 ## Getting started
 
-1. Open `StrideMap.xcodeproj` in **Xcode 26** or later.
-2. Signing & entitlements are pre-wired: the target ships `StrideMap.entitlements` with
+1. Open `Etch.xcodeproj` in **Xcode 26** or later.
+2. Signing & entitlements are pre-wired: the target ships `Etch.entitlements` with
    the **HealthKit** (and HealthKit background-delivery) entitlement, and the Info.plist
    carries `NSHealthShareUsageDescription`. With automatic signing, select your team and
    run — HealthKit is enabled from the entitlements file.
@@ -65,10 +65,10 @@ Built with SwiftUI, MapKit, SwiftData, HealthKit, and Strava OAuth for iOS 26.
    launch, grant Apple Health access — your entire running history imports and maps.
 4. *(Optional)* To enable Strava enrichment:
    - Create an API application at <https://www.strava.com/settings/api> and set the
-     **Authorization Callback Domain** to `stridemap`.
+     **Authorization Callback Domain** to `etch`.
    - Deploy the token-proxy Worker in [`worker/`](worker/README.md) (Cloudflare, free) —
      it holds your Strava **client secret** server-side so it never ships in the app.
-   - Paste your **Client ID** and the Worker URL into `StrideMap/Config/StravaConfig.swift`
+   - Paste your **Client ID** and the Worker URL into `Etch/Config/StravaConfig.swift`
      (`clientID`, `tokenProxyURL`). Then connect Strava from onboarding or Settings.
 
 > **Notes.** HealthKit needs a real device or a simulator seeded with running workouts;
@@ -79,8 +79,8 @@ Built with SwiftUI, MapKit, SwiftData, HealthKit, and Strava OAuth for iOS 26.
 ## Architecture
 
 ```
-StrideMap/
-├─ StrideMapApp.swift          App entry, SwiftData container, environment wiring
+Etch/
+├─ EtchApp.swift          App entry, SwiftData container, environment wiring
 ├─ Config/                     Strava OAuth configuration
 ├─ Models/
 │  ├─ Run.swift                Unified SwiftData model (UUID id, provider, metrics, gear…)
