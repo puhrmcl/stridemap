@@ -1,0 +1,34 @@
+name: iOS Build
+
+# Compile-checks Etch on a real macOS runner (simulator, no code signing).
+# This is our build verification since the app is authored without a local Xcode.
+on:
+  push:
+    branches: [ "claude/rebrand-etch" ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select newest Xcode
+        run: |
+          set -e
+          echo "Installed Xcodes:"; ls -d /Applications/Xcode*.app || true
+          XC=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1 || true)
+          if [ -n "$XC" ]; then sudo xcode-select -s "$XC/Contents/Developer"; fi
+          xcodebuild -version
+          echo "SDKs:"; xcodebuild -showsdks | grep -i ios || true
+
+      - name: Build (iOS Simulator, no signing)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Etch.xcodeproj \
+            -scheme Etch \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO
