@@ -3,6 +3,7 @@ import Foundation
 /// Abstraction over any source of running activities. New ecosystems (Garmin, COROS,
 /// Polar, Suunto, …) can be added by conforming a new type — the import service and the
 /// UI never change, because everything downstream speaks `ImportedActivity` / `Run`.
+@MainActor
 protocol ActivityProvider {
 
     /// Which ecosystem this provider represents.
