@@ -10,9 +10,22 @@
 		0A0000000000000000000005 /* StrideMap.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StrideMap.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		3CDD82EB3025B29800E848EE /* Exceptions for "StrideMap" folder in "StrideMap" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 0A0000000000000000000004 /* StrideMap */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0A0000000000000000000006 /* StrideMap */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				3CDD82EB3025B29800E848EE /* Exceptions for "StrideMap" folder in "StrideMap" target */,
+			);
 			path = StrideMap;
 			sourceTree = "<group>";
 		};
