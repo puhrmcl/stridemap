@@ -232,6 +232,17 @@ struct RunMapView: UIViewRepresentable {
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
         ) -> Bool { true }
+
+        /// Only treat taps that land on the map surface as route taps. Without this, the
+        /// tap recognizer swallows touches on the floating SwiftUI controls (finding no
+        /// route under them), so those buttons need several taps before they respond.
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldReceive touch: UITouch
+        ) -> Bool {
+            guard let map, let touchView = touch.view else { return true }
+            return touchView.isDescendant(of: map)
+        }
     }
 }
 

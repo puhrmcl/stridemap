@@ -93,16 +93,17 @@ final class SyncService {
                 try context.save()
             }
 
-            // Recover routes for HealthKit runs whose route arrived after the workout, or
-            // that were imported before route tracking existed. Bounded + idempotent.
-            await recoverMissingRoutes(limit: 40)
-
             // Best-effort: fill in place names for runs that arrived without them
             // (HealthKit doesn't geocode). Bounded so we never hit CLGeocoder limits.
             await enrichMissingLocations(limit: 40)
 
             lastSyncDate = Date()
             status = .finished(imported: imported)
+
+            // Recover late-arriving routes AFTER finishing, off the spinner path: route
+            // recovery is many sequential HealthKit queries and must never block sync from
+            // completing. It updates runs in place as maps are found.
+            Task { await recoverMissingRoutes(limit: 20) }
         } catch {
             status = .failed(error.localizedDescription)
         }
@@ -142,9 +143,15 @@ final class SyncService {
     /// already ruled `.unavailable`. Recent runs keep retrying; older runs get a single
     /// check and are then marked `.unavailable`, so history is never rescanned on every
     /// launch.
-    func recoverMissingRoutes(limit: Int = 40) async {
-        guard healthKitProvider.isAvailable else { return }
+    func recoverMissingRoutes(limit: Int = 20) async {
+        guard !isRecoveringRoutes, healthKitProvider.isAvailable else { return }
+        isRecoveringRoutes = true
+        defer { isRecoveringRoutes = false }
+        await performRouteRecovery(limit: limit)
+    }
 
+    /// Core recovery pass. Callers own the `isRecoveringRoutes` flag so it always resets.
+    private func performRouteRecovery(limit: Int) async {
         let unavailable = RouteSyncStatus.unavailable.rawValue
         var descriptor = FetchDescriptor<Run>(
             predicate: #Predicate {
@@ -210,7 +217,7 @@ final class SyncService {
             try? context.save()
         }
 
-        await recoverMissingRoutes(limit: 500)
+        await performRouteRecovery(limit: 150)
     }
 
     /// Attaches a recovered route to a run and records provenance/state. Central so every
