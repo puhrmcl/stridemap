@@ -48,7 +48,7 @@
   .card p { margin: 0; color: var(--muted); font-size: 15px; }
   .support { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 22px 24px; }
   .hero { display: flex; justify-content: center; margin: 34px 0 6px; }
-  .hero svg { width: min(74vw, 300px); height: auto; filter: drop-shadow(0 22px 55px rgba(255,91,43,.18)); }
+  .hero svg, .hero img { width: min(74vw, 300px); height: auto; border-radius: 26px; display: block; filter: drop-shadow(0 22px 55px rgba(255,91,43,.20)); }
   hr { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
   footer { color: var(--muted); font-size: 14px; }
   footer a { color: var(--muted); text-decoration: underline; }
@@ -57,35 +57,7 @@
 <body>
 <main>
   <span class="brand"><span class="dot">◵</span> Etch</span>
-
-  <!-- Hero: inline-SVG Route-E on a dark tile. Swap for the photographic render
-       by replacing this <div class="hero">…</div> with <img src="brand/etch-hero.png" alt="Etch">. -->
-  <div class="hero">
-    <svg viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Etch icon">
-      <defs>
-        <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#161619"/><stop offset="1" stop-color="#0a0a0c"/>
-        </linearGradient>
-        <linearGradient id="em" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#ffb27a"/><stop offset="0.5" stop-color="#ff6a2e"/><stop offset="1" stop-color="#f5431f"/>
-        </linearGradient>
-        <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
-          <feGaussianBlur stdDeviation="7" result="b"/><feMerge>
-          <feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
-      </defs>
-      <rect width="320" height="320" rx="70" fill="url(#bg)"/>
-      <g stroke="#26262c" stroke-width="5" stroke-linecap="round" opacity="0.55">
-        <path d="M40 120 L280 120"/><path d="M40 210 L280 210"/>
-        <path d="M110 40 L110 280"/><path d="M210 40 L210 280"/>
-      </g>
-      <g filter="url(#glow)" stroke="url(#em)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none">
-        <path d="M96 232 C150 254 210 234 226 196 C246 150 208 98 168 106 C120 116 114 184 156 198 C198 212 150 252 216 232"/>
-      </g>
-      <circle cx="96" cy="232" r="8" fill="#fff2e6"/>
-      <circle cx="216" cy="232" r="8" fill="#fff2e6"/>
-    </svg>
-  </div>
+  <div class="hero"><img src="brand/etch-hero.png" alt="Etch — every run on one map"></div>
 
   <h1>Every run you've ever taken,<br>woven into one living map.</h1>
   <p class="lede">
