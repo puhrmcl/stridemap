@@ -77,6 +77,10 @@ struct SettingsView: View {
         }
     }
 
+    private var runsMissingMaps: Int {
+        runs.filter { $0.healthKitID != nil && !$0.hasRoute }.count
+    }
+
     private var syncSection: some View {
         Section {
             Button {
@@ -93,6 +97,25 @@ struct SettingsView: View {
                 }
             }
             .disabled(sync.isSyncing || !sync.hasAnySource)
+
+            if healthKit.isAvailable {
+                Button {
+                    Task { await sync.resyncHealthKitRoutes() }
+                } label: {
+                    HStack {
+                        Label("Recover Missing Maps", systemImage: "map")
+                        Spacer()
+                        if sync.isRecoveringRoutes { ProgressView().controlSize(.small) }
+                        else if runsMissingMaps > 0 {
+                            Text("\(runsMissingMaps)")
+                                .foregroundStyle(.secondary).font(.caption)
+                        }
+                    }
+                }
+                .disabled(sync.isRecoveringRoutes || sync.isSyncing)
+            }
+        } footer: {
+            Text("Some apps save a run to Apple Health before its GPS route finishes syncing. Etch recovers those maps automatically; use this to check now.")
         }
     }
 

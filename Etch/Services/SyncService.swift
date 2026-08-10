@@ -21,6 +21,8 @@ final class SyncService {
     }
 
     private(set) var status: Status = .idle
+    /// True while a manual "recover missing maps" pass is running (drives the Settings UI).
+    private(set) var isRecoveringRoutes = false
     private(set) var lastSyncDate: Date? {
         didSet {
             if let lastSyncDate {
@@ -91,6 +93,10 @@ final class SyncService {
                 try context.save()
             }
 
+            // Recover routes for HealthKit runs whose route arrived after the workout, or
+            // that were imported before route tracking existed. Bounded + idempotent.
+            await recoverMissingRoutes(limit: 40)
+
             // Best-effort: fill in place names for runs that arrived without them
             // (HealthKit doesn't geocode). Bounded so we never hit CLGeocoder limits.
             await enrichMissingLocations(limit: 40)
@@ -122,6 +128,107 @@ final class SyncService {
         try? context.save()
     }
 
+    // MARK: Route recovery (late-arriving HealthKit routes)
+
+    /// A run is old enough that a route is very unlikely to still be syncing in.
+    private let routePendingWindow: TimeInterval = 14 * 24 * 60 * 60   // 14 days
+    /// Give up after this many fruitless checks even for recent runs.
+    private let maxRouteChecks = 6
+
+    /// Re-queries HealthKit for routes of runs that are missing one, and attaches any that
+    /// have since become available. Safe to run repeatedly.
+    ///
+    /// Performance: bounded to `limit` runs per pass, newest first, and never touches runs
+    /// already ruled `.unavailable`. Recent runs keep retrying; older runs get a single
+    /// check and are then marked `.unavailable`, so history is never rescanned on every
+    /// launch.
+    func recoverMissingRoutes(limit: Int = 40) async {
+        guard healthKitProvider.isAvailable else { return }
+
+        let unavailable = RouteSyncStatus.unavailable.rawValue
+        var descriptor = FetchDescriptor<Run>(
+            predicate: #Predicate {
+                $0.healthKitID != nil && $0.summaryPolyline == "" && $0.routeStatusRaw != unavailable
+            },
+            sortBy: [SortDescriptor(\.startDate, order: .reverse)]
+        )
+        descriptor.fetchLimit = limit
+        guard let candidates = try? context.fetch(descriptor), !candidates.isEmpty else { return }
+
+        var recovered = 0
+        var changed = false
+        for run in candidates {
+            guard let hkID = run.healthKitID else { continue }
+            let coordinates = await healthKitProvider.recoverRoute(forWorkoutUUID: hkID)
+            run.routeCheckedAt = Date()
+            run.routeCheckCount += 1
+            changed = true
+
+            switch coordinates {
+            case .some(let coords) where !coords.isEmpty:
+                applyRoute(coords, source: .healthKit, to: run)
+                recovered += 1
+                HealthKitLog.route("Updated Etch run \(run.id) with recovered route")
+            case .some:
+                // Workout found but still no route. Keep retrying only for recent runs.
+                let age = Date().timeIntervalSince(run.startDate)
+                if age > routePendingWindow || run.routeCheckCount >= maxRouteChecks {
+                    run.routeStatus = .unavailable
+                } else {
+                    run.routeStatus = .pending
+                }
+            case .none:
+                // Couldn't locate the workout right now — leave state, try again later.
+                break
+            }
+        }
+
+        if changed { try? context.save() }
+        if recovered > 0 {
+            HealthKitLog.route("Route recovery pass attached \(recovered) map(s)")
+        }
+    }
+
+    /// Manual "Recover Missing Maps" entry point. Re-opens runs previously marked
+    /// `.unavailable` for one more attempt, then runs a large recovery pass. Exposed for a
+    /// Settings action; idempotent and safe to invoke anytime.
+    func resyncHealthKitRoutes() async {
+        guard !isRecoveringRoutes, healthKitProvider.isAvailable else { return }
+        isRecoveringRoutes = true
+        defer { isRecoveringRoutes = false }
+
+        // Reset write-offs so the user's explicit request re-checks everything once more.
+        let unavailable = RouteSyncStatus.unavailable.rawValue
+        let descriptor = FetchDescriptor<Run>(
+            predicate: #Predicate { $0.healthKitID != nil && $0.summaryPolyline == "" && $0.routeStatusRaw == unavailable }
+        )
+        if let stale = try? context.fetch(descriptor) {
+            for run in stale {
+                run.routeStatus = .unknown
+                run.routeCheckCount = 0
+            }
+            try? context.save()
+        }
+
+        await recoverMissingRoutes(limit: 500)
+    }
+
+    /// Attaches a recovered route to a run and records provenance/state. Central so every
+    /// path (initial import, enrichment merge, backfill) writes route state consistently.
+    private func applyRoute(
+        _ coordinates: [CLLocationCoordinate2D],
+        source: RouteSource,
+        to run: Run,
+        encoded: String? = nil
+    ) {
+        guard !coordinates.isEmpty else { return }
+        run.summaryPolyline = encoded ?? PolylineDecoder.encode(coordinates)
+        applyGeometry(coordinates, to: run)
+        run.routeStatus = .available
+        run.routeSource = source
+        run.updatedAt = Date()
+    }
+
     // MARK: Primary import (HealthKit)
 
     /// Creates a run from a primary provider activity. De-duplicates on the HealthKit id,
@@ -141,6 +248,16 @@ final class SyncService {
 
         let run = makeRun(from: activity)
         run.healthKitID = activity.externalID
+        run.routeCheckedAt = Date()
+        run.routeCheckCount = 1
+        if run.hasRoute {
+            run.routeStatus = .available
+            run.routeSource = .healthKit
+        } else {
+            // The workout arrived; its route may still be syncing (Nike Run Club). Mark it
+            // pending so recovery keeps looking rather than treating this as route-less.
+            run.routeStatus = .pending
+        }
         context.insert(run)
         return true
     }
@@ -155,8 +272,8 @@ final class SyncService {
         if run.activeEnergy == nil { run.activeEnergy = activity.activeEnergy }
         if run.averageCadence == nil { run.averageCadence = activity.averageCadence }
         if !run.hasRoute, !activity.coordinates.isEmpty {
-            run.summaryPolyline = activity.encodedPolyline ?? PolylineDecoder.encode(activity.coordinates)
-            applyGeometry(activity.coordinates, to: run)
+            applyRoute(activity.coordinates, source: .healthKit, to: run,
+                       encoded: activity.encodedPolyline)
         }
         if run.elevationGain == 0, let gain = activity.elevationGain { run.elevationGain = gain }
         run.updatedAt = Date()
@@ -186,6 +303,10 @@ final class SyncService {
         await stravaProvider.enrich(&activity)
         let run = makeRun(from: activity)
         run.stravaActivityID = Int64(activity.externalID)
+        if run.hasRoute {
+            run.routeStatus = .available
+            run.routeSource = .strava
+        }
         context.insert(run)
         return true
     }
@@ -230,8 +351,7 @@ final class SyncService {
 
         // Fill route/elevation only if HealthKit didn't provide them.
         if !run.hasRoute, let polyline = activity.encodedPolyline, !polyline.isEmpty {
-            run.summaryPolyline = polyline
-            applyGeometry(activity.coordinates, to: run)
+            applyRoute(activity.coordinates, source: .strava, to: run, encoded: polyline)
         }
         if run.elevationGain == 0, let gain = activity.elevationGain { run.elevationGain = gain }
         run.updatedAt = Date()

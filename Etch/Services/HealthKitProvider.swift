@@ -24,9 +24,51 @@ final class HealthKitProvider: ActivityProvider {
         results.reserveCapacity(workouts.count)
         for workout in workouts {
             let coordinates = (try? await route(for: workout)) ?? []
+            HealthKitLog.route("Imported workout \(workout.uuid) — \(coordinates.count) route points")
             results.append(makeActivity(from: workout, coordinates: coordinates))
         }
         return results
+    }
+
+    // MARK: Single-workout route recovery
+
+    /// Re-queries HealthKit for the route of a workout we've already imported, identified by
+    /// its UUID. Used by the backfill / anchored-query recovery paths to attach routes that
+    /// arrived after the workout.
+    ///
+    /// - Returns: `nil` when the workout itself can't be located (transient — leave state
+    ///   untouched and retry later); an empty array when the workout exists but still has no
+    ///   route (pending / unavailable); coordinates when a route is now present.
+    func recoverRoute(forWorkoutUUID uuidString: String) async -> [CLLocationCoordinate2D]? {
+        guard let uuid = UUID(uuidString: uuidString) else { return nil }
+        HealthKitLog.route("Searching for route for workout \(uuidString)")
+        guard let workout = await workout(uuid: uuid) else {
+            HealthKitLog.route("Workout \(uuidString) not found in HealthKit")
+            return nil
+        }
+        let coordinates = (try? await route(for: workout)) ?? []
+        if coordinates.isEmpty {
+            HealthKitLog.route("No route available yet for workout \(uuidString)")
+        } else {
+            HealthKitLog.route("Recovered route for workout \(uuidString) — \(coordinates.count) points")
+        }
+        return coordinates
+    }
+
+    /// Fetches a single workout by its HealthKit UUID.
+    private func workout(uuid: UUID) async -> HKWorkout? {
+        await withCheckedContinuation { continuation in
+            let predicate = HKQuery.predicateForObject(with: uuid)
+            let query = HKSampleQuery(
+                sampleType: HKObjectType.workoutType(),
+                predicate: predicate,
+                limit: 1,
+                sortDescriptors: nil
+            ) { _, samples, _ in
+                continuation.resume(returning: (samples as? [HKWorkout])?.first)
+            }
+            store.execute(query)
+        }
     }
 
     // MARK: Workout query
@@ -77,10 +119,22 @@ final class HealthKitProvider: ActivityProvider {
             store.execute(query)
         }
 
+        // A workout may expose its GPS trace as several route objects; stitch them together
+        // in chronological order so the combined line reads start-to-finish.
+        let orderedRoutes = routes.sorted { $0.startDate < $1.startDate }
         var coordinates: [CLLocationCoordinate2D] = []
-        for route in routes {
+        for route in orderedRoutes {
             let locations = try await locations(for: route)
-            coordinates.append(contentsOf: locations.map(\.coordinate))
+            for location in locations {
+                let coordinate = location.coordinate
+                // Skip a point identical to the immediately preceding one (chunk seams can
+                // repeat a sample); keeps geometry clean without dropping real detail.
+                if let last = coordinates.last,
+                   last.latitude == coordinate.latitude, last.longitude == coordinate.longitude {
+                    continue
+                }
+                coordinates.append(coordinate)
+            }
         }
         return coordinates
     }

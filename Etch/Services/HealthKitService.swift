@@ -83,5 +83,63 @@ final class HealthKitService {
             store.stop(observerQuery)
             self.observerQuery = nil
         }
+        if let routeAnchorQuery {
+            store.stop(routeAnchorQuery)
+            self.routeAnchorQuery = nil
+        }
+    }
+
+    // MARK: Route observation (late-arriving routes)
+
+    private var routeAnchorQuery: HKAnchoredObjectQuery?
+
+    /// Persisted anchor so the route query reports only genuinely new/updated routes across
+    /// launches, instead of rescanning the whole HealthKit route database each time.
+    private var routeAnchor: HKQueryAnchor? {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: "routeQueryAnchor") else { return nil }
+            return try? NSKeyedUnarchiver.unarchivedObject(ofClass: HKQueryAnchor.self, from: data)
+        }
+        set {
+            guard let newValue,
+                  let data = try? NSKeyedArchiver.archivedData(withRootObject: newValue, requiringSecureCoding: true)
+            else { return }
+            UserDefaults.standard.set(data, forKey: "routeQueryAnchor")
+        }
+    }
+
+    /// Watches for `HKWorkoutRoute` objects that arrive *after* their workout was imported
+    /// (the Nike Run Club case). Uses an anchored query so each pass only surfaces new
+    /// routes, and enables background delivery so recovery can happen when routes finish
+    /// syncing while Etch is backgrounded. `onNewRoutes` runs on the main actor.
+    func startObservingRoutes(onNewRoutes: @escaping () -> Void) {
+        guard isAvailable, routeAnchorQuery == nil else { return }
+        let routeType = HKSeriesType.workoutRoute()
+
+        let handler: (HKAnchoredObjectQuery, [HKSample]?, [HKDeletedObject]?, HKQueryAnchor?, Error?) -> Void = { [weak self] _, samples, _, newAnchor, _ in
+            Task { @MainActor in
+                guard let self else { return }
+                if let newAnchor { self.routeAnchor = newAnchor }
+                if let samples, !samples.isEmpty {
+                    HealthKitLog.route("New route(s) received via anchored query — \(samples.count)")
+                    onNewRoutes()
+                }
+            }
+        }
+
+        let query = HKAnchoredObjectQuery(
+            type: routeType,
+            predicate: nil,
+            anchor: routeAnchor,
+            limit: HKObjectQueryNoLimit,
+            resultsHandler: handler
+        )
+        query.updateHandler = handler
+        store.execute(query)
+        routeAnchorQuery = query
+
+        store.enableBackgroundDelivery(for: routeType, frequency: .hourly) { _, _ in
+            // Best-effort; failures are non-fatal (e.g. entitlement not provisioned).
+        }
     }
 }

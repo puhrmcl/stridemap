@@ -39,6 +39,22 @@ final class Run {
     /// Encoded (Google-format) polyline of the route.
     var summaryPolyline: String
 
+    // MARK: Route synchronisation state
+
+    /// Tracks the route independently of the workout. A HealthKit workout can exist in Etch
+    /// while its `HKWorkoutRoute` is still pending — routes often arrive after the workout
+    /// (Nike Run Club writes the workout first, the route seconds-to-minutes later). Default
+    /// `.unknown` so runs imported before this field existed get re-checked once.
+    var routeStatusRaw: String = RouteSyncStatus.unknown.rawValue
+    /// Where the current route came from, so a future Strava / GPX fallback can decide
+    /// whether to override or defer to it.
+    var routeSourceRaw: String?
+    /// Last time we queried HealthKit for this run's route. Drives backoff so we don't
+    /// rescan the whole history every launch.
+    var routeCheckedAt: Date?
+    /// Number of route lookups performed for this run — used to stop retrying eventually.
+    var routeCheckCount: Int = 0
+
     // MARK: Rich metrics (may be absent depending on source)
 
     var averageHeartRate: Double?
@@ -155,7 +171,43 @@ final class Run {
     }
 }
 
+// MARK: - Route synchronisation
+
+/// The lifecycle of a run's route, tracked separately from the workout so a late-arriving
+/// `HKWorkoutRoute` can be recovered without re-importing (or duplicating) the run.
+enum RouteSyncStatus: String {
+    /// Never checked — either brand new or imported before route tracking existed.
+    case unknown
+    /// Checked, no route yet, but it may still arrive (recent run).
+    case pending
+    /// Route successfully imported.
+    case available
+    /// Checked and the route is genuinely unavailable from this source.
+    case unavailable
+}
+
+/// Where a route came from. HealthKit is canonical today; Strava and file imports are
+/// future fallbacks for workouts HealthKit never received a route for.
+enum RouteSource: String {
+    case healthKit
+    case strava
+    case imported
+}
+
 // MARK: - Provenance helpers
+
+extension Run {
+
+    var routeStatus: RouteSyncStatus {
+        get { RouteSyncStatus(rawValue: routeStatusRaw) ?? .unknown }
+        set { routeStatusRaw = newValue.rawValue }
+    }
+
+    var routeSource: RouteSource? {
+        get { routeSourceRaw.flatMap(RouteSource.init(rawValue:)) }
+        set { routeSourceRaw = newValue?.rawValue }
+    }
+}
 
 extension Run {
 

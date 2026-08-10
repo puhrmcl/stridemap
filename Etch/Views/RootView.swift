@@ -34,6 +34,11 @@ struct RootView: View {
             healthKit.startObserving {
                 Task { @MainActor in await sync.sync() }
             }
+            // Separately observe routes so a map that finishes syncing after its workout
+            // (e.g. Nike Run Club) is recovered without a full re-import.
+            healthKit.startObservingRoutes {
+                Task { @MainActor in await sync.recoverMissingRoutes() }
+            }
         }
     }
 }
