@@ -11,7 +11,8 @@ enum HealthKitLog {
 
     static func route(_ message: @autoclosure () -> String) {
         #if DEBUG
-        logger.debug("[HealthKit] \(message(), privacy: .public)")
+        let text = message()
+        logger.debug("[HealthKit] \(text, privacy: .public)")
         #endif
     }
 }
