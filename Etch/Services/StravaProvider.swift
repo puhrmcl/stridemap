@@ -6,6 +6,7 @@ import CoreLocation
 /// descriptions, race identification, and location names. The import service merges these
 /// into HealthKit runs where they match, and only creates standalone runs for Strava
 /// activities that have no HealthKit counterpart.
+@MainActor
 final class StravaProvider: ActivityProvider {
 
     let auth: StravaAuthService

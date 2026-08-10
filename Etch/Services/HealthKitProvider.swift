@@ -5,6 +5,7 @@ import CoreLocation
 /// Primary `ActivityProvider` backed by Apple Health. Reads running workouts written by
 /// *any* app (Apple Workouts, Nike Run Club, Strava, Garmin, COROS, …), along with their
 /// GPS routes and available metrics, and normalises them into `ImportedActivity`.
+@MainActor
 final class HealthKitProvider: ActivityProvider {
 
     let store: HKHealthStore
