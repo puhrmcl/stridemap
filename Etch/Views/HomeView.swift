@@ -27,6 +27,13 @@ struct HomeView: View {
                 command: $appModel.command
             )
             .ignoresSafeArea()
+            // Attached to the map (an inner view), not the ZStack, so it doesn't compete
+            // with the surface sheet below — two sheets on one view makes the first flaky.
+            .sheet(item: selectedRunBinding) { run in
+                RunDetailView(run: run)
+                    .presentationDetents([.medium, .large])
+                    .presentationBackground(.regularMaterial)
+            }
 
             VStack(spacing: 0) {
                 topBar
@@ -50,11 +57,6 @@ struct HomeView: View {
         }
         .sheet(item: $appModel.presentedSurface) { surface in
             surfaceView(for: surface)
-        }
-        .sheet(item: selectedRunBinding) { run in
-            RunDetailView(run: run)
-                .presentationDetents([.medium, .large])
-                .presentationBackground(.regularMaterial)
         }
     }
 
