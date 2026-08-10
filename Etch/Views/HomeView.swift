@@ -31,6 +31,13 @@ struct HomeView: View {
             VStack(spacing: 0) {
                 topBar
                 Spacer()
+                HStack {
+                    Spacer()
+                    GlassIconButton(systemName: "location.fill") {
+                        appModel.recenterOnUser()
+                    }
+                }
+                .padding(.bottom, 10)
                 bottomBar
             }
             .padding(.horizontal, 16)

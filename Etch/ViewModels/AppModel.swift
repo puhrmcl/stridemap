@@ -46,6 +46,11 @@ final class AppModel {
         selectedRunID = nil
     }
 
+    /// Recenters the map on the user's current location (the blue dot).
+    func recenterOnUser() {
+        command = MapCameraCommand(target: .userLocation)
+    }
+
     /// Applies a filter change with an animated map transition.
     func setFilter(_ new: RunFilter) {
         withAnimation(Theme.gentle) { filter = new }

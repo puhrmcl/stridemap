@@ -18,6 +18,8 @@ struct MapCameraCommand: Equatable {
         case fit(runIDs: [UUID])
         case focus(runID: UUID)
         case region(latitude: Double, longitude: Double, spanDegrees: Double)
+        /// Recenter on the user's current location (the blue dot).
+        case userLocation
     }
     var id = UUID()
     var target: Target

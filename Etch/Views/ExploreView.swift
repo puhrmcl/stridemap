@@ -36,7 +36,12 @@ struct ExploreView: View {
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 StatTile(value: stats.cities.count.formatted(), label: "Cities", systemName: "building.2", accent: true)
-                StatTile(value: stats.states.count.formatted(), label: "States", systemName: "map")
+                NavigationLink {
+                    StatesView()
+                } label: {
+                    StatTile(value: stats.states.count.formatted(), label: "States", systemName: "map")
+                }
+                .buttonStyle(.plain)
                 StatTile(value: stats.countries.count.formatted(), label: "Countries", systemName: "globe")
                 StatTile(
                     value: Format.distanceValue(stats.totalDistanceMeters).formatted(.number.precision(.fractionLength(0))),

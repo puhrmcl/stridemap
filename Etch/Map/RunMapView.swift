@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import CoreLocation
 
 /// High-performance route map. Wraps `MKMapView` so thousands of polylines render
 /// smoothly with per-route colour, age fading, and a recency glow — something SwiftUI's
@@ -37,6 +38,8 @@ struct RunMapView: UIViewRepresentable {
         map.addGestureRecognizer(tap)
 
         context.coordinator.map = map
+        // Ask for location so the blue user dot can appear; harmless if declined.
+        context.coordinator.requestLocationAuthorization()
         return map
     }
 
@@ -63,7 +66,15 @@ struct RunMapView: UIViewRepresentable {
         /// run id → overlay, so we can diff efficiently between updates.
         private var overlaysByID: [UUID: RunPolyline] = [:]
 
+        private let locationManager = CLLocationManager()
+
         init(_ parent: RunMapView) { self.parent = parent }
+
+        func requestLocationAuthorization() {
+            if locationManager.authorizationStatus == .notDetermined {
+                locationManager.requestWhenInUseAuthorization()
+            }
+        }
 
         // MARK: Overlay diffing
 
@@ -163,6 +174,15 @@ struct RunMapView: UIViewRepresentable {
                 let region = MKCoordinateRegion(
                     center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
                     span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span)
+                )
+                map.setRegion(region, animated: true)
+            case .userLocation:
+                let coordinate = map.userLocation.coordinate
+                guard CLLocationCoordinate2DIsValid(coordinate),
+                      !(coordinate.latitude == 0 && coordinate.longitude == 0) else { return }
+                let region = MKCoordinateRegion(
+                    center: coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
                 )
                 map.setRegion(region, animated: true)
             }
