@@ -15,6 +15,8 @@ struct RunMapView: UIViewRepresentable {
     @Binding var command: MapCameraCommand?
     /// Whether older routes should fade (the "web through time" look).
     var fadeWithAge: Bool = true
+    /// The base map style (standard / satellite / hybrid).
+    var mapStyle: MapStyleOption = .standard
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -26,9 +28,8 @@ struct RunMapView: UIViewRepresentable {
         map.showsCompass = false
         map.showsScale = false
 
-        let config = MKStandardMapConfiguration(elevationStyle: .flat)
-        config.pointOfInterestFilter = .excludingAll
-        map.preferredConfiguration = config
+        map.preferredConfiguration = mapStyle.configuration()
+        context.coordinator.appliedStyle = mapStyle
 
         let tap = UITapGestureRecognizer(
             target: context.coordinator,
@@ -47,6 +48,10 @@ struct RunMapView: UIViewRepresentable {
 
     func updateUIView(_ map: MKMapView, context: Context) {
         context.coordinator.parent = self
+        if context.coordinator.appliedStyle != mapStyle {
+            context.coordinator.appliedStyle = mapStyle
+            map.preferredConfiguration = mapStyle.configuration()
+        }
         context.coordinator.updateOverlays(with: runs, fadeWithAge: fadeWithAge)
         context.coordinator.updateSelection(selectedRunID)
 
@@ -64,6 +69,7 @@ struct RunMapView: UIViewRepresentable {
         var parent: RunMapView
         weak var map: MKMapView?
         var lastCommandID: UUID?
+        var appliedStyle: MapStyleOption?
 
         /// run id → overlay, so we can diff efficiently between updates.
         private var overlaysByID: [UUID: RunPolyline] = [:]

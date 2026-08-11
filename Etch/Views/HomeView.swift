@@ -7,6 +7,9 @@ struct HomeView: View {
     @Environment(SyncService.self) private var sync
     @Query(sort: \Run.startDate, order: .reverse) private var allRuns: [Run]
 
+    @AppStorage("mapStyle") private var mapStyleRaw = MapStyleOption.standard.rawValue
+    private var mapStyle: MapStyleOption { MapStyleOption(rawValue: mapStyleRaw) ?? .standard }
+
     private var stats: RunStatistics { RunStatistics(allRuns) }
 
     /// Runs passing the active filter.
@@ -23,7 +26,8 @@ struct HomeView: View {
         RunMapView(
             runs: visibleRuns,
             selectedRunID: $appModel.selectedRunID,
-            command: $appModel.command
+            command: $appModel.command,
+            mapStyle: mapStyle
         )
         .ignoresSafeArea()
         // Controls float via safe-area insets rather than a ZStack overlay, so SwiftUI owns
@@ -38,8 +42,11 @@ struct HomeView: View {
             VStack(spacing: 10) {
                 HStack {
                     Spacer()
-                    GlassIconButton(systemName: "location.fill") {
-                        appModel.recenterOnUser()
+                    VStack(spacing: 10) {
+                        mapStyleButton
+                        GlassIconButton(systemName: "location.fill") {
+                            appModel.recenterOnUser()
+                        }
                     }
                 }
                 bottomBar
@@ -183,6 +190,24 @@ struct HomeView: View {
         GlassIconButton(systemName: icon, isActive: active) {
             appModel.presentedSurface = surface
         }
+    }
+
+    /// Switches the base map between standard, satellite, and hybrid.
+    private var mapStyleButton: some View {
+        Menu {
+            Picker("Map Style", selection: $mapStyleRaw) {
+                ForEach(MapStyleOption.allCases) { style in
+                    Label(style.label, systemImage: style.symbol).tag(style.rawValue)
+                }
+            }
+        } label: {
+            Image(systemName: mapStyle.symbol)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 46, height: 46)
+                .glassBackground(cornerRadius: 23)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: Empty / syncing state
