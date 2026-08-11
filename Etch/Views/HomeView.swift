@@ -231,6 +231,12 @@ struct HomeView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.accent)
             }
+            if !sync.lastDiagnostic.isEmpty {
+                Text(sync.lastDiagnostic)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
+            }
             Text(AppInfo.label)
                 .font(.caption2)
                 .foregroundStyle(.tertiary)

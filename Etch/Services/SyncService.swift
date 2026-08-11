@@ -23,6 +23,9 @@ final class SyncService {
     private(set) var status: Status = .idle
     /// True while a manual "recover missing maps" pass is running (drives the Settings UI).
     private(set) var isRecoveringRoutes = false
+    /// Short human-readable result of the last sync (e.g. "Health: 0 workouts"), shown on the
+    /// empty/importing screen so it's obvious *why* there are no runs.
+    private(set) var lastDiagnostic = ""
     private(set) var lastSyncDate: Date? {
         didSet {
             if let lastSyncDate {
@@ -71,7 +74,8 @@ final class SyncService {
             // 1. Primary: HealthKit (and any future primary providers). Time-boxed so a
             // slow/unresponsive HealthKit store can never leave the import spinner up forever.
             if healthKitProvider.isAvailable {
-                let activities = await healthKitActivities(since: since, timeout: 30)
+                let activities = await healthKitActivities(since: since, timeout: 15)
+                lastDiagnostic = "Health: \(activities.count) workout\(activities.count == 1 ? "" : "s")"
                 for activity in activities {
                     if try importPrimary(activity) {
                         imported += 1
@@ -79,11 +83,16 @@ final class SyncService {
                     }
                 }
                 try context.save()
+            } else {
+                lastDiagnostic = "Apple Health unavailable"
             }
 
-            // 2. Enrichment: Strava merges into primary runs or adds its own.
+            // 2. Enrichment: Strava merges into primary runs or adds its own. Time-boxed too.
             if stravaProvider.isAvailable {
-                let activities = try await stravaProvider.fetchActivities(since: since)
+                lastDiagnostic += " · Strava connected"
+                let activities = await withTimeout(20, fallback: [ImportedActivity]()) { [stravaProvider] in
+                    (try? await stravaProvider.fetchActivities(since: since)) ?? []
+                }
                 for activity in activities {
                     var activity = activity
                     if try await importEnrichment(&activity) {
@@ -113,15 +122,8 @@ final class SyncService {
     /// an empty list) rather than hanging the whole import if the query never comes back.
     private func healthKitActivities(since: Date?, timeout seconds: Double) async -> [ImportedActivity] {
         let provider = healthKitProvider
-        return await withTaskGroup(of: [ImportedActivity]?.self) { group in
-            group.addTask { (try? await provider.fetchActivities(since: since)) ?? [] }
-            group.addTask {
-                try? await Task.sleep(for: .seconds(seconds))
-                return nil
-            }
-            let first = await group.next() ?? nil
-            group.cancelAll()
-            return first ?? []
+        return await withTimeout(seconds, fallback: [ImportedActivity]()) {
+            (try? await provider.fetchActivities(since: since)) ?? []
         }
     }
 
