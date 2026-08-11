@@ -20,30 +20,34 @@ struct HomeView: View {
     var body: some View {
         @Bindable var appModel = appModel
 
-        ZStack {
-            RunMapView(
-                runs: visibleRuns,
-                selectedRunID: $appModel.selectedRunID,
-                command: $appModel.command
-            )
-            .ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                topBar
-                Spacer()
+        RunMapView(
+            runs: visibleRuns,
+            selectedRunID: $appModel.selectedRunID,
+            command: $appModel.command
+        )
+        .ignoresSafeArea()
+        // Controls float via safe-area insets rather than a ZStack overlay, so SwiftUI owns
+        // their hit-testing and they don't compete with the map's UIKit gestures (which made
+        // the buttons need several taps).
+        .safeAreaInset(edge: .top, spacing: 0) {
+            topBar
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 10) {
                 HStack {
                     Spacer()
                     GlassIconButton(systemName: "location.fill") {
                         appModel.recenterOnUser()
                     }
                 }
-                .padding(.bottom, 10)
                 bottomBar
             }
             .padding(.horizontal, 16)
-            .padding(.top, 8)
             .padding(.bottom, 12)
-
+        }
+        .overlay {
             if allRuns.isEmpty {
                 emptyOrSyncing
             }

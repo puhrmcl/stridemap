@@ -35,6 +35,8 @@ struct RunMapView: UIViewRepresentable {
             action: #selector(Coordinator.handleTap(_:))
         )
         tap.delegate = context.coordinator
+        // Never swallow touches meant for the floating SwiftUI controls.
+        tap.cancelsTouchesInView = false
         map.addGestureRecognizer(tap)
 
         context.coordinator.map = map
