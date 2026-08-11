@@ -25,6 +25,29 @@ final class HealthKitProvider: ActivityProvider {
         return workouts.map { makeActivity(from: $0, coordinates: []) }
     }
 
+    /// Diagnostic summary: total workouts of *any* type vs. running workouts. Distinguishes
+    /// "no read permission / no data" (0 workouts) from "workouts exist but none are typed as
+    /// runs" (>0 workouts, 0 runs) — the two reasons an import can find nothing.
+    func workoutSummary() async -> String {
+        let all = await allWorkouts()
+        let running = all.reduce(0) { $0 + ($1.workoutActivityType == .running ? 1 : 0) }
+        return "\(all.count) workouts · \(running) runs"
+    }
+
+    private func allWorkouts() async -> [HKWorkout] {
+        await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: HKObjectType.workoutType(),
+                predicate: nil,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: nil
+            ) { _, samples, _ in
+                continuation.resume(returning: (samples as? [HKWorkout]) ?? [])
+            }
+            store.execute(query)
+        }
+    }
+
     // MARK: Route hydration
 
     /// Streams routes for already-imported workouts one at a time: a single workout query

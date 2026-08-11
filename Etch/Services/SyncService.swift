@@ -75,7 +75,6 @@ final class SyncService {
             // slow/unresponsive HealthKit store can never leave the import spinner up forever.
             if healthKitProvider.isAvailable {
                 let activities = await healthKitActivities(since: since, timeout: 15)
-                lastDiagnostic = "Health: \(activities.count) workout\(activities.count == 1 ? "" : "s")"
                 for activity in activities {
                     if try importPrimary(activity) {
                         imported += 1
@@ -83,6 +82,17 @@ final class SyncService {
                     }
                 }
                 try context.save()
+
+                if activities.isEmpty {
+                    // Nothing imported — say why: how many workouts of any type exist vs runs.
+                    let provider = healthKitProvider
+                    let summary = await withTimeout(10, fallback: "query timed out") {
+                        await provider.workoutSummary()
+                    }
+                    lastDiagnostic = "Health: \(summary)"
+                } else {
+                    lastDiagnostic = "Health: \(activities.count) runs imported"
+                }
             } else {
                 lastDiagnostic = "Apple Health unavailable"
             }
