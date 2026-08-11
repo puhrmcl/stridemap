@@ -20,7 +20,7 @@ enum StravaConfig {
     /// URL of your deployed token proxy Worker (see `worker/README.md`), e.g.
     /// `https://etch-strava-proxy.<your-subdomain>.workers.dev`.
     /// The app POSTs `{ grant_type, code | refresh_token }` to `<tokenProxyURL>/oauth/token`.
-    static let tokenProxyURL = "https://etch-strava-proxy.YOUR-SUBDOMAIN.workers.dev"
+    static let tokenProxyURL = "https://etch.clintpuhrmann.workers.dev"
 
     /// Custom URL scheme registered in Info.plist (`CFBundleURLSchemes`).
     static let urlScheme = "etch"
