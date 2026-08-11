@@ -229,23 +229,29 @@ final class SyncService {
         let since = pending.map(\.startDate).min()?.addingTimeInterval(-24 * 60 * 60)
         let deadline = Date().addingTimeInterval(hydrationDeadline)
 
-        var processed = 0
-        var recovered = 0
+        var processed = 0, recovered = 0, noRoute = 0, failed = 0
         for await item in healthKitProvider.routeStream(forWorkoutUUIDs: Set(runsByID.keys), since: since) {
             if let run = runsByID[item.id] {
                 run.routeCheckedAt = Date()
                 run.routeCheckCount += 1
-                if !item.coordinates.isEmpty {
-                    applyRoute(item.coordinates, source: .healthKit, to: run)
+                switch item.outcome {
+                case .coordinates(let coordinates):
+                    applyRoute(coordinates, source: .healthKit, to: run)
                     recovered += 1
-                } else {
-                    // Workout has no route. Retry recent runs; age out old ones.
+                case .noRoute:
+                    // The source wrote no route. Retry recent runs a few times, then mark
+                    // genuinely unavailable so history isn't rescanned forever.
+                    noRoute += 1
                     let age = Date().timeIntervalSince(run.startDate)
                     if age > routePendingWindow || run.routeCheckCount >= maxRouteChecks {
                         run.routeStatus = .unavailable
                     } else {
                         run.routeStatus = .pending
                     }
+                case .failed:
+                    // Query error — keep retriable (not the terminal `.unavailable`).
+                    failed += 1
+                    run.routeStatus = .failed
                 }
             }
             processed += 1
@@ -254,7 +260,7 @@ final class SyncService {
         }
 
         try? context.save()
-        if recovered > 0 { HealthKitLog.route("Hydrated \(recovered) route(s)") }
+        HealthKitLog.route("[Etch HealthKit] Route pass: \(recovered) recovered · \(noRoute) no-route · \(failed) failed · of \(processed)")
     }
 
     /// Attaches a recovered route to a run and records provenance/state. Central so every

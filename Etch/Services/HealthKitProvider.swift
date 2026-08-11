@@ -50,16 +50,22 @@ final class HealthKitProvider: ActivityProvider {
 
     // MARK: Route hydration
 
-    /// Streams routes for already-imported workouts one at a time: a single workout query
-    /// (bounded to `since`), then a route query per matched workout, yielding as each
+    /// The result of trying to fetch a workout's GPS route — kept distinct so callers (and
+    /// logs) can tell "the source wrote no route" from "the query failed".
+    enum RouteOutcome: Sendable {
+        case coordinates([CLLocationCoordinate2D]) // route present
+        case noRoute                                // 0 HKWorkoutRoute objects (Scenario B)
+        case failed                                 // query errored (Scenario C)
+    }
+
+    /// Streams route outcomes for already-imported workouts one at a time: a single workout
+    /// query (bounded to `since`), then a route query per matched workout, yielding as each
     /// resolves. Keeps `HKWorkout` (non-Sendable) inside the provider and hands out only
-    /// Sendable coordinates, so the caller can attach and save progressively.
-    ///
-    /// An empty coordinate array means the workout exists but has no route (yet).
+    /// Sendable values, so the caller can attach and save progressively.
     func routeStream(
         forWorkoutUUIDs uuids: Set<String>,
         since: Date?
-    ) -> AsyncStream<(id: String, coordinates: [CLLocationCoordinate2D])> {
+    ) -> AsyncStream<(id: String, outcome: RouteOutcome)> {
         AsyncStream { continuation in
             let task = Task { @MainActor in
                 let workouts = (try? await runningWorkouts(since: since)) ?? []
@@ -67,13 +73,46 @@ final class HealthKitProvider: ActivityProvider {
                     if Task.isCancelled { break }
                     let key = workout.uuid.uuidString
                     guard uuids.contains(key) else { continue }
-                    let coordinates = (try? await route(for: workout)) ?? []
-                    continuation.yield((id: key, coordinates: coordinates))
+                    let outcome = await routeOutcome(for: workout)
+                    continuation.yield((id: key, outcome: outcome))
                 }
                 continuation.finish()
             }
             continuation.onTermination = { _ in task.cancel() }
         }
+    }
+
+    /// Fetches a workout's route and logs a one-line DEBUG diagnostic identifying the source
+    /// (name + bundle id), sizes, and the outcome — so device logs make it obvious whether a
+    /// missing map is the source writing no route vs. Etch failing to read one.
+    func routeOutcome(for workout: HKWorkout) async -> RouteOutcome {
+        let source = workout.sourceRevision.source
+        let base = "[Etch HealthKit] \(workout.uuid.uuidString.prefix(8))"
+            + " src=\"\(source.name)\" [\(source.bundleIdentifier)]"
+            + " \(Int(distance(of: workout)))m/\(Int(workout.duration))s"
+        do {
+            let samples = try await routeSamples(for: workout)
+            guard !samples.isEmpty else {
+                HealthKitLog.route("\(base) routes=0 gps=0 status=NO_ROUTE_IN_HEALTHKIT")
+                return .noRoute
+            }
+            let coordinates = try await coordinates(from: samples)
+            guard !coordinates.isEmpty else {
+                HealthKitLog.route("\(base) routes=\(samples.count) gps=0 status=ROUTE_OBJECT_EMPTY")
+                return .noRoute
+            }
+            HealthKitLog.route("\(base) routes=\(samples.count) gps=\(coordinates.count)"
+                + " first=\(format(coordinates.first)) last=\(format(coordinates.last)) status=SUCCESS")
+            return .coordinates(coordinates)
+        } catch {
+            HealthKitLog.route("\(base) routes=? gps=0 status=QUERY_FAILURE error=\(error.localizedDescription)")
+            return .failed
+        }
+    }
+
+    private func format(_ coordinate: CLLocationCoordinate2D?) -> String {
+        guard let coordinate else { return "-" }
+        return String(format: "%.5f,%.5f", coordinate.latitude, coordinate.longitude)
     }
 
     // MARK: Workout query
@@ -106,12 +145,13 @@ final class HealthKitProvider: ActivityProvider {
 
     // MARK: Route query
 
-    private func route(for workout: HKWorkout) async throws -> [CLLocationCoordinate2D] {
-        let routePredicate = HKQuery.predicateForObjects(from: workout)
-        let routes: [HKWorkoutRoute] = try await withCheckedThrowingContinuation { continuation in
+    /// The `HKWorkoutRoute` series samples attached to a workout (usually 0 or 1, sometimes
+    /// several). An empty result means the source wrote no route.
+    private func routeSamples(for workout: HKWorkout) async throws -> [HKWorkoutRoute] {
+        try await withCheckedThrowingContinuation { continuation in
             let query = HKSampleQuery(
                 sampleType: HKSeriesType.workoutRoute(),
-                predicate: routePredicate,
+                predicate: HKQuery.predicateForObjects(from: workout),
                 limit: HKObjectQueryNoLimit,
                 sortDescriptors: nil
             ) { _, samples, error in
@@ -123,17 +163,17 @@ final class HealthKitProvider: ActivityProvider {
             }
             store.execute(query)
         }
+    }
 
-        // A workout may expose its GPS trace as several route objects; stitch them together
-        // in chronological order so the combined line reads start-to-finish.
+    /// Enumerates the `CLLocation`s of one or more route samples into a clean coordinate
+    /// list: chronological across samples, adjacent duplicates dropped, order preserved.
+    private func coordinates(from routes: [HKWorkoutRoute]) async throws -> [CLLocationCoordinate2D] {
         let orderedRoutes = routes.sorted { $0.startDate < $1.startDate }
         var coordinates: [CLLocationCoordinate2D] = []
         for route in orderedRoutes {
             let locations = try await locations(for: route)
             for location in locations {
                 let coordinate = location.coordinate
-                // Skip a point identical to the immediately preceding one (chunk seams can
-                // repeat a sample); keeps geometry clean without dropping real detail.
                 if let last = coordinates.last,
                    last.latitude == coordinate.latitude, last.longitude == coordinate.longitude {
                     continue

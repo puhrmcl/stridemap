@@ -182,8 +182,11 @@ enum RouteSyncStatus: String {
     case pending
     /// Route successfully imported.
     case available
-    /// Checked and the route is genuinely unavailable from this source.
+    /// Checked and the route is genuinely unavailable from this source (source wrote no
+    /// `HKWorkoutRoute`) — e.g. Nike Run Club, treadmill/indoor runs.
     case unavailable
+    /// The route query errored; distinct from `.unavailable` so it's retried on re-sync.
+    case failed
 }
 
 /// Where a route came from. HealthKit is canonical today; Strava and file imports are

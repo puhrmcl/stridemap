@@ -141,10 +141,28 @@ struct SettingsView: View {
         }
     }
 
+    /// Per-source route availability: how many runs from each app have a map. The tell for
+    /// "is a missing map Nike's fault or Etch's?" — a source with 0 maps wrote no routes.
+    private var routeBreakdown: [(source: String, total: Int, withMaps: Int)] {
+        Dictionary(grouping: runs) { $0.displaySource.label }
+            .map { (source: $0.key, total: $0.value.count, withMaps: $0.value.filter(\.hasRoute).count) }
+            .sorted { $0.total > $1.total }
+    }
+
     private var dataSection: some View {
-        Section("Data") {
+        Section {
             LabeledContent("Cached Runs", value: runs.count.formatted())
             LabeledContent("Runs with Maps", value: runs.filter(\.hasRoute).count.formatted())
+            ForEach(routeBreakdown, id: \.source) { row in
+                LabeledContent(row.source, value: "\(row.withMaps)/\(row.total) maps")
+            }
+        } header: {
+            Text("Route Diagnostics")
+        } footer: {
+            Text("Maps come from GPS routes each app writes to Apple Health. If a source shows 0 maps, that app isn't saving routes to Health (e.g. Nike Run Club) — Etch can't map those without another source like Strava.")
+        }
+
+        Section("Data") {
 
             if let exportURL {
                 ShareLink(item: exportURL) {

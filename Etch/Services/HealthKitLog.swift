@@ -9,10 +9,10 @@ enum HealthKitLog {
 
     private static let logger = Logger(subsystem: "com.nwagtech.etch", category: "healthkit")
 
+    /// Logged at `.notice` so it persists and is visible in Console.app even for TestFlight
+    /// (Release) builds — connect the phone to a Mac, open Console, filter by "Etch".
     static func route(_ message: @autoclosure () -> String) {
-        #if DEBUG
         let text = message()
-        logger.debug("[HealthKit] \(text, privacy: .public)")
-        #endif
+        logger.notice("\(text, privacy: .public)")
     }
 }
