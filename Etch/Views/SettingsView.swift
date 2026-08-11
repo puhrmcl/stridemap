@@ -22,6 +22,7 @@ struct SettingsView: View {
                 sourcesSection
                 syncSection
                 appearanceSection
+                routeDiagnosticsSection
                 dataSection
                 aboutSection
             }
@@ -149,7 +150,7 @@ struct SettingsView: View {
             .sorted { $0.total > $1.total }
     }
 
-    private var dataSection: some View {
+    private var routeDiagnosticsSection: some View {
         Section {
             LabeledContent("Cached Runs", value: runs.count.formatted())
             LabeledContent("Runs with Maps", value: runs.filter(\.hasRoute).count.formatted())
@@ -161,7 +162,9 @@ struct SettingsView: View {
         } footer: {
             Text("Maps come from GPS routes each app writes to Apple Health. If a source shows 0 maps, that app isn't saving routes to Health (e.g. Nike Run Club) — Etch can't map those without another source like Strava.")
         }
+    }
 
+    private var dataSection: some View {
         Section("Data") {
 
             if let exportURL {
