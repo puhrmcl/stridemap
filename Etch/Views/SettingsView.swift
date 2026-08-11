@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var exportURL: URL?
     @State private var showDeleteConfirm = false
     @State private var isConnectingStrava = false
+    @State private var connectError: String?
 
     var body: some View {
         NavigationStack {
@@ -33,6 +34,11 @@ struct SettingsView: View {
             }
             .confirmationDialog("Delete all cached runs? You can re-sync from Strava.", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
                 Button("Delete Cache", role: .destructive) { deleteCache() }
+            }
+            .alert("Strava", isPresented: Binding(get: { connectError != nil }, set: { if !$0 { connectError = nil } })) {
+                Button("OK", role: .cancel) { connectError = nil }
+            } message: {
+                Text(connectError ?? "")
             }
         }
     }
@@ -126,8 +132,12 @@ struct SettingsView: View {
         do {
             try await auth.signIn()
             await sync.sync()
+        } catch StravaAuthService.AuthError.cancelled {
+            // User dismissed the sign-in sheet — no error to show.
         } catch {
-            if case StravaAuthService.AuthError.cancelled = error { return }
+            // Surface everything else (not configured / redirect / server) so failures are
+            // visible instead of the button silently doing nothing.
+            connectError = error.localizedDescription
         }
     }
 
