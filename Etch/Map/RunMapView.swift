@@ -31,14 +31,10 @@ struct RunMapView: UIViewRepresentable {
         map.preferredConfiguration = mapStyle.configuration()
         context.coordinator.appliedStyle = mapStyle
 
-        let tap = UITapGestureRecognizer(
-            target: context.coordinator,
-            action: #selector(Coordinator.handleTap(_:))
-        )
-        tap.delegate = context.coordinator
-        // Never swallow touches meant for the floating SwiftUI controls.
-        tap.cancelsTouchesInView = false
-        map.addGestureRecognizer(tap)
+        // NOTE: the route-tap gesture is temporarily disabled to isolate a button
+        // responsiveness issue — it was the prime suspect for swallowing control taps. If
+        // the floating buttons work reliably without it, route selection will be
+        // reimplemented in a way that can't interfere with the SwiftUI controls.
 
         context.coordinator.map = map
         // Ask for location so the blue user dot can appear; harmless if declined.

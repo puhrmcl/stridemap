@@ -144,6 +144,7 @@ struct SettingsView: View {
     private var dataSection: some View {
         Section("Data") {
             LabeledContent("Cached Runs", value: runs.count.formatted())
+            LabeledContent("Runs with Maps", value: runs.filter(\.hasRoute).count.formatted())
 
             if let exportURL {
                 ShareLink(item: exportURL) {
