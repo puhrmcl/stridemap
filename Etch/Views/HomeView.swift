@@ -30,7 +30,7 @@ struct HomeView: View {
 
         Group {
             if showStates {
-                StatesMapView(intensities: stateIntensities)
+                StatesMapView(intensities: stateIntensities, mapStyle: mapStyle)
             } else {
                 RunMapView(
                     runs: visibleRuns,
@@ -55,11 +55,11 @@ struct HomeView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 10) {
-                if !showStates {
-                    HStack {
-                        Spacer()
-                        VStack(spacing: 10) {
-                            mapStyleButton
+                HStack {
+                    Spacer()
+                    VStack(spacing: 10) {
+                        mapStyleButton
+                        if !showStates {
                             GlassIconButton(systemName: "location.fill") {
                                 appModel.recenterOnUser()
                             }

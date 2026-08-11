@@ -8,6 +8,8 @@ struct StatesMapView: UIViewRepresentable {
     /// Boundary name → fill intensity 0…1 (already compressed by the caller). Only visited
     /// regions appear here; the others render as faint outlines so the country still reads.
     var intensities: [String: Double]
+    /// Base map style (standard / satellite / hybrid), shared with the route map.
+    var mapStyle: MapStyleOption = .standard
 
     func makeCoordinator() -> Coordinator { Coordinator(intensities: intensities) }
 
@@ -18,9 +20,8 @@ struct StatesMapView: UIViewRepresentable {
         map.showsCompass = false
         map.showsScale = false
 
-        let config = MKStandardMapConfiguration(elevationStyle: .flat)
-        config.pointOfInterestFilter = .excludingAll
-        map.preferredConfiguration = config
+        map.preferredConfiguration = mapStyle.configuration()
+        context.coordinator.appliedStyle = mapStyle
 
         // Continental US to start; Alaska/Hawaii are a pan away.
         map.setRegion(
@@ -36,6 +37,10 @@ struct StatesMapView: UIViewRepresentable {
     }
 
     func updateUIView(_ map: MKMapView, context: Context) {
+        if context.coordinator.appliedStyle != mapStyle {
+            context.coordinator.appliedStyle = mapStyle
+            map.preferredConfiguration = mapStyle.configuration()
+        }
         // Intensities are computed asynchronously after the map appears, so restyle and
         // force a redraw of any already-drawn renderers; not-yet-drawn ones pick up the
         // updated intensities from the coordinator when they're first rendered.
@@ -52,6 +57,7 @@ struct StatesMapView: UIViewRepresentable {
 
     final class Coordinator: NSObject, MKMapViewDelegate {
         var intensities: [String: Double]
+        var appliedStyle: MapStyleOption?
         /// Overlay identity → boundary name (overlays are the shared boundary polygons).
         private var nameByOverlay: [ObjectIdentifier: String] = [:]
 
