@@ -30,45 +30,26 @@ final class HealthKitProvider: ActivityProvider {
         return results
     }
 
-    // MARK: Single-workout route recovery
+    // MARK: Route recovery (batched)
 
-    /// Re-queries HealthKit for the route of a workout we've already imported, identified by
-    /// its UUID. Used by the backfill / anchored-query recovery paths to attach routes that
-    /// arrived after the workout.
+    /// Re-queries HealthKit for routes of already-imported workouts in a single pass: one
+    /// workout query (bounded to `since`), then a route query per matched workout. This
+    /// replaces a per-run workout lookup, which made backfilling hundreds of runs
+    /// pathologically slow.
     ///
-    /// - Returns: `nil` when the workout itself can't be located (transient — leave state
-    ///   untouched and retry later); an empty array when the workout exists but still has no
-    ///   route (pending / unavailable); coordinates when a route is now present.
-    func recoverRoute(forWorkoutUUID uuidString: String) async -> [CLLocationCoordinate2D]? {
-        guard let uuid = UUID(uuidString: uuidString) else { return nil }
-        HealthKitLog.route("Searching for route for workout \(uuidString)")
-        guard let workout = await workout(uuid: uuid) else {
-            HealthKitLog.route("Workout \(uuidString) not found in HealthKit")
-            return nil
+    /// Returns uuidString → coordinates. An empty array means the workout exists but still
+    /// has no route; a missing key means it wasn't in the fetched window.
+    func recoverRoutes(forWorkoutUUIDs uuids: Set<String>, since: Date?) async -> [String: [CLLocationCoordinate2D]] {
+        guard !uuids.isEmpty else { return [:] }
+        let workouts = (try? await runningWorkouts(since: since)) ?? []
+        var result: [String: [CLLocationCoordinate2D]] = [:]
+        for workout in workouts {
+            let key = workout.uuid.uuidString
+            guard uuids.contains(key) else { continue }
+            result[key] = (try? await route(for: workout)) ?? []
         }
-        let coordinates = (try? await route(for: workout)) ?? []
-        if coordinates.isEmpty {
-            HealthKitLog.route("No route available yet for workout \(uuidString)")
-        } else {
-            HealthKitLog.route("Recovered route for workout \(uuidString) — \(coordinates.count) points")
-        }
-        return coordinates
-    }
-
-    /// Fetches a single workout by its HealthKit UUID.
-    private func workout(uuid: UUID) async -> HKWorkout? {
-        await withCheckedContinuation { continuation in
-            let predicate = HKQuery.predicateForObject(with: uuid)
-            let query = HKSampleQuery(
-                sampleType: HKObjectType.workoutType(),
-                predicate: predicate,
-                limit: 1,
-                sortDescriptors: nil
-            ) { _, samples, _ in
-                continuation.resume(returning: (samples as? [HKWorkout])?.first)
-            }
-            store.execute(query)
-        }
+        HealthKitLog.route("Recovery batch matched \(result.count)/\(uuids.count) workouts")
+        return result
     }
 
     // MARK: Workout query

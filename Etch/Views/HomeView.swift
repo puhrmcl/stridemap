@@ -27,13 +27,6 @@ struct HomeView: View {
                 command: $appModel.command
             )
             .ignoresSafeArea()
-            // Attached to the map (an inner view), not the ZStack, so it doesn't compete
-            // with the surface sheet below — two sheets on one view makes the first flaky.
-            .sheet(item: selectedRunBinding) { run in
-                RunDetailView(run: run)
-                    .presentationDetents([.medium, .large])
-                    .presentationBackground(.regularMaterial)
-            }
 
             VStack(spacing: 0) {
                 topBar
@@ -55,9 +48,54 @@ struct HomeView: View {
                 emptyOrSyncing
             }
         }
-        .sheet(item: $appModel.presentedSurface) { surface in
-            surfaceView(for: surface)
+        // A single sheet for both surfaces and the run detail. Two `.sheet` modifiers — even
+        // on different views — can leave one flaky; one sheet driven by one binding is
+        // reliable, so the bottom buttons always present on the first tap.
+        .sheet(item: activeSheet) { sheet in
+            switch sheet {
+            case .surface(let surface):
+                surfaceView(for: surface)
+            case .run(let id):
+                if let run = allRuns.first(where: { $0.id == id }) {
+                    RunDetailView(run: run)
+                        .presentationDetents([.medium, .large])
+                        .presentationBackground(.regularMaterial)
+                }
+            }
         }
+    }
+
+    /// The one thing presented over the map: a surface (bottom buttons) or a selected run.
+    private enum ActiveSheet: Identifiable {
+        case surface(AppModel.Surface)
+        case run(UUID)
+        var id: String {
+            switch self {
+            case .surface(let surface): return "surface-\(surface.rawValue)"
+            case .run(let id): return "run-\(id.uuidString)"
+            }
+        }
+    }
+
+    private var activeSheet: Binding<ActiveSheet?> {
+        Binding(
+            get: {
+                if let surface = appModel.presentedSurface { return .surface(surface) }
+                if let id = appModel.selectedRunID { return .run(id) }
+                return nil
+            },
+            set: { newValue in
+                switch newValue {
+                case .surface(let surface):
+                    appModel.presentedSurface = surface
+                case .run(let id):
+                    appModel.selectedRunID = id
+                case nil:
+                    appModel.presentedSurface = nil
+                    appModel.selectedRunID = nil
+                }
+            }
+        )
     }
 
     // MARK: Top — totals + mode toggles
@@ -177,13 +215,6 @@ struct HomeView: View {
     }
 
     // MARK: Sheet plumbing
-
-    private var selectedRunBinding: Binding<Run?> {
-        Binding(
-            get: { allRuns.first { $0.id == appModel.selectedRunID } },
-            set: { appModel.selectedRunID = $0?.id }
-        )
-    }
 
     @ViewBuilder
     private func surfaceView(for surface: AppModel.Surface) -> some View {

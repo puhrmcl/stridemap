@@ -99,11 +99,6 @@ final class SyncService {
 
             lastSyncDate = Date()
             status = .finished(imported: imported)
-
-            // Recover late-arriving routes AFTER finishing, off the spinner path: route
-            // recovery is many sequential HealthKit queries and must never block sync from
-            // completing. It updates runs in place as maps are found.
-            Task { await recoverMissingRoutes(limit: 20) }
         } catch {
             status = .failed(error.localizedDescription)
         }
@@ -151,6 +146,9 @@ final class SyncService {
     }
 
     /// Core recovery pass. Callers own the `isRecoveringRoutes` flag so it always resets.
+    ///
+    /// One batched workout query for the whole pass (not one per run), and a hard timeout so
+    /// a slow HealthKit database can never keep the recovery spinner up indefinitely.
     private func performRouteRecovery(limit: Int) async {
         let unavailable = RouteSyncStatus.unavailable.rawValue
         var descriptor = FetchDescriptor<Run>(
@@ -162,37 +160,55 @@ final class SyncService {
         descriptor.fetchLimit = limit
         guard let candidates = try? context.fetch(descriptor), !candidates.isEmpty else { return }
 
+        let runsByID = Dictionary(
+            candidates.compactMap { run in run.healthKitID.map { ($0, run) } },
+            uniquingKeysWith: { first, _ in first }
+        )
+        // Only fetch workouts from the window the candidates fall in.
+        let since = candidates.map(\.startDate).min()?.addingTimeInterval(-24 * 60 * 60)
+        let routes = await recoverRoutes(ids: Set(runsByID.keys), since: since, timeout: 20)
+
         var recovered = 0
-        var changed = false
-        for run in candidates {
-            guard let hkID = run.healthKitID else { continue }
-            let coordinates = await healthKitProvider.recoverRoute(forWorkoutUUID: hkID)
+        for (hkID, run) in runsByID {
             run.routeCheckedAt = Date()
             run.routeCheckCount += 1
-            changed = true
-
-            switch coordinates {
-            case .some(let coords) where !coords.isEmpty:
+            if let coords = routes[hkID], !coords.isEmpty {
                 applyRoute(coords, source: .healthKit, to: run)
                 recovered += 1
-                HealthKitLog.route("Updated Etch run \(run.id) with recovered route")
-            case .some:
-                // Workout found but still no route. Keep retrying only for recent runs.
+            } else {
+                // No route yet (or the workout wasn't found). Retry recent runs; age out old
+                // ones so history is never rescanned forever.
                 let age = Date().timeIntervalSince(run.startDate)
                 if age > routePendingWindow || run.routeCheckCount >= maxRouteChecks {
                     run.routeStatus = .unavailable
                 } else {
                     run.routeStatus = .pending
                 }
-            case .none:
-                // Couldn't locate the workout right now — leave state, try again later.
-                break
             }
         }
 
-        if changed { try? context.save() }
-        if recovered > 0 {
-            HealthKitLog.route("Route recovery pass attached \(recovered) map(s)")
+        try? context.save()
+        if recovered > 0 { HealthKitLog.route("Route recovery attached \(recovered) map(s)") }
+    }
+
+    /// Batched route lookup with a hard timeout so a slow/stuck HealthKit query can never
+    /// leave the recovery spinner running indefinitely. On timeout the pass simply recovers
+    /// nothing this round; the runs stay pending and are retried later.
+    private func recoverRoutes(
+        ids: Set<String>,
+        since: Date?,
+        timeout seconds: Double
+    ) async -> [String: [CLLocationCoordinate2D]] {
+        let provider = healthKitProvider
+        return await withTaskGroup(of: [String: [CLLocationCoordinate2D]]?.self) { group in
+            group.addTask { await provider.recoverRoutes(forWorkoutUUIDs: ids, since: since) }
+            group.addTask {
+                try? await Task.sleep(for: .seconds(seconds))
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first ?? [:]
         }
     }
 
