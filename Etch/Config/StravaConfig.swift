@@ -15,7 +15,7 @@ import Foundation
 enum StravaConfig {
 
     /// Your Strava application's Client ID. Public — safe to ship in the app.
-    static let clientID = "YOUR_STRAVA_CLIENT_ID"
+    static let clientID = "271462"
 
     /// URL of your deployed token proxy Worker (see `worker/README.md`), e.g.
     /// `https://etch-strava-proxy.<your-subdomain>.workers.dev`.
