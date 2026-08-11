@@ -165,7 +165,7 @@ struct SettingsView: View {
 
     private var aboutSection: some View {
         Section {
-            LabeledContent("Version", value: Bundle.main.shortVersion)
+            LabeledContent("Version", value: AppInfo.label)
             NavigationLink {
                 PrivacyView()
             } label: {
@@ -205,11 +205,5 @@ private struct PrivacyView: View {
         }
         .navigationTitle("Privacy")
         .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-private extension Bundle {
-    var shortVersion: String {
-        infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     }
 }

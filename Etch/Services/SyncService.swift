@@ -68,9 +68,10 @@ final class SyncService {
         do {
             let since = lastSyncDate
 
-            // 1. Primary: HealthKit (and any future primary providers).
+            // 1. Primary: HealthKit (and any future primary providers). Time-boxed so a
+            // slow/unresponsive HealthKit store can never leave the import spinner up forever.
             if healthKitProvider.isAvailable {
-                let activities = try await healthKitProvider.fetchActivities(since: since)
+                let activities = await healthKitActivities(since: since, timeout: 30)
                 for activity in activities {
                     if try importPrimary(activity) {
                         imported += 1
@@ -105,6 +106,22 @@ final class SyncService {
             Task { await recoverMissingRoutes(limit: 400) }
         } catch {
             status = .failed(error.localizedDescription)
+        }
+    }
+
+    /// Fetches HealthKit activities with a hard timeout, returning whatever's available (or
+    /// an empty list) rather than hanging the whole import if the query never comes back.
+    private func healthKitActivities(since: Date?, timeout seconds: Double) async -> [ImportedActivity] {
+        let provider = healthKitProvider
+        return await withTaskGroup(of: [ImportedActivity]?.self) { group in
+            group.addTask { (try? await provider.fetchActivities(since: since)) ?? [] }
+            group.addTask {
+                try? await Task.sleep(for: .seconds(seconds))
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first ?? []
         }
     }
 

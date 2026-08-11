@@ -206,6 +206,10 @@ struct HomeView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.accent)
             }
+            Text(AppInfo.label)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .padding(.top, 2)
         }
         .padding(28)
         .glassBackground(cornerRadius: Theme.cardRadius)
