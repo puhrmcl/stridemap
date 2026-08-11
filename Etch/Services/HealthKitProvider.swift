@@ -19,37 +19,38 @@ final class HealthKitProvider: ActivityProvider {
     }
 
     func fetchActivities(since: Date?) async throws -> [ImportedActivity] {
+        // Metadata only. Routes are hydrated separately (`routeStream`) so a large first
+        // import isn't blocked fetching a GPS trace for every workout before any run appears.
         let workouts = try await runningWorkouts(since: since)
-        var results: [ImportedActivity] = []
-        results.reserveCapacity(workouts.count)
-        for workout in workouts {
-            let coordinates = (try? await route(for: workout)) ?? []
-            HealthKitLog.route("Imported workout \(workout.uuid) — \(coordinates.count) route points")
-            results.append(makeActivity(from: workout, coordinates: coordinates))
-        }
-        return results
+        return workouts.map { makeActivity(from: $0, coordinates: []) }
     }
 
-    // MARK: Route recovery (batched)
+    // MARK: Route hydration
 
-    /// Re-queries HealthKit for routes of already-imported workouts in a single pass: one
-    /// workout query (bounded to `since`), then a route query per matched workout. This
-    /// replaces a per-run workout lookup, which made backfilling hundreds of runs
-    /// pathologically slow.
+    /// Streams routes for already-imported workouts one at a time: a single workout query
+    /// (bounded to `since`), then a route query per matched workout, yielding as each
+    /// resolves. Keeps `HKWorkout` (non-Sendable) inside the provider and hands out only
+    /// Sendable coordinates, so the caller can attach and save progressively.
     ///
-    /// Returns uuidString → coordinates. An empty array means the workout exists but still
-    /// has no route; a missing key means it wasn't in the fetched window.
-    func recoverRoutes(forWorkoutUUIDs uuids: Set<String>, since: Date?) async -> [String: [CLLocationCoordinate2D]] {
-        guard !uuids.isEmpty else { return [:] }
-        let workouts = (try? await runningWorkouts(since: since)) ?? []
-        var result: [String: [CLLocationCoordinate2D]] = [:]
-        for workout in workouts {
-            let key = workout.uuid.uuidString
-            guard uuids.contains(key) else { continue }
-            result[key] = (try? await route(for: workout)) ?? []
+    /// An empty coordinate array means the workout exists but has no route (yet).
+    func routeStream(
+        forWorkoutUUIDs uuids: Set<String>,
+        since: Date?
+    ) -> AsyncStream<(id: String, coordinates: [CLLocationCoordinate2D])> {
+        AsyncStream { continuation in
+            let task = Task { @MainActor in
+                let workouts = (try? await runningWorkouts(since: since)) ?? []
+                for workout in workouts {
+                    if Task.isCancelled { break }
+                    let key = workout.uuid.uuidString
+                    guard uuids.contains(key) else { continue }
+                    let coordinates = (try? await route(for: workout)) ?? []
+                    continuation.yield((id: key, coordinates: coordinates))
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
         }
-        HealthKitLog.route("Recovery batch matched \(result.count)/\(uuids.count) workouts")
-        return result
     }
 
     // MARK: Workout query

@@ -99,6 +99,10 @@ final class SyncService {
 
             lastSyncDate = Date()
             status = .finished(imported: imported)
+
+            // Import is intentionally route-free so runs appear immediately; hydrate maps in
+            // the background afterwards, off the sync spinner. Bounded + progressive.
+            Task { await recoverMissingRoutes(limit: 400) }
         } catch {
             status = .failed(error.localizedDescription)
         }
@@ -138,83 +142,23 @@ final class SyncService {
     /// already ruled `.unavailable`. Recent runs keep retrying; older runs get a single
     /// check and are then marked `.unavailable`, so history is never rescanned on every
     /// launch.
-    func recoverMissingRoutes(limit: Int = 20) async {
+    /// Hard cap on how long a single hydration pass runs, so the recovery spinner can never
+    /// hang even if HealthKit is slow. Remaining runs stay pending and are retried later.
+    private let hydrationDeadline: TimeInterval = 90
+
+    /// Hydrates maps for HealthKit runs that don't have one yet, streaming routes in and
+    /// saving progressively so the map fills in as it goes. Safe to run repeatedly; recent
+    /// runs keep retrying, older route-less runs are marked `.unavailable` so history isn't
+    /// rescanned forever.
+    func recoverMissingRoutes(limit: Int = 150) async {
         guard !isRecoveringRoutes, healthKitProvider.isAvailable else { return }
         isRecoveringRoutes = true
         defer { isRecoveringRoutes = false }
-        await performRouteRecovery(limit: limit)
+        await hydratePendingRoutes(limit: limit)
     }
 
-    /// Core recovery pass. Callers own the `isRecoveringRoutes` flag so it always resets.
-    ///
-    /// One batched workout query for the whole pass (not one per run), and a hard timeout so
-    /// a slow HealthKit database can never keep the recovery spinner up indefinitely.
-    private func performRouteRecovery(limit: Int) async {
-        let unavailable = RouteSyncStatus.unavailable.rawValue
-        var descriptor = FetchDescriptor<Run>(
-            predicate: #Predicate {
-                $0.healthKitID != nil && $0.summaryPolyline == "" && $0.routeStatusRaw != unavailable
-            },
-            sortBy: [SortDescriptor(\.startDate, order: .reverse)]
-        )
-        descriptor.fetchLimit = limit
-        guard let candidates = try? context.fetch(descriptor), !candidates.isEmpty else { return }
-
-        let runsByID = Dictionary(
-            candidates.compactMap { run in run.healthKitID.map { ($0, run) } },
-            uniquingKeysWith: { first, _ in first }
-        )
-        // Only fetch workouts from the window the candidates fall in.
-        let since = candidates.map(\.startDate).min()?.addingTimeInterval(-24 * 60 * 60)
-        let routes = await recoverRoutes(ids: Set(runsByID.keys), since: since, timeout: 20)
-
-        var recovered = 0
-        for (hkID, run) in runsByID {
-            run.routeCheckedAt = Date()
-            run.routeCheckCount += 1
-            if let coords = routes[hkID], !coords.isEmpty {
-                applyRoute(coords, source: .healthKit, to: run)
-                recovered += 1
-            } else {
-                // No route yet (or the workout wasn't found). Retry recent runs; age out old
-                // ones so history is never rescanned forever.
-                let age = Date().timeIntervalSince(run.startDate)
-                if age > routePendingWindow || run.routeCheckCount >= maxRouteChecks {
-                    run.routeStatus = .unavailable
-                } else {
-                    run.routeStatus = .pending
-                }
-            }
-        }
-
-        try? context.save()
-        if recovered > 0 { HealthKitLog.route("Route recovery attached \(recovered) map(s)") }
-    }
-
-    /// Batched route lookup with a hard timeout so a slow/stuck HealthKit query can never
-    /// leave the recovery spinner running indefinitely. On timeout the pass simply recovers
-    /// nothing this round; the runs stay pending and are retried later.
-    private func recoverRoutes(
-        ids: Set<String>,
-        since: Date?,
-        timeout seconds: Double
-    ) async -> [String: [CLLocationCoordinate2D]] {
-        let provider = healthKitProvider
-        return await withTaskGroup(of: [String: [CLLocationCoordinate2D]]?.self) { group in
-            group.addTask { await provider.recoverRoutes(forWorkoutUUIDs: ids, since: since) }
-            group.addTask {
-                try? await Task.sleep(for: .seconds(seconds))
-                return nil
-            }
-            let first = await group.next() ?? nil
-            group.cancelAll()
-            return first ?? [:]
-        }
-    }
-
-    /// Manual "Recover Missing Maps" entry point. Re-opens runs previously marked
-    /// `.unavailable` for one more attempt, then runs a large recovery pass. Exposed for a
-    /// Settings action; idempotent and safe to invoke anytime.
+    /// Manual "Recover Missing Maps" entry point. Re-opens runs previously written off, then
+    /// hydrates. Exposed for a Settings action; idempotent and safe to invoke anytime.
     func resyncHealthKitRoutes() async {
         guard !isRecoveringRoutes, healthKitProvider.isAvailable else { return }
         isRecoveringRoutes = true
@@ -233,7 +177,55 @@ final class SyncService {
             try? context.save()
         }
 
-        await performRouteRecovery(limit: 150)
+        await hydratePendingRoutes(limit: 2000)
+    }
+
+    /// Core hydration. Callers own the `isRecoveringRoutes` flag so it always resets.
+    private func hydratePendingRoutes(limit: Int) async {
+        let unavailable = RouteSyncStatus.unavailable.rawValue
+        var descriptor = FetchDescriptor<Run>(
+            predicate: #Predicate {
+                $0.healthKitID != nil && $0.summaryPolyline == "" && $0.routeStatusRaw != unavailable
+            },
+            sortBy: [SortDescriptor(\.startDate, order: .reverse)]
+        )
+        descriptor.fetchLimit = limit
+        guard let pending = try? context.fetch(descriptor), !pending.isEmpty else { return }
+
+        let runsByID = Dictionary(
+            pending.compactMap { run in run.healthKitID.map { ($0, run) } },
+            uniquingKeysWith: { first, _ in first }
+        )
+        // Fetch workouts only from the window the pending runs fall in.
+        let since = pending.map(\.startDate).min()?.addingTimeInterval(-24 * 60 * 60)
+        let deadline = Date().addingTimeInterval(hydrationDeadline)
+
+        var processed = 0
+        var recovered = 0
+        for await item in healthKitProvider.routeStream(forWorkoutUUIDs: Set(runsByID.keys), since: since) {
+            if let run = runsByID[item.id] {
+                run.routeCheckedAt = Date()
+                run.routeCheckCount += 1
+                if !item.coordinates.isEmpty {
+                    applyRoute(item.coordinates, source: .healthKit, to: run)
+                    recovered += 1
+                } else {
+                    // Workout has no route. Retry recent runs; age out old ones.
+                    let age = Date().timeIntervalSince(run.startDate)
+                    if age > routePendingWindow || run.routeCheckCount >= maxRouteChecks {
+                        run.routeStatus = .unavailable
+                    } else {
+                        run.routeStatus = .pending
+                    }
+                }
+            }
+            processed += 1
+            if processed % 20 == 0 { try? context.save() }   // let the map fill in as we go
+            if Date() > deadline { break }
+        }
+
+        try? context.save()
+        if recovered > 0 { HealthKitLog.route("Hydrated \(recovered) route(s)") }
     }
 
     /// Attaches a recovered route to a run and records provenance/state. Central so every
