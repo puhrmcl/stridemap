@@ -10,6 +10,11 @@ struct HomeView: View {
     @AppStorage("mapStyle") private var mapStyleRaw = MapStyleOption.standard.rawValue
     private var mapStyle: MapStyleOption { MapStyleOption(rawValue: mapStyleRaw) ?? .standard }
 
+    /// When true, the map shows the states-visited choropleth instead of routes.
+    @State private var showStates = false
+    @State private var stateIntensities: [String: Double] = [:]
+    @State private var statesComputed = false
+
     private var stats: RunStatistics { RunStatistics(allRuns) }
 
     /// Runs passing the active filter.
@@ -23,13 +28,23 @@ struct HomeView: View {
     var body: some View {
         @Bindable var appModel = appModel
 
-        RunMapView(
-            runs: visibleRuns,
-            selectedRunID: $appModel.selectedRunID,
-            command: $appModel.command,
-            mapStyle: mapStyle
-        )
+        Group {
+            if showStates {
+                StatesMapView(intensities: stateIntensities)
+            } else {
+                RunMapView(
+                    runs: visibleRuns,
+                    selectedRunID: $appModel.selectedRunID,
+                    command: $appModel.command,
+                    mapStyle: mapStyle
+                )
+            }
+        }
         .ignoresSafeArea()
+        .task(id: showStates) {
+            guard showStates, !statesComputed else { return }
+            computeStateIntensities()
+        }
         // Controls float via safe-area insets rather than a ZStack overlay, so SwiftUI owns
         // their hit-testing and they don't compete with the map's UIKit gestures (which made
         // the buttons need several taps).
@@ -40,12 +55,14 @@ struct HomeView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 10) {
-                HStack {
-                    Spacer()
-                    VStack(spacing: 10) {
-                        mapStyleButton
-                        GlassIconButton(systemName: "location.fill") {
-                            appModel.recenterOnUser()
+                if !showStates {
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 10) {
+                            mapStyleButton
+                            GlassIconButton(systemName: "location.fill") {
+                                appModel.recenterOnUser()
+                            }
                         }
                     }
                 }
@@ -140,36 +157,70 @@ struct HomeView: View {
         }
     }
 
-    private var modeSelector: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(RunFilter.Mode.allCases) { mode in
-                    let selected = appModel.filter.mode == mode
-                    Button {
-                        var f = appModel.filter
-                        f.mode = mode
-                        appModel.setFilter(f)
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: mode.symbol).font(.caption)
-                            Text(mode.rawValue).font(.system(.subheadline, design: .rounded).weight(.semibold))
-                        }
-                        .foregroundStyle(selected ? .white : .primary)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .background {
-                            if selected {
-                                Capsule().fill(Theme.accent)
-                            } else {
-                                Capsule().fill(.clear).glassBackground(cornerRadius: 20)
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
+    /// What the map is currently showing: a run-filter mode, or the states choropleth.
+    private enum ModeSelection: Hashable {
+        case mode(RunFilter.Mode)
+        case states
+    }
+
+    private var modeSelection: Binding<ModeSelection> {
+        Binding(
+            get: { showStates ? .states : .mode(appModel.filter.mode) },
+            set: { newValue in
+                switch newValue {
+                case .mode(let mode):
+                    showStates = false
+                    var f = appModel.filter
+                    f.mode = mode
+                    appModel.setFilter(f)
+                case .states:
+                    showStates = true
                 }
             }
+        )
+    }
+
+    private var currentModeLabel: String { showStates ? "States" : appModel.filter.mode.rawValue }
+    private var currentModeSymbol: String { showStates ? "map.fill" : appModel.filter.mode.symbol }
+
+    /// A rounded glass dropdown for the map mode (replaces the old chip row), with States
+    /// added as a way to see the visited-states map right on the home screen.
+    private var modeSelector: some View {
+        HStack {
+            Menu {
+                Picker("Map", selection: modeSelection) {
+                    ForEach(RunFilter.Mode.allCases) { mode in
+                        Label(mode.rawValue, systemImage: mode.symbol).tag(ModeSelection.mode(mode))
+                    }
+                    Label("States", systemImage: "map.fill").tag(ModeSelection.states)
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: currentModeSymbol).font(.caption)
+                    Text(currentModeLabel)
+                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+                }
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .glassBackground(cornerRadius: 22)
+            }
+            .buttonStyle(.plain)
+            Spacer()
         }
-        .scrollClipDisabled()
+    }
+
+    private func computeStateIntensities() {
+        var counts: [String: Int] = [:]
+        for run in allRuns {
+            guard let coordinate = run.startCoordinate,
+                  let name = USStateBoundaries.shared.region(containing: coordinate) else { continue }
+            counts[name, default: 0] += 1
+        }
+        let maxCount = counts.values.max() ?? 1
+        stateIntensities = counts.mapValues { min(1, (Double($0) / Double(maxCount)).squareRoot()) }
+        statesComputed = true
     }
 
     // MARK: Bottom — navigation controls

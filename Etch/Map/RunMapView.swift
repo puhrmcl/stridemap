@@ -241,15 +241,24 @@ struct RunMapView: UIViewRepresentable {
             shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
         ) -> Bool { true }
 
-        /// Only treat taps that land on the map surface as route taps. Without this, the
-        /// tap recognizer swallows touches on the floating SwiftUI controls (finding no
-        /// route under them), so those buttons need several taps before they respond.
+        /// The floating controls sit in bands at the top (totals + filters) and bottom
+        /// (toolbar, locate/layers). The map fills the whole screen underneath them, so its
+        /// route-tap recognizer would otherwise swallow touches meant for those buttons —
+        /// which is why they didn't even highlight. Ignore touches in those bands; route
+        /// taps happen on the map body in between.
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
             shouldReceive touch: UITouch
         ) -> Bool {
-            guard let map, let touchView = touch.view else { return true }
-            return touchView.isDescendant(of: map)
+            guard let map else { return true }
+            let y = touch.location(in: map).y
+            let height = map.bounds.height
+            let topBandHeight: CGFloat = 200
+            let bottomBandHeight: CGFloat = 220
+            if y < topBandHeight || y > height - bottomBandHeight {
+                return false
+            }
+            return true
         }
     }
 }
