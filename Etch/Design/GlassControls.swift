@@ -63,22 +63,20 @@ struct GlassPill: View {
 // MARK: - Glass background modifier
 
 extension View {
-    /// Applies a frosted-glass background, preferring the iOS 26 `glassEffect`.
+    /// A frosted background for floating controls.
+    ///
+    /// NOTE: temporarily using the plain material on all versions. Applying `.glassEffect`
+    /// to interactive button labels appears to break their touch handling on iOS 26 (the
+    /// controls didn't even register taps and menus flickered). If the material fixes it,
+    /// glass is reintroduced properly via `.buttonStyle(.glass)` / interactive glass.
     @ViewBuilder
     func glassBackground(cornerRadius: CGFloat) -> some View {
-        if #available(iOS 26.0, *) {
-            self.glassEffect(
-                .regular,
-                in: .rect(cornerRadius: cornerRadius)
+        self
+            .background(.ultraThinMaterial, in: .rect(cornerRadius: cornerRadius))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .strokeBorder(.white.opacity(0.08), lineWidth: 0.5)
             )
-        } else {
-            self
-                .background(.ultraThinMaterial, in: .rect(cornerRadius: cornerRadius))
-                .overlay(
-                    RoundedRectangle(cornerRadius: cornerRadius)
-                        .strokeBorder(.white.opacity(0.08), lineWidth: 0.5)
-                )
-                .shadow(color: .black.opacity(0.18), radius: 16, y: 6)
-        }
+            .shadow(color: .black.opacity(0.18), radius: 16, y: 6)
     }
 }
