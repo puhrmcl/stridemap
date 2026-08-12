@@ -5,25 +5,29 @@ import SwiftUI
 /// shareable image. This is "your achievements become etched."
 struct RunPosterView: View {
     let run: Run
+    /// A pre-rendered map+route panel (a muted MapKit snapshot with the route on top). When
+    /// nil, the panel falls back to the route drawn on a plain Bone background.
+    var mapImage: UIImage?
 
-    // Reference design size (2:3 poster). Rendered fixed, then scaled as an image.
-    static let size = CGSize(width: 1000, height: 1500)
+    /// Size of the map panel (poster width). The footer sits below at its natural height.
+    static let routePanelSize = CGSize(width: 1000, height: 980)
 
     var body: some View {
         VStack(spacing: 0) {
             routePanel
             footer
         }
-        .frame(width: Self.size.width, height: Self.size.height)
+        .frame(width: Self.routePanelSize.width)
         .background(Theme.Palette.bone)
     }
 
     private var routePanel: some View {
         ZStack {
             Theme.Palette.bone
-            let coordinates = run.coordinates
-            if coordinates.count > 1 {
-                RouteShape(coordinates: coordinates)
+            if let mapImage {
+                Image(uiImage: mapImage).resizable().scaledToFill()
+            } else if run.coordinates.count > 1 {
+                RouteShape(coordinates: run.coordinates)
                     .stroke(
                         Theme.Palette.blue,
                         style: StrokeStyle(lineWidth: 12, lineCap: .round, lineJoin: .round)
@@ -35,7 +39,8 @@ struct RunPosterView: View {
                     .foregroundStyle(Theme.Palette.stone)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(width: Self.routePanelSize.width, height: Self.routePanelSize.height)
+        .clipped()
     }
 
     private var footer: some View {
@@ -141,14 +146,17 @@ struct RunPosterExportView: View {
                     }
                 }
             }
-            .task { render() }
+            .task { await render() }
         }
     }
 
     @MainActor
-    private func render() {
+    private func render() async {
         guard poster == nil else { return }
-        let renderer = ImageRenderer(content: RunPosterView(run: run))
+        // Snapshot the run's area as a muted, brand-tinted map with the route drawn on top,
+        // then compose it with the title block.
+        let mapImage = await PosterMap.routePanel(for: run, size: RunPosterView.routePanelSize)
+        let renderer = ImageRenderer(content: RunPosterView(run: run, mapImage: mapImage))
         renderer.scale = 2
         guard let image = renderer.uiImage else { return }
         poster = image
