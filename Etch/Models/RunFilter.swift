@@ -24,6 +24,7 @@ struct RunFilter: Equatable {
         case long = "Long Runs"
         case prs = "PRs"
         case races = "Races"
+        case favorites = "Favorites"
 
         var id: String { rawValue }
         var symbol: String {
@@ -33,6 +34,7 @@ struct RunFilter: Equatable {
             case .long: return "arrow.left.and.right"
             case .prs: return "trophy"
             case .races: return "flag.checkered"
+            case .favorites: return "heart.fill"
             }
         }
     }
@@ -70,6 +72,7 @@ struct RunFilter: Equatable {
         case .long: if run.distance < longRunThreshold { return false }
         case .prs: if !isPR { return false }
         case .races: if !run.isRace { return false }
+        case .favorites: if !run.isFavorite { return false }
         }
 
         switch surface {

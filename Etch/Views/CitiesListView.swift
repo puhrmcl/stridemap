@@ -11,34 +11,51 @@ struct CitiesListView: View {
     private var maxRuns: Int { places.map(\.runs.count).max() ?? 1 }
 
     var body: some View {
-        ScrollView {
-            if places.isEmpty {
-                ContentUnavailableView(
-                    "No cities yet",
-                    systemImage: "building.2",
-                    description: Text("Cities appear once your runs have GPS locations.")
-                )
-                .padding(.top, 60)
-            } else {
-                VStack(spacing: 20) {
-                    header
-
-                    CitiesMapView(
-                        cities: places,
-                        selectedRunID: .constant(nil),
-                        stackedRunIDs: .constant(nil),
-                        mapStyle: .standard
+        ScrollViewReader { proxy in
+            ScrollView {
+                if places.isEmpty {
+                    ContentUnavailableView(
+                        "No cities yet",
+                        systemImage: "building.2",
+                        description: Text("Cities appear once your runs have GPS locations.")
                     )
-                    .frame(height: 340)
-                    .clipShape(.rect(cornerRadius: Theme.cardRadius))
+                    .padding(.top, 60)
+                } else {
+                    VStack(spacing: 20) {
+                        header
 
-                    list
+                        CitiesMapView(
+                            cities: places,
+                            selectedRunID: .constant(nil),
+                            stackedRunIDs: .constant(nil),
+                            mapStyle: .standard
+                        )
+                        .frame(height: 340)
+                        .clipShape(.rect(cornerRadius: Theme.cardRadius))
+
+                        list
+                    }
+                    .padding(20)
                 }
-                .padding(20)
+            }
+            .navigationTitle("Cities")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if !places.isEmpty {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            ForEach(places) { place in
+                                Button("\(place.label)  ·  \(place.runs.count)") {
+                                    withAnimation { proxy.scrollTo(place.id, anchor: .top) }
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "list.bullet")
+                        }
+                    }
+                }
             }
         }
-        .navigationTitle("Cities")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var header: some View {
@@ -72,6 +89,7 @@ struct CitiesListView: View {
                     place: place,
                     fraction: Double(place.runs.count) / Double(maxRuns)
                 )
+                .id(place.id)
             }
         }
     }
