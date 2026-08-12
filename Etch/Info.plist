@@ -37,6 +37,8 @@
 	<string>Etch reads your running workouts and GPS routes from Apple Health to map every run you've taken.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Etch does not write to Apple Health.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Etch finds photos you took during a run so they can appear with it. Your photos stay on your device.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

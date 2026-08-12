@@ -1,10 +1,18 @@
 import SwiftUI
+import PhotosUI
 
 /// Details for a single run, shown as a sheet when a route is tapped.
 struct RunDetailView: View {
     @Bindable var run: Run
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(\.modelContext) private var context
+
+    @State private var pickerItems: [PhotosPickerItem] = []
+    @State private var photoSelection: PhotoSelection?
+    @State private var isFindingPhotos = false
+
+    private struct PhotoSelection: Identifiable { let id: String }
 
     var body: some View {
         NavigationStack {
@@ -18,6 +26,8 @@ struct RunDetailView: View {
 
                     metrics
 
+                    photosSection
+
                     sourceFooter
 
                     if run.isStravaLinked {
@@ -25,6 +35,15 @@ struct RunDetailView: View {
                     }
                 }
                 .padding(20)
+            }
+            .task { await autoMatchPhotosIfNeeded() }
+            .onChange(of: pickerItems) { _, items in addPicked(items) }
+            .fullScreenCover(item: $photoSelection) { selection in
+                RunPhotoViewer(
+                    identifiers: run.photoReferences,
+                    selection: selection.id,
+                    onDelete: deletePhoto
+                )
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -117,6 +136,106 @@ struct RunDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(.regularMaterial, in: .rect(cornerRadius: 18))
+    }
+
+    // MARK: Photos
+
+    private var photosSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Photos").font(.system(.headline, design: .rounded))
+                Spacer()
+                if isFindingPhotos { ProgressView().controlSize(.small) }
+            }
+
+            if run.photoReferences.isEmpty {
+                HStack(spacing: 10) {
+                    addPhotosButton {
+                        Label("Add Photos", systemImage: "photo.badge.plus")
+                            .font(.system(.subheadline, design: .rounded).weight(.medium))
+                            .foregroundStyle(Theme.accent)
+                    }
+                    Button {
+                        Task { await findPhotos() }
+                    } label: {
+                        Label("Find from Library", systemImage: "sparkles")
+                            .font(.system(.subheadline, design: .rounded).weight(.medium))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .disabled(isFindingPhotos)
+                }
+                Text("Etch can find photos you took during this run.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(run.photoReferences, id: \.self) { identifier in
+                            RunPhotoThumbnail(identifier: identifier)
+                                .onTapGesture { photoSelection = PhotoSelection(id: identifier) }
+                        }
+                        addPhotosButton {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 12).fill(Color(white: 0.15))
+                                Image(systemName: "plus").font(.title3).foregroundStyle(.secondary)
+                            }
+                            .frame(width: 84, height: 84)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// A `PhotosPicker` wrapping the given label. Uses `.shared()` so we get asset identifiers.
+    private func addPhotosButton<Content: View>(@ViewBuilder label: () -> Content) -> some View {
+        PhotosPicker(
+            selection: $pickerItems,
+            maxSelectionCount: 10,
+            matching: .images,
+            photoLibrary: .shared()
+        ) { label() }
+    }
+
+    private func addIdentifiers(_ ids: [String]) {
+        guard !ids.isEmpty else { return }
+        var refs = run.photoReferences
+        for id in ids where !refs.contains(id) { refs.append(id) }
+        guard refs.count != run.photoReferences.count else { return }
+        run.photoReferences = refs
+        run.updatedAt = Date()
+        try? context.save()
+    }
+
+    private func addPicked(_ items: [PhotosPickerItem]) {
+        addIdentifiers(items.compactMap(\.itemIdentifier))
+        pickerItems = []
+    }
+
+    private func deletePhoto(_ identifier: String) {
+        run.photoReferences.removeAll { $0 == identifier }
+        run.updatedAt = Date()
+        try? context.save()
+    }
+
+    private var photoScanKey: String { "photoScan-\(run.id.uuidString)" }
+
+    /// On first open, if the library is already authorised, quietly pull in matching photos.
+    private func autoMatchPhotosIfNeeded() async {
+        guard PhotoLibrary.isAuthorized,
+              !UserDefaults.standard.bool(forKey: photoScanKey) else { return }
+        addIdentifiers(PhotoLibrary.matchingIdentifiers(for: run))
+        UserDefaults.standard.set(true, forKey: photoScanKey)
+    }
+
+    /// Explicit "Find from Library": request access if needed, then match.
+    private func findPhotos() async {
+        isFindingPhotos = true
+        defer { isFindingPhotos = false }
+        guard await PhotoLibrary.requestAuthorization() else { return }
+        addIdentifiers(PhotoLibrary.matchingIdentifiers(for: run))
+        UserDefaults.standard.set(true, forKey: photoScanKey)
     }
 
     /// Subtle provenance line — where the workout originated. Deliberately quiet.
