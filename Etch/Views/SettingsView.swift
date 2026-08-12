@@ -24,6 +24,7 @@ struct SettingsView: View {
                 syncSection
                 appearanceSection
                 routeDiagnosticsSection
+                statesDiagnosticsSection
                 dataSection
                 aboutSection
             }
@@ -171,6 +172,37 @@ struct SettingsView: View {
             Text("Route Diagnostics")
         } footer: {
             Text("Maps come from GPS routes each app writes to Apple Health. If a source shows 0 maps, that app isn't saving routes to Health (e.g. Nike Run Club) — Etch can't map those without another source like Strava.")
+        }
+    }
+
+    // Runs that carry a start coordinate — the input to the States/Cities maps.
+    private var locatedRunCount: Int { runs.filter { $0.startLatitude != nil }.count }
+
+    /// Distinct states the located runs fall in, by point-in-polygon. Pinpoints why the
+    /// States map is blank: 0 map regions = boundary data missing from the build; 0 located
+    /// runs = no GPS yet; regions and GPS present but 0 detected = attribution problem.
+    private var detectedStateCount: Int {
+        let boundaries = USStateBoundaries.shared
+        guard !boundaries.boundaries.isEmpty else { return 0 }
+        var names = Set<String>()
+        for run in runs {
+            if let coordinate = run.startCoordinate,
+               let name = boundaries.region(containing: coordinate) {
+                names.insert(name)
+            }
+        }
+        return names.count
+    }
+
+    private var statesDiagnosticsSection: some View {
+        Section {
+            LabeledContent("US map regions", value: USStateBoundaries.shared.boundaries.count.formatted())
+            LabeledContent("Runs with GPS", value: locatedRunCount.formatted())
+            LabeledContent("States detected", value: detectedStateCount.formatted())
+        } header: {
+            Text("Map Coverage")
+        } footer: {
+            Text("The States map shades a state when a run started inside it. \"US map regions\" should be 51 (50 states + DC); if it's 0 the boundary data didn't ship. \"Runs with GPS\" is how many runs have a route to place — only these can be attributed to a state or city.")
         }
     }
 

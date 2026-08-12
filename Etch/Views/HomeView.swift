@@ -45,7 +45,11 @@ struct HomeView: View {
             if showStates {
                 StatesMapView(intensities: stateIntensities, mapStyle: mapStyle)
             } else if showCities {
-                CitiesMapView(coordinates: runStartCoordinates, mapStyle: mapStyle)
+                CitiesMapView(
+                    points: runStartPoints,
+                    selectedRunID: $appModel.selectedRunID,
+                    mapStyle: mapStyle
+                )
             } else {
                 RunMapView(
                     // History shows the whole body of work, so it ignores the active filter.
@@ -266,16 +270,18 @@ struct HomeView: View {
         allRuns.reduce(0) { $0 + ($1.startLatitude != nil ? 1 : 0) }
     }
 
-    /// Every run's start point that has GPS, for the Cities cluster map.
-    private var runStartCoordinates: [CLLocationCoordinate2D] {
-        allRuns.compactMap(\.startCoordinate)
+    /// Every run's start point that has GPS, paired with its identity, for the Cities map.
+    private var runStartPoints: [RunMapPoint] {
+        allRuns.compactMap { run in
+            run.startCoordinate.map { RunMapPoint(id: run.id, coordinate: $0) }
+        }
     }
 
     /// Attributes each located run to a US state by point-in-polygon and shades proportionally
     /// to run count. The coordinate snapshot happens on the main actor (Run isn't Sendable);
     /// the polygon tests run off-main so a large history never stalls the UI.
     private func computeStateIntensities() async {
-        let coordinates = runStartCoordinates
+        let coordinates = runStartPoints.map(\.coordinate)
         let boundaries = USStateBoundaries.shared
         let counts = await Task.detached(priority: .userInitiated) { () -> [String: Int] in
             var counts: [String: Int] = [:]

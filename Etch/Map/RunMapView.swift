@@ -100,13 +100,8 @@ struct RunMapView: UIViewRepresentable {
 
         /// Lightweight start points for the mapped runs, used to place tappable pins.
         private var runPoints: [(id: UUID, coordinate: CLLocationCoordinate2D)] = []
-        /// run id → its currently-shown pin annotation.
+        /// run id → its pin annotation.
         private var pinsByID: [UUID: RunStartAnnotation] = [:]
-        /// Pins appear only once zoomed in past this span (roughly metro level) so the
-        /// zoomed-out route map stays clean.
-        private let pinZoomThreshold: CLLocationDegrees = 0.6
-        /// Safety cap so a dense area can't drop thousands of pins at once.
-        private let maxPins = 300
 
         private let locationManager = CLLocationManager()
 
@@ -239,38 +234,31 @@ struct RunMapView: UIViewRepresentable {
 
         // MARK: Run pins
 
-        /// Keeps the map's viewport in sync with the annotation set as the user pans/zooms.
-        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
-            refreshRunPins()
-        }
-
-        /// Drops a runner pin on each mapped run in view, but only when zoomed in past
-        /// `pinZoomThreshold` (so the country-wide view isn't buried). Pins outside the
-        /// viewport or beyond the cap are removed. History mode shows none.
+        /// Places one runner pin per mapped run and lets MapKit cluster them: zoomed out they
+        /// collapse into count bubbles, and tapping drills in until single runs are tappable.
+        /// All pins are added (not viewport-culled) so cluster counts are accurate. History
+        /// mode shows none.
         func refreshRunPins() {
             guard let map else { return }
-            guard parent.renderStyle == .routes,
-                  map.region.span.latitudeDelta < pinZoomThreshold else {
+            guard parent.renderStyle == .routes else {
                 removeAllRunPins()
                 return
             }
 
-            let visible = map.visibleMapRect
-            var desired: [UUID: CLLocationCoordinate2D] = [:]
-            for point in runPoints where visible.contains(MKMapPoint(point.coordinate)) {
-                desired[point.id] = point.coordinate
-                if desired.count >= maxPins { break }
-            }
+            let desired = Dictionary(runPoints.map { ($0.id, $0.coordinate) },
+                                     uniquingKeysWith: { first, _ in first })
 
             for (id, pin) in pinsByID where desired[id] == nil {
                 map.removeAnnotation(pin)
                 pinsByID[id] = nil
             }
+            var toAdd: [RunStartAnnotation] = []
             for (id, coordinate) in desired where pinsByID[id] == nil {
                 let pin = RunStartAnnotation(runID: id, coordinate: coordinate)
                 pinsByID[id] = pin
-                map.addAnnotation(pin)
+                toAdd.append(pin)
             }
+            if !toAdd.isEmpty { map.addAnnotations(toAdd) }
         }
 
         private func removeAllRunPins() {
