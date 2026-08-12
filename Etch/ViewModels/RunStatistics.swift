@@ -31,10 +31,50 @@ struct RunStatistics {
 
     // MARK: Superlatives
 
+    /// Furthest by distance (the "most miles" run).
     var longestRun: Run? { runs.max { $0.distance < $1.distance } }
+    /// Longest by elapsed effort (the "most time on feet" run).
+    var longestDurationRun: Run? { runs.max { $0.movingTime < $1.movingTime } }
     var highestClimb: Run? { runs.max { $0.elevationGain < $1.elevationGain } }
     var fastestRun: Run? {
-        runs.filter { $0.distance > 1000 }.min { $0.paceSecondsPerKm < $1.paceSecondsPerKm }
+        runs.filter { $0.distance > 1000 && isPlausibleSpeed($0) }
+            .min { $0.paceSecondsPerKm < $1.paceSecondsPerKm }
+    }
+
+    /// Rejects runs whose average speed exceeds elite pace — those are bad GPS/short-run data
+    /// artifacts (e.g. a "0:30 /mi" record), not real efforts.
+    private func isPlausibleSpeed(_ run: Run) -> Bool {
+        guard run.movingTime > 0 else { return false }
+        return run.distance / Double(run.movingTime) <= 6.5   // m/s (~2:33/km, faster than elite)
+    }
+
+    // MARK: Distance personal bests
+
+    /// A best time at (approximately) a benchmark distance.
+    struct DistancePR: Identifiable {
+        let label: String
+        let meters: Double
+        let run: Run
+        var id: String { label }
+        var time: Int { run.movingTime }
+    }
+
+    private static let prBenchmarks: [(String, Double)] = [
+        ("1K", 1_000), ("1 Mile", 1_609.34), ("5K", 5_000), ("10K", 10_000),
+        ("Half Marathon", 21_097.5), ("Marathon", 42_195)
+    ]
+
+    /// Your fastest actual run at each benchmark distance (within a tolerance band), by moving
+    /// time. Note: this is a whole-run best at ~that distance — not a rolling best-effort split
+    /// within a longer run (which would need per-point timing we don't store).
+    var personalRecords: [DistancePR] {
+        Self.prBenchmarks.compactMap { name, meters in
+            let lo = meters * 0.98, hi = meters * 1.10
+            let best = runs.filter {
+                $0.movingTime > 0 && $0.distance >= lo && $0.distance <= hi && isPlausibleSpeed($0)
+            }.min { $0.movingTime < $1.movingTime }
+            return best.map { DistancePR(label: name, meters: meters, run: $0) }
+        }
     }
 
     var northernmostRun: Run? { runs.max { ($0.startLatitude ?? -91) < ($1.startLatitude ?? -91) } }

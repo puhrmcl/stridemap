@@ -167,9 +167,10 @@ struct TimelineView: View {
     }
 
     private func open(_ run: Run) {
+        // Swap this sheet for the run's detail (no dismiss(), which would clear the selection
+        // before the detail could present).
         appModel.select(run)
         appModel.presentedSurface = nil
-        dismiss()
     }
 }
 

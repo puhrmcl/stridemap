@@ -15,6 +15,7 @@ struct ExploreView: View {
                 VStack(spacing: 24) {
                     reachSection
                     superlativesSection
+                    personalBestsSection
                     recapsSection
                 }
                 .padding(20)
@@ -63,8 +64,11 @@ struct ExploreView: View {
             Text("Records")
                 .font(.system(.title3, design: .rounded).weight(.bold))
 
-            if let longest = stats.longestRun {
-                SuperlativeRow(icon: "arrow.left.and.right", title: "Longest Run", value: Format.distance(longest.distance), subtitle: longest.name) { focus(longest) }
+            if let furthest = stats.longestRun {
+                SuperlativeRow(icon: "arrow.left.and.right", title: "Furthest Run", value: Format.distance(furthest.distance), subtitle: furthest.name) { focus(furthest) }
+            }
+            if let longest = stats.longestDurationRun {
+                SuperlativeRow(icon: "clock", title: "Longest Run", value: Format.duration(longest.movingTime), subtitle: longest.name) { focus(longest) }
             }
             if let climb = stats.highestClimb {
                 SuperlativeRow(icon: "mountain.2", title: "Highest Climb", value: Format.elevation(climb.elevationGain), subtitle: climb.name) { focus(climb) }
@@ -85,6 +89,26 @@ struct ExploreView: View {
                     SuperlativeRow(icon: "repeat", title: "Most Visited", value: "\(visited.count)×", subtitle: visited.label, showsChevron: true)
                 }
                 .buttonStyle(.plain)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var personalBestsSection: some View {
+        let prs = stats.personalRecords
+        if !prs.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Personal Bests")
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+
+                ForEach(prs) { pr in
+                    SuperlativeRow(
+                        icon: "stopwatch",
+                        title: pr.label,
+                        value: Format.duration(pr.time),
+                        subtitle: "\(Format.pace(secondsPerKm: pr.run.paceSecondsPerKm)) pace"
+                    ) { focus(pr.run) }
+                }
             }
         }
     }
@@ -118,8 +142,10 @@ struct ExploreView: View {
     }
 
     private func focus(_ run: Run) {
-        appModel.select(run)
-        appModel.presentedSurface = nil
-        dismiss()
+        // Swap the Explore sheet for the run's detail and zoom the map to it. We do NOT call
+        // dismiss() here: dismissing sets the shared sheet binding to nil, which clears the
+        // selection before the run detail can present. Changing the state does the swap.
+        appModel.select(run)             // selectedRunID (opens detail) + focus command (zoom)
+        appModel.presentedSurface = nil  // closes Explore; detail takes its place
     }
 }
