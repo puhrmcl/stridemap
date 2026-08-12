@@ -87,8 +87,9 @@ enum Heatmap {
     /// Blue → cyan → white ramp (0–255 components), matching the Etch palette's cool glow.
     private static func rampColor(_ t: Float) -> (Float, Float, Float) {
         if t < 0.5 {
+            // Base is Etch Blue (#1473E6 = 20,115,230) → cyan.
             let f = t / 0.5
-            return (20 + (60 - 20) * f, 90 + (200 - 90) * f, 230 + (255 - 230) * f)
+            return (20 + (60 - 20) * f, 115 + (200 - 115) * f, 230 + (255 - 230) * f)
         } else {
             let f = (t - 0.5) / 0.5
             return (60 + (255 - 60) * f, 200 + (255 - 200) * f, 255)
