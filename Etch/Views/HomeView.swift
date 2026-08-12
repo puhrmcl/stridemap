@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import CoreLocation
 
 /// Full-screen map with floating glass controls. The map is the product; chrome floats.
 struct HomeView: View {
@@ -14,8 +15,9 @@ struct HomeView: View {
     @State private var showStates = false
     /// When true, the map shows the accumulative "etch" view of all tracked history.
     @State private var showHistory = false
+    /// When true, the map shows clustered run counts by city.
+    @State private var showCities = false
     @State private var stateIntensities: [String: Double] = [:]
-    @State private var statesComputed = false
 
     /// TEMP diagnostic: counts bottom-button taps regardless of whether a sheet opens, so we
     /// can tell "the touch isn't landing" from "the touch lands but the page won't present".
@@ -30,9 +32,11 @@ struct HomeView: View {
 
     private var visibleStats: RunStatistics { RunStatistics(visibleRuns) }
 
-    /// Totals for whatever the map is currently showing. History ignores the active filter,
-    /// so its pills reflect the full body of work rather than the filtered subset.
-    private var shownStats: RunStatistics { showHistory ? stats : visibleStats }
+    /// Totals for whatever the map is currently showing. The overview modes (history, cities,
+    /// states) ignore the active filter, so their pills reflect the full body of work.
+    private var shownStats: RunStatistics {
+        (showHistory || showCities || showStates) ? stats : visibleStats
+    }
 
     var body: some View {
         @Bindable var appModel = appModel
@@ -40,6 +44,8 @@ struct HomeView: View {
         Group {
             if showStates {
                 StatesMapView(intensities: stateIntensities, mapStyle: mapStyle)
+            } else if showCities {
+                CitiesMapView(coordinates: runStartCoordinates, mapStyle: mapStyle)
             } else {
                 RunMapView(
                     // History shows the whole body of work, so it ignores the active filter.
@@ -52,9 +58,12 @@ struct HomeView: View {
             }
         }
         .ignoresSafeArea()
-        .task(id: showStates) {
-            guard showStates, !statesComputed else { return }
-            computeStateIntensities()
+        // Recompute whenever States is showing and the number of located runs changes, so the
+        // choropleth fills in as Strava/HealthKit routes give older runs coordinates (rather
+        // than caching one sparse result forever).
+        .task(id: showStates ? locatedRunCount : -1) {
+            guard showStates else { return }
+            await computeStateIntensities()
         }
         // Controls float via safe-area insets rather than a ZStack overlay, so SwiftUI owns
         // their hit-testing and they don't compete with the map's UIKit gestures (which made
@@ -70,7 +79,9 @@ struct HomeView: View {
                     Spacer()
                     VStack(spacing: 10) {
                         mapStyleButton
-                        if !showStates {
+                        // Recenter-on-user only makes sense on the route/history maps, not the
+                        // country-wide states or cities overviews.
+                        if !showStates && !showCities {
                             GlassIconButton(systemName: "location.fill") {
                                 appModel.recenterOnUser()
                             }
@@ -168,11 +179,12 @@ struct HomeView: View {
         }
     }
 
-    /// What the map is currently showing: a run-filter mode, the history etch, or the
-    /// states choropleth.
+    /// What the map is currently showing: a run-filter mode, the history etch, the cities
+    /// cluster map, or the states choropleth.
     private enum ModeSelection: Hashable {
         case mode(RunFilter.Mode)
         case history
+        case cities
         case states
     }
 
@@ -180,22 +192,24 @@ struct HomeView: View {
         Binding(
             get: {
                 if showStates { return .states }
+                if showCities { return .cities }
                 if showHistory { return .history }
                 return .mode(appModel.filter.mode)
             },
             set: { newValue in
+                showStates = false
+                showHistory = false
+                showCities = false
                 switch newValue {
                 case .mode(let mode):
-                    showStates = false
-                    showHistory = false
                     var f = appModel.filter
                     f.mode = mode
                     appModel.setFilter(f)
                 case .history:
-                    showStates = false
                     showHistory = true
+                case .cities:
+                    showCities = true
                 case .states:
-                    showHistory = false
                     showStates = true
                 }
             }
@@ -204,11 +218,13 @@ struct HomeView: View {
 
     private var currentModeLabel: String {
         if showStates { return "States" }
+        if showCities { return "Cities" }
         if showHistory { return "History" }
         return appModel.filter.mode.rawValue
     }
     private var currentModeSymbol: String {
         if showStates { return "map.fill" }
+        if showCities { return "building.2.fill" }
         if showHistory { return "point.3.filled.connected.trianglepath.dotted" }
         return appModel.filter.mode.symbol
     }
@@ -224,6 +240,7 @@ struct HomeView: View {
                     }
                     Label("History", systemImage: "point.3.filled.connected.trianglepath.dotted")
                         .tag(ModeSelection.history)
+                    Label("Cities", systemImage: "building.2.fill").tag(ModeSelection.cities)
                     Label("States", systemImage: "map.fill").tag(ModeSelection.states)
                 }
             } label: {
@@ -243,16 +260,34 @@ struct HomeView: View {
         }
     }
 
-    private func computeStateIntensities() {
-        var counts: [String: Int] = [:]
-        for run in allRuns {
-            guard let coordinate = run.startCoordinate,
-                  let name = USStateBoundaries.shared.region(containing: coordinate) else { continue }
-            counts[name, default: 0] += 1
-        }
+    /// Number of runs that have a start coordinate — the input to both overview maps. Drives
+    /// recomputation so the maps fill in as routes arrive.
+    private var locatedRunCount: Int {
+        allRuns.reduce(0) { $0 + ($1.startLatitude != nil ? 1 : 0) }
+    }
+
+    /// Every run's start point that has GPS, for the Cities cluster map.
+    private var runStartCoordinates: [CLLocationCoordinate2D] {
+        allRuns.compactMap(\.startCoordinate)
+    }
+
+    /// Attributes each located run to a US state by point-in-polygon and shades proportionally
+    /// to run count. The coordinate snapshot happens on the main actor (Run isn't Sendable);
+    /// the polygon tests run off-main so a large history never stalls the UI.
+    private func computeStateIntensities() async {
+        let coordinates = runStartCoordinates
+        let boundaries = USStateBoundaries.shared
+        let counts = await Task.detached(priority: .userInitiated) { () -> [String: Int] in
+            var counts: [String: Int] = [:]
+            for coordinate in coordinates {
+                if let name = boundaries.region(containing: coordinate) {
+                    counts[name, default: 0] += 1
+                }
+            }
+            return counts
+        }.value
         let maxCount = counts.values.max() ?? 1
         stateIntensities = counts.mapValues { min(1, (Double($0) / Double(maxCount)).squareRoot()) }
-        statesComputed = true
     }
 
     // MARK: Bottom — navigation controls
