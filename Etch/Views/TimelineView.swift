@@ -110,7 +110,7 @@ struct TimelineView: View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
             ForEach(monthRuns.dropFirst()) { run in
                 tile(run, corner: 10)
-                    .aspectRatio(1, contentMode: .fill)
+                    .aspectRatio(1, contentMode: .fit)
             }
         }
     }
@@ -121,7 +121,7 @@ struct TimelineView: View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 4), spacing: 4) {
             ForEach(runs) { run in
                 tile(run, corner: 6)
-                    .aspectRatio(1, contentMode: .fill)
+                    .aspectRatio(1, contentMode: .fit)
             }
         }
         .padding(.horizontal, 8)
@@ -133,6 +133,7 @@ struct TimelineView: View {
     private func tile(_ run: Run, corner: CGFloat) -> some View {
         Button { open(run) } label: {
             RunTileImage(run: run)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipShape(.rect(cornerRadius: corner))
                 .contentShape(.rect)
         }
