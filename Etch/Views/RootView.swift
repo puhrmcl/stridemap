@@ -29,8 +29,10 @@ struct RootView: View {
         .animation(Theme.gentle, value: isReady)
         .task(id: isReady) {
             guard isReady else { return }
-            // Import on first appearance, then keep observing for new workouts.
-            if runs.isEmpty { await sync.sync() }
+            // Import on first appearance, then keep observing for new workouts. Also run when
+            // Strava was just connected but its full history hasn't been backfilled yet, so
+            // maps attach to pre-existing runs without a manual "Sync Now".
+            if runs.isEmpty || sync.needsStravaBackfill { await sync.sync() }
             healthKit.startObserving {
                 Task { @MainActor in await sync.sync() }
             }

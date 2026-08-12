@@ -33,6 +33,17 @@ final class SyncService {
             }
         }
     }
+    /// Strava's own high-water mark, independent of HealthKit's. Nil until Strava has been
+    /// synced once — so the *first* Strava sync backfills the full history and can enrich
+    /// runs (and supply routes for Nike/others) recorded long before Strava was connected.
+    /// Using the shared `lastSyncDate` here would ask Strava only for brand-new activities.
+    private(set) var lastStravaSyncDate: Date? {
+        didSet {
+            if let lastStravaSyncDate {
+                UserDefaults.standard.set(lastStravaSyncDate, forKey: "lastStravaSyncDate")
+            }
+        }
+    }
 
     private let context: ModelContext
     private let healthKit: HealthKitService
@@ -49,6 +60,7 @@ final class SyncService {
         self.healthKitProvider = HealthKitProvider(store: healthKit.store)
         self.stravaProvider = StravaProvider(auth: auth)
         self.lastSyncDate = UserDefaults.standard.object(forKey: "lastSyncDate") as? Date
+        self.lastStravaSyncDate = UserDefaults.standard.object(forKey: "lastStravaSyncDate") as? Date
     }
 
     var isSyncing: Bool {
@@ -59,6 +71,13 @@ final class SyncService {
     /// Whether there is anything to sync from (HealthKit available or Strava connected).
     var hasAnySource: Bool {
         healthKitProvider.isAvailable || stravaProvider.isAvailable
+    }
+
+    /// True when Strava is connected but has never completed its first full-history pull.
+    /// Lets the app auto-run the backfill on launch even when runs already exist, so the
+    /// maps for pre-existing runs appear without the user tapping "Sync Now".
+    var needsStravaBackfill: Bool {
+        stravaProvider.isAvailable && lastStravaSyncDate == nil
     }
 
     // MARK: Sync
@@ -99,18 +118,36 @@ final class SyncService {
 
             // 2. Enrichment: Strava merges into primary runs or adds its own. Time-boxed too.
             if stravaProvider.isAvailable {
-                lastDiagnostic += " · Strava connected"
-                let activities = await withTimeout(20, fallback: [ImportedActivity]()) { [stravaProvider] in
-                    (try? await stravaProvider.fetchActivities(since: since)) ?? []
+                // Strava has its own high-water mark: nil on first connect → pull the FULL
+                // history so routes/metadata can attach to runs recorded before Strava was
+                // linked (this is what puts maps on historical Nike runs). Incremental after.
+                let stravaSince = lastStravaSyncDate
+                let activities = await withTimeout(45, fallback: [ImportedActivity]()) { [stravaProvider] in
+                    (try? await stravaProvider.fetchActivities(since: stravaSince)) ?? []
                 }
+                // Detail fetches (city/state) cost one API call each; cap them so a large
+                // first-time backfill stays well under Strava's rate limit. Routes and titles
+                // come from the activity *list* and are applied to every activity regardless;
+                // missing place names are filled by reverse-geocoding below.
+                var detailBudget = 40
+                var mergedCount = 0, newCount = 0
                 for activity in activities {
                     var activity = activity
-                    if try await importEnrichment(&activity) {
+                    let fetchDetail = detailBudget > 0
+                    if try await importEnrichment(&activity, fetchDetail: fetchDetail) {
                         imported += 1
+                        newCount += 1
                         status = .syncing(imported: imported)
+                    } else {
+                        mergedCount += 1
                     }
+                    if fetchDetail { detailBudget -= 1 }
                 }
                 try context.save()
+                lastStravaSyncDate = Date()
+                lastDiagnostic += " · Strava: \(activities.count) activities (\(mergedCount) merged, \(newCount) new)"
+            } else {
+                lastDiagnostic += " · Strava not connected"
             }
 
             // Best-effort: fill in place names for runs that arrived without them
@@ -333,24 +370,28 @@ final class SyncService {
 
     /// Merges a Strava activity into a matching run, or creates a standalone run when no
     /// HealthKit counterpart exists. Returns true only when a *new* run was inserted.
-    private func importEnrichment(_ activity: inout ImportedActivity) async throws -> Bool {
+    /// - Parameter fetchDetail: when false, skips the per-activity Strava *detail* call
+    ///   (city/state/country). Routes and titles still merge from the already-fetched list
+    ///   data; place names are backfilled later by reverse-geocoding. Used to bound API
+    ///   calls during a large first-time backfill.
+    private func importEnrichment(_ activity: inout ImportedActivity, fetchDetail: Bool) async throws -> Bool {
         // Already linked to a run from a previous sync? Refresh lightweight metadata only.
         if let stravaID = Int64(activity.externalID),
            let existing = try runLinkedToStrava(stravaID) {
-            await stravaProvider.enrich(&activity)
+            if fetchDetail { await stravaProvider.enrich(&activity) }
             merge(activity, into: existing)
             return false
         }
 
         // Try to match an existing (HealthKit) run that isn't yet Strava-linked.
         if let match = try bestMatch(for: activity), match.stravaActivityID == nil {
-            await stravaProvider.enrich(&activity)
+            if fetchDetail { await stravaProvider.enrich(&activity) }
             merge(activity, into: match)
             return false
         }
 
         // No match — this is a Strava-only run. Create it.
-        await stravaProvider.enrich(&activity)
+        if fetchDetail { await stravaProvider.enrich(&activity) }
         let run = makeRun(from: activity)
         run.stravaActivityID = Int64(activity.externalID)
         if run.hasRoute {
