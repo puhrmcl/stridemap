@@ -35,7 +35,12 @@ struct ExploreView: View {
                 .font(.system(.title2, design: .rounded).weight(.bold))
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                StatTile(value: stats.cities.count.formatted(), label: "Cities", systemName: "building.2", accent: true)
+                NavigationLink {
+                    CitiesListView(places: stats.travelPlaces)
+                } label: {
+                    StatTile(value: stats.cities.count.formatted(), label: "Cities", systemName: "building.2", accent: true)
+                }
+                .buttonStyle(.plain)
                 NavigationLink {
                     StatesView()
                 } label: {
@@ -74,7 +79,12 @@ struct ExploreView: View {
                 SuperlativeRow(icon: "arrow.down", title: "Southernmost", value: south.placeLabel.isEmpty ? "—" : south.placeLabel, subtitle: south.name) { focus(south) }
             }
             if let visited = stats.mostVisitedArea {
-                SuperlativeRow(icon: "repeat", title: "Most Visited", value: "\(visited.count)×", subtitle: visited.label, action: nil)
+                NavigationLink {
+                    CitiesListView(places: stats.travelPlaces)
+                } label: {
+                    SuperlativeRow(icon: "repeat", title: "Most Visited", value: "\(visited.count)×", subtitle: visited.label, showsChevron: true)
+                }
+                .buttonStyle(.plain)
             }
         }
     }

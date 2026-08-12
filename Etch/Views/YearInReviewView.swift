@@ -13,10 +13,16 @@ struct YearInReviewView: View {
     @State private var isPlaying = false
     @State private var playbackTask: Task<Void, Never>?
 
-    private var runs: [Run] {
-        allRuns.filter { Calendar.current.component(.year, from: $0.startDate) == year && $0.hasRoute }
+    /// Every run in the year — the basis for all stats, so the totals match the Explore list
+    /// (which counts all runs, not only those with a GPS route).
+    private var yearRuns: [Run] {
+        allRuns.filter { Calendar.current.component(.year, from: $0.startDate) == year }
     }
-    private var stats: RunStatistics { RunStatistics(runs) }
+    /// Only the runs that have a route — the map can only animate these.
+    private var mappableRuns: [Run] {
+        yearRuns.filter { $0.hasRoute }
+    }
+    private var stats: RunStatistics { RunStatistics(yearRuns) }
 
     var body: some View {
         NavigationStack {
@@ -37,7 +43,7 @@ struct YearInReviewView: View {
                 }
             }
             .onDisappear { stop() }
-            .onAppear { revealed = runs.count }
+            .onAppear { revealed = mappableRuns.count }
         }
     }
 
@@ -46,10 +52,10 @@ struct YearInReviewView: View {
     private var playbackMap: some View {
         ZStack(alignment: .bottom) {
             Map(initialPosition: .region(overallRegion), interactionModes: []) {
-                ForEach(Array(runs.prefix(revealed).enumerated()), id: \.element.id) { index, run in
+                ForEach(Array(mappableRuns.prefix(revealed).enumerated()), id: \.element.id) { index, run in
                     let coords = run.coordinates
                     if coords.count > 1 {
-                        let fraction = Double(index) / Double(max(runs.count - 1, 1))
+                        let fraction = Double(index) / Double(max(mappableRuns.count - 1, 1))
                         MapPolyline(coordinates: coords)
                             .stroke(
                                 Theme.Route.color(forAgeFraction: 1 - fraction),
@@ -71,7 +77,7 @@ struct YearInReviewView: View {
         Button {
             isPlaying ? stop() : play()
         } label: {
-            Label(isPlaying ? "Stop" : "Play \(runs.count) runs", systemImage: isPlaying ? "stop.fill" : "play.fill")
+            Label(isPlaying ? "Stop" : "Play \(mappableRuns.count) runs", systemImage: isPlaying ? "stop.fill" : "play.fill")
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
                 .padding(.horizontal, 18)
                 .padding(.vertical, 10)
@@ -84,7 +90,7 @@ struct YearInReviewView: View {
         stop()
         isPlaying = true
         revealed = 0
-        let total = runs.count
+        let total = mappableRuns.count
         guard total > 0 else { isPlaying = false; return }
         // Reveal all runs over ~5 seconds regardless of count.
         let step = max(1, total / 120)
@@ -105,7 +111,7 @@ struct YearInReviewView: View {
         playbackTask?.cancel()
         playbackTask = nil
         isPlaying = false
-        revealed = runs.count
+        revealed = mappableRuns.count
     }
 
     // MARK: Stats
@@ -145,11 +151,11 @@ struct YearInReviewView: View {
     }
 
     private var overallRegion: MKCoordinateRegion {
-        guard !runs.isEmpty else {
+        guard !mappableRuns.isEmpty else {
             return MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 39.8, longitude: -98.5), span: MKCoordinateSpan(latitudeDelta: 30, longitudeDelta: 30))
         }
         var minLat = 90.0, maxLat = -90.0, minLon = 180.0, maxLon = -180.0
-        for run in runs {
+        for run in mappableRuns {
             minLat = min(minLat, run.minLatitude); maxLat = max(maxLat, run.maxLatitude)
             minLon = min(minLon, run.minLongitude); maxLon = max(maxLon, run.maxLongitude)
         }
