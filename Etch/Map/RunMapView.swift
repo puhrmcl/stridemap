@@ -50,6 +50,17 @@ struct RunMapView: UIViewRepresentable {
         // reimplemented in a way that can't interfere with the SwiftUI controls.
 
         context.coordinator.map = map
+
+        // A transparent overlay that carries the History heatmap image (hidden otherwise). It
+        // sits above the map tiles but ignores touches so map gestures still work.
+        let heat = UIImageView(frame: map.bounds)
+        heat.isUserInteractionEnabled = false
+        heat.contentMode = .scaleToFill
+        heat.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        heat.isHidden = true
+        map.addSubview(heat)
+        context.coordinator.heatView = heat
+
         // Ask for location so the blue user dot can appear; harmless if declined.
         context.coordinator.requestLocationAuthorization()
         return map
@@ -113,6 +124,10 @@ struct RunMapView: UIViewRepresentable {
         /// run id → its pin annotation.
         private var pinsByID: [UUID: RunStartAnnotation] = [:]
 
+        /// History heatmap: the overlay image view and the decimated points feeding it.
+        var heatView: UIImageView?
+        private var heatPoints: [MKMapPoint] = []
+
         private let locationManager = CLLocationManager()
 
         init(_ parent: RunMapView) { self.parent = parent }
@@ -136,6 +151,17 @@ struct RunMapView: UIViewRepresentable {
         func updateOverlays(with runs: [Run], fadeWithAge: Bool) {
             guard let map else { return }
             let routed = runs.filter { $0.hasRoute }
+
+            // History renders as a heatmap, not per-run polylines. Decimate each route into
+            // points, drop the line overlays, and (re)draw the heat for the current viewport.
+            if parent.renderStyle == .history {
+                heatPoints = routed.flatMap { run in
+                    Self.simplify(run.coordinates, maxPoints: 40).map { MKMapPoint($0) }
+                }
+                updateHeatmap()
+                return
+            }
+            heatView?.isHidden = true
 
             // Snapshot start points for the tappable pins (only mapped runs get one).
             runPoints = routed.compactMap { run in run.startCoordinate.map { (run.id, $0) } }
@@ -339,6 +365,29 @@ struct RunMapView: UIViewRepresentable {
             guard !rect.isNull else { return 0 }
             let metersPerPoint = 1 / MKMapPointsPerMeterAtLatitude(latitude)
             return max(rect.size.width, rect.size.height) * metersPerPoint
+        }
+
+        // MARK: Heatmap (History mode)
+
+        /// Redraw the heatmap whenever the viewport changes so the glow stays registered to
+        /// the map as the user pans and zooms.
+        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+            if parent.renderStyle == .history { updateHeatmap() }
+        }
+
+        /// Renders the History heat image for the current viewport (or hides it outside
+        /// History / when there's nothing to show).
+        func updateHeatmap() {
+            guard let map, let heatView else { return }
+            guard parent.renderStyle == .history, !heatPoints.isEmpty else {
+                heatView.isHidden = true
+                heatView.image = nil
+                return
+            }
+            heatView.frame = map.bounds
+            let image = Heatmap.image(points: heatPoints, visible: map.visibleMapRect, size: map.bounds.size)
+            heatView.image = image
+            heatView.isHidden = (image == nil)
         }
 
         // MARK: Camera
