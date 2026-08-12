@@ -99,16 +99,28 @@ struct TimelineView: View {
         .padding(.top, 4)
     }
 
-    /// A month's runs: a wide hero for the first, then a 3-up grid of the rest.
+    /// A month's runs: a wide hero for the first, then a 3-up grid of the rest. Tiles show the
+    /// run's photo (or a brand-tinted map of the route) with the title + distance captioned.
     @ViewBuilder
     private func monthGrid(_ monthRuns: [Run]) -> some View {
         if let hero = monthRuns.first {
-            photoTile(hero, corner: 14, height: 160)
-                .padding(.bottom, 6)
+            Button { open(hero) } label: {
+                RunMonthTile(run: hero, corner: 14)
+                    .frame(height: 170)
+            }
+            .buttonStyle(.plain)
+            .padding(.bottom, 6)
         }
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
             ForEach(monthRuns.dropFirst()) { run in
-                photoTile(run, corner: 10)
+                Button { open(run) } label: {
+                    Color.clear
+                        .aspectRatio(1, contentMode: .fit)
+                        .overlay { RunMonthTile(run: run, corner: 10) }
+                        .clipShape(.rect(cornerRadius: 10))
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
             }
         }
     }

@@ -8,7 +8,14 @@ import SwiftUI
 enum PosterMap {
 
     @MainActor
-    static func routePanel(for run: Run, size: CGSize) async -> UIImage? {
+    static func routePanel(
+        for run: Run,
+        size: CGSize,
+        routeWidth: CGFloat = 11,
+        casingWidth: CGFloat = 18,
+        dotRadius: CGFloat = 11,
+        boneWash: CGFloat = 0.22
+    ) async -> UIImage? {
         let coordinates = run.coordinates
         guard coordinates.count > 1 else { return nil }
 
@@ -42,7 +49,7 @@ enum PosterMap {
 
             // Base map, unified toward the brand with a translucent Bone wash.
             snapshot.image.draw(in: CGRect(origin: .zero, size: size))
-            bone.withAlphaComponent(0.22).setFill()
+            bone.withAlphaComponent(boneWash).setFill()
             cg.fill(CGRect(origin: .zero, size: size))
 
             // Route path, projected through the snapshot so it aligns with the map.
@@ -56,15 +63,31 @@ enum PosterMap {
             path.lineCapStyle = .round
 
             UIColor.white.withAlphaComponent(0.9).setStroke()
-            path.lineWidth = 18
+            path.lineWidth = casingWidth
             path.stroke()
             blue.setStroke()
-            path.lineWidth = 11
+            path.lineWidth = routeWidth
             path.stroke()
 
-            if let first = coordinates.first { dot(cg, at: snapshot.point(for: first), fill: sage) }
-            if let last = coordinates.last { dot(cg, at: snapshot.point(for: last), fill: blue) }
+            if let first = coordinates.first { dot(cg, at: snapshot.point(for: first), fill: sage, radius: dotRadius) }
+            if let last = coordinates.last { dot(cg, at: snapshot.point(for: last), fill: blue, radius: dotRadius) }
         }
+    }
+
+    /// In-memory cache + tile-sized renderer for the Timeline's month tiles.
+    private static let tileCache = NSCache<NSString, UIImage>()
+
+    @MainActor
+    static func tileImage(for run: Run, size: CGSize) async -> UIImage? {
+        guard size.width > 1, size.height > 1, run.coordinates.count > 1 else { return nil }
+        let key = "\(run.id.uuidString)-\(Int(size.width))x\(Int(size.height))" as NSString
+        if let cached = tileCache.object(forKey: key) { return cached }
+        let image = await routePanel(
+            for: run, size: size,
+            routeWidth: 4, casingWidth: 7, dotRadius: 4, boneWash: 0.18
+        )
+        if let image { tileCache.setObject(image, forKey: key) }
+        return image
     }
 
     private static func dot(_ ctx: CGContext, at point: CGPoint, fill: UIColor, radius: CGFloat = 11) {
