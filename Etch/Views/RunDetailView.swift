@@ -11,6 +11,7 @@ struct RunDetailView: View {
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var photoSelection: PhotoSelection?
     @State private var isFindingPhotos = false
+    @State private var showPoster = false
 
     private struct PhotoSelection: Identifiable { let id: String }
 
@@ -26,6 +27,8 @@ struct RunDetailView: View {
 
                     metrics
 
+                    if run.hasRoute { posterButton }
+
                     photosSection
 
                     sourceFooter
@@ -35,6 +38,9 @@ struct RunDetailView: View {
                     }
                 }
                 .padding(20)
+            }
+            .sheet(isPresented: $showPoster) {
+                RunPosterExportView(run: run)
             }
             .task { await autoMatchPhotosIfNeeded() }
             .onChange(of: pickerItems) { _, items in addPicked(items) }
@@ -136,6 +142,18 @@ struct RunDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(.regularMaterial, in: .rect(cornerRadius: 18))
+    }
+
+    private var posterButton: some View {
+        Button { showPoster = true } label: {
+            Label("Create Route Poster", systemImage: "photo.artframe")
+                .font(.system(.headline, design: .rounded))
+                .foregroundStyle(Theme.accent)
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(Theme.accent.opacity(0.12), in: .rect(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: Photos
