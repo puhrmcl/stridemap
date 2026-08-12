@@ -2,6 +2,15 @@ import SwiftUI
 import MapKit
 import CoreLocation
 
+/// How the route overlays are rendered.
+enum RouteRenderStyle: Equatable {
+    /// Per-run routes: recency colour, age fade, tappable. The default detail view.
+    case routes
+    /// "Etch" density view: every run drawn thin, low-opacity, in one colour so overlapping
+    /// routes accumulate into a heat-like whole. For seeing all tracked history zoomed out.
+    case history
+}
+
 /// High-performance route map. Wraps `MKMapView` so thousands of polylines render
 /// smoothly with per-route colour, age fading, and a recency glow — something SwiftUI's
 /// `Map` struggles with at scale.
@@ -17,6 +26,8 @@ struct RunMapView: UIViewRepresentable {
     var fadeWithAge: Bool = true
     /// The base map style (standard / satellite / hybrid).
     var mapStyle: MapStyleOption = .standard
+    /// Per-run detail vs. the accumulative "etch" history view.
+    var renderStyle: RouteRenderStyle = .routes
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -48,8 +59,23 @@ struct RunMapView: UIViewRepresentable {
             context.coordinator.appliedStyle = mapStyle
             map.preferredConfiguration = mapStyle.configuration()
         }
+
+        // Switching between per-run and history rendering changes both geometry (history uses
+        // simplified routes) and styling, so rebuild the overlay set from scratch on a change.
+        let renderChanged = context.coordinator.appliedRenderStyle != renderStyle
+        if renderChanged {
+            context.coordinator.appliedRenderStyle = renderStyle
+            context.coordinator.resetOverlays()
+        }
+
         context.coordinator.updateOverlays(with: runs, fadeWithAge: fadeWithAge)
         context.coordinator.updateSelection(selectedRunID)
+
+        // On entering history, frame everything once so the whole footprint is in view. We
+        // only do this on the transition so the user's own panning/zooming isn't fought.
+        if renderChanged && renderStyle == .history {
+            context.coordinator.frameAll(runs: runs)
+        }
 
         if let command, command.id != context.coordinator.lastCommandID {
             context.coordinator.lastCommandID = command.id
@@ -66,6 +92,7 @@ struct RunMapView: UIViewRepresentable {
         weak var map: MKMapView?
         var lastCommandID: UUID?
         var appliedStyle: MapStyleOption?
+        var appliedRenderStyle: RouteRenderStyle?
 
         /// run id → overlay, so we can diff efficiently between updates.
         private var overlaysByID: [UUID: RunPolyline] = [:]
@@ -81,6 +108,14 @@ struct RunMapView: UIViewRepresentable {
         }
 
         // MARK: Overlay diffing
+
+        /// Drops all route overlays so the next `updateOverlays` rebuilds them — used when the
+        /// render style flips, since geometry and styling both differ between modes.
+        func resetOverlays() {
+            guard let map else { return }
+            map.removeOverlays(Array(overlaysByID.values))
+            overlaysByID.removeAll()
+        }
 
         func updateOverlays(with runs: [Run], fadeWithAge: Bool) {
             guard let map else { return }
@@ -115,8 +150,13 @@ struct RunMapView: UIViewRepresentable {
                     }
                     continue
                 }
-                let coords = run.coordinates
+                var coords = run.coordinates
                 guard coords.count > 1 else { continue }
+                // History draws every run at once; thin them so hundreds of routes stay light
+                // to render. Detail is unnecessary here — the value is the aggregate shape.
+                if parent.renderStyle == .history {
+                    coords = Self.simplify(coords, maxPoints: 80)
+                }
                 let polyline = RunPolyline(coordinates: coords, count: coords.count)
                 polyline.runID = run.id
                 polyline.ageFraction = fraction
@@ -151,6 +191,13 @@ struct RunMapView: UIViewRepresentable {
         }
 
         private func style(for overlay: RunPolyline) -> RouteStyle {
+            // History: one colour, thin, low alpha. Every route is identical, so where they
+            // overlap the translucent strokes composite darker — turning frequently-run roads
+            // into a denser "etch" without a real heatmap pass. Selection/age don't apply.
+            if parent.renderStyle == .history {
+                return RouteStyle(color: UIColor(Theme.Route.recent), width: 1.6, alpha: 0.30)
+            }
+
             let base = Theme.Route.color(forAgeFraction: overlay.ageFraction)
             if overlay.isSelected {
                 return RouteStyle(color: UIColor(Theme.accent), width: 6, alpha: 1)
@@ -160,6 +207,19 @@ struct RunMapView: UIViewRepresentable {
             let width = 2.4 + recency * 2.2
             let alpha = 0.35 + recency * 0.55
             return RouteStyle(color: UIColor(base), width: width, alpha: alpha)
+        }
+
+        /// Simplifies a route to at most `maxPoints` by evenly striding, always keeping the
+        /// first and last points. Cheap and shape-preserving enough for the zoomed-out etch.
+        static func simplify(_ coords: [CLLocationCoordinate2D], maxPoints: Int) -> [CLLocationCoordinate2D] {
+            guard coords.count > maxPoints, maxPoints > 2 else { return coords }
+            let step = Double(coords.count - 1) / Double(maxPoints - 1)
+            var result: [CLLocationCoordinate2D] = []
+            result.reserveCapacity(maxPoints)
+            for i in 0..<maxPoints {
+                result.append(coords[Int((Double(i) * step).rounded())])
+            }
+            return result
         }
 
         // MARK: Camera
@@ -190,6 +250,12 @@ struct RunMapView: UIViewRepresentable {
                 )
                 map.setRegion(region, animated: true)
             }
+        }
+
+        /// Frames the full set of runs — used when entering the history view so the entire
+        /// footprint of tracked history lands in view at once.
+        func frameAll(runs: [Run]) {
+            fit(runs: runs, animated: true)
         }
 
         private func fit(runs: [Run], padding: CGFloat = 60, animated: Bool = true) {

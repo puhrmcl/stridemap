@@ -12,6 +12,8 @@ struct HomeView: View {
 
     /// When true, the map shows the states-visited choropleth instead of routes.
     @State private var showStates = false
+    /// When true, the map shows the accumulative "etch" view of all tracked history.
+    @State private var showHistory = false
     @State private var stateIntensities: [String: Double] = [:]
     @State private var statesComputed = false
 
@@ -28,6 +30,10 @@ struct HomeView: View {
 
     private var visibleStats: RunStatistics { RunStatistics(visibleRuns) }
 
+    /// Totals for whatever the map is currently showing. History ignores the active filter,
+    /// so its pills reflect the full body of work rather than the filtered subset.
+    private var shownStats: RunStatistics { showHistory ? stats : visibleStats }
+
     var body: some View {
         @Bindable var appModel = appModel
 
@@ -36,10 +42,12 @@ struct HomeView: View {
                 StatesMapView(intensities: stateIntensities, mapStyle: mapStyle)
             } else {
                 RunMapView(
-                    runs: visibleRuns,
+                    // History shows the whole body of work, so it ignores the active filter.
+                    runs: showHistory ? allRuns : visibleRuns,
                     selectedRunID: $appModel.selectedRunID,
                     command: $appModel.command,
-                    mapStyle: mapStyle
+                    mapStyle: mapStyle,
+                    renderStyle: showHistory ? .history : .routes
                 )
             }
         }
@@ -136,13 +144,13 @@ struct HomeView: View {
             HStack(spacing: 10) {
                 GlassPill(
                     title: UnitSystem.current.distanceSuffix,
-                    value: Format.distanceValue(visibleStats.totalDistanceMeters)
+                    value: Format.distanceValue(shownStats.totalDistanceMeters)
                         .formatted(.number.precision(.fractionLength(0))),
                     systemName: "point.topleft.down.to.point.bottomright.curvepath"
                 )
                 GlassPill(
                     title: "runs",
-                    value: visibleStats.totalRuns.formatted(),
+                    value: shownStats.totalRuns.formatted(),
                     systemName: "figure.run"
                 )
                 Spacer()
@@ -160,31 +168,50 @@ struct HomeView: View {
         }
     }
 
-    /// What the map is currently showing: a run-filter mode, or the states choropleth.
+    /// What the map is currently showing: a run-filter mode, the history etch, or the
+    /// states choropleth.
     private enum ModeSelection: Hashable {
         case mode(RunFilter.Mode)
+        case history
         case states
     }
 
     private var modeSelection: Binding<ModeSelection> {
         Binding(
-            get: { showStates ? .states : .mode(appModel.filter.mode) },
+            get: {
+                if showStates { return .states }
+                if showHistory { return .history }
+                return .mode(appModel.filter.mode)
+            },
             set: { newValue in
                 switch newValue {
                 case .mode(let mode):
                     showStates = false
+                    showHistory = false
                     var f = appModel.filter
                     f.mode = mode
                     appModel.setFilter(f)
+                case .history:
+                    showStates = false
+                    showHistory = true
                 case .states:
+                    showHistory = false
                     showStates = true
                 }
             }
         )
     }
 
-    private var currentModeLabel: String { showStates ? "States" : appModel.filter.mode.rawValue }
-    private var currentModeSymbol: String { showStates ? "map.fill" : appModel.filter.mode.symbol }
+    private var currentModeLabel: String {
+        if showStates { return "States" }
+        if showHistory { return "History" }
+        return appModel.filter.mode.rawValue
+    }
+    private var currentModeSymbol: String {
+        if showStates { return "map.fill" }
+        if showHistory { return "point.3.filled.connected.trianglepath.dotted" }
+        return appModel.filter.mode.symbol
+    }
 
     /// A rounded glass dropdown for the map mode (replaces the old chip row), with States
     /// added as a way to see the visited-states map right on the home screen.
@@ -195,6 +222,8 @@ struct HomeView: View {
                     ForEach(RunFilter.Mode.allCases) { mode in
                         Label(mode.rawValue, systemImage: mode.symbol).tag(ModeSelection.mode(mode))
                     }
+                    Label("History", systemImage: "point.3.filled.connected.trianglepath.dotted")
+                        .tag(ModeSelection.history)
                     Label("States", systemImage: "map.fill").tag(ModeSelection.states)
                 }
             } label: {
