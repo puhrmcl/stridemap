@@ -95,11 +95,15 @@ struct HomeView: View {
                     Spacer()
                     VStack(spacing: 10) {
                         mapStyleButton
-                        // Recenter-on-user only makes sense on the route/history maps, not the
+                        // The recenter controls only apply to the route/history maps, not the
                         // country-wide states or cities overviews.
                         if !showStates && !showCities {
                             GlassIconButton(systemName: "location.fill") {
                                 appModel.recenterOnUser()
+                            }
+                            // Recenter/zoom the map to frame all the runs currently shown.
+                            GlassIconButton(systemName: "arrow.up.left.and.arrow.down.right") {
+                                fitShownRuns()
                             }
                         }
                     }

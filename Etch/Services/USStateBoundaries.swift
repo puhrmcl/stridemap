@@ -1,11 +1,12 @@
 import Foundation
 import MapKit
-import UIKit
 
-/// US state (+ DC / territories) boundary geometry, loaded once from a bundled GeoJSON.
-/// Powers the "states you've run in" map and attributes each run to a state by
-/// point-in-polygon — independent of geocoding, so it works offline and even for runs whose
-/// place names never resolved.
+/// US state (+ DC / territories) boundary geometry, embedded directly in the binary
+/// (`USStateBoundaryData`) rather than loaded from a bundled resource — the loose file and
+/// the asset catalog both failed to reach the app, leaving the States map empty. Powers the
+/// "states you've run in" map and attributes each run to a state by point-in-polygon —
+/// independent of geocoding, so it works offline and even for runs whose place names never
+/// resolved.
 ///
 /// Immutable after `init` (boundaries are only ever read), so it's safe to touch from the
 /// map's delegate callbacks and any actor — hence `@unchecked Sendable`.
@@ -19,8 +20,8 @@ final class USStateBoundaries: @unchecked Sendable {
         let boundingMapRect: MKMapRect
     }
 
-    /// All boundaries. Empty only if the bundled resource is missing (feature degrades
-    /// gracefully to an empty map rather than crashing).
+    /// All boundaries. Built from embedded data, so this is only empty if that data can't be
+    /// decoded (shouldn't happen) — the feature degrades to an empty map rather than crashing.
     let boundaries: [StateBoundary]
 
     /// The 50 states used as the "collection" denominator — DC and territories are shown on
@@ -48,46 +49,39 @@ final class USStateBoundaries: @unchecked Sendable {
 
     // MARK: Loading
 
+    /// One state as stored in the embedded blob: name `n`, and rings `r`, each a flat array of
+    /// [lon, lat, lon, lat, …] exterior-ring coordinates.
+    private struct RawState: Decodable {
+        let n: String
+        let r: [[Double]]
+    }
+
+    /// Decodes the embedded base64 → JSON → `MKPolygon`s. No bundle/resource dependency, so it
+    /// works regardless of how the app was built.
     private static func load() -> [StateBoundary] {
-        // Primary: a Data asset in the compiled asset catalog. Asset catalogs are always
-        // built into the app (that's how the icon ships), so this is reliable — unlike a loose
-        // resource file, which wasn't making it into the bundle and left the map empty.
-        // Fallback: the loose bundled file, in case the asset isn't found.
-        let data: Data
-        if let asset = NSDataAsset(name: "USStates") {
-            data = asset.data
-        } else if let url = Bundle.main.url(forResource: "us-states", withExtension: "json"),
-                  let fileData = try? Data(contentsOf: url) {
-            data = fileData
-        } else {
-            return []
-        }
-        guard let objects = try? MKGeoJSONDecoder().decode(data) else {
+        guard let data = Data(base64Encoded: USStateBoundaryData.base64),
+              let states = try? JSONDecoder().decode([RawState].self, from: data) else {
             return []
         }
         var result: [StateBoundary] = []
-        for case let feature as MKGeoJSONFeature in objects {
-            guard let name = name(of: feature) else { continue }
+        for state in states {
             var polygons: [MKPolygon] = []
-            for geometry in feature.geometry {
-                if let polygon = geometry as? MKPolygon {
-                    polygons.append(polygon)
-                } else if let multi = geometry as? MKMultiPolygon {
-                    polygons.append(contentsOf: multi.polygons)
+            for flat in state.r where flat.count >= 6 {
+                var coordinates: [CLLocationCoordinate2D] = []
+                coordinates.reserveCapacity(flat.count / 2)
+                var i = 0
+                while i + 1 < flat.count {
+                    coordinates.append(CLLocationCoordinate2D(latitude: flat[i + 1], longitude: flat[i]))
+                    i += 2
                 }
+                guard coordinates.count >= 3 else { continue }
+                polygons.append(MKPolygon(coordinates: coordinates, count: coordinates.count))
             }
             guard !polygons.isEmpty else { continue }
             let rect = polygons.reduce(MKMapRect.null) { $0.union($1.boundingMapRect) }
-            result.append(StateBoundary(name: name, polygons: polygons, boundingMapRect: rect))
+            result.append(StateBoundary(name: state.n, polygons: polygons, boundingMapRect: rect))
         }
         return result
-    }
-
-    private static func name(of feature: MKGeoJSONFeature) -> String? {
-        guard let data = feature.properties,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { return nil }
-        return json["name"] as? String
     }
 }
 
