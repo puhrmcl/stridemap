@@ -17,7 +17,6 @@ struct HomeView: View {
 
     /// TEMP diagnostic: counts bottom-button taps regardless of whether a sheet opens, so we
     /// can tell "the touch isn't landing" from "the touch lands but the page won't present".
-    @State private var debugTaps = 0
 
     private var stats: RunStatistics { RunStatistics(allRuns) }
 
@@ -147,7 +146,6 @@ struct HomeView: View {
                     systemName: "figure.run"
                 )
                 Spacer()
-                GlassPill(title: "taps", value: "\(debugTaps)")
                 if sync.isSyncing {
                     GlassContainer(padding: 10, cornerRadius: 18) {
                         HStack(spacing: 6) {
@@ -244,7 +242,6 @@ struct HomeView: View {
 
     private func controlButton(icon: String, surface: AppModel.Surface, active: Bool = false) -> some View {
         GlassIconButton(systemName: icon, isActive: active) {
-            debugTaps += 1
             appModel.presentedSurface = surface
         }
     }
