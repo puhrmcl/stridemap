@@ -103,14 +103,12 @@ struct TimelineView: View {
     @ViewBuilder
     private func monthGrid(_ monthRuns: [Run]) -> some View {
         if let hero = monthRuns.first {
-            tile(hero, corner: 14)
-                .frame(height: 150)
+            photoTile(hero, corner: 14, height: 160)
                 .padding(.bottom, 6)
         }
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
             ForEach(monthRuns.dropFirst()) { run in
-                tile(run, corner: 10)
-                    .aspectRatio(1, contentMode: .fit)
+                photoTile(run, corner: 10)
             }
         }
     }
@@ -120,8 +118,7 @@ struct TimelineView: View {
     private var allContent: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 4), spacing: 4) {
             ForEach(runs) { run in
-                tile(run, corner: 6)
-                    .aspectRatio(1, contentMode: .fit)
+                photoTile(run, corner: 6)
             }
         }
         .padding(.horizontal, 8)
@@ -130,12 +127,22 @@ struct TimelineView: View {
 
     // MARK: Pieces
 
-    private func tile(_ run: Run, corner: CGFloat) -> some View {
+    /// A tappable run tile. `height` gives a fixed-height band (the month hero); otherwise the
+    /// tile is a square sized to its column. A clear sizing container defines the frame and the
+    /// image sits in an overlay that's clipped to it — so `scaledToFill` can never overflow the
+    /// layout (which is what made tiles overlap).
+    private func photoTile(_ run: Run, corner: CGFloat, height: CGFloat? = nil) -> some View {
         Button { open(run) } label: {
-            RunTileImage(run: run)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipShape(.rect(cornerRadius: corner))
-                .contentShape(.rect)
+            Group {
+                if let height {
+                    Color.clear.frame(height: height)
+                } else {
+                    Color.clear.aspectRatio(1, contentMode: .fit)
+                }
+            }
+            .overlay { RunTileImage(run: run) }
+            .clipShape(.rect(cornerRadius: corner))
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
     }
@@ -184,34 +191,36 @@ private struct YearCard: View {
     let distanceMeters: Double
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            Group {
+        // The text is the primary (fixed-height) content; the photo + gradient are a clipped
+        // background sized to match, so the card is always 220 tall and the year/stats overlay
+        // always renders on top — regardless of the photo's aspect ratio.
+        VStack(alignment: .leading) {
+            Text(String(year))
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.4), radius: 4, y: 1)
+            Spacer()
+            Text("\(runCount) runs · \(Format.distance(distanceMeters, decimals: 0))")
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .foregroundStyle(.white.opacity(0.95))
+                .shadow(color: .black.opacity(0.4), radius: 4, y: 1)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 220)
+        .background {
+            ZStack {
                 if let hero {
                     RunTileImage(run: hero)
                 } else {
                     Color(white: 0.1)
                 }
-            }
-            .overlay(
                 LinearGradient(
                     colors: [.black.opacity(0.55), .clear, .black.opacity(0.45)],
                     startPoint: .top, endPoint: .bottom
                 )
-            )
-
-            VStack(alignment: .leading) {
-                Text(String(year))
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                Spacer()
-                Text("\(runCount) runs · \(Format.distance(distanceMeters, decimals: 0))")
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.9))
             }
-            .padding(18)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(height: 220)
         .clipShape(.rect(cornerRadius: 20))
     }
 }
