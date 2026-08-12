@@ -20,12 +20,16 @@ struct FilterView: View {
                 dateSection
                 surfaceSection
                 locationSection
+                resetSection
             }
             .navigationTitle("Filters")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Reset") { draft = RunFilter() }
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .accessibilityLabel("Close")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Apply") { apply() }.fontWeight(.semibold)
@@ -82,6 +86,16 @@ struct FilterView: View {
             locationPicker("City", values: stats.cities, selection: $draft.city)
             locationPicker("State", values: stats.states, selection: $draft.state)
             locationPicker("Country", values: stats.countries, selection: $draft.country)
+        }
+    }
+
+    private var resetSection: some View {
+        Section {
+            Button("Reset Filters", role: .destructive) {
+                draft = RunFilter()
+                useCustom = false
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 
