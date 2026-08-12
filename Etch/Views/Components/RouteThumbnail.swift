@@ -32,6 +32,34 @@ struct RouteThumbnail: View {
     }
 }
 
+/// The image for a run's Timeline tile: the run's top photo when it has one, otherwise the
+/// route drawing. Falls back to the route if the photo can't load (e.g. deleted from library).
+struct RunTileImage: View {
+    let run: Run
+    @State private var photo: UIImage?
+    @State private var triedPhoto = false
+
+    private var photoID: String? { run.photoReferences.first }
+
+    var body: some View {
+        Group {
+            if let photo {
+                Image(uiImage: photo).resizable().scaledToFill()
+            } else if photoID != nil && !triedPhoto {
+                Color(white: 0.12)   // brief loading state before the photo resolves
+            } else {
+                RouteThumbnail(run: run)
+            }
+        }
+        .task(id: photoID) {
+            guard let id = photoID else { triedPhoto = true; return }
+            triedPhoto = false
+            photo = await PhotoLibrary.image(for: id, targetSize: CGSize(width: 500, height: 500))
+            triedPhoto = true
+        }
+    }
+}
+
 /// Normalises a run's coordinates into the given rect, preserving aspect (longitude scaled by
 /// cos(latitude) so the shape isn't stretched), with north up.
 struct RouteShape: Shape {

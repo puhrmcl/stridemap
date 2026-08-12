@@ -132,7 +132,7 @@ struct TimelineView: View {
 
     private func tile(_ run: Run, corner: CGFloat) -> some View {
         Button { open(run) } label: {
-            RouteThumbnail(run: run)
+            RunTileImage(run: run)
                 .clipShape(.rect(cornerRadius: corner))
                 .contentShape(.rect)
         }
@@ -186,7 +186,7 @@ private struct YearCard: View {
         ZStack(alignment: .topLeading) {
             Group {
                 if let hero {
-                    RouteThumbnail(run: hero, lineWidth: 3)
+                    RunTileImage(run: hero)
                 } else {
                     Color(white: 0.1)
                 }
