@@ -30,6 +30,9 @@ final class Run {
     // MARK: Core
 
     var name: String
+    /// True once the user has renamed this run, so provider re-syncs don't overwrite the
+    /// custom title. Defaulted so existing runs migrate cleanly.
+    var nameIsCustom: Bool = false
     var startDate: Date
     var distance: Double        // metres
     var movingTime: Int         // seconds

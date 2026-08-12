@@ -428,8 +428,9 @@ final class SyncService {
     private func merge(_ activity: ImportedActivity, into run: Run) {
         if let stravaID = Int64(activity.externalID) { run.stravaActivityID = stravaID }
 
-        // Strava titles are almost always more descriptive than HealthKit's.
-        if let name = activity.name, !name.isEmpty { run.name = name }
+        // Strava titles are almost always more descriptive than HealthKit's — unless the user
+        // has given this run their own title, which we never overwrite.
+        if !run.nameIsCustom, let name = activity.name, !name.isEmpty { run.name = name }
         if let gear = activity.gear { run.gear = gear }
         if let notes = activity.notes, run.notes == nil { run.notes = notes }
         if activity.isRace == true { run.isRace = true }

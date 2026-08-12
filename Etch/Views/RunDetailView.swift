@@ -12,6 +12,8 @@ struct RunDetailView: View {
     @State private var photoSelection: PhotoSelection?
     @State private var isFindingPhotos = false
     @State private var showPoster = false
+    @State private var showRename = false
+    @State private var draftName = ""
 
     private struct PhotoSelection: Identifiable { let id: String }
 
@@ -41,6 +43,13 @@ struct RunDetailView: View {
             }
             .sheet(isPresented: $showPoster) {
                 RunPosterExportView(run: run)
+            }
+            .alert("Rename Run", isPresented: $showRename) {
+                TextField("Run name", text: $draftName)
+                Button("Save") { rename() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Give this run your own title.")
             }
             .task { await autoMatchPhotosIfNeeded() }
             .onChange(of: pickerItems) { _, items in addPicked(items) }
@@ -76,10 +85,21 @@ struct RunDetailView: View {
     /// "Ni…/Brec…" in the cramped leading toolbar slot.
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(run.name)
-                .font(.system(.title2, design: .rounded).weight(.bold))
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(run.name)
+                    .font(.system(.title2, design: .rounded).weight(.bold))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    draftName = run.name
+                    showRename = true
+                } label: {
+                    Image(systemName: "pencil")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                }
+                .buttonStyle(.plain)
+            }
             if !run.placeLabel.isEmpty {
                 Text(run.placeLabel)
                     .font(.subheadline)
@@ -87,6 +107,15 @@ struct RunDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func rename() {
+        let trimmed = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != run.name else { return }
+        run.name = trimmed
+        run.nameIsCustom = true
+        run.updatedAt = Date()
+        try? context.save()
     }
 
     private var metrics: some View {
