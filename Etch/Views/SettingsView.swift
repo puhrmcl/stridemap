@@ -16,12 +16,15 @@ struct SettingsView: View {
     @State private var showDeleteConfirm = false
     @State private var isConnectingStrava = false
     @State private var connectError: String?
+    @State private var isMatchingPhotos = false
+    @State private var photoProgress: (done: Int, total: Int)?
 
     var body: some View {
         NavigationStack {
             Form {
                 sourcesSection
                 syncSection
+                photosSection
                 appearanceSection
                 routeDiagnosticsSection
                 statesDiagnosticsSection
@@ -125,6 +128,63 @@ struct SettingsView: View {
         } footer: {
             Text("Some apps save a run to Apple Health before its GPS route finishes syncing. Etch recovers those maps automatically; use this to check now.")
         }
+    }
+
+    private var photosSection: some View {
+        Section {
+            Button {
+                Task { await findAllPhotos() }
+            } label: {
+                HStack {
+                    Label("Find Photos for All Runs", systemImage: "photo.on.rectangle.angled")
+                    Spacer()
+                    if isMatchingPhotos {
+                        if let p = photoProgress {
+                            Text("\(p.done)/\(p.total)").foregroundStyle(.secondary).font(.caption)
+                        } else {
+                            ProgressView().controlSize(.small)
+                        }
+                    }
+                }
+            }
+            .disabled(isMatchingPhotos || runs.isEmpty)
+        } header: {
+            Text("Photos")
+        } footer: {
+            Text("Matches photos from your library to each run by time and location, and attaches them. Runs without GPS match by time only. Your photos stay on this device.")
+        }
+    }
+
+    /// Snapshots the library once, then matches every run against it — far cheaper than one
+    /// library read per run. Saves in batches and yields so the UI stays responsive.
+    private func findAllPhotos() async {
+        guard await PhotoLibrary.requestAuthorization() else { return }
+        isMatchingPhotos = true
+        photoProgress = (0, runs.count)
+        defer { isMatchingPhotos = false; photoProgress = nil }
+
+        let assets = PhotoLibrary.allImageAssets()
+        var processed = 0
+        for run in runs {
+            let ids = PhotoLibrary.match(run: run, in: assets)
+            if !ids.isEmpty {
+                var refs = run.photoReferences
+                let before = refs.count
+                for id in ids where !refs.contains(id) { refs.append(id) }
+                if refs.count != before {
+                    run.photoReferences = refs
+                    run.updatedAt = Date()
+                }
+            }
+            UserDefaults.standard.set(true, forKey: "photoScan-\(run.id.uuidString)")
+            processed += 1
+            photoProgress = (processed, runs.count)
+            if processed % 25 == 0 {
+                try? context.save()
+                await Task.yield()
+            }
+        }
+        try? context.save()
     }
 
     private func connectStrava() async {

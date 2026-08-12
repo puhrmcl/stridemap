@@ -52,7 +52,7 @@ enum PhotoLibrary {
         var result: [String] = []
         assets.enumerateObjects { asset, _, _ in
             if let location = asset.location, hasRoute {
-                if isNear(location, run: run) { result.append(asset.localIdentifier) }
+                if isNear(location.coordinate, run: run) { result.append(asset.localIdentifier) }
             } else {
                 // No photo GPS, or route-less run → time-only match.
                 result.append(asset.localIdentifier)
@@ -62,12 +62,68 @@ enum PhotoLibrary {
     }
 
     /// Whether a coordinate falls within the run's bounding box, expanded by ~600 m.
-    private static func isNear(_ location: CLLocation, run: Run) -> Bool {
+    private static func isNear(_ coordinate: CLLocationCoordinate2D, run: Run) -> Bool {
         let margin = 0.006
-        let lat = location.coordinate.latitude
-        let lon = location.coordinate.longitude
+        let lat = coordinate.latitude
+        let lon = coordinate.longitude
         return lat >= run.minLatitude - margin && lat <= run.maxLatitude + margin
             && lon >= run.minLongitude - margin && lon <= run.maxLongitude + margin
+    }
+
+    // MARK: Bulk match (all runs)
+
+    /// Lightweight snapshot of a library image: identifier, capture date, and location.
+    struct AssetInfo {
+        let id: String
+        let date: Date
+        let coordinate: CLLocationCoordinate2D?
+    }
+
+    /// One pass over the library's images (metadata only), sorted by capture date — the input
+    /// to `match(run:in:)` so a bulk scan does a single library read instead of one per run.
+    static func allImageAssets() -> [AssetInfo] {
+        guard isAuthorized else { return [] }
+        let options = PHFetchOptions()
+        options.predicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.image.rawValue)
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
+        let assets = PHAsset.fetchAssets(with: options)
+        var result: [AssetInfo] = []
+        result.reserveCapacity(assets.count)
+        assets.enumerateObjects { asset, _, _ in
+            guard let date = asset.creationDate else { return }
+            result.append(AssetInfo(id: asset.localIdentifier, date: date, coordinate: asset.location?.coordinate))
+        }
+        return result
+    }
+
+    /// Matches one run against a pre-sorted asset snapshot via binary search on the time
+    /// window, then the same location/time rules as the single-run match.
+    static func match(run: Run, in assets: [AssetInfo]) -> [String] {
+        guard !assets.isEmpty else { return [] }
+        let pad: TimeInterval = 5 * 60
+        let start = run.startDate.addingTimeInterval(-pad)
+        let end = run.startDate.addingTimeInterval(TimeInterval(run.elapsedTime) + pad)
+
+        // First index with date >= start.
+        var lo = 0, hi = assets.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if assets[mid].date < start { lo = mid + 1 } else { hi = mid }
+        }
+
+        let hasRoute = run.summaryPolyline.isEmpty == false
+        var result: [String] = []
+        var i = lo
+        while i < assets.count, assets[i].date <= end {
+            let asset = assets[i]
+            if let coordinate = asset.coordinate, hasRoute {
+                if isNear(coordinate, run: run) { result.append(asset.id) }
+            } else {
+                result.append(asset.id)
+            }
+            i += 1
+        }
+        return result
     }
 
     // MARK: Image loading
