@@ -114,9 +114,10 @@ struct CitiesMapView: UIViewRepresentable {
             view.titleVisibility = .visible   // shows the city name beneath the marker
             view.subtitleVisibility = .hidden
             view.canShowCallout = false
-            view.clusteringIdentifier = "city"
-            // Busier cities win the label when they'd collide.
-            view.displayPriority = MKFeatureDisplayPriority(rawValue: min(Float(1000), 250 + Float(city.count)))
+            // No clustering: every listed city keeps its own labelled pin, even zoomed out.
+            // `.required` keeps them all on-screen rather than decluttering the smaller ones.
+            view.clusteringIdentifier = nil
+            view.displayPriority = .required
             return view
         }
 
