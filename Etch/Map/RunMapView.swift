@@ -218,15 +218,13 @@ struct RunMapView: UIViewRepresentable {
                 return RouteStyle(color: UIColor(Theme.Route.recent), width: 1.6, alpha: 0.30)
             }
 
-            let base = Theme.Route.color(forAgeFraction: overlay.ageFraction)
             if overlay.isSelected {
                 return RouteStyle(color: UIColor(Theme.accent), width: 6, alpha: 1)
             }
-            // Recent runs glow (wider, brighter); older runs recede.
-            let recency = 1 - overlay.ageFraction
-            let width = 2.4 + recency * 2.2
-            let alpha = 0.35 + recency * 0.55
-            return RouteStyle(color: UIColor(base), width: width, alpha: alpha)
+            // Every route renders in the signature blue at a consistent, clearly-visible
+            // weight. (The old age-based fade turned most routes slate-grey and translucent,
+            // which read as "greyed out" on the default map.)
+            return RouteStyle(color: UIColor(Theme.Route.recent), width: 3, alpha: 0.85)
         }
 
         /// Simplifies a route to at most `maxPoints` by evenly striding, always keeping the

@@ -1,24 +1,22 @@
 import SwiftUI
 import MapKit
 
-/// A run's identity paired with its start coordinate — the input to the cluster maps.
+/// A run's identity paired with its start coordinate — used for the States attribution.
 struct RunMapPoint: Identifiable {
     let id: UUID
     let coordinate: CLLocationCoordinate2D
 }
 
-/// A proportional-symbol map of *where* you run. Every run's start point is dropped and
-/// MapKit clusters nearby ones into a bubble labelled with the run count — one bubble per
-/// city/metro zoomed out, splitting into neighbourhoods as you zoom in. Tap a bubble to
-/// drill in; tap a single runner pin to open that run's detail. Coordinate-only, so it
-/// populates as soon as runs have GPS.
+/// A map of the cities you've run in: one labelled marker per city, showing the city name and
+/// its run count. Nearby cities cluster into a total when zoomed out; tapping a city lists its
+/// runs, tapping a cluster zooms in.
 struct CitiesMapView: UIViewRepresentable {
 
-    /// Every run to place (already filtered to those with GPS).
-    var points: [RunMapPoint]
+    /// One entry per city (name, coordinate, runs) — from `RunStatistics.travelPlaces`.
+    var cities: [RunStatistics.TravelPlace]
     /// Selecting a single run opens its detail sheet via this binding.
     @Binding var selectedRunID: UUID?
-    /// When a tight cluster is tapped, the runs stacked there — to show a pick-list.
+    /// Tapping a city surfaces its runs as a pick-list through this binding.
     @Binding var stackedRunIDs: [UUID]?
     /// Base map style (standard / satellite / hybrid), shared with the other maps.
     var mapStyle: MapStyleOption = .standard
@@ -33,8 +31,8 @@ struct CitiesMapView: UIViewRepresentable {
         map.showsScale = false
         map.preferredConfiguration = mapStyle.configuration()
         context.coordinator.appliedStyle = mapStyle
-        context.coordinator.rebuild(on: map, points: points)
-        context.coordinator.frame(map, points: points)
+        context.coordinator.rebuild(on: map, cities: cities)
+        context.coordinator.frame(map, cities: cities)
         return map
     }
 
@@ -44,9 +42,9 @@ struct CitiesMapView: UIViewRepresentable {
             context.coordinator.appliedStyle = mapStyle
             map.preferredConfiguration = mapStyle.configuration()
         }
-        if context.coordinator.installedCount != points.count {
-            context.coordinator.rebuild(on: map, points: points)
-            context.coordinator.frame(map, points: points)
+        if context.coordinator.installedCount != cities.count {
+            context.coordinator.rebuild(on: map, cities: cities)
+            context.coordinator.frame(map, cities: cities)
         }
     }
 
@@ -56,26 +54,24 @@ struct CitiesMapView: UIViewRepresentable {
         var parent: CitiesMapView
         var appliedStyle: MapStyleOption?
         private(set) var installedCount = -1
-        /// Stable reference for sizing cluster bubbles (a cluster can't exceed the total).
-        private var totalCount = 1
 
         init(_ parent: CitiesMapView) { self.parent = parent }
 
-        func rebuild(on map: MKMapView, points: [RunMapPoint]) {
+        func rebuild(on map: MKMapView, cities: [RunStatistics.TravelPlace]) {
             map.removeAnnotations(map.annotations.filter { !($0 is MKUserLocation) })
-            let annotations = points.map { RunStartAnnotation(runID: $0.id, coordinate: $0.coordinate) }
+            let annotations = cities.map {
+                CityAnnotation(coordinate: $0.coordinate, name: $0.label, runIDs: $0.runs.map(\.id))
+            }
             map.addAnnotations(annotations)
-            installedCount = points.count
-            totalCount = max(points.count, 1)
+            installedCount = cities.count
         }
 
-        func frame(_ map: MKMapView, points: [RunMapPoint]) {
-            guard !points.isEmpty else { return }
+        func frame(_ map: MKMapView, cities: [RunStatistics.TravelPlace]) {
+            guard !cities.isEmpty else { return }
             var rect = MKMapRect.null
-            for point in points {
-                let mapPoint = MKMapPoint(point.coordinate)
-                // Pad each point a little so single-run cities aren't framed to a pinprick.
-                rect = rect.union(MKMapRect(x: mapPoint.x - 20_000, y: mapPoint.y - 20_000,
+            for city in cities {
+                let point = MKMapPoint(city.coordinate)
+                rect = rect.union(MKMapRect(x: point.x - 20_000, y: point.y - 20_000,
                                             width: 40_000, height: 40_000))
             }
             guard !rect.isNull else { return }
@@ -89,54 +85,80 @@ struct CitiesMapView: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, viewFor annotation: any MKAnnotation) -> MKAnnotationView? {
             if annotation is MKUserLocation { return nil }
 
+            let accent = UIColor(Theme.accent)
+
             if let cluster = annotation as? MKClusterAnnotation {
+                // A cluster of cities shows the total runs across them.
+                let total = cluster.memberAnnotations
+                    .compactMap { $0 as? CityAnnotation }
+                    .reduce(0) { $0 + $1.count }
                 let id = "cityCluster"
-                let view = (mapView.dequeueReusableAnnotationView(withIdentifier: id) as? CityClusterView)
-                    ?? CityClusterView(annotation: annotation, reuseIdentifier: id)
+                let view = (mapView.dequeueReusableAnnotationView(withIdentifier: id) as? MKMarkerAnnotationView)
+                    ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: id)
                 view.annotation = annotation
-                view.configure(count: cluster.memberAnnotations.count, total: totalCount)
+                view.markerTintColor = accent
+                view.glyphText = "\(total)"
+                view.titleVisibility = .hidden
+                view.subtitleVisibility = .hidden
+                view.canShowCallout = false
                 return view
             }
 
-            guard annotation is RunStartAnnotation else { return nil }
-            let id = "runPin"
-            let view = (mapView.dequeueReusableAnnotationView(withIdentifier: id) as? RunPinView)
-                ?? RunPinView(annotation: annotation, reuseIdentifier: id)
+            guard let city = annotation as? CityAnnotation else { return nil }
+            let id = "city"
+            let view = (mapView.dequeueReusableAnnotationView(withIdentifier: id) as? MKMarkerAnnotationView)
+                ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: id)
             view.annotation = annotation
+            view.markerTintColor = accent
+            view.glyphText = "\(city.count)"
+            view.titleVisibility = .visible   // shows the city name beneath the marker
+            view.subtitleVisibility = .hidden
+            view.canShowCallout = false
+            view.clusteringIdentifier = "city"
+            // Busier cities win the label when they'd collide.
+            view.displayPriority = MKFeatureDisplayPriority(rawValue: min(Float(1000), 250 + Float(city.count)))
             return view
         }
 
         func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
             if let cluster = view.annotation as? MKClusterAnnotation {
-                let members = cluster.memberAnnotations.compactMap { $0 as? RunStartAnnotation }
                 var rect = MKMapRect.null
                 for member in cluster.memberAnnotations {
                     let point = MKMapPoint(member.coordinate)
                     rect = rect.union(MKMapRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2))
                 }
-                // Co-located runs can't be separated by zooming — list them; otherwise drill in.
-                let metersPerPoint = 1 / MKMapPointsPerMeterAtLatitude(cluster.coordinate.latitude)
-                let spanMeters = rect.isNull ? 0 : max(rect.size.width, rect.size.height) * metersPerPoint
-                if members.count > 1, spanMeters < 150 {
-                    parent.stackedRunIDs = members.map(\.runID)
-                } else {
-                    mapView.setVisibleMapRect(
-                        rect,
-                        edgePadding: UIEdgeInsets(top: 140, left: 80, bottom: 220, right: 80),
-                        animated: true
-                    )
-                }
+                mapView.setVisibleMapRect(
+                    rect,
+                    edgePadding: UIEdgeInsets(top: 140, left: 80, bottom: 220, right: 80),
+                    animated: true
+                )
                 mapView.deselectAnnotation(view.annotation, animated: false)
-            } else if let pin = view.annotation as? RunStartAnnotation {
-                parent.selectedRunID = pin.runID
+            } else if let city = view.annotation as? CityAnnotation {
+                // Surface that city's runs as a pick-list.
+                parent.stackedRunIDs = city.runIDs
                 mapView.deselectAnnotation(view.annotation, animated: false)
             }
         }
     }
 }
 
-/// A clustered bubble sized by how many runs it contains, labelled with that count. Shared
-/// by both the Cities map and the Home route map.
+/// One city on the Cities map: its name, location, and the runs that started there.
+final class CityAnnotation: NSObject, MKAnnotation {
+    @objc dynamic var coordinate: CLLocationCoordinate2D
+    let name: String
+    let runIDs: [UUID]
+    var count: Int { runIDs.count }
+    var title: String? { name }
+
+    init(coordinate: CLLocationCoordinate2D, name: String, runIDs: [UUID]) {
+        self.coordinate = coordinate
+        self.name = name
+        self.runIDs = runIDs
+    }
+}
+
+/// A clustered bubble sized by how many runs it contains, labelled with that count. Used by
+/// the Home route map.
 final class CityClusterView: MKAnnotationView {
     private let label = UILabel()
 
@@ -154,8 +176,6 @@ final class CityClusterView: MKAnnotationView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     func configure(count: Int, total: Int) {
-        // Area-proportional feel via a sqrt scale, clamped so bubbles stay tappable but never
-        // swallow the map. `total` keeps sizing stable regardless of zoom-dependent grouping.
         let t = total > 1 ? min(1, (Double(count).squareRoot() / Double(total).squareRoot())) : 1
         let diameter = 30 + 34 * CGFloat(t)
         bounds = CGRect(x: 0, y: 0, width: diameter, height: diameter)

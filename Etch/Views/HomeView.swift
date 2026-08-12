@@ -32,10 +32,13 @@ struct HomeView: View {
 
     private var visibleStats: RunStatistics { RunStatistics(visibleRuns) }
 
-    /// The runs the map is currently showing. Overview modes (history, cities, states) show
-    /// everything; the route map shows the active filter's runs.
+    /// The overview modes ignore the active filter and show everything.
+    private var isOverviewMode: Bool { showHistory || showCities || showStates }
+
+    /// The runs the map is currently showing. Overview modes show everything; the route map
+    /// shows the active filter's runs.
     private var shownRuns: [Run] {
-        (showHistory || showCities || showStates) ? allRuns : visibleRuns
+        isOverviewMode ? allRuns : visibleRuns
     }
 
     /// Totals for whatever the map is currently showing.
@@ -56,7 +59,7 @@ struct HomeView: View {
                 StatesMapView(intensities: stateIntensities, mapStyle: mapStyle)
             } else if showCities {
                 CitiesMapView(
-                    points: runStartPoints,
+                    cities: stats.travelPlaces,
                     selectedRunID: $appModel.selectedRunID,
                     stackedRunIDs: $appModel.stackedRunIDs,
                     mapStyle: mapStyle
@@ -80,6 +83,10 @@ struct HomeView: View {
         .task(id: showStates ? locatedRunCount : -1) {
             guard showStates else { return }
             await computeStateIntensities()
+        }
+        // Applying a filter reframes the route map to the newly filtered runs.
+        .onChange(of: appModel.filter) {
+            if !isOverviewMode { appModel.fit(visibleRuns) }
         }
         // Controls float via safe-area insets rather than a ZStack overlay, so SwiftUI owns
         // their hit-testing and they don't compete with the map's UIKit gestures (which made
@@ -335,7 +342,13 @@ struct HomeView: View {
     private var bottomBar: some View {
         HStack(spacing: 10) {
             controlButton(icon: "magnifyingglass", surface: .search)
-            controlButton(icon: "line.3.horizontal.decrease", surface: .filters, active: appModel.filter.isActive)
+            // Filtering only applies to the route map; the overview modes (history, cities,
+            // states) deliberately show everything, so the filter button is disabled there.
+            GlassIconButton(systemName: "line.3.horizontal.decrease", isActive: appModel.filter.isActive) {
+                appModel.presentedSurface = .filters
+            }
+            .disabled(isOverviewMode)
+            .opacity(isOverviewMode ? 0.35 : 1)
             controlButton(icon: "calendar", surface: .timeline)
             controlButton(icon: "sparkles", surface: .explore)
             controlButton(icon: "mappin.and.ellipse", surface: .travel)
