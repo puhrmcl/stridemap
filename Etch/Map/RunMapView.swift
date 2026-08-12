@@ -311,8 +311,17 @@ struct RunMapView: UIViewRepresentable {
                 )
                 mapView.deselectAnnotation(view.annotation, animated: false)
             } else if let pin = view.annotation as? RunStartAnnotation {
-                // Open the run's detail sheet, then clear selection so it can be tapped again.
+                // Open the run's detail sheet AND zoom to that run's full path, framing it into
+                // the map area above the (roughly half-height) detail sheet.
                 parent.selectedRunID = pin.runID
+                if let overlay = overlaysByID[pin.runID] {
+                    let bottomInset = max(mapView.bounds.height * 0.55, 220)
+                    mapView.setVisibleMapRect(
+                        overlay.boundingMapRect,
+                        edgePadding: UIEdgeInsets(top: 120, left: 50, bottom: bottomInset, right: 50),
+                        animated: true
+                    )
+                }
                 mapView.deselectAnnotation(view.annotation, animated: false)
             }
         }
