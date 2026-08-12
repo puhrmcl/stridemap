@@ -72,9 +72,15 @@ struct RunMapView: UIViewRepresentable {
         context.coordinator.updateSelection(selectedRunID)
         context.coordinator.refreshRunPins()
 
-        // On entering history, frame everything once so the whole footprint is in view. We
-        // only do this on the transition so the user's own panning/zooming isn't fought.
+        // On entering history, frame everything so the whole footprint is in view. Otherwise,
+        // the first time we have runs to show, frame the map to them so it opens centered on
+        // the user's runs rather than the default world view. Both only fire on a transition /
+        // once, so the user's own panning and zooming is never fought afterwards.
         if renderChanged && renderStyle == .history {
+            context.coordinator.didInitialFrame = true
+            context.coordinator.frameAll(runs: runs)
+        } else if !context.coordinator.didInitialFrame, runs.contains(where: { $0.hasRoute }) {
+            context.coordinator.didInitialFrame = true
             context.coordinator.frameAll(runs: runs)
         }
 
@@ -94,6 +100,8 @@ struct RunMapView: UIViewRepresentable {
         var lastCommandID: UUID?
         var appliedStyle: MapStyleOption?
         var appliedRenderStyle: RouteRenderStyle?
+        /// Whether the map has framed the runs once on first appearance.
+        var didInitialFrame = false
 
         /// run id → overlay, so we can diff efficiently between updates.
         private var overlaysByID: [UUID: RunPolyline] = [:]
@@ -348,7 +356,10 @@ struct RunMapView: UIViewRepresentable {
         private func fit(runs: [Run], padding: CGFloat = 60, animated: Bool = true) {
             guard let map, !runs.isEmpty else { return }
             var rect = MKMapRect.null
-            for run in runs {
+            // Only runs with a route have a real bounding box; route-less runs default to
+            // (0,0) — a point off Africa — which would otherwise blow the fit out to the whole
+            // globe. Skip them so the camera frames just the actual tracks.
+            for run in runs where run.hasRoute {
                 let box = MKMapRect(
                     minLat: run.minLatitude, maxLat: run.maxLatitude,
                     minLon: run.minLongitude, maxLon: run.maxLongitude
