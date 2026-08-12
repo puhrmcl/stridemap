@@ -18,6 +18,8 @@ struct CitiesMapView: UIViewRepresentable {
     var points: [RunMapPoint]
     /// Selecting a single run opens its detail sheet via this binding.
     @Binding var selectedRunID: UUID?
+    /// When a tight cluster is tapped, the runs stacked there — to show a pick-list.
+    @Binding var stackedRunIDs: [UUID]?
     /// Base map style (standard / satellite / hybrid), shared with the other maps.
     var mapStyle: MapStyleOption = .standard
 
@@ -106,17 +108,24 @@ struct CitiesMapView: UIViewRepresentable {
 
         func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
             if let cluster = view.annotation as? MKClusterAnnotation {
-                // Drill in: frame the cluster's members so they separate.
+                let members = cluster.memberAnnotations.compactMap { $0 as? RunStartAnnotation }
                 var rect = MKMapRect.null
                 for member in cluster.memberAnnotations {
                     let point = MKMapPoint(member.coordinate)
                     rect = rect.union(MKMapRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2))
                 }
-                mapView.setVisibleMapRect(
-                    rect,
-                    edgePadding: UIEdgeInsets(top: 140, left: 80, bottom: 220, right: 80),
-                    animated: true
-                )
+                // Co-located runs can't be separated by zooming — list them; otherwise drill in.
+                let metersPerPoint = 1 / MKMapPointsPerMeterAtLatitude(cluster.coordinate.latitude)
+                let spanMeters = rect.isNull ? 0 : max(rect.size.width, rect.size.height) * metersPerPoint
+                if members.count > 1, spanMeters < 150 {
+                    parent.stackedRunIDs = members.map(\.runID)
+                } else {
+                    mapView.setVisibleMapRect(
+                        rect,
+                        edgePadding: UIEdgeInsets(top: 140, left: 80, bottom: 220, right: 80),
+                        animated: true
+                    )
+                }
                 mapView.deselectAnnotation(view.annotation, animated: false)
             } else if let pin = view.annotation as? RunStartAnnotation {
                 parent.selectedRunID = pin.runID

@@ -58,6 +58,7 @@ struct HomeView: View {
                 CitiesMapView(
                     points: runStartPoints,
                     selectedRunID: $appModel.selectedRunID,
+                    stackedRunIDs: $appModel.stackedRunIDs,
                     mapStyle: mapStyle
                 )
             } else {
@@ -65,6 +66,7 @@ struct HomeView: View {
                     // History shows the whole body of work, so it ignores the active filter.
                     runs: showHistory ? allRuns : visibleRuns,
                     selectedRunID: $appModel.selectedRunID,
+                    stackedRunIDs: $appModel.stackedRunIDs,
                     command: $appModel.command,
                     mapStyle: mapStyle,
                     renderStyle: showHistory ? .history : .routes
@@ -125,18 +127,25 @@ struct HomeView: View {
                         .presentationDetents([.medium, .large])
                         .presentationBackground(.regularMaterial)
                 }
+            case .stack(let ids):
+                RunStackView(runs: allRuns.filter { ids.contains($0.id) })
+                    .presentationDetents([.medium, .large])
+                    .presentationBackground(.regularMaterial)
             }
         }
     }
 
-    /// The one thing presented over the map: a surface (bottom buttons) or a selected run.
+    /// The one thing presented over the map: a surface (bottom buttons), a selected run, or a
+    /// pick-list of runs stacked at one location.
     private enum ActiveSheet: Identifiable {
         case surface(AppModel.Surface)
         case run(UUID)
+        case stack([UUID])
         var id: String {
             switch self {
             case .surface(let surface): return "surface-\(surface.rawValue)"
             case .run(let id): return "run-\(id.uuidString)"
+            case .stack(let ids): return "stack-\(ids.map(\.uuidString).joined())"
             }
         }
     }
@@ -145,6 +154,7 @@ struct HomeView: View {
         Binding(
             get: {
                 if let surface = appModel.presentedSurface { return .surface(surface) }
+                if let ids = appModel.stackedRunIDs, ids.count > 1 { return .stack(ids) }
                 if let id = appModel.selectedRunID { return .run(id) }
                 return nil
             },
@@ -154,9 +164,12 @@ struct HomeView: View {
                     appModel.presentedSurface = surface
                 case .run(let id):
                     appModel.selectedRunID = id
+                case .stack(let ids):
+                    appModel.stackedRunIDs = ids
                 case nil:
                     appModel.presentedSurface = nil
                     appModel.selectedRunID = nil
+                    appModel.stackedRunIDs = nil
                 }
             }
         )

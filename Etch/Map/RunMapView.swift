@@ -20,6 +20,8 @@ struct RunMapView: UIViewRepresentable {
     var runs: [Run]
     /// Selected run's activity id.
     @Binding var selectedRunID: UUID?
+    /// When a tight cluster is tapped, the runs stacked there — to show a pick-list.
+    @Binding var stackedRunIDs: [UUID]?
     /// A one-shot camera command; cleared after it's applied.
     @Binding var command: MapCameraCommand?
     /// Whether older routes should fade (the "web through time" look).
@@ -299,16 +301,23 @@ struct RunMapView: UIViewRepresentable {
 
         func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
             if let cluster = view.annotation as? MKClusterAnnotation {
+                let members = cluster.memberAnnotations.compactMap { $0 as? RunStartAnnotation }
                 var rect = MKMapRect.null
                 for member in cluster.memberAnnotations {
                     let point = MKMapPoint(member.coordinate)
                     rect = rect.union(MKMapRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2))
                 }
-                mapView.setVisibleMapRect(
-                    rect,
-                    edgePadding: UIEdgeInsets(top: 140, left: 80, bottom: 220, right: 80),
-                    animated: true
-                )
+                // If the stacked runs are all at essentially the same spot, zooming can't
+                // separate them — show a pick-list instead. Otherwise drill in.
+                if members.count > 1, clusterSpanMeters(rect, at: cluster.coordinate.latitude) < 150 {
+                    parent.stackedRunIDs = members.map(\.runID)
+                } else {
+                    mapView.setVisibleMapRect(
+                        rect,
+                        edgePadding: UIEdgeInsets(top: 140, left: 80, bottom: 220, right: 80),
+                        animated: true
+                    )
+                }
                 mapView.deselectAnnotation(view.annotation, animated: false)
             } else if let pin = view.annotation as? RunStartAnnotation {
                 // Open the run's detail sheet AND zoom to that run's full path, framing it into
@@ -324,6 +333,14 @@ struct RunMapView: UIViewRepresentable {
                 }
                 mapView.deselectAnnotation(view.annotation, animated: false)
             }
+        }
+
+        /// Largest side of a bounding map rect converted to meters — used to decide whether a
+        /// cluster's members are co-located (list them) or spread out (zoom to separate).
+        func clusterSpanMeters(_ rect: MKMapRect, at latitude: CLLocationDegrees) -> Double {
+            guard !rect.isNull else { return 0 }
+            let metersPerPoint = 1 / MKMapPointsPerMeterAtLatitude(latitude)
+            return max(rect.size.width, rect.size.height) * metersPerPoint
         }
 
         // MARK: Camera

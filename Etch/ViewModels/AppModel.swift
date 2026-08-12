@@ -19,6 +19,10 @@ final class AppModel {
     }
     var presentedSurface: Surface?
 
+    /// Runs sharing (nearly) the same start point, surfaced as a pick-list when a tight
+    /// cluster is tapped — so stacked runs at one location can be told apart and opened.
+    var stackedRunIDs: [UUID]?
+
     // MARK: Camera helpers
 
     func focus(on run: Run) {
