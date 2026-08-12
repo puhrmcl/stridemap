@@ -32,10 +32,20 @@ struct HomeView: View {
 
     private var visibleStats: RunStatistics { RunStatistics(visibleRuns) }
 
-    /// Totals for whatever the map is currently showing. The overview modes (history, cities,
-    /// states) ignore the active filter, so their pills reflect the full body of work.
-    private var shownStats: RunStatistics {
-        (showHistory || showCities || showStates) ? stats : visibleStats
+    /// The runs the map is currently showing. Overview modes (history, cities, states) show
+    /// everything; the route map shows the active filter's runs.
+    private var shownRuns: [Run] {
+        (showHistory || showCities || showStates) ? allRuns : visibleRuns
+    }
+
+    /// Totals for whatever the map is currently showing.
+    private var shownStats: RunStatistics { RunStatistics(shownRuns) }
+
+    /// Zoom/recenter the route or history map to the extent of the runs on screen. The cities
+    /// and states overviews use their own maps (no camera command) and already frame on entry.
+    private func fitShownRuns() {
+        guard !showCities && !showStates else { return }
+        appModel.fit(shownRuns)
     }
 
     var body: some View {
@@ -157,17 +167,24 @@ struct HomeView: View {
     private var topBar: some View {
         VStack(spacing: 10) {
             HStack(spacing: 10) {
-                GlassPill(
-                    title: UnitSystem.current.distanceSuffix,
-                    value: Format.distanceValue(shownStats.totalDistanceMeters)
-                        .formatted(.number.precision(.fractionLength(0))),
-                    systemName: "point.topleft.down.to.point.bottomright.curvepath"
-                )
-                GlassPill(
-                    title: "runs",
-                    value: shownStats.totalRuns.formatted(),
-                    systemName: "figure.run"
-                )
+                // Tapping either total zooms/recenters the map to the runs currently shown.
+                Button(action: fitShownRuns) {
+                    GlassPill(
+                        title: UnitSystem.current.distanceSuffix,
+                        value: Format.distanceValue(shownStats.totalDistanceMeters)
+                            .formatted(.number.precision(.fractionLength(0))),
+                        systemName: "point.topleft.down.to.point.bottomright.curvepath"
+                    )
+                }
+                .buttonStyle(.plain)
+                Button(action: fitShownRuns) {
+                    GlassPill(
+                        title: "runs",
+                        value: shownStats.totalRuns.formatted(),
+                        systemName: "figure.run"
+                    )
+                }
+                .buttonStyle(.plain)
                 Spacer()
                 if sync.isSyncing {
                     GlassContainer(padding: 10, cornerRadius: 18) {
