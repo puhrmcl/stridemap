@@ -10,6 +10,8 @@ struct RunDetailView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
+                    header
+
                     RunPreviewMap(run: run, interactive: true)
                         .frame(height: 240)
                         .clipShape(.rect(cornerRadius: Theme.cardRadius))
@@ -26,14 +28,6 @@ struct RunDetailView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    VStack(alignment: .leading) {
-                        Text(run.name).font(.headline).lineLimit(1)
-                        if !run.placeLabel.isEmpty {
-                            Text(run.placeLabel).font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 14) {
                         Button {
@@ -50,6 +44,24 @@ struct RunDetailView: View {
                 }
             }
         }
+    }
+
+    /// Full-width title block at the top of the sheet. Lives in the scroll content (not the
+    /// nav bar) so the run name and place have room to be read instead of truncating to
+    /// "Ni…/Brec…" in the cramped leading toolbar slot.
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(run.name)
+                .font(.system(.title2, design: .rounded).weight(.bold))
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            if !run.placeLabel.isEmpty {
+                Text(run.placeLabel)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var metrics: some View {
