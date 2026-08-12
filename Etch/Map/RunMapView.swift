@@ -70,6 +70,7 @@ struct RunMapView: UIViewRepresentable {
 
         context.coordinator.updateOverlays(with: runs, fadeWithAge: fadeWithAge)
         context.coordinator.updateSelection(selectedRunID)
+        context.coordinator.refreshRunPins()
 
         // On entering history, frame everything once so the whole footprint is in view. We
         // only do this on the transition so the user's own panning/zooming isn't fought.
@@ -97,6 +98,16 @@ struct RunMapView: UIViewRepresentable {
         /// run id → overlay, so we can diff efficiently between updates.
         private var overlaysByID: [UUID: RunPolyline] = [:]
 
+        /// Lightweight start points for the mapped runs, used to place tappable pins.
+        private var runPoints: [(id: UUID, coordinate: CLLocationCoordinate2D)] = []
+        /// run id → its currently-shown pin annotation.
+        private var pinsByID: [UUID: RunStartAnnotation] = [:]
+        /// Pins appear only once zoomed in past this span (roughly metro level) so the
+        /// zoomed-out route map stays clean.
+        private let pinZoomThreshold: CLLocationDegrees = 0.6
+        /// Safety cap so a dense area can't drop thousands of pins at once.
+        private let maxPins = 300
+
         private let locationManager = CLLocationManager()
 
         init(_ parent: RunMapView) { self.parent = parent }
@@ -120,6 +131,10 @@ struct RunMapView: UIViewRepresentable {
         func updateOverlays(with runs: [Run], fadeWithAge: Bool) {
             guard let map else { return }
             let routed = runs.filter { $0.hasRoute }
+
+            // Snapshot start points for the tappable pins (only mapped runs get one).
+            runPoints = routed.compactMap { run in run.startCoordinate.map { (run.id, $0) } }
+
             let newIDs = Set(routed.map { $0.id })
             let oldIDs = Set(overlaysByID.keys)
 
@@ -220,6 +235,90 @@ struct RunMapView: UIViewRepresentable {
                 result.append(coords[Int((Double(i) * step).rounded())])
             }
             return result
+        }
+
+        // MARK: Run pins
+
+        /// Keeps the map's viewport in sync with the annotation set as the user pans/zooms.
+        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+            refreshRunPins()
+        }
+
+        /// Drops a runner pin on each mapped run in view, but only when zoomed in past
+        /// `pinZoomThreshold` (so the country-wide view isn't buried). Pins outside the
+        /// viewport or beyond the cap are removed. History mode shows none.
+        func refreshRunPins() {
+            guard let map else { return }
+            guard parent.renderStyle == .routes,
+                  map.region.span.latitudeDelta < pinZoomThreshold else {
+                removeAllRunPins()
+                return
+            }
+
+            let visible = map.visibleMapRect
+            var desired: [UUID: CLLocationCoordinate2D] = [:]
+            for point in runPoints where visible.contains(MKMapPoint(point.coordinate)) {
+                desired[point.id] = point.coordinate
+                if desired.count >= maxPins { break }
+            }
+
+            for (id, pin) in pinsByID where desired[id] == nil {
+                map.removeAnnotation(pin)
+                pinsByID[id] = nil
+            }
+            for (id, coordinate) in desired where pinsByID[id] == nil {
+                let pin = RunStartAnnotation(runID: id, coordinate: coordinate)
+                pinsByID[id] = pin
+                map.addAnnotation(pin)
+            }
+        }
+
+        private func removeAllRunPins() {
+            guard let map, !pinsByID.isEmpty else { return }
+            map.removeAnnotations(Array(pinsByID.values))
+            pinsByID.removeAll()
+        }
+
+        func mapView(_ mapView: MKMapView, viewFor annotation: any MKAnnotation) -> MKAnnotationView? {
+            if annotation is MKUserLocation { return nil }
+
+            // Several pins on top of each other collapse into a count bubble; tapping it
+            // zooms in to separate them.
+            if let cluster = annotation as? MKClusterAnnotation {
+                let id = "runCluster"
+                let view = (mapView.dequeueReusableAnnotationView(withIdentifier: id) as? CityClusterView)
+                    ?? CityClusterView(annotation: annotation, reuseIdentifier: id)
+                view.annotation = annotation
+                view.configure(count: cluster.memberAnnotations.count, total: max(runPoints.count, 1))
+                return view
+            }
+
+            guard annotation is RunStartAnnotation else { return nil }
+            let id = "runPin"
+            let view = (mapView.dequeueReusableAnnotationView(withIdentifier: id) as? RunPinView)
+                ?? RunPinView(annotation: annotation, reuseIdentifier: id)
+            view.annotation = annotation
+            return view
+        }
+
+        func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
+            if let cluster = view.annotation as? MKClusterAnnotation {
+                var rect = MKMapRect.null
+                for member in cluster.memberAnnotations {
+                    let point = MKMapPoint(member.coordinate)
+                    rect = rect.union(MKMapRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2))
+                }
+                mapView.setVisibleMapRect(
+                    rect,
+                    edgePadding: UIEdgeInsets(top: 140, left: 80, bottom: 220, right: 80),
+                    animated: true
+                )
+                mapView.deselectAnnotation(view.annotation, animated: false)
+            } else if let pin = view.annotation as? RunStartAnnotation {
+                // Open the run's detail sheet, then clear selection so it can be tapped again.
+                parent.selectedRunID = pin.runID
+                mapView.deselectAnnotation(view.annotation, animated: false)
+            }
         }
 
         // MARK: Camera
@@ -323,6 +422,49 @@ struct RunMapView: UIViewRepresentable {
             return true
         }
     }
+}
+
+/// A tappable pin marking a mapped run's start point; carries the run identity so tapping
+/// it can open that run's detail sheet.
+final class RunStartAnnotation: NSObject, MKAnnotation {
+    let runID: UUID
+    @objc dynamic var coordinate: CLLocationCoordinate2D
+    init(runID: UUID, coordinate: CLLocationCoordinate2D) {
+        self.runID = runID
+        self.coordinate = coordinate
+    }
+}
+
+/// A circular accent pin with a white runner glyph. Participates in clustering so stacks of
+/// runs starting at the same place collapse into a count bubble until zoomed in.
+final class RunPinView: MKAnnotationView {
+    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        let diameter: CGFloat = 30
+        bounds = CGRect(x: 0, y: 0, width: diameter, height: diameter)
+        layer.cornerRadius = diameter / 2
+        backgroundColor = UIColor(Theme.accent).withAlphaComponent(0.95)
+        layer.borderColor = UIColor.white.withAlphaComponent(0.9).cgColor
+        layer.borderWidth = 1.5
+        layer.shadowColor = UIColor.black.cgColor
+        layer.shadowOpacity = 0.2
+        layer.shadowRadius = 3
+        layer.shadowOffset = CGSize(width: 0, height: 1)
+
+        let glyph = UIImageView(frame: bounds)
+        glyph.tintColor = .white
+        glyph.contentMode = .center
+        glyph.image = UIImage(
+            systemName: "figure.run",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .bold)
+        )
+        addSubview(glyph)
+
+        canShowCallout = false
+        clusteringIdentifier = "runPin"
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }
 
 /// Styling values applied to a polyline renderer.
