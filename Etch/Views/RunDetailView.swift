@@ -29,6 +29,8 @@ struct RunDetailView: View {
 
                     metrics
 
+                    raceToggle
+
                     if run.hasRoute { posterButton }
 
                     photosSection
@@ -171,6 +173,29 @@ struct RunDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(.regularMaterial, in: .rect(cornerRadius: 18))
+    }
+
+    private var raceToggle: some View {
+        Toggle(isOn: raceBinding) {
+            Label("Race", systemImage: "flag.checkered")
+                .font(.system(.subheadline, design: .rounded).weight(.medium))
+        }
+        .tint(Theme.accent)
+        .padding(.horizontal, 16)
+        .frame(height: 52)
+        .background(.regularMaterial, in: .rect(cornerRadius: 16))
+    }
+
+    private var raceBinding: Binding<Bool> {
+        Binding(
+            get: { run.isRace },
+            set: { newValue in
+                run.isRace = newValue
+                run.raceIsCustom = true
+                run.updatedAt = Date()
+                try? context.save()
+            }
+        )
     }
 
     private var posterButton: some View {

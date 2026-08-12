@@ -433,7 +433,7 @@ final class SyncService {
         if !run.nameIsCustom, let name = activity.name, !name.isEmpty { run.name = name }
         if let gear = activity.gear { run.gear = gear }
         if let notes = activity.notes, run.notes == nil { run.notes = notes }
-        if activity.isRace == true { run.isRace = true }
+        if !run.raceIsCustom, activity.isRace == true { run.isRace = true }
         if let trail = activity.isTrail { run.isTrail = run.isTrail || trail }
         if let commute = activity.isCommute { run.isCommute = run.isCommute || commute }
 

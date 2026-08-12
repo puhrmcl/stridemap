@@ -75,6 +75,9 @@ final class Run {
 
     var sportType: String
     var isRace: Bool
+    /// True once the user has manually set race status, so provider re-syncs don't override
+    /// their choice. Defaulted so existing runs migrate cleanly.
+    var raceIsCustom: Bool = false
     var isCommute: Bool
     var isTrail: Bool
 
