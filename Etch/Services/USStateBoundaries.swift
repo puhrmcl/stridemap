@@ -1,5 +1,6 @@
 import Foundation
 import MapKit
+import UIKit
 
 /// US state (+ DC / territories) boundary geometry, loaded once from a bundled GeoJSON.
 /// Powers the "states you've run in" map and attributes each run to a state by
@@ -48,9 +49,20 @@ final class USStateBoundaries: @unchecked Sendable {
     // MARK: Loading
 
     private static func load() -> [StateBoundary] {
-        guard let url = Bundle.main.url(forResource: "us-states", withExtension: "json"),
-              let data = try? Data(contentsOf: url),
-              let objects = try? MKGeoJSONDecoder().decode(data) else {
+        // Primary: a Data asset in the compiled asset catalog. Asset catalogs are always
+        // built into the app (that's how the icon ships), so this is reliable — unlike a loose
+        // resource file, which wasn't making it into the bundle and left the map empty.
+        // Fallback: the loose bundled file, in case the asset isn't found.
+        let data: Data
+        if let asset = NSDataAsset(name: "USStates") {
+            data = asset.data
+        } else if let url = Bundle.main.url(forResource: "us-states", withExtension: "json"),
+                  let fileData = try? Data(contentsOf: url) {
+            data = fileData
+        } else {
+            return []
+        }
+        guard let objects = try? MKGeoJSONDecoder().decode(data) else {
             return []
         }
         var result: [StateBoundary] = []
