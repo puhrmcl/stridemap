@@ -11,7 +11,7 @@ struct RunDetailView: View {
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var photoSelection: PhotoSelection?
     @State private var isFindingPhotos = false
-    @State private var showPoster = false
+    @State private var showStudio = false
     @State private var showRename = false
     @State private var draftName = ""
 
@@ -31,7 +31,7 @@ struct RunDetailView: View {
 
                     raceToggle
 
-                    if run.hasRoute { posterButton }
+                    if run.hasRoute { studioButton }
 
                     photosSection
 
@@ -43,8 +43,8 @@ struct RunDetailView: View {
                 }
                 .padding(20)
             }
-            .sheet(isPresented: $showPoster) {
-                RunPosterExportView(run: run)
+            .sheet(isPresented: $showStudio) {
+                StudioView(run: run)
             }
             .alert("Rename Run", isPresented: $showRename) {
                 TextField("Run name", text: $draftName)
@@ -198,9 +198,9 @@ struct RunDetailView: View {
         )
     }
 
-    private var posterButton: some View {
-        Button { showPoster = true } label: {
-            Label("Create Route Poster", systemImage: "photo.artframe")
+    private var studioButton: some View {
+        Button { showStudio = true } label: {
+            Label("Create in Etch Studio", systemImage: "photo.artframe")
                 .font(.system(.headline, design: .rounded))
                 .foregroundStyle(Theme.accent)
                 .frame(maxWidth: .infinity)

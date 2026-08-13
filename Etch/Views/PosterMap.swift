@@ -74,6 +74,80 @@ enum PosterMap {
         }
     }
 
+    /// Renders the art panel for an Etch Studio *edition*: a muted map snapshot (light or dark
+    /// per the edition), washed toward the edition's material, with the route drawn on top in
+    /// the edition's style (optional casing, optional glow, start/finish dots). Returns nil for
+    /// paper editions, which draw a vector route in the composition instead.
+    @MainActor
+    static func studioPanel(for run: Run, size: CGSize, edition: StudioEdition) async -> UIImage? {
+        guard edition.usesMap else { return nil }
+        let coordinates = run.coordinates
+        guard coordinates.count > 1 else { return nil }
+
+        let options = MKMapSnapshotter.Options()
+        options.region = region(for: run)
+        options.size = size
+        options.scale = 2
+        options.pointOfInterestFilter = .excludingAll
+        options.traitCollection = UITraitCollection(userInterfaceStyle: edition.isDark ? .dark : .light)
+        let config = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .muted)
+        config.pointOfInterestFilter = .excludingAll
+        options.preferredConfiguration = config
+
+        let snapshotter = MKMapSnapshotter(options: options)
+        let snapshot: MKMapSnapshotter.Snapshot? = await withCheckedContinuation { continuation in
+            snapshotter.start(with: .main) { snap, _ in continuation.resume(returning: snap) }
+        }
+        guard let snapshot else { return nil }
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = options.scale
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+
+        let route = UIColor(edition.route)
+
+        return renderer.image { context in
+            let cg = context.cgContext
+
+            snapshot.image.draw(in: CGRect(origin: .zero, size: size))
+            UIColor(edition.mapWash).withAlphaComponent(edition.mapWashAlpha).setFill()
+            cg.fill(CGRect(origin: .zero, size: size))
+
+            let path = UIBezierPath()
+            var started = false
+            for coordinate in coordinates {
+                let point = snapshot.point(for: coordinate)
+                if started { path.addLine(to: point) } else { path.move(to: point); started = true }
+            }
+            path.lineJoinStyle = .round
+            path.lineCapStyle = .round
+
+            if edition.glow {
+                cg.saveGState()
+                cg.setShadow(offset: .zero, blur: edition.routeWidth * 2.2, color: route.cgColor)
+                route.setStroke()
+                path.lineWidth = edition.routeWidth
+                path.stroke()
+                path.stroke()   // second pass deepens the glow
+                cg.restoreGState()
+            }
+            if let casing = edition.casing {
+                UIColor(casing).withAlphaComponent(0.9).setStroke()
+                path.lineWidth = edition.routeWidth * 1.7
+                path.stroke()
+            }
+            route.setStroke()
+            path.lineWidth = edition.routeWidth
+            path.stroke()
+
+            let startFill = UIColor(edition.accent)
+            let endFill = route
+            if let first = coordinates.first { dot(cg, at: snapshot.point(for: first), fill: startFill, radius: edition.routeWidth) }
+            if let last = coordinates.last { dot(cg, at: snapshot.point(for: last), fill: endFill, radius: edition.routeWidth) }
+        }
+    }
+
     /// In-memory cache + tile-sized renderer for the Timeline's month tiles.
     private static let tileCache = NSCache<NSString, UIImage>()
 
