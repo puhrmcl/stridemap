@@ -144,6 +144,62 @@ final class ActivityIngestor {
         run.updatedAt = Date()
     }
 
+    // MARK: File ingestion (GPX / TCX / FIT / archives)
+
+    /// Ingests an activity parsed from a file. Idempotent on the file's own id, and — the
+    /// key win — when it matches an existing run it *enriches* rather than duplicates: a Nike
+    /// TCX with GPS attaches its route to a HealthKit workout that only had summary metrics.
+    /// Returns `.inserted` only when a new run was added.
+    func ingestImported(_ activity: ImportedActivity) throws -> Outcome {
+        // 1. Idempotency: same file record already imported → nothing to do.
+        if let extID = activity.externalID.isEmpty ? nil : activity.externalID {
+            var descriptor = FetchDescriptor<Run>(predicate: #Predicate { $0.sourceExternalID == extID })
+            descriptor.fetchLimit = 1
+            if try !context.fetch(descriptor).isEmpty { return .merged }
+        }
+
+        // 2. Cross-provider match — attach better data (especially GPS) to the existing run.
+        if let match = try bestMatch(for: activity) {
+            mergeImported(activity, into: match)
+            return .merged
+        }
+
+        // 3. No match — a genuinely new run.
+        let run = makeRun(from: activity)
+        run.sourceExternalID = activity.externalID.isEmpty ? nil : activity.externalID
+        run.routeCheckedAt = Date()
+        if run.hasRoute {
+            run.routeStatus = .available
+            run.routeSource = .imported
+        } else {
+            // A static file with no GPS won't gain a route later (unlike a pending HealthKit
+            // workout), so record it as genuinely route-unavailable rather than pending.
+            run.routeStatus = .unavailable
+        }
+        context.insert(run)
+        return .inserted
+    }
+
+    /// Fills a matched run with data from a file import — route, metrics, provenance — without
+    /// overwriting anything the run already has. Never touches a user-customized title.
+    private func mergeImported(_ activity: ImportedActivity, into run: Run) {
+        if run.sourceExternalID == nil, !activity.externalID.isEmpty {
+            run.sourceExternalID = activity.externalID
+        }
+        if run.originApp == nil { run.originApp = activity.originApp }
+        if run.importMethod == nil { run.importMethod = activity.importMethod }
+        if !run.hasRoute, !activity.coordinates.isEmpty {
+            applyRoute(activity.coordinates, source: .imported, to: run,
+                       encoded: activity.encodedPolyline)
+        }
+        if run.averageHeartRate == nil { run.averageHeartRate = activity.averageHeartRate }
+        if run.maxHeartRate == nil { run.maxHeartRate = activity.maxHeartRate }
+        if run.activeEnergy == nil { run.activeEnergy = activity.activeEnergy }
+        if run.averageCadence == nil { run.averageCadence = activity.averageCadence }
+        if run.elevationGain == 0, let gain = activity.elevationGain { run.elevationGain = gain }
+        run.updatedAt = Date()
+    }
+
     // MARK: Matching
 
     /// Finds the best-scoring existing run within a time window around the activity.
@@ -187,6 +243,8 @@ final class ActivityIngestor {
             isCommute: activity.isCommute ?? false,
             isTrail: activity.isTrail ?? false
         )
+        run.importMethod = activity.importMethod
+        run.activityType = activity.activityType
         applyGeometry(activity.coordinates, to: run)
         return run
     }

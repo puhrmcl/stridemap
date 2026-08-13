@@ -219,6 +219,7 @@ final class HealthKitProvider: ActivityProvider {
             coordinates: coordinates
         )
         activity.originApp = origin
+        activity.importMethod = .healthKit
         activity.endDate = workout.endDate
         activity.elevationGain = elevation(of: workout)
         activity.activeEnergy = energy(of: workout)

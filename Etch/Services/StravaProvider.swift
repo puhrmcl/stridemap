@@ -67,6 +67,7 @@ final class StravaProvider: ActivityProvider {
             coordinates: coords
         )
         imported.originApp = .strava
+        imported.importMethod = .stravaAPI
         imported.name = activity.name
         imported.encodedPolyline = polyline
         imported.elevationGain = activity.totalElevationGain

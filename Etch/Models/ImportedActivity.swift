@@ -15,6 +15,12 @@ struct ImportedActivity {
     /// "Nike Run Club"). Falls back to `provider` when unavailable.
     var originApp: ActivitySource? = nil
 
+    /// How this record reached Etch (Apple Health, Strava API, GPX/TCX file, …). Providers
+    /// set this so provenance survives into the canonical `Run`.
+    var importMethod: ImportMethod? = nil
+    /// Normalized activity kind, parsed from the source's sport label. Defaults to running.
+    var activityType: ActivityType = .run
+
     var name: String? = nil
     var startDate: Date
     var endDate: Date? = nil

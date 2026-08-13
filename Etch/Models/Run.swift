@@ -26,6 +26,15 @@ final class Run {
     var healthKitID: String?
     /// Strava activity id, present once a run has been matched/enriched with Strava.
     var stravaActivityID: Int64?
+    /// The originating file's stable id (TCX `<Id>`, or a synthetic id for GPX) — the
+    /// de-duplication key for file imports, so re-importing the same export is idempotent.
+    /// Defaulted so existing runs migrate cleanly.
+    var sourceExternalID: String? = nil
+
+    /// How this run reached Etch (Apple Health, Strava API, GPX/TCX/FIT file, …), distinct
+    /// from `provider`/`originApp`. Defaulted for clean migration; nil on runs imported
+    /// before it existed.
+    var importMethodRaw: String? = nil
 
     // MARK: Core
 
@@ -74,6 +83,10 @@ final class Run {
     // MARK: Classification
 
     var sportType: String
+    /// Normalized activity kind (run/walk/hike/ride/…). Defaulted to `run` so existing runs
+    /// migrate cleanly and the running-only UI is unaffected; parsed from every source so
+    /// walking/hiking/cycling can be surfaced later without re-importing.
+    var activityTypeRaw: String = ActivityType.run.rawValue
     var isRace: Bool
     /// True once the user has manually set race status, so provider re-syncs don't override
     /// their choice. Defaulted so existing runs migrate cleanly.
@@ -228,6 +241,16 @@ extension Run {
     var originApp: ActivitySource? {
         get { originAppRaw.map { ActivitySource(rawValue: $0) } }
         set { originAppRaw = newValue?.rawValue }
+    }
+
+    var importMethod: ImportMethod? {
+        get { importMethodRaw.flatMap(ImportMethod.init(rawValue:)) }
+        set { importMethodRaw = newValue?.rawValue }
+    }
+
+    var activityType: ActivityType {
+        get { ActivityType(rawValue: activityTypeRaw) ?? .run }
+        set { activityTypeRaw = newValue.rawValue }
     }
 
     /// The source shown to the user: the true origin app when known, otherwise the
