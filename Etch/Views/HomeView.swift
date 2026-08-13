@@ -236,24 +236,7 @@ struct HomeView: View {
     private var topBar: some View {
         VStack(spacing: 10) {
             HStack(spacing: 10) {
-                // Tapping either total zooms/recenters the map to the runs currently shown.
-                Button(action: fitShownRuns) {
-                    GlassPill(
-                        title: UnitSystem.current.distanceSuffix,
-                        value: Format.distanceValue(shownStats.totalDistanceMeters)
-                            .formatted(.number.precision(.fractionLength(0))),
-                        systemName: "point.topleft.down.to.point.bottomright.curvepath"
-                    )
-                }
-                .buttonStyle(.plain)
-                Button(action: fitShownRuns) {
-                    GlassPill(
-                        title: "runs",
-                        value: shownStats.totalRuns.formatted(),
-                        systemName: "figure.run"
-                    )
-                }
-                .buttonStyle(.plain)
+                totalsPill
                 Spacer()
                 if sync.isSyncing {
                     GlassContainer(padding: 10, cornerRadius: 18) {
@@ -266,6 +249,47 @@ struct HomeView: View {
             }
 
             modeSelector
+        }
+    }
+
+    /// One glass pill showing both totals — distance and run count — split by a hairline.
+    /// Tapping it zooms/recenters the map to the runs currently shown.
+    private var totalsPill: some View {
+        Button(action: fitShownRuns) {
+            HStack(spacing: 12) {
+                metric(
+                    value: Format.distanceValue(shownStats.totalDistanceMeters)
+                        .formatted(.number.precision(.fractionLength(0))),
+                    unit: UnitSystem.current.distanceSuffix,
+                    systemName: "point.topleft.down.to.point.bottomright.curvepath"
+                )
+                Rectangle()
+                    .fill(.secondary.opacity(0.3))
+                    .frame(width: 1, height: 18)
+                metric(
+                    value: shownStats.totalRuns.formatted(),
+                    unit: "runs",
+                    systemName: "figure.run"
+                )
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .glassBackground(cornerRadius: 18)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func metric(value: String, unit: String, systemName: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemName)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+            Text(value)
+                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                .contentTransition(.numericText())
+            Text(unit)
+                .font(.system(.caption, design: .rounded).weight(.medium))
+                .foregroundStyle(.secondary)
         }
     }
 
