@@ -125,23 +125,11 @@ struct StudioComposition: View {
                 stat("ELEV", Format.elevation(run.elevationGain))
             }
 
-            HStack {
-                Text(Format.date(run.startDate).uppercased())
-                    .font(.system(size: 18, weight: .semibold))
-                    .tracking(3)
-                    .foregroundStyle(subtleColor)
-                Spacer()
-                HStack(spacing: 8) {
-                    Text("etch")
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
-                        .foregroundStyle(inkColor)
-                    Text("STUDIO")
-                        .font(.system(size: 14, weight: .semibold))
-                        .tracking(3)
-                        .foregroundStyle(edition.accent)
-                }
-            }
-            .padding(.top, 6)
+            Text(Format.date(run.startDate).uppercased())
+                .font(.system(size: 18, weight: .semibold))
+                .tracking(3)
+                .foregroundStyle(subtleColor)
+                .padding(.top, 6)
         }
         .padding(70)
         .frame(width: Self.width)
