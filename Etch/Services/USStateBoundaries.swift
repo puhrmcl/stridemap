@@ -36,6 +36,11 @@ final class USStateBoundaries: @unchecked Sendable {
     /// Whether a boundary name counts toward the 50-state goal.
     func isState(_ name: String) -> Bool { !Self.nonStateNames.contains(name) }
 
+    /// The bounding map rect of a named boundary, for framing a jump-to-state zoom.
+    func boundingMapRect(for name: String) -> MKMapRect? {
+        boundaries.first { $0.name == name }?.boundingMapRect
+    }
+
     /// Returns the boundary name containing `coordinate`, or nil if none (e.g. outside the US).
     func region(containing coordinate: CLLocationCoordinate2D) -> String? {
         let point = MKMapPoint(coordinate)

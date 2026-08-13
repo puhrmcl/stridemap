@@ -10,6 +10,8 @@ struct StatesMapView: UIViewRepresentable {
     var intensities: [String: Double]
     /// Base map style (standard / satellite / hybrid), shared with the route map.
     var mapStyle: MapStyleOption = .standard
+    /// Set by the home-map "jump to state" menu; zooms to that state's boundary, then clears.
+    var focusStateName: Binding<String?> = .constant(nil)
 
     func makeCoordinator() -> Coordinator { Coordinator(intensities: intensities) }
 
@@ -50,6 +52,18 @@ struct StatesMapView: UIViewRepresentable {
                   let polygon = overlay as? MKPolygon else { continue }
             context.coordinator.style(renderer, for: polygon)
             renderer.setNeedsDisplay()
+        }
+
+        // A jump-to-state request: frame that state's boundary, then clear the binding so the
+        // same state can be picked again later.
+        if let name = focusStateName.wrappedValue,
+           let rect = USStateBoundaries.shared.boundingMapRect(for: name) {
+            map.setVisibleMapRect(
+                rect,
+                edgePadding: UIEdgeInsets(top: 90, left: 40, bottom: 120, right: 40),
+                animated: true
+            )
+            DispatchQueue.main.async { focusStateName.wrappedValue = nil }
         }
     }
 

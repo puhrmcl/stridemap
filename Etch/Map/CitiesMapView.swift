@@ -18,6 +18,8 @@ struct CitiesMapView: UIViewRepresentable {
     @Binding var selectedRunID: UUID?
     /// Tapping a city surfaces its runs as a pick-list through this binding.
     @Binding var stackedRunIDs: [UUID]?
+    /// Set by the home-map "jump to city" menu; zooms to that coordinate, then clears.
+    var focusCoordinate: Binding<CLLocationCoordinate2D?> = .constant(nil)
     /// Base map style (standard / satellite / hybrid), shared with the other maps.
     var mapStyle: MapStyleOption = .standard
 
@@ -45,6 +47,19 @@ struct CitiesMapView: UIViewRepresentable {
         if context.coordinator.installedCount != cities.count {
             context.coordinator.rebuild(on: map, cities: cities)
             context.coordinator.frame(map, cities: cities)
+        }
+
+        // A jump-to-city request: zoom to that city, then clear the binding so the same city
+        // can be picked again later.
+        if let coordinate = focusCoordinate.wrappedValue {
+            map.setRegion(
+                MKCoordinateRegion(
+                    center: coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.18, longitudeDelta: 0.18)
+                ),
+                animated: true
+            )
+            DispatchQueue.main.async { focusCoordinate.wrappedValue = nil }
         }
     }
 

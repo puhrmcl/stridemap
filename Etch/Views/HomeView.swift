@@ -18,6 +18,11 @@ struct HomeView: View {
     /// When true, the map shows clustered run counts by city.
     @State private var showCities = false
     @State private var stateIntensities: [String: Double] = [:]
+    /// States ranked by run count, for the home-map "jump to state" menu.
+    @State private var stateRanked: [(name: String, count: Int)] = []
+    /// A jump-to target set by the places menu; the overview map zooms to it, then clears it.
+    @State private var focusStateName: String?
+    @State private var focusCity: CLLocationCoordinate2D?
 
     /// TEMP diagnostic: counts bottom-button taps regardless of whether a sheet opens, so we
     /// can tell "the touch isn't landing" from "the touch lands but the page won't present".
@@ -56,12 +61,17 @@ struct HomeView: View {
 
         Group {
             if showStates {
-                StatesMapView(intensities: stateIntensities, mapStyle: mapStyle)
+                StatesMapView(
+                    intensities: stateIntensities,
+                    mapStyle: mapStyle,
+                    focusStateName: $focusStateName
+                )
             } else if showCities {
                 CitiesMapView(
                     cities: stats.travelPlaces,
                     selectedRunID: $appModel.selectedRunID,
                     stackedRunIDs: $appModel.stackedRunIDs,
+                    focusCoordinate: $focusCity,
                     mapStyle: mapStyle
                 )
             } else {
@@ -301,8 +311,55 @@ struct HomeView: View {
                 .glassBackground(cornerRadius: 22)
             }
             .buttonStyle(.plain)
+
+            // In the States / Cities overviews, a companion menu jumps the map to a specific
+            // state or city — the same list that used to live on the Explore detail pages.
+            if showStates || showCities { placesMenu }
+
             Spacer()
         }
+    }
+
+    /// A "jump to" menu shown beside the mode selector in the States / Cities overviews. Picking
+    /// a place zooms that overview map to it.
+    @ViewBuilder
+    private var placesMenu: some View {
+        if showStates && !stateRanked.isEmpty {
+            placesMenuLabel {
+                ForEach(stateRanked, id: \.name) { item in
+                    Button("\(item.name)  ·  \(item.count)") { focusStateName = item.name }
+                }
+            }
+        } else if showCities {
+            let places = stats.travelPlaces
+            if !places.isEmpty {
+                placesMenuLabel {
+                    ForEach(places) { place in
+                        Button("\(place.label)  ·  \(place.runs.count)") {
+                            focusCity = place.coordinate
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func placesMenuLabel<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        Menu {
+            content()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "list.bullet").font(.caption)
+                Text(showStates ? "State" : "City")
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+            }
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .glassBackground(cornerRadius: 22)
+        }
+        .buttonStyle(.plain)
     }
 
     /// Number of runs that have a start coordinate — the input to both overview maps. Drives
@@ -335,6 +392,9 @@ struct HomeView: View {
         }.value
         let maxCount = counts.values.max() ?? 1
         stateIntensities = counts.mapValues { min(1, (Double($0) / Double(maxCount)).squareRoot()) }
+        stateRanked = counts
+            .map { (name: $0.key, count: $0.value) }
+            .sorted { $0.count != $1.count ? $0.count > $1.count : $0.name < $1.name }
     }
 
     // MARK: Bottom — navigation controls

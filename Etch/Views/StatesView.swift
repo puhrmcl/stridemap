@@ -32,41 +32,24 @@ struct StatesView: View {
     }
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(spacing: 20) {
-                    header
-                    StatesMapView(intensities: intensities)
-                        .frame(height: 360)
-                        .clipShape(.rect(cornerRadius: Theme.cardRadius))
-                        .overlay(alignment: .bottom) {
-                            if didCompute && counts.isEmpty { emptyHint }
-                        }
-                    if !ranked.isEmpty { stateList }
-                }
-                .padding(20)
-            }
-            .navigationTitle("States")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                if !ranked.isEmpty {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Menu {
-                            ForEach(ranked, id: \.name) { item in
-                                Button("\(item.name)  ·  \(item.count)") {
-                                    withAnimation { proxy.scrollTo(item.name, anchor: .top) }
-                                }
-                            }
-                        } label: {
-                            Image(systemName: "list.bullet")
-                        }
+        ScrollView {
+            VStack(spacing: 20) {
+                header
+                StatesMapView(intensities: intensities)
+                    .frame(height: 360)
+                    .clipShape(.rect(cornerRadius: Theme.cardRadius))
+                    .overlay(alignment: .bottom) {
+                        if didCompute && counts.isEmpty { emptyHint }
                     }
-                }
+                if !ranked.isEmpty { stateList }
             }
-            .task {
-                guard !didCompute else { return }
-                computeCounts()
-            }
+            .padding(20)
+        }
+        .navigationTitle("States")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            guard !didCompute else { return }
+            computeCounts()
         }
     }
 
