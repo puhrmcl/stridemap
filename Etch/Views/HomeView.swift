@@ -308,30 +308,34 @@ struct HomeView: View {
     }
 
     /// The primary map-mode dropdown, plus — in Locations mode — a secondary dropdown to pick
-    /// the specific overlay and a "jump to" menu to zoom to a place.
+    /// the specific overlay and a "jump to" menu to zoom to a place. Scrolls horizontally so
+    /// every pill keeps its full label on one line rather than wrapping/hyphenating when the
+    /// three don't all fit on a narrow screen.
     private var modeSelector: some View {
-        HStack(spacing: 10) {
-            Menu {
-                Picker("Map", selection: modeSelection) {
-                    ForEach(RunFilter.Mode.allCases) { mode in
-                        Label(mode.rawValue, systemImage: mode.symbol).tag(ModeSelection.mode(mode))
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                Menu {
+                    Picker("Map", selection: modeSelection) {
+                        ForEach(RunFilter.Mode.allCases) { mode in
+                            Label(mode.rawValue, systemImage: mode.symbol).tag(ModeSelection.mode(mode))
+                        }
+                        Label("History", systemImage: "point.3.filled.connected.trianglepath.dotted")
+                            .tag(ModeSelection.history)
+                        Label("Locations", systemImage: "mappin.and.ellipse").tag(ModeSelection.locations)
                     }
-                    Label("History", systemImage: "point.3.filled.connected.trianglepath.dotted")
-                        .tag(ModeSelection.history)
-                    Label("Locations", systemImage: "mappin.and.ellipse").tag(ModeSelection.locations)
+                } label: {
+                    pill(symbol: currentModeSymbol, text: currentModeLabel)
                 }
-            } label: {
-                pill(symbol: currentModeSymbol, text: currentModeLabel)
-            }
-            .buttonStyle(.plain)
+                .buttonStyle(.plain)
 
-            if showLocations {
-                overlaySelector
-                placesMenu
+                if showLocations {
+                    overlaySelector
+                    placesMenu
+                }
             }
-
-            Spacer()
+            .padding(.vertical, 3)   // room for the pills' soft shadows
         }
+        .scrollClipDisabled()
     }
 
     /// Secondary dropdown: which Locations overlay to show.
@@ -386,18 +390,22 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
 
-    /// The shared glass dropdown pill used by all three menus.
+    /// The shared glass dropdown pill used by all three menus. The label stays on one line at
+    /// its full width — never wrapped or hyphenated.
     private func pill(symbol: String, text: String) -> some View {
         HStack(spacing: 6) {
             Image(systemName: symbol).font(.caption)
             Text(text)
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
             Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
         }
         .foregroundStyle(.primary)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .glassBackground(cornerRadius: 22)
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     /// Number of runs that have a start coordinate — the input to both overview maps. Drives
