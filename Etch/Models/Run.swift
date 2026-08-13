@@ -88,6 +88,12 @@ final class Run {
     var state: String?
     var country: String?
 
+    /// The nearby point of interest this run started at/next to (a park, university, museum,
+    /// …), if any — powers the Landmarks overlay. Nil means "no landmark here". `landmarkChecked`
+    /// records that we've already looked, so a run with no nearby POI isn't re-queried forever.
+    var landmarkName: String? = nil
+    var landmarkChecked: Bool = false
+
     // MARK: Classification
 
     var sportType: String

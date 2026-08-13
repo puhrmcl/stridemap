@@ -139,25 +139,10 @@ struct RunStatistics {
         placesGrouped(by: { $0.country ?? "" }, include: { $0.country?.isEmpty == false })
     }
 
-    /// The specific spots you return to — runs clustered to a ~1km cell with two or more
-    /// visits, labelled by their place. Not curated landmarks; "your places".
+    /// Runs that started at or next to a real point of interest — a park, university, museum,
+    /// and so on — grouped by that landmark. Populated by `SyncService.detectLandmarks`.
     var landmarkPlaces: [TravelPlace] {
-        let located = runs.filter { $0.startCoordinate != nil }
-        let groups = Dictionary(grouping: located) { geohashLabel($0) }
-        return groups.compactMap { _, runs -> TravelPlace? in
-            guard runs.count >= 2 else { return nil }
-            let coords = runs.compactMap(\.startCoordinate)
-            guard !coords.isEmpty else { return nil }
-            let lat = coords.map(\.latitude).reduce(0, +) / Double(coords.count)
-            let lon = coords.map(\.longitude).reduce(0, +) / Double(coords.count)
-            let label = runs.compactMap { $0.placeLabel.isEmpty ? nil : $0.placeLabel }.first ?? "Local spot"
-            return TravelPlace(
-                label: label,
-                coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
-                runs: runs.sorted { $0.startDate > $1.startDate }
-            )
-        }
-        .sorted { $0.runs.count > $1.runs.count }
+        placesGrouped(by: { $0.landmarkName ?? "" }, include: { $0.landmarkName?.isEmpty == false })
     }
 
     /// Groups located runs by a label key into pins at each group's average start coordinate.

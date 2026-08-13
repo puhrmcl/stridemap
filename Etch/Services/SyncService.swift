@@ -23,6 +23,8 @@ final class SyncService {
     private(set) var status: Status = .idle
     /// True while a manual "recover missing maps" pass is running (drives the Settings UI).
     private(set) var isRecoveringRoutes = false
+    /// Guards against overlapping landmark-detection passes.
+    private var isDetectingLandmarks = false
     /// Short human-readable result of the last sync (e.g. "Health: 0 workouts"), shown on the
     /// empty/importing screen so it's obvious *why* there are no runs.
     private(set) var lastDiagnostic = ""
@@ -168,6 +170,8 @@ final class SyncService {
             // Import is intentionally route-free so runs appear immediately; hydrate maps in
             // the background afterwards, off the sync spinner. Bounded + progressive.
             Task { await recoverMissingRoutes(limit: 400) }
+            // Attribute runs to nearby landmarks in the background too (bounded; fills over time).
+            Task { await detectLandmarks(limit: 30) }
         } catch {
             status = .failed(error.localizedDescription)
         }
@@ -200,6 +204,55 @@ final class SyncService {
             }
         }
         try? context.save()
+    }
+
+    // MARK: Landmark detection
+
+    /// Attributes located runs to a nearby point of interest (park, university, museum, …) for
+    /// the Landmarks overlay. Runs are clustered to a ~1km cell so one POI query covers all the
+    /// runs that started there. Bounded per pass and safe to call repeatedly — it fills in over
+    /// time; a failed search backs off (leaves runs unchecked) rather than marking them
+    /// landmark-less. Safe to run alongside sync/route recovery.
+    func detectLandmarks(limit: Int = 20) async {
+        guard !isDetectingLandmarks else { return }
+        isDetectingLandmarks = true
+        defer { isDetectingLandmarks = false }
+
+        let descriptor = FetchDescriptor<Run>(
+            predicate: #Predicate { $0.landmarkChecked == false && $0.startLatitude != nil }
+        )
+        guard let pending = try? context.fetch(descriptor), !pending.isEmpty else { return }
+
+        // Group the unchecked runs into ~1km cells; query each cell once.
+        let clusters = Dictionary(grouping: pending) { landmarkCell($0) }
+        var processed = 0
+        for (_, clusterRuns) in clusters {
+            if processed >= limit { break }
+            guard let coordinate = clusterRuns.first?.startCoordinate else { continue }
+            do {
+                let name = try await LandmarkFinder.nearest(to: coordinate)
+                for run in clusterRuns {
+                    run.landmarkName = name
+                    run.landmarkChecked = true
+                }
+            } catch {
+                // Search failed (throttled / offline) — stop and back off; retry next pass.
+                break
+            }
+            processed += 1
+            if processed % 5 == 0 { try? context.save() }
+        }
+        try? context.save()
+        // Space successive passes so the auto-refill doesn't hammer the POI service.
+        try? await Task.sleep(nanoseconds: 800_000_000)
+    }
+
+    /// A ~1km grid cell for a run's start, so nearby runs share one landmark query.
+    private func landmarkCell(_ run: Run) -> String {
+        guard let c = run.startCoordinate else { return "?" }
+        let lat = (c.latitude * 100).rounded() / 100
+        let lon = (c.longitude * 100).rounded() / 100
+        return "\(lat),\(lon)"
     }
 
     // MARK: Route recovery (late-arriving HealthKit routes)

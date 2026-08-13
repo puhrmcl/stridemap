@@ -119,6 +119,13 @@ struct HomeView: View {
             guard showLocations, locationOverlay == .states else { return }
             await computeStateIntensities()
         }
+        // Detect nearby landmarks while the Landmarks overlay is open. Keying on the number of
+        // unchecked runs makes each completed pass re-fire the next one, filling in over time;
+        // a failed pass leaves the count unchanged, so it naturally backs off.
+        .task(id: (showLocations && locationOverlay == .landmarks) ? uncheckedLandmarkCount : -2) {
+            guard showLocations, locationOverlay == .landmarks else { return }
+            await sync.detectLandmarks(limit: 20)
+        }
         // Applying a filter reframes the route map to the newly filtered runs.
         .onChange(of: appModel.filter) {
             if !isOverviewMode { appModel.fit(visibleRuns) }
@@ -420,6 +427,11 @@ struct HomeView: View {
     /// recomputation so the maps fill in as routes arrive.
     private var locatedRunCount: Int {
         allRuns.reduce(0) { $0 + ($1.startLatitude != nil ? 1 : 0) }
+    }
+
+    /// Located runs not yet checked for a nearby landmark — drives progressive detection.
+    private var uncheckedLandmarkCount: Int {
+        allRuns.reduce(0) { $0 + (($1.startLatitude != nil && !$1.landmarkChecked) ? 1 : 0) }
     }
 
     /// Every run's start point that has GPS, paired with its identity, for the Cities map.
