@@ -38,6 +38,9 @@ struct HomeView: View {
     /// A jump-to target set by the places menu; the overview map zooms to it, then clears it.
     @State private var focusStateName: String?
     @State private var focusCity: CLLocationCoordinate2D?
+    /// Bumped by the Locations recenter button; folded into the overlay map's id so the map is
+    /// rebuilt and re-framed to fit all its pins/regions.
+    @State private var locationRecenterToken = 0
 
     /// TEMP diagnostic: counts bottom-button taps regardless of whether a sheet opens, so we
     /// can tell "the touch isn't landing" from "the touch lands but the page won't present".
@@ -82,6 +85,7 @@ struct HomeView: View {
                         mapStyle: mapStyle,
                         focusStateName: $focusStateName
                     )
+                    .id("states-\(locationRecenterToken)")
                 } else {
                     CitiesMapView(
                         cities: overlayPlaces,
@@ -90,9 +94,10 @@ struct HomeView: View {
                         focusCoordinate: $focusCity,
                         mapStyle: mapStyle
                     )
-                    // Rebuild the map when the overlay changes; CitiesMapView otherwise only
-                    // re-pins on a pin-count change, which would miss a same-count overlay swap.
-                    .id(locationOverlay)
+                    // Rebuild the map when the overlay changes (CitiesMapView otherwise only
+                    // re-pins on a pin-count change) or when the recenter button is tapped, so
+                    // it re-frames all pins.
+                    .id("\(locationOverlay.rawValue)-\(locationRecenterToken)")
                 }
             } else {
                 RunMapView(
@@ -132,9 +137,12 @@ struct HomeView: View {
                     Spacer()
                     VStack(spacing: 10) {
                         mapStyleButton
-                        // The recenter controls only apply to the route/history maps, not the
-                        // Locations overviews (which frame themselves).
-                        if !showLocations {
+                        if showLocations {
+                            // Re-frame the overlay to fit all its pins / regions.
+                            GlassIconButton(systemName: "arrow.up.left.and.arrow.down.right") {
+                                locationRecenterToken += 1
+                            }
+                        } else {
                             GlassIconButton(systemName: "location.fill") {
                                 appModel.recenterOnUser()
                             }

@@ -234,5 +234,8 @@ private struct YearCard: View {
             }
         }
         .clipShape(.rect(cornerRadius: 20))
+        // Make the whole card tappable, not just the text glyphs — the photo and empty areas
+        // aren't hit-testable without an explicit content shape.
+        .contentShape(.rect)
     }
 }
