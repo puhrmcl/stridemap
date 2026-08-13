@@ -96,7 +96,7 @@ final class FileImportService {
 
         for entry in reader.entries where !entry.isDirectory {
             let ext = (entry.name as NSString).pathExtension.lowercased()
-            guard ["gpx", "tcx", "json"].contains(ext) else { continue }
+            guard ["gpx", "tcx", "fit", "json"].contains(ext) else { continue }
             guard entry.uncompressedSize <= Self.maxEntryBytes else { continue }
             if inflatedTotal + entry.uncompressedSize > Self.maxTotalBytes { break }
 
@@ -127,6 +127,7 @@ final class FileImportService {
         switch (name as NSString).pathExtension.lowercased() {
         case "gpx": return try GPXParser().parse(data: data, fileName: name)
         case "tcx": return try TCXParser().parse(data: data, fileName: name)
+        case "fit": return try FITParser().parse(data: data, fileName: name)
         case "json": return try NikeActivityParser().parse(data: data, fileName: name)
         default: return []
         }

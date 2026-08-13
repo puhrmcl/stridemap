@@ -33,12 +33,13 @@ enum ActivityFileError: Error, LocalizedError {
 enum ActivityFileParsing {
 
     /// Extensions the import UI should accept, including archives handled elsewhere.
-    static let supportedExtensions = ["gpx", "tcx"]
+    static let supportedExtensions = ["gpx", "tcx", "fit"]
 
     static func parser(forExtension ext: String) -> ActivityFileParser? {
         switch ext.lowercased() {
         case "gpx": return GPXParser()
         case "tcx": return TCXParser()
+        case "fit": return FITParser()
         default: return nil
         }
     }

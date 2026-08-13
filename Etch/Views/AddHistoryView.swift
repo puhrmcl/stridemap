@@ -28,13 +28,13 @@ struct AddHistoryView: View {
                 Button {
                     pickerPresented = true
                 } label: {
-                    Label("Choose GPX or TCX files", systemImage: "doc.badge.plus")
+                    Label("Choose Activity Files", systemImage: "doc.badge.plus")
                         .foregroundStyle(Theme.accent)
                 }
             } header: {
                 Text("Import files")
             } footer: {
-                Text("Select one or many .gpx or .tcx files, or a .zip export from another app. FIT support is coming soon.")
+                Text("Select .fit, .gpx, or .tcx files, or a .zip export from another app.")
             }
 
             Section {
@@ -70,7 +70,7 @@ struct AddHistoryView: View {
     /// GPX/TCX are XML under the hood; include their extension-derived types plus `.xml` so
     /// the picker surfaces them even though iOS declares no system UTI for either.
     private static let allowedTypes: [UTType] = {
-        var types: [UTType] = ["gpx", "tcx"].compactMap { UTType(filenameExtension: $0) }
+        var types: [UTType] = ["gpx", "tcx", "fit"].compactMap { UTType(filenameExtension: $0) }
         types.append(.xml)
         types.append(.zip)
         return types
@@ -119,8 +119,8 @@ struct ImportGuide: Identifiable {
             id: "garmin", name: "Garmin", symbol: "dot.radiowaves.left.and.right",
             steps: [
                 "Sign in at connect.garmin.com.",
-                "Open an activity and export it as .tcx or .gpx (or request a full data export).",
-                "Choose the downloaded files here."
+                "Open an activity and export the original .fit (or .tcx / .gpx), or request a full data export.",
+                "Choose the downloaded files or .zip here."
             ],
             note: nil
         ),
@@ -128,7 +128,7 @@ struct ImportGuide: Identifiable {
             id: "coros", name: "COROS", symbol: "dot.radiowaves.left.and.right",
             steps: [
                 "Open your COROS web dashboard and sign in.",
-                "Open an activity and export it as .gpx.",
+                "Open an activity and export it as .fit or .gpx.",
                 "Choose the downloaded files here."
             ],
             note: nil
