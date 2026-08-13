@@ -51,16 +51,85 @@ final class FileImportService {
         for url in urls {
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            let ext = url.pathExtension.lowercased()
             do {
                 let data = try Data(contentsOf: url)
-                let parsed = try ActivityFileParsing.parse(data: data, fileName: url.lastPathComponent)
-                outcome.activities.append(contentsOf: parsed)
+                if ext == "zip" {
+                    guard data.count <= Self.maxArchiveBytes else {
+                        outcome.failedFiles.append(url.lastPathComponent)
+                        continue
+                    }
+                    let (activities, failed) = await parseArchive(data, archiveName: url.lastPathComponent)
+                    outcome.activities.append(contentsOf: activities)
+                    outcome.failedFiles.append(contentsOf: failed)
+                } else {
+                    let parsed = try ActivityFileParsing.parse(data: data, fileName: url.lastPathComponent)
+                    outcome.activities.append(contentsOf: parsed)
+                }
             } catch {
                 outcome.failedFiles.append(url.lastPathComponent)
             }
             await Task.yield()
         }
         return outcome
+    }
+
+    // MARK: Archives
+
+    /// Decompression-bomb guards: skip absurd single files, stop before unbounded total
+    /// inflation, and reject an oversized archive outright.
+    private static let maxEntryBytes = 64 * 1024 * 1024       // 64 MB per activity file
+    private static let maxTotalBytes = 1024 * 1024 * 1024      // 1 GB total inflated
+    private static let maxArchiveBytes = 300 * 1024 * 1024     // 300 MB archive on disk
+
+    /// Reads a ZIP (Nike / Garmin export), inflates the activity files it contains, and parses
+    /// each. Non-activity entries (JSON manifests, images, other formats) are ignored, not
+    /// failed. Yields periodically so a large archive doesn't lock the UI.
+    private func parseArchive(_ data: Data, archiveName: String) async -> ([ImportedActivity], [String]) {
+        guard let reader = try? ZipArchiveReader(data: data) else { return ([], [archiveName]) }
+
+        var activities: [ImportedActivity] = []
+        var failed: [String] = []
+        var inflatedTotal = 0
+        var processed = 0
+        var foundActivityFile = false
+
+        for entry in reader.entries where !entry.isDirectory {
+            let ext = (entry.name as NSString).pathExtension.lowercased()
+            guard ["gpx", "tcx", "json"].contains(ext) else { continue }
+            guard entry.uncompressedSize <= Self.maxEntryBytes else { continue }
+            if inflatedTotal + entry.uncompressedSize > Self.maxTotalBytes { break }
+
+            guard let entryData = reader.data(for: entry) else { continue }
+            inflatedTotal += entryData.count
+            let name = (entry.name as NSString).lastPathComponent
+
+            if let parsed = try? parseEntry(name: entry.name, data: entryData) {
+                // A .json that isn't a Nike activity returns []; only count real content.
+                if !parsed.isEmpty { foundActivityFile = true }
+                activities.append(contentsOf: parsed)
+            } else {
+                foundActivityFile = true
+                failed.append(name)
+            }
+
+            processed += 1
+            if processed % 25 == 0 { await Task.yield() }
+        }
+
+        if !foundActivityFile { failed.append(archiveName) }
+        return (activities, failed)
+    }
+
+    /// Parses one extracted file by extension. JSON is routed to the Nike parser (which
+    /// self-validates), so unrelated JSON in an export is quietly ignored.
+    private func parseEntry(name: String, data: Data) throws -> [ImportedActivity] {
+        switch (name as NSString).pathExtension.lowercased() {
+        case "gpx": return try GPXParser().parse(data: data, fileName: name)
+        case "tcx": return try TCXParser().parse(data: data, fileName: name)
+        case "json": return try NikeActivityParser().parse(data: data, fileName: name)
+        default: return []
+        }
     }
 
     // MARK: Preview (read-only)

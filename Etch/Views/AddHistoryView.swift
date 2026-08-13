@@ -34,7 +34,7 @@ struct AddHistoryView: View {
             } header: {
                 Text("Import files")
             } footer: {
-                Text("Select one or many .gpx or .tcx files. FIT and .zip archives are coming soon.")
+                Text("Select one or many .gpx or .tcx files, or a .zip export from another app. FIT support is coming soon.")
             }
 
             Section {
@@ -72,6 +72,7 @@ struct AddHistoryView: View {
     private static let allowedTypes: [UTType] = {
         var types: [UTType] = ["gpx", "tcx"].compactMap { UTType(filenameExtension: $0) }
         types.append(.xml)
+        types.append(.zip)
         return types
     }()
 
@@ -109,10 +110,10 @@ struct ImportGuide: Identifiable {
             id: "nike", name: "Nike Run Club", symbol: "figure.run.circle",
             steps: [
                 "Sign in at nike.com and open your Privacy settings.",
-                "Request a copy of your data, then download the file Nike emails you.",
-                "Unzip it and choose the .tcx activity files here."
+                "Request a copy of your data, then download the .zip Nike emails you.",
+                "Choose that .zip here — Etch reads your runs from inside it."
             ],
-            note: "Direct .zip import is coming soon — for now select the unzipped .tcx files."
+            note: "No need to unzip — pick the file exactly as Nike sends it."
         ),
         ImportGuide(
             id: "garmin", name: "Garmin", symbol: "dot.radiowaves.left.and.right",
