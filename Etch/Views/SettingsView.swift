@@ -81,10 +81,17 @@ struct SettingsView: View {
                         .font(.subheadline)
                 }
             }
+
+            // Import history from files exported by any other app (Nike, Garmin, COROS, …).
+            NavigationLink {
+                AddHistoryView()
+            } label: {
+                Label("Add Your History", systemImage: "square.and.arrow.down")
+            }
         } header: {
             Text("Sources")
         } footer: {
-            Text("Runs come from Apple Health, including workouts recorded by Nike Run Club, Garmin, COROS, Polar, Wahoo, and others. Connect Strava to add titles, gear, and race details.")
+            Text("Runs come from Apple Health, including workouts recorded by Nike Run Club, Garmin, COROS, Polar, Wahoo, and others. Connect Strava to add titles, gear, and race details, or add your history from files exported by another app.")
         }
     }
 
