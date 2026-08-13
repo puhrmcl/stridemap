@@ -2,6 +2,21 @@ import SwiftUI
 import SwiftData
 import CoreLocation
 
+/// The specific overlay shown under the home map's "Locations" mode.
+enum LocationOverlay: String, CaseIterable, Identifiable {
+    case cities, states, countries, landmarks
+    var id: String { rawValue }
+    var label: String { rawValue.capitalized }
+    var symbol: String {
+        switch self {
+        case .cities: return "building.2.fill"
+        case .states: return "map.fill"
+        case .countries: return "globe.americas.fill"
+        case .landmarks: return "mappin.and.ellipse"
+        }
+    }
+}
+
 /// Full-screen map with floating glass controls. The map is the product; chrome floats.
 struct HomeView: View {
     @Environment(AppModel.self) private var appModel
@@ -11,12 +26,12 @@ struct HomeView: View {
     @AppStorage("mapStyle") private var mapStyleRaw = MapStyleOption.standard.rawValue
     private var mapStyle: MapStyleOption { MapStyleOption(rawValue: mapStyleRaw) ?? .standard }
 
-    /// When true, the map shows the states-visited choropleth instead of routes.
-    @State private var showStates = false
     /// When true, the map shows the accumulative "etch" view of all tracked history.
     @State private var showHistory = false
-    /// When true, the map shows clustered run counts by city.
-    @State private var showCities = false
+    /// When true, the map shows a Locations overlay (cities / states / countries / landmarks).
+    @State private var showLocations = false
+    /// Which Locations overlay is active.
+    @State private var locationOverlay: LocationOverlay = .cities
     @State private var stateIntensities: [String: Double] = [:]
     /// States ranked by run count, for the home-map "jump to state" menu.
     @State private var stateRanked: [(name: String, count: Int)] = []
@@ -38,7 +53,7 @@ struct HomeView: View {
     private var visibleStats: RunStatistics { RunStatistics(visibleRuns) }
 
     /// The overview modes ignore the active filter and show everything.
-    private var isOverviewMode: Bool { showHistory || showCities || showStates }
+    private var isOverviewMode: Bool { showHistory || showLocations }
 
     /// The runs the map is currently showing. Overview modes show everything; the route map
     /// shows the active filter's runs.
@@ -52,7 +67,7 @@ struct HomeView: View {
     /// Zoom/recenter the route or history map to the extent of the runs on screen. The cities
     /// and states overviews use their own maps (no camera command) and already frame on entry.
     private func fitShownRuns() {
-        guard !showCities && !showStates else { return }
+        guard !showLocations else { return }
         appModel.fit(shownRuns)
     }
 
@@ -60,20 +75,25 @@ struct HomeView: View {
         @Bindable var appModel = appModel
 
         Group {
-            if showStates {
-                StatesMapView(
-                    intensities: stateIntensities,
-                    mapStyle: mapStyle,
-                    focusStateName: $focusStateName
-                )
-            } else if showCities {
-                CitiesMapView(
-                    cities: stats.travelPlaces,
-                    selectedRunID: $appModel.selectedRunID,
-                    stackedRunIDs: $appModel.stackedRunIDs,
-                    focusCoordinate: $focusCity,
-                    mapStyle: mapStyle
-                )
+            if showLocations {
+                if locationOverlay == .states {
+                    StatesMapView(
+                        intensities: stateIntensities,
+                        mapStyle: mapStyle,
+                        focusStateName: $focusStateName
+                    )
+                } else {
+                    CitiesMapView(
+                        cities: overlayPlaces,
+                        selectedRunID: $appModel.selectedRunID,
+                        stackedRunIDs: $appModel.stackedRunIDs,
+                        focusCoordinate: $focusCity,
+                        mapStyle: mapStyle
+                    )
+                    // Rebuild the map when the overlay changes; CitiesMapView otherwise only
+                    // re-pins on a pin-count change, which would miss a same-count overlay swap.
+                    .id(locationOverlay)
+                }
             } else {
                 RunMapView(
                     // History shows the whole body of work, so it ignores the active filter.
@@ -90,8 +110,8 @@ struct HomeView: View {
         // Recompute whenever States is showing and the number of located runs changes, so the
         // choropleth fills in as Strava/HealthKit routes give older runs coordinates (rather
         // than caching one sparse result forever).
-        .task(id: showStates ? locatedRunCount : -1) {
-            guard showStates else { return }
+        .task(id: (showLocations && locationOverlay == .states) ? locatedRunCount : -1) {
+            guard showLocations, locationOverlay == .states else { return }
             await computeStateIntensities()
         }
         // Applying a filter reframes the route map to the newly filtered runs.
@@ -113,8 +133,8 @@ struct HomeView: View {
                     VStack(spacing: 10) {
                         mapStyleButton
                         // The recenter controls only apply to the route/history maps, not the
-                        // country-wide states or cities overviews.
-                        if !showStates && !showCities {
+                        // Locations overviews (which frame themselves).
+                        if !showLocations {
                             GlassIconButton(systemName: "location.fill") {
                                 appModel.recenterOnUser()
                             }
@@ -234,27 +254,24 @@ struct HomeView: View {
         }
     }
 
-    /// What the map is currently showing: a run-filter mode, the history etch, the cities
-    /// cluster map, or the states choropleth.
+    /// What the map is currently showing: a run-filter mode, the history etch, or a Locations
+    /// overlay (whose specific overlay is chosen by a secondary dropdown).
     private enum ModeSelection: Hashable {
         case mode(RunFilter.Mode)
         case history
-        case cities
-        case states
+        case locations
     }
 
     private var modeSelection: Binding<ModeSelection> {
         Binding(
             get: {
-                if showStates { return .states }
-                if showCities { return .cities }
+                if showLocations { return .locations }
                 if showHistory { return .history }
                 return .mode(appModel.filter.mode)
             },
             set: { newValue in
-                showStates = false
                 showHistory = false
-                showCities = false
+                showLocations = false
                 switch newValue {
                 case .mode(let mode):
                     var f = appModel.filter
@@ -262,32 +279,38 @@ struct HomeView: View {
                     appModel.setFilter(f)
                 case .history:
                     showHistory = true
-                case .cities:
-                    showCities = true
-                case .states:
-                    showStates = true
+                case .locations:
+                    showLocations = true
                 }
             }
         )
     }
 
     private var currentModeLabel: String {
-        if showStates { return "States" }
-        if showCities { return "Cities" }
+        if showLocations { return "Locations" }
         if showHistory { return "History" }
         return appModel.filter.mode.rawValue
     }
     private var currentModeSymbol: String {
-        if showStates { return "map.fill" }
-        if showCities { return "building.2.fill" }
+        if showLocations { return "mappin.and.ellipse" }
         if showHistory { return "point.3.filled.connected.trianglepath.dotted" }
         return appModel.filter.mode.symbol
     }
 
-    /// A rounded glass dropdown for the map mode (replaces the old chip row), with States
-    /// added as a way to see the visited-states map right on the home screen.
+    /// The pins for the active pin-based overlay (cities / countries / landmarks).
+    private var overlayPlaces: [RunStatistics.TravelPlace] {
+        switch locationOverlay {
+        case .cities: return stats.travelPlaces
+        case .countries: return stats.countryPlaces
+        case .landmarks: return stats.landmarkPlaces
+        case .states: return []
+        }
+    }
+
+    /// The primary map-mode dropdown, plus — in Locations mode — a secondary dropdown to pick
+    /// the specific overlay and a "jump to" menu to zoom to a place.
     private var modeSelector: some View {
-        HStack {
+        HStack(spacing: 10) {
             Menu {
                 Picker("Map", selection: modeSelection) {
                     ForEach(RunFilter.Mode.allCases) { mode in
@@ -295,71 +318,86 @@ struct HomeView: View {
                     }
                     Label("History", systemImage: "point.3.filled.connected.trianglepath.dotted")
                         .tag(ModeSelection.history)
-                    Label("Cities", systemImage: "building.2.fill").tag(ModeSelection.cities)
-                    Label("States", systemImage: "map.fill").tag(ModeSelection.states)
+                    Label("Locations", systemImage: "mappin.and.ellipse").tag(ModeSelection.locations)
                 }
             } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: currentModeSymbol).font(.caption)
-                    Text(currentModeLabel)
-                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                    Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
-                }
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .glassBackground(cornerRadius: 22)
+                pill(symbol: currentModeSymbol, text: currentModeLabel)
             }
             .buttonStyle(.plain)
 
-            // In the States / Cities overviews, a companion menu jumps the map to a specific
-            // state or city — the same list that used to live on the Explore detail pages.
-            if showStates || showCities { placesMenu }
+            if showLocations {
+                overlaySelector
+                placesMenu
+            }
 
             Spacer()
         }
     }
 
-    /// A "jump to" menu shown beside the mode selector in the States / Cities overviews. Picking
-    /// a place zooms that overview map to it.
-    @ViewBuilder
-    private var placesMenu: some View {
-        if showStates && !stateRanked.isEmpty {
-            placesMenuLabel {
-                ForEach(stateRanked, id: \.name) { item in
-                    Button("\(item.name)  ·  \(item.count)") { focusStateName = item.name }
+    /// Secondary dropdown: which Locations overlay to show.
+    private var overlaySelector: some View {
+        Menu {
+            Picker("Overlay", selection: $locationOverlay) {
+                ForEach(LocationOverlay.allCases) { overlay in
+                    Label(overlay.label, systemImage: overlay.symbol).tag(overlay)
                 }
             }
-        } else if showCities {
-            let places = stats.travelPlaces
-            if !places.isEmpty {
-                placesMenuLabel {
-                    ForEach(places) { place in
-                        Button("\(place.label)  ·  \(place.runs.count)") {
-                            focusCity = place.coordinate
-                        }
+        } label: {
+            pill(symbol: locationOverlay.symbol, text: locationOverlay.label)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// A "jump to" menu that zooms the active overlay to a chosen place.
+    @ViewBuilder
+    private var placesMenu: some View {
+        if locationOverlay == .states {
+            if !stateRanked.isEmpty {
+                placesMenuLabel(title: "State") {
+                    ForEach(stateRanked, id: \.name) { item in
+                        Button("\(item.name)  ·  \(item.count)") { focusStateName = item.name }
                     }
+                }
+            }
+        } else if !overlayPlaces.isEmpty {
+            placesMenuLabel(title: jumpTitle) {
+                ForEach(overlayPlaces) { place in
+                    Button("\(place.label)  ·  \(place.runs.count)") { focusCity = place.coordinate }
                 }
             }
         }
     }
 
-    private func placesMenuLabel<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    private var jumpTitle: String {
+        switch locationOverlay {
+        case .cities: return "City"
+        case .countries: return "Country"
+        case .landmarks: return "Spot"
+        case .states: return "State"
+        }
+    }
+
+    private func placesMenuLabel<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
         Menu {
             content()
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "list.bullet").font(.caption)
-                Text(showStates ? "State" : "City")
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
-            }
-            .foregroundStyle(.primary)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .glassBackground(cornerRadius: 22)
+            pill(symbol: "list.bullet", text: title)
         }
         .buttonStyle(.plain)
+    }
+
+    /// The shared glass dropdown pill used by all three menus.
+    private func pill(symbol: String, text: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol).font(.caption)
+            Text(text)
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+            Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+        }
+        .foregroundStyle(.primary)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .glassBackground(cornerRadius: 22)
     }
 
     /// Number of runs that have a start coordinate — the input to both overview maps. Drives

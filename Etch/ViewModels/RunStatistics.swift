@@ -119,7 +119,9 @@ struct RunStatistics {
     // MARK: Travel pins
 
     struct TravelPlace: Identifiable {
-        var id: String { label }
+        // Identity includes the coordinate so two places that share a label (e.g. two landmarks
+        // in the same city) stay distinct in lists and on the map.
+        var id: String { "\(label)#\(Int(coordinate.latitude * 1000))_\(Int(coordinate.longitude * 1000))" }
         var label: String
         var coordinate: CLLocationCoordinate2D
         var runs: [Run]
@@ -128,10 +130,41 @@ struct RunStatistics {
 
     /// One pin per city, positioned at the average start coordinate of its runs.
     var travelPlaces: [TravelPlace] {
-        let groups = Dictionary(grouping: runs.filter { $0.city?.isEmpty == false && $0.startCoordinate != nil }) {
-            [$0.city, $0.state, $0.country].compactMap { $0 }.joined(separator: ", ")
+        placesGrouped(by: { [$0.city, $0.state, $0.country].compactMap { $0 }.joined(separator: ", ") },
+                      include: { $0.city?.isEmpty == false })
+    }
+
+    /// One pin per country, at the average start coordinate of that country's runs.
+    var countryPlaces: [TravelPlace] {
+        placesGrouped(by: { $0.country ?? "" }, include: { $0.country?.isEmpty == false })
+    }
+
+    /// The specific spots you return to — runs clustered to a ~1km cell with two or more
+    /// visits, labelled by their place. Not curated landmarks; "your places".
+    var landmarkPlaces: [TravelPlace] {
+        let located = runs.filter { $0.startCoordinate != nil }
+        let groups = Dictionary(grouping: located) { geohashLabel($0) }
+        return groups.compactMap { _, runs -> TravelPlace? in
+            guard runs.count >= 2 else { return nil }
+            let coords = runs.compactMap(\.startCoordinate)
+            guard !coords.isEmpty else { return nil }
+            let lat = coords.map(\.latitude).reduce(0, +) / Double(coords.count)
+            let lon = coords.map(\.longitude).reduce(0, +) / Double(coords.count)
+            let label = runs.compactMap { $0.placeLabel.isEmpty ? nil : $0.placeLabel }.first ?? "Local spot"
+            return TravelPlace(
+                label: label,
+                coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+                runs: runs.sorted { $0.startDate > $1.startDate }
+            )
         }
-        return groups.compactMap { label, runs in
+        .sorted { $0.runs.count > $1.runs.count }
+    }
+
+    /// Groups located runs by a label key into pins at each group's average start coordinate.
+    private func placesGrouped(by key: (Run) -> String, include: (Run) -> Bool) -> [TravelPlace] {
+        let groups = Dictionary(grouping: runs.filter { include($0) && $0.startCoordinate != nil }, by: key)
+        return groups.compactMap { label, runs -> TravelPlace? in
+            guard !label.isEmpty else { return nil }
             let coords = runs.compactMap(\.startCoordinate)
             guard !coords.isEmpty else { return nil }
             let lat = coords.map(\.latitude).reduce(0, +) / Double(coords.count)
