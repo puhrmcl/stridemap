@@ -33,6 +33,9 @@ struct RunPhotoViewer: View {
     var onDelete: (String) -> Void
     @Environment(\.dismiss) private var dismiss
 
+    /// Full-resolution image for the current photo, loaded for sharing.
+    @State private var shareImage: UIImage?
+
     var body: some View {
         NavigationStack {
             TabView(selection: $selection) {
@@ -47,6 +50,16 @@ struct RunPhotoViewer: View {
                     Button { dismiss() } label: { Image(systemName: "xmark") }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
+                    if let shareImage {
+                        ShareLink(
+                            item: Image(uiImage: shareImage),
+                            preview: SharePreview("Run photo", image: Image(uiImage: shareImage))
+                        ) {
+                            Image(systemName: "square.and.arrow.up")
+                        }
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(role: .destructive) {
                         onDelete(selection)
                         dismiss()
@@ -56,6 +69,11 @@ struct RunPhotoViewer: View {
             .toolbarBackground(.visible, for: .navigationBar)
         }
         .preferredColorScheme(.dark)
+        // Reload the shareable image whenever the visible photo changes.
+        .task(id: selection) {
+            shareImage = nil
+            shareImage = await PhotoLibrary.fullImage(for: selection)
+        }
     }
 }
 

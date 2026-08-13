@@ -146,4 +146,22 @@ enum PhotoLibrary {
             }
         }
     }
+
+    /// Loads the full-resolution image for an asset, for sharing. Nil if the asset is gone.
+    static func fullImage(for identifier: String) async -> UIImage? {
+        guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject
+        else { return nil }
+
+        return await withCheckedContinuation { (continuation: CheckedContinuation<UIImage?, Never>) in
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .highQualityFormat
+            options.isNetworkAccessAllowed = true    // fetch from iCloud if needed
+            options.resizeMode = .none
+            PHImageManager.default().requestImage(
+                for: asset, targetSize: PHImageManagerMaximumSize, contentMode: .default, options: options
+            ) { image, _ in
+                continuation.resume(returning: image)
+            }
+        }
+    }
 }
