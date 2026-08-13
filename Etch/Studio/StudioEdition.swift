@@ -10,7 +10,7 @@ import SwiftUI
 struct StudioEdition: Identifiable, Equatable {
 
     enum ID: String, CaseIterable, Identifiable {
-        case gallery, terrain, minimal, night, relief
+        case gallery, terrain, minimal, night, spectrum
         var id: String { rawValue }
     }
 
@@ -33,6 +33,9 @@ struct StudioEdition: Identifiable, Equatable {
     let mapWashAlpha: CGFloat
 
     let route: Color
+    /// When set, the route is stroked with this gradient (paper editions) instead of a flat
+    /// colour — a single artful gesture rather than a line.
+    var routeGradient: [Color]? = nil
     /// Optional under-stroke drawn beneath the route so it reads on any ground.
     let casing: Color?
     let routeWidth: CGFloat
@@ -48,7 +51,7 @@ struct StudioEdition: Identifiable, Equatable {
 
     // MARK: The collection
 
-    static let all: [StudioEdition] = [.gallery, .terrain, .minimal, .night, .relief]
+    static let all: [StudioEdition] = [.gallery, .terrain, .minimal, .night, .spectrum]
 
     static func edition(_ id: ID) -> StudioEdition { all.first { $0.id == id }! }
 
@@ -94,15 +97,18 @@ struct StudioEdition: Identifiable, Equatable {
         ink: Theme.Palette.bone, subtle: Theme.Palette.bone.opacity(0.6), accent: Theme.Palette.blue
     )
 
-    /// Relief — monochrome, the route pressed into the paper like an etching. No colour, all
-    /// material.
-    static let relief = StudioEdition(
-        id: .relief, name: "Relief",
-        descriptor: "The route embossed into the paper, like an etching.",
+    /// Spectrum — the route as a single bold gesture, stroked with an Ink→Etch Blue gradient
+    /// on gallery paper. Modern, art-forward, minimal.
+    static let spectrum = StudioEdition(
+        id: .spectrum, name: "Spectrum",
+        descriptor: "The route as one bold gesture — ink into Etch Blue.",
         surface: .paper,
-        ground: Theme.Palette.stone, mapWash: .clear, mapWashAlpha: 0,
-        route: Theme.Palette.bone, casing: nil, routeWidth: 12, glow: false,
-        ink: Theme.Palette.ink, subtle: Theme.Palette.ink.opacity(0.5), accent: Theme.Palette.ink
+        ground: Theme.Palette.bone,
+        mapWash: .clear, mapWashAlpha: 0,
+        route: Theme.Palette.blue,
+        routeGradient: [Theme.Palette.ink, Theme.Palette.blue],
+        casing: nil, routeWidth: 15, glow: false,
+        ink: Theme.Palette.ink, subtle: Theme.Palette.ink.opacity(0.5), accent: Theme.Palette.blue
     )
 
     static func == (lhs: StudioEdition, rhs: StudioEdition) -> Bool { lhs.id == rhs.id }

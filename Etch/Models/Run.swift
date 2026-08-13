@@ -74,6 +74,14 @@ final class Run {
     var activeEnergy: Double?       // kcal
     var averageCadence: Double?     // steps/min
 
+    // MARK: Weather (when the source recorded it)
+
+    /// Temperature at the time of the run, in Celsius. Defaulted for clean migration.
+    var weatherTemperatureC: Double? = nil
+    /// Normalized `WeatherCondition` raw value, when known (HealthKit only; Strava gives
+    /// temperature but no condition).
+    var weatherConditionRaw: String? = nil
+
     // MARK: Location metadata
 
     var city: String?
@@ -287,6 +295,17 @@ extension Run {
 
     var placeLabel: String {
         [city, state].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
+    }
+
+    var weatherCondition: WeatherCondition? {
+        weatherConditionRaw.flatMap { WeatherCondition(rawValue: $0) }
+    }
+
+    var hasWeather: Bool { weatherTemperatureC != nil || weatherConditionRaw != nil }
+
+    /// A metadata line for the poster, e.g. "58°F · Clear".
+    func weatherLine(unit: UnitSystem = .current) -> String? {
+        WeatherFormat.line(temperatureC: weatherTemperatureC, condition: weatherCondition, unit: unit)
     }
 
     var ageInDays: Int {

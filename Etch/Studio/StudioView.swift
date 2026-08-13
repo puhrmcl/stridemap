@@ -8,10 +8,14 @@ struct StudioView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var selection: StudioEdition.ID = .gallery
-    @State private var rendered: [StudioEdition.ID: UIImage] = [:]
-    @State private var rendering: Set<StudioEdition.ID> = []
+    @State private var includeWeather = false
+    /// Rendered artwork, keyed by edition + weather state so toggling re-renders correctly.
+    @State private var rendered: [String: UIImage] = [:]
+    @State private var rendering: Set<String> = []
 
     private var current: StudioEdition { StudioEdition.edition(selection) }
+    private var currentKey: String { key(selection) }
+    private func key(_ id: StudioEdition.ID) -> String { "\(id.rawValue)-\(includeWeather)" }
 
     var body: some View {
         NavigationStack {
@@ -31,7 +35,7 @@ struct StudioView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
                 ToolbarItem(placement: .topBarTrailing) {
-                    if let image = rendered[selection] {
+                    if let image = rendered[currentKey] {
                         let title = "\(run.name) · \(current.name)"
                         ShareLink(
                             item: Image(uiImage: image),
@@ -42,7 +46,7 @@ struct StudioView: View {
                     }
                 }
             }
-            .task(id: selection) { await renderIfNeeded(selection) }
+            .task(id: currentKey) { await renderIfNeeded(selection) }
         }
     }
 
@@ -52,7 +56,7 @@ struct StudioView: View {
         VStack {
             Spacer(minLength: 0)
             Group {
-                if let image = rendered[edition.id] {
+                if let image = rendered[key(edition.id)] {
                     Image(uiImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
@@ -96,8 +100,19 @@ struct StudioView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 320)
+
+            if run.hasWeather {
+                Toggle(isOn: $includeWeather) {
+                    Label("Include weather", systemImage: "cloud.sun")
+                        .font(.system(.subheadline, design: .rounded))
+                }
+                .tint(Theme.accent)
+                .frame(maxWidth: 280)
+                .padding(.top, 2)
+            }
         }
         .padding(.vertical, 20)
+        .padding(.horizontal, 24)
         .frame(maxWidth: .infinity)
         .background(.regularMaterial)
     }
@@ -105,11 +120,12 @@ struct StudioView: View {
     // MARK: Rendering
 
     private func renderIfNeeded(_ id: StudioEdition.ID) async {
-        guard rendered[id] == nil, !rendering.contains(id) else { return }
-        rendering.insert(id)
-        defer { rendering.remove(id) }
+        let k = key(id)
+        guard rendered[k] == nil, !rendering.contains(k) else { return }
+        rendering.insert(k)
+        defer { rendering.remove(k) }
         if let image = await render(StudioEdition.edition(id)) {
-            rendered[id] = image
+            rendered[k] = image
         }
     }
 
@@ -123,7 +139,10 @@ struct StudioView: View {
                 edition: edition
             )
         }
-        let renderer = ImageRenderer(content: StudioComposition(run: run, edition: edition, mapImage: mapImage))
+        let composition = StudioComposition(
+            run: run, edition: edition, mapImage: mapImage, includeWeather: includeWeather
+        )
+        let renderer = ImageRenderer(content: composition)
         renderer.scale = 2
         return renderer.uiImage
     }

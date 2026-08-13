@@ -71,6 +71,8 @@ final class ActivityIngestor {
         if run.maxHeartRate == nil { run.maxHeartRate = activity.maxHeartRate }
         if run.activeEnergy == nil { run.activeEnergy = activity.activeEnergy }
         if run.averageCadence == nil { run.averageCadence = activity.averageCadence }
+        if run.weatherTemperatureC == nil { run.weatherTemperatureC = activity.weatherTemperatureC }
+        if run.weatherConditionRaw == nil { run.weatherConditionRaw = activity.weatherCondition }
         if !run.hasRoute, !activity.coordinates.isEmpty {
             applyRoute(activity.coordinates, source: .healthKit, to: run,
                        encoded: activity.encodedPolyline)
@@ -135,6 +137,8 @@ final class ActivityIngestor {
         if run.city == nil { run.city = activity.city }
         if run.state == nil { run.state = activity.state }
         if run.country == nil { run.country = activity.country }
+        if run.weatherTemperatureC == nil { run.weatherTemperatureC = activity.weatherTemperatureC }
+        if run.weatherConditionRaw == nil { run.weatherConditionRaw = activity.weatherCondition }
 
         // Fill route/elevation only if HealthKit didn't provide them.
         if !run.hasRoute, let polyline = activity.encodedPolyline, !polyline.isEmpty {
@@ -196,6 +200,8 @@ final class ActivityIngestor {
         if run.maxHeartRate == nil { run.maxHeartRate = activity.maxHeartRate }
         if run.activeEnergy == nil { run.activeEnergy = activity.activeEnergy }
         if run.averageCadence == nil { run.averageCadence = activity.averageCadence }
+        if run.weatherTemperatureC == nil { run.weatherTemperatureC = activity.weatherTemperatureC }
+        if run.weatherConditionRaw == nil { run.weatherConditionRaw = activity.weatherCondition }
         if run.elevationGain == 0, let gain = activity.elevationGain { run.elevationGain = gain }
         run.updatedAt = Date()
     }
@@ -245,6 +251,8 @@ final class ActivityIngestor {
         )
         run.importMethod = activity.importMethod
         run.activityType = activity.activityType
+        run.weatherTemperatureC = activity.weatherTemperatureC
+        run.weatherConditionRaw = activity.weatherCondition
         applyGeometry(activity.coordinates, to: run)
         return run
     }

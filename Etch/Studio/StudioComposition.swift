@@ -12,6 +12,8 @@ struct StudioComposition: View {
     let edition: StudioEdition
     /// Pre-rendered map panel for map editions; nil for paper editions.
     var mapImage: UIImage?
+    /// When on (and the run has weather), a quiet temperature/condition line is added.
+    var includeWeather: Bool = false
 
     static let width: CGFloat = 1000
     static let artHeight: CGFloat = 1000
@@ -45,21 +47,16 @@ struct StudioComposition: View {
         .clipped()
     }
 
-    /// Vector route for paper editions. Relief fakes an emboss with offset highlight/shadow
-    /// strokes; Minimal is a single clean line.
+    /// Vector route for paper editions. Spectrum strokes with the edition's gradient for a
+    /// single artful gesture; Minimal is a clean flat line.
     @ViewBuilder
     private var routeArt: some View {
-        if edition.id == .relief {
-            ZStack {
-                RouteShape(coordinates: run.coordinates)
-                    .stroke(Theme.Palette.ink.opacity(0.22), style: stroke(edition.routeWidth))
-                    .offset(x: 3, y: 4)
-                RouteShape(coordinates: run.coordinates)
-                    .stroke(.white.opacity(0.6), style: stroke(edition.routeWidth))
-                    .offset(x: -2, y: -2)
-                RouteShape(coordinates: run.coordinates)
-                    .stroke(edition.route, style: stroke(edition.routeWidth))
-            }
+        if let colors = edition.routeGradient {
+            RouteShape(coordinates: run.coordinates)
+                .stroke(
+                    LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing),
+                    style: stroke(edition.routeWidth)
+                )
         } else {
             RouteShape(coordinates: run.coordinates)
                 .stroke(edition.route, style: stroke(edition.routeWidth))
@@ -100,6 +97,13 @@ struct StudioComposition: View {
                     .tracking(5)
                     .foregroundStyle(edition.subtle)
                     .multilineTextAlignment(.center)
+            }
+
+            if includeWeather, let weather = run.weatherLine() {
+                Text(weather.uppercased())
+                    .font(.system(size: 19, weight: .medium))
+                    .tracking(4)
+                    .foregroundStyle(edition.subtle)
             }
 
             Rectangle()

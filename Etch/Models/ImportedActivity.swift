@@ -43,6 +43,10 @@ struct ImportedActivity {
     var activeEnergy: Double? = nil       // kcal
     var averageCadence: Double? = nil     // steps per minute
 
+    // Weather at run time, when the source recorded it.
+    var weatherTemperatureC: Double? = nil     // Celsius
+    var weatherCondition: String? = nil        // WeatherCondition raw value
+
     // Classification & metadata (often Strava-only).
     var sportType: String? = nil
     var isRace: Bool? = nil

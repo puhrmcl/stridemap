@@ -75,6 +75,7 @@ final class StravaProvider: ActivityProvider {
         imported.isRace = activity.resolvedIsRace
         imported.isCommute = activity.commute ?? false
         imported.isTrail = activity.isTrail
+        imported.weatherTemperatureC = activity.averageTemp
         if let latlng = activity.startLatlng, latlng.count == 2 {
             imported.coordinates = coords.isEmpty
                 ? [CLLocationCoordinate2D(latitude: latlng[0], longitude: latlng[1])]

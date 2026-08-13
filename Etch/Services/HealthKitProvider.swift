@@ -228,7 +228,19 @@ final class HealthKitProvider: ActivityProvider {
         activity.averageCadence = cadence(of: workout)
         activity.sportType = "Run"
         activity.name = workout.metadata?[HKMetadataKeyWorkoutBrandName] as? String
+        applyWeather(from: workout, to: &activity)
         return activity
+    }
+
+    /// Reads the optional weather Apple Health stores on a workout (temperature + condition).
+    private func applyWeather(from workout: HKWorkout, to activity: inout ImportedActivity) {
+        if let temp = workout.metadata?[HKMetadataKeyWeatherTemperature] as? HKQuantity {
+            activity.weatherTemperatureC = temp.doubleValue(for: .degreeCelsius())
+        }
+        if let raw = workout.metadata?[HKMetadataKeyWeatherCondition] as? NSNumber,
+           let condition = WeatherCondition.fromHealthKit(raw.intValue) {
+            activity.weatherCondition = condition.rawValue
+        }
     }
 
     private func distance(of workout: HKWorkout) -> Double {
