@@ -1,7 +1,7 @@
 import Foundation
 import CoreLocation
 
-/// Pure, derived analytics computed from a set of runs. Powers Explore, Year in Review,
+/// Pure, derived analytics computed from a set of runs. Powers Highlights, Year in Review,
 /// Travel, and the floating totals. Cheap enough to recompute on demand; callers cache
 /// where it matters.
 struct RunStatistics {

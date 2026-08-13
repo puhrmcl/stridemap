@@ -13,7 +13,7 @@ struct YearInReviewView: View {
     @State private var isPlaying = false
     @State private var playbackTask: Task<Void, Never>?
 
-    /// Every run in the year — the basis for all stats, so the totals match the Explore list
+    /// Every run in the year — the basis for all stats, so the totals match the Highlights list
     /// (which counts all runs, not only those with a GPS route).
     private var yearRuns: [Run] {
         allRuns.filter { Calendar.current.component(.year, from: $0.startDate) == year }

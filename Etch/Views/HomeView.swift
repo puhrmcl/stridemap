@@ -410,7 +410,7 @@ struct HomeView: View {
             .disabled(isOverviewMode)
             .opacity(isOverviewMode ? 0.35 : 1)
             controlButton(icon: "calendar", surface: .timeline)
-            controlButton(icon: "sparkles", surface: .explore)
+            controlButton(icon: "sparkles", surface: .highlights)
             controlButton(icon: "mappin.and.ellipse", surface: .travel)
             Spacer()
             controlButton(icon: "gearshape", surface: .settings)
@@ -491,7 +491,7 @@ struct HomeView: View {
         switch surface {
         case .filters: FilterView()
         case .timeline: TimelineView()
-        case .explore: ExploreView()
+        case .highlights: HighlightsView()
         case .travel: TravelMapView()
         case .yearInReview: YearInReviewView(year: stats.years.first ?? Calendar.current.component(.year, from: Date()))
         case .search: SearchView()

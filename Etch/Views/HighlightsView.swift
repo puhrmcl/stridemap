@@ -1,8 +1,9 @@
 import SwiftUI
 import SwiftData
 
-/// A fun, rewarding statistics screen: where you've been and what you've conquered.
-struct ExploreView: View {
+/// A fun, rewarding highlights screen: where you've been and what you've conquered — reach,
+/// records, personal bests, and yearly recaps.
+struct HighlightsView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(\.dismiss) private var dismiss
     @Query private var runs: [Run]
@@ -20,7 +21,7 @@ struct ExploreView: View {
                 }
                 .padding(20)
             }
-            .navigationTitle("Explore")
+            .navigationTitle("Highlights")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -142,10 +143,10 @@ struct ExploreView: View {
     }
 
     private func focus(_ run: Run) {
-        // Swap the Explore sheet for the run's detail and zoom the map to it. We do NOT call
+        // Swap the Highlights sheet for the run's detail and zoom the map to it. We do NOT call
         // dismiss() here: dismissing sets the shared sheet binding to nil, which clears the
         // selection before the run detail can present. Changing the state does the swap.
         appModel.select(run)             // selectedRunID (opens detail) + focus command (zoom)
-        appModel.presentedSurface = nil  // closes Explore; detail takes its place
+        appModel.presentedSurface = nil  // closes Highlights; detail takes its place
     }
 }
