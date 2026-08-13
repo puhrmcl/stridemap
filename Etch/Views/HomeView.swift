@@ -246,6 +246,7 @@ struct HomeView: View {
                         }
                     }
                 }
+                filterButton
             }
 
             modeSelector
@@ -492,19 +493,22 @@ struct HomeView: View {
     private var bottomBar: some View {
         HStack(spacing: 10) {
             controlButton(icon: "magnifyingglass", surface: .search)
-            // Filtering only applies to the route map; the overview modes (history, cities,
-            // states) deliberately show everything, so the filter button is disabled there.
-            GlassIconButton(systemName: "line.3.horizontal.decrease", isActive: appModel.filter.isActive) {
-                appModel.presentedSurface = .filters
-            }
-            .disabled(isOverviewMode)
-            .opacity(isOverviewMode ? 0.35 : 1)
             controlButton(icon: "calendar", surface: .timeline)
             controlButton(icon: "sparkles", surface: .highlights)
-            controlButton(icon: "mappin.and.ellipse", surface: .travel)
             Spacer()
             controlButton(icon: "gearshape", surface: .settings)
         }
+    }
+
+    /// Filter control, pinned to the top-right of the map. Filtering only applies to the route
+    /// map; the overview modes (history, locations) deliberately show everything, so it's
+    /// disabled there.
+    private var filterButton: some View {
+        GlassIconButton(systemName: "line.3.horizontal.decrease", isActive: appModel.filter.isActive) {
+            appModel.presentedSurface = .filters
+        }
+        .disabled(isOverviewMode)
+        .opacity(isOverviewMode ? 0.35 : 1)
     }
 
     private func controlButton(icon: String, surface: AppModel.Surface, active: Bool = false) -> some View {
@@ -582,7 +586,6 @@ struct HomeView: View {
         case .filters: FilterView()
         case .timeline: TimelineView()
         case .highlights: HighlightsView()
-        case .travel: TravelMapView()
         case .yearInReview: YearInReviewView(year: stats.years.first ?? Calendar.current.component(.year, from: Date()))
         case .search: SearchView()
         case .settings: SettingsView()
