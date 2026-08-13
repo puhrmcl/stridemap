@@ -10,14 +10,15 @@ import SwiftUI
 struct StudioEdition: Identifiable, Equatable {
 
     enum ID: String, CaseIterable, Identifiable {
-        case gallery, terrain, minimal, night, spectrum
+        case gallery, terrain, minimal, night, topographic
         var id: String { rawValue }
     }
 
-    /// How the art panel treats the map behind the route.
+    /// How the art panel treats the ground behind the route.
     enum Surface: Equatable {
         case map(dark: Bool)   // muted Apple Maps snapshot, light or dark
         case paper             // no map — the route on a plain material ground
+        case contour           // generative topographic contour lines behind the route
     }
 
     let id: ID
@@ -33,9 +34,6 @@ struct StudioEdition: Identifiable, Equatable {
     let mapWashAlpha: CGFloat
 
     let route: Color
-    /// When set, the route is stroked with this gradient (paper editions) instead of a flat
-    /// colour — a single artful gesture rather than a line.
-    var routeGradient: [Color]? = nil
     /// Optional under-stroke drawn beneath the route so it reads on any ground.
     let casing: Color?
     let routeWidth: CGFloat
@@ -46,12 +44,18 @@ struct StudioEdition: Identifiable, Equatable {
     let subtle: Color       // metadata type
     let accent: Color       // hairlines, the "Etched." mark, small signals
 
-    var usesMap: Bool { if case .map = surface { return true }; return false }
+    /// The art panel is a pre-rendered image (a map snapshot or a contour field), not a
+    /// SwiftUI-drawn vector route.
+    var usesImagePanel: Bool {
+        switch surface { case .map, .contour: return true; case .paper: return false }
+    }
+    var isMap: Bool { if case .map = surface { return true }; return false }
+    var isContour: Bool { surface == .contour }
     var isDark: Bool { if case .map(let dark) = surface { return dark }; return false }
 
     // MARK: The collection
 
-    static let all: [StudioEdition] = [.gallery, .terrain, .minimal, .night, .spectrum]
+    static let all: [StudioEdition] = [.gallery, .terrain, .minimal, .night, .topographic]
 
     static func edition(_ id: ID) -> StudioEdition { all.first { $0.id == id }! }
 
@@ -97,18 +101,16 @@ struct StudioEdition: Identifiable, Equatable {
         ink: Theme.Palette.bone, subtle: Theme.Palette.bone.opacity(0.6), accent: Theme.Palette.blue
     )
 
-    /// Spectrum — the route as a single bold gesture, stroked with an Ink→Etch Blue gradient
-    /// on gallery paper. Modern, art-forward, minimal.
-    static let spectrum = StudioEdition(
-        id: .spectrum, name: "Spectrum",
-        descriptor: "The route as one bold gesture — ink into Etch Blue.",
-        surface: .paper,
+    /// Topographic — the route over generative contour lines, like an outdoor map without the
+    /// map. `mapWash` carries the contour-line colour. Modern, tactile, gallery.
+    static let topographic = StudioEdition(
+        id: .topographic, name: "Topographic",
+        descriptor: "The route over fine contour lines, like an atlas plate.",
+        surface: .contour,
         ground: Theme.Palette.bone,
-        mapWash: .clear, mapWashAlpha: 0,
-        route: Theme.Palette.blue,
-        routeGradient: [Theme.Palette.ink, Theme.Palette.blue],
-        casing: nil, routeWidth: 15, glow: false,
-        ink: Theme.Palette.ink, subtle: Theme.Palette.ink.opacity(0.5), accent: Theme.Palette.blue
+        mapWash: Theme.Palette.sage, mapWashAlpha: 0.9,
+        route: Theme.Palette.blue, casing: Theme.Palette.bone, routeWidth: 12, glow: false,
+        ink: Theme.Palette.ink, subtle: Theme.Palette.ink.opacity(0.55), accent: Theme.Palette.brass
     )
 
     static func == (lhs: StudioEdition, rhs: StudioEdition) -> Bool { lhs.id == rhs.id }

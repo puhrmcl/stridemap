@@ -79,8 +79,9 @@ enum PosterMap {
     /// the edition's style (optional casing, optional glow, start/finish dots). Returns nil for
     /// paper editions, which draw a vector route in the composition instead.
     @MainActor
-    static func studioPanel(for run: Run, size: CGSize, edition: StudioEdition) async -> UIImage? {
-        guard edition.usesMap else { return nil }
+    static func studioPanel(for run: Run, size: CGSize, edition: StudioEdition,
+                            route routeOverride: Color? = nil) async -> UIImage? {
+        guard edition.isMap else { return nil }
         let coordinates = run.coordinates
         guard coordinates.count > 1 else { return nil }
 
@@ -105,7 +106,7 @@ enum PosterMap {
         format.opaque = true
         let renderer = UIGraphicsImageRenderer(size: size, format: format)
 
-        let route = UIColor(edition.route)
+        let route = UIColor(routeOverride ?? edition.route)
 
         return renderer.image { context in
             let cg = context.cgContext
@@ -145,6 +146,59 @@ enum PosterMap {
             let endFill = route
             if let first = coordinates.first { dot(cg, at: snapshot.point(for: first), fill: startFill, radius: edition.routeWidth) }
             if let last = coordinates.last { dot(cg, at: snapshot.point(for: last), fill: endFill, radius: edition.routeWidth) }
+        }
+    }
+
+    /// A generative topographic contour field for the Topographic edition: fine horizontal
+    /// lines that bend together like an atlas plate, with every fifth drawn as a stronger
+    /// index contour. Deterministic per `seed`, so a run always renders the same field. Pure
+    /// CoreGraphics — no map snapshot — so it's synchronous.
+    static func contourImage(size: CGSize, ground: Color, line: Color, seed: UInt64) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 2
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        let groundColor = UIColor(ground)
+        let lineColor = UIColor(line)
+        let p1 = Double(seed % 1000) / 1000 * .pi * 2
+        let p2 = Double((seed / 7) % 1000) / 1000 * .pi * 2
+
+        return renderer.image { ctx in
+            let cg = ctx.cgContext
+            groundColor.setFill()
+            cg.fill(CGRect(origin: .zero, size: size))
+
+            let width = size.width, height = size.height
+            let spacing = max(16, height / 46)
+            let amp1 = height * 0.055
+            let amp2 = height * 0.022
+            cg.setLineCap(.round)
+
+            var index = 0
+            var baseY = -spacing * 2
+            while baseY < height + spacing * 2 {
+                let path = CGMutablePath()
+                var first = true
+                var x: CGFloat = -4
+                let li = Double(index)
+                while x <= width + 4 {
+                    let xd = Double(x)
+                    // The `li` terms are small so neighbouring lines bend together like real
+                    // contours rather than each wobbling independently.
+                    let d = amp1 * CGFloat(sin(xd * 0.0055 + li * 0.32 + p1))
+                          + amp2 * CGFloat(sin(xd * 0.017 + li * 0.16 + p2))
+                    let point = CGPoint(x: x, y: baseY + d)
+                    if first { path.move(to: point); first = false } else { path.addLine(to: point) }
+                    x += 6
+                }
+                let strong = index % 5 == 0
+                lineColor.withAlphaComponent(strong ? 0.55 : 0.26).setStroke()
+                cg.setLineWidth(strong ? 2.1 : 1.4)
+                cg.addPath(path)
+                cg.strokePath()
+                baseY += spacing
+                index += 1
+            }
         }
     }
 

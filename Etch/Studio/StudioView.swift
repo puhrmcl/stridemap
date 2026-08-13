@@ -1,21 +1,34 @@
 import SwiftUI
 
 /// Etch Studio: a gallery-like way to turn a run into a finished piece. The user swipes
-/// through curated *editions* — each a complete composition, not a set of controls — and
-/// exports the one they want. Deliberately editorial: the artwork is the hero, chrome is quiet.
+/// through curated *editions* — each a complete composition — and can retune the path and text
+/// colours from a curated set before exporting. Deliberately editorial: the artwork is the
+/// hero, chrome stays quiet.
 struct StudioView: View {
     let run: Run
     @Environment(\.dismiss) private var dismiss
 
     @State private var selection: StudioEdition.ID = .gallery
     @State private var includeWeather = false
-    /// Rendered artwork, keyed by edition + weather state so toggling re-renders correctly.
+    @State private var routeColor: Color?
+    @State private var textColor: Color?
+    /// Bumped on any customization change; part of the cache key so artwork re-renders.
+    @State private var revision = 0
+
     @State private var rendered: [String: UIImage] = [:]
     @State private var rendering: Set<String> = []
 
+    private let pathSwatches: [Color] = [
+        Theme.Palette.blue, Theme.Palette.ink, Theme.Palette.bone, Theme.Palette.brass, Theme.Palette.sage
+    ]
+    private let textSwatches: [Color] = [Theme.Palette.ink, Theme.Palette.bone, Theme.Palette.brass]
+
     private var current: StudioEdition { StudioEdition.edition(selection) }
+    private func key(_ id: StudioEdition.ID) -> String { "\(id.rawValue)-\(revision)" }
     private var currentKey: String { key(selection) }
-    private func key(_ id: StudioEdition.ID) -> String { "\(id.rawValue)-\(includeWeather)" }
+
+    /// Deterministic contour seed per run (stable across launches, unlike UUID.hashValue).
+    private var contourSeed: UInt64 { UInt64(abs(run.startDate.timeIntervalSince1970)) }
 
     var body: some View {
         NavigationStack {
@@ -27,7 +40,7 @@ struct StudioView: View {
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
 
-                caption
+                controls
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Etch Studio")
@@ -82,10 +95,10 @@ struct StudioView: View {
         }
     }
 
-    // MARK: Caption
+    // MARK: Controls
 
-    private var caption: some View {
-        VStack(spacing: 12) {
+    private var controls: some View {
+        VStack(spacing: 14) {
             HStack(spacing: 8) {
                 ForEach(StudioEdition.all) { edition in
                     Circle()
@@ -93,13 +106,18 @@ struct StudioView: View {
                         .frame(width: 7, height: 7)
                 }
             }
-            Text(current.name)
-                .font(.system(.title2, design: .rounded).weight(.bold))
-            Text(current.descriptor)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 320)
+            VStack(spacing: 2) {
+                Text(current.name)
+                    .font(.system(.title2, design: .rounded).weight(.bold))
+                Text(current.descriptor)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 320)
+            }
+
+            colorRow("Path", selection: $routeColor, swatches: pathSwatches, fallback: current.route)
+            colorRow("Text", selection: $textColor, swatches: textSwatches, fallback: current.ink)
 
             if run.hasWeather {
                 Toggle(isOn: $includeWeather) {
@@ -108,16 +126,68 @@ struct StudioView: View {
                 }
                 .tint(Theme.accent)
                 .frame(maxWidth: 280)
-                .padding(.top, 2)
             }
         }
-        .padding(.vertical, 20)
+        .padding(.vertical, 18)
         .padding(.horizontal, 24)
         .frame(maxWidth: .infinity)
         .background(.regularMaterial)
+        .onChange(of: includeWeather) { bump() }
+        .onChange(of: routeColor) { bump() }
+        .onChange(of: textColor) { bump() }
+    }
+
+    private func colorRow(_ title: String, selection: Binding<Color?>, swatches: [Color], fallback: Color) -> some View {
+        HStack(spacing: 10) {
+            Text(title)
+                .font(.system(.caption, design: .rounded).weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 38, alignment: .leading)
+
+            autoChip(isSelected: selection.wrappedValue == nil) { selection.wrappedValue = nil }
+            ForEach(swatches.indices, id: \.self) { i in
+                swatchDot(swatches[i], isSelected: selection.wrappedValue == swatches[i]) {
+                    selection.wrappedValue = swatches[i]
+                }
+            }
+            ColorPicker("", selection: Binding(
+                get: { selection.wrappedValue ?? fallback },
+                set: { selection.wrappedValue = $0 }
+            ), supportsOpacity: false)
+            .labelsHidden()
+            .frame(width: 32)
+        }
+    }
+
+    private func autoChip(isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text("Auto")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(isSelected ? .white : .secondary)
+                .padding(.horizontal, 9).padding(.vertical, 5)
+                .background(isSelected ? Theme.accent : Color.secondary.opacity(0.15), in: .capsule)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func swatchDot(_ color: Color, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Circle()
+                .fill(color)
+                .frame(width: 26, height: 26)
+                .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 1))
+                .overlay(Circle().stroke(Theme.accent, lineWidth: isSelected ? 2.5 : 0).padding(-3))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: Rendering
+
+    private func bump() {
+        rendered.removeAll()
+        rendering.removeAll()
+        revision += 1
+    }
 
     private func renderIfNeeded(_ id: StudioEdition.ID) async {
         let k = key(id)
@@ -131,16 +201,18 @@ struct StudioView: View {
 
     @MainActor
     private func render(_ edition: StudioEdition) async -> UIImage? {
-        var mapImage: UIImage?
-        if edition.usesMap {
-            mapImage = await PosterMap.studioPanel(
-                for: run,
-                size: CGSize(width: StudioComposition.width, height: StudioComposition.artHeight),
-                edition: edition
+        let panelSize = CGSize(width: StudioComposition.width, height: StudioComposition.artHeight)
+        var panelImage: UIImage?
+        if edition.isMap {
+            panelImage = await PosterMap.studioPanel(for: run, size: panelSize, edition: edition, route: routeColor)
+        } else if edition.isContour {
+            panelImage = PosterMap.contourImage(
+                size: panelSize, ground: edition.ground, line: edition.mapWash, seed: contourSeed
             )
         }
         let composition = StudioComposition(
-            run: run, edition: edition, mapImage: mapImage, includeWeather: includeWeather
+            run: run, edition: edition, panelImage: panelImage,
+            includeWeather: includeWeather, routeOverride: routeColor, textOverride: textColor
         )
         let renderer = ImageRenderer(content: composition)
         renderer.scale = 2

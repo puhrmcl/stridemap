@@ -1,23 +1,32 @@
 import SwiftUI
 
 /// The Etch Studio artwork itself: one parametric composition that renders any edition for a
-/// run. Map editions receive a pre-rendered `mapImage`; paper editions (Minimal, Relief) draw
-/// the route as vector art. Laid out at a fixed portrait size and rendered to an image for
-/// preview and export.
+/// run. Image editions (map snapshot, contour field) receive a pre-rendered `panelImage`;
+/// paper editions draw the route as vector art. Laid out at a fixed portrait size and rendered
+/// to an image for preview and export.
 ///
 /// Follows the brand's typographic hierarchy — a large distance statement, the "Etched." mark
-/// as the single quiet signal, metadata in wide-tracked uppercase, and sparse metrics.
+/// as the single quiet signal, metadata in wide-tracked uppercase, and sparse metrics. Route
+/// and text colours may be overridden per the user's choice while the edition supplies the
+/// defaults.
 struct StudioComposition: View {
     let run: Run
     let edition: StudioEdition
-    /// Pre-rendered map panel for map editions; nil for paper editions.
-    var mapImage: UIImage?
+    /// Pre-rendered art panel (map snapshot or contour field); nil for paper editions.
+    var panelImage: UIImage?
     /// When on (and the run has weather), a quiet temperature/condition line is added.
     var includeWeather: Bool = false
+    /// User overrides; nil falls back to the edition's palette.
+    var routeOverride: Color? = nil
+    var textOverride: Color? = nil
 
     static let width: CGFloat = 1000
     static let artHeight: CGFloat = 1000
     static var size: CGSize { CGSize(width: width, height: artHeight + 620) }
+
+    private var routeColor: Color { routeOverride ?? edition.route }
+    private var inkColor: Color { textOverride ?? edition.ink }
+    private var subtleColor: Color { textOverride.map { $0.opacity(0.6) } ?? edition.subtle }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,33 +42,34 @@ struct StudioComposition: View {
     private var art: some View {
         ZStack {
             edition.ground
-            if edition.usesMap, let mapImage {
-                Image(uiImage: mapImage).resizable().scaledToFill()
+            if edition.usesImagePanel, let panelImage {
+                Image(uiImage: panelImage).resizable().scaledToFill()
+                // Map panels embed the route already; the contour field does not, so the route
+                // is drawn over it as vector art.
+                if edition.isContour, run.coordinates.count > 1 {
+                    routeArt.padding(130)
+                }
             } else if run.coordinates.count > 1 {
                 routeArt.padding(130)
             } else {
                 Image(systemName: "figure.run")
                     .font(.system(size: 130, weight: .semibold))
-                    .foregroundStyle(edition.subtle)
+                    .foregroundStyle(subtleColor)
             }
         }
         .frame(width: Self.width, height: Self.artHeight)
         .clipped()
     }
 
-    /// Vector route for paper editions. Spectrum strokes with the edition's gradient for a
-    /// single artful gesture; Minimal is a clean flat line.
-    @ViewBuilder
+    /// Vector route for paper and contour editions: an optional casing under the route line.
     private var routeArt: some View {
-        if let colors = edition.routeGradient {
+        ZStack {
+            if let casing = edition.casing {
+                RouteShape(coordinates: run.coordinates)
+                    .stroke(casing.opacity(0.9), style: stroke(edition.routeWidth * 1.7))
+            }
             RouteShape(coordinates: run.coordinates)
-                .stroke(
-                    LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing),
-                    style: stroke(edition.routeWidth)
-                )
-        } else {
-            RouteShape(coordinates: run.coordinates)
-                .stroke(edition.route, style: stroke(edition.routeWidth))
+                .stroke(routeColor, style: stroke(edition.routeWidth))
         }
     }
 
@@ -74,7 +84,7 @@ struct StudioComposition: View {
             Text(run.name.uppercased())
                 .font(.system(size: 26, weight: .semibold))
                 .tracking(4)
-                .foregroundStyle(edition.subtle)
+                .foregroundStyle(subtleColor)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
 
@@ -82,7 +92,7 @@ struct StudioComposition: View {
                 Text(heroNumber)
                     .font(.system(size: 150, weight: .bold))
                     .tracking(-2)
-                    .foregroundStyle(edition.ink)
+                    .foregroundStyle(inkColor)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                 Text("\(UnitSystem.current.label.uppercased()) ETCHED")
@@ -95,7 +105,7 @@ struct StudioComposition: View {
                 Text(placeLine.uppercased())
                     .font(.system(size: 22, weight: .medium))
                     .tracking(5)
-                    .foregroundStyle(edition.subtle)
+                    .foregroundStyle(subtleColor)
                     .multilineTextAlignment(.center)
             }
 
@@ -103,11 +113,11 @@ struct StudioComposition: View {
                 Text(weather.uppercased())
                     .font(.system(size: 19, weight: .medium))
                     .tracking(4)
-                    .foregroundStyle(edition.subtle)
+                    .foregroundStyle(subtleColor)
             }
 
             Rectangle()
-                .fill(edition.subtle.opacity(0.4))
+                .fill(subtleColor.opacity(0.4))
                 .frame(width: 90, height: 2)
                 .padding(.vertical, 6)
 
@@ -123,12 +133,12 @@ struct StudioComposition: View {
                 Text(Format.date(run.startDate).uppercased())
                     .font(.system(size: 18, weight: .semibold))
                     .tracking(3)
-                    .foregroundStyle(edition.subtle)
+                    .foregroundStyle(subtleColor)
                 Spacer()
                 HStack(spacing: 8) {
                     Text("etch")
                         .font(.system(size: 30, weight: .bold, design: .rounded))
-                        .foregroundStyle(edition.ink)
+                        .foregroundStyle(inkColor)
                     Text("STUDIO")
                         .font(.system(size: 14, weight: .semibold))
                         .tracking(3)
@@ -146,19 +156,19 @@ struct StudioComposition: View {
         VStack(spacing: 8) {
             Text(value)
                 .font(.system(size: 32, weight: .bold))
-                .foregroundStyle(edition.ink)
+                .foregroundStyle(inkColor)
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
             Text(label)
                 .font(.system(size: 15, weight: .semibold))
                 .tracking(2)
-                .foregroundStyle(edition.subtle)
+                .foregroundStyle(subtleColor)
         }
         .frame(maxWidth: .infinity)
     }
 
     private var statDivider: some View {
-        Rectangle().fill(edition.subtle.opacity(0.35)).frame(width: 1, height: 42)
+        Rectangle().fill(subtleColor.opacity(0.35)).frame(width: 1, height: 42)
     }
 
     // MARK: Content
