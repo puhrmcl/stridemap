@@ -13,7 +13,7 @@ struct RunMonthTile: View {
         GeometryReader { geo in
             let compact = geo.size.width < 220
             ZStack(alignment: .bottomLeading) {
-                background
+                background(geo.size)
 
                 LinearGradient(
                     colors: [.clear, .black.opacity(0.6)],
@@ -38,10 +38,16 @@ struct RunMonthTile: View {
         .contentShape(.rect)
     }
 
+    /// The photo (or brand-map fallback), pinned to the tile's exact size so a large photo
+    /// can't grow the ZStack and push the title/distance caption out of the clipped frame.
     @ViewBuilder
-    private var background: some View {
+    private func background(_ size: CGSize) -> some View {
         if let image {
-            Image(uiImage: image).resizable().scaledToFill()
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size.width, height: size.height)
+                .clipped()
         } else {
             LinearGradient(
                 colors: [Theme.Palette.stone, Theme.Palette.mist],
