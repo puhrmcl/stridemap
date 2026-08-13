@@ -43,12 +43,8 @@ struct StudioComposition: View {
         ZStack {
             edition.ground
             if edition.usesImagePanel, let panelImage {
+                // Map panels embed the route already.
                 Image(uiImage: panelImage).resizable().scaledToFill()
-                // Map panels embed the route already; the contour field does not, so the route
-                // is drawn over it as vector art.
-                if edition.isContour, run.coordinates.count > 1 {
-                    routeArt.padding(130)
-                }
             } else if run.coordinates.count > 1 {
                 routeArt.padding(130)
             } else {

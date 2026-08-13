@@ -14,11 +14,17 @@ struct StudioEdition: Identifiable, Equatable {
         var id: String { rawValue }
     }
 
+    /// Which real map renders behind the route.
+    enum MapKind: Equatable {
+        case streetsLight   // muted standard map, light
+        case streetsDark    // muted standard map, dark
+        case satellite      // real terrain imagery (desaturated, muted) — actual topography
+    }
+
     /// How the art panel treats the ground behind the route.
     enum Surface: Equatable {
-        case map(dark: Bool)   // muted Apple Maps snapshot, light or dark
-        case paper             // no map — the route on a plain material ground
-        case contour           // generative topographic contour lines behind the route
+        case map(MapKind)   // a real Apple Maps snapshot
+        case paper          // no map — the route on a plain material ground
     }
 
     let id: ID
@@ -44,14 +50,10 @@ struct StudioEdition: Identifiable, Equatable {
     let subtle: Color       // metadata type
     let accent: Color       // hairlines, the "Etched." mark, small signals
 
-    /// The art panel is a pre-rendered image (a map snapshot or a contour field), not a
-    /// SwiftUI-drawn vector route.
-    var usesImagePanel: Bool {
-        switch surface { case .map, .contour: return true; case .paper: return false }
-    }
-    var isMap: Bool { if case .map = surface { return true }; return false }
-    var isContour: Bool { surface == .contour }
-    var isDark: Bool { if case .map(let dark) = surface { return dark }; return false }
+    /// The art panel is a pre-rendered map snapshot (route embedded), not a SwiftUI vector route.
+    var usesImagePanel: Bool { if case .map = surface { return true }; return false }
+    var mapKind: MapKind? { if case .map(let kind) = surface { return kind }; return nil }
+    var isDark: Bool { mapKind == .streetsDark }
 
     // MARK: The collection
 
@@ -64,7 +66,7 @@ struct StudioEdition: Identifiable, Equatable {
     static let gallery = StudioEdition(
         id: .gallery, name: "Gallery",
         descriptor: "Muted map, route in Etch Blue, on gallery paper.",
-        surface: .map(dark: false),
+        surface: .map(.streetsLight),
         ground: Theme.Palette.bone, mapWash: Theme.Palette.bone, mapWashAlpha: 0.24,
         route: Theme.Palette.blue, casing: .white, routeWidth: 11, glow: false,
         ink: Theme.Palette.ink, subtle: Theme.Palette.ink.opacity(0.55), accent: Theme.Palette.blue
@@ -75,7 +77,7 @@ struct StudioEdition: Identifiable, Equatable {
     static let terrain = StudioEdition(
         id: .terrain, name: "Terrain",
         descriptor: "The land itself, muted, with the route drawn over it.",
-        surface: .map(dark: false),
+        surface: .map(.streetsLight),
         ground: Theme.Palette.bone, mapWash: Theme.Palette.sage, mapWashAlpha: 0.30,
         route: Theme.Palette.ink, casing: Theme.Palette.bone, routeWidth: 10, glow: false,
         ink: Theme.Palette.ink, subtle: Theme.Palette.ink.opacity(0.55), accent: Theme.Palette.brass
@@ -95,21 +97,21 @@ struct StudioEdition: Identifiable, Equatable {
     static let night = StudioEdition(
         id: .night, name: "Night",
         descriptor: "The route glowing on deep ink.",
-        surface: .map(dark: true),
+        surface: .map(.streetsDark),
         ground: Theme.Palette.ink, mapWash: Theme.Palette.ink, mapWashAlpha: 0.42,
         route: Theme.Palette.blue, casing: nil, routeWidth: 10, glow: true,
         ink: Theme.Palette.bone, subtle: Theme.Palette.bone.opacity(0.6), accent: Theme.Palette.blue
     )
 
-    /// Topographic — the route over generative contour lines, like an outdoor map without the
-    /// map. `mapWash` carries the contour-line colour. Modern, tactile, gallery.
+    /// Topographic — the route over the real terrain (satellite imagery, desaturated and washed
+    /// toward Bone so the land reads as muted relief rather than a photo). Actual topography.
     static let topographic = StudioEdition(
         id: .topographic, name: "Topographic",
-        descriptor: "The route over fine contour lines, like an atlas plate.",
-        surface: .contour,
+        descriptor: "The route over the real terrain, muted to the material.",
+        surface: .map(.satellite),
         ground: Theme.Palette.bone,
-        mapWash: Theme.Palette.sage, mapWashAlpha: 0.9,
-        route: Theme.Palette.blue, casing: Theme.Palette.bone, routeWidth: 12, glow: false,
+        mapWash: Theme.Palette.bone, mapWashAlpha: 0.30,
+        route: Theme.Palette.blue, casing: .white, routeWidth: 11, glow: false,
         ink: Theme.Palette.ink, subtle: Theme.Palette.ink.opacity(0.55), accent: Theme.Palette.brass
     )
 

@@ -27,9 +27,6 @@ struct StudioView: View {
     private func key(_ id: StudioEdition.ID) -> String { "\(id.rawValue)-\(revision)" }
     private var currentKey: String { key(selection) }
 
-    /// Deterministic contour seed per run (stable across launches, unlike UUID.hashValue).
-    private var contourSeed: UInt64 { UInt64(abs(run.startDate.timeIntervalSince1970)) }
-
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -203,12 +200,8 @@ struct StudioView: View {
     private func render(_ edition: StudioEdition) async -> UIImage? {
         let panelSize = CGSize(width: StudioComposition.width, height: StudioComposition.artHeight)
         var panelImage: UIImage?
-        if edition.isMap {
+        if edition.usesImagePanel {
             panelImage = await PosterMap.studioPanel(for: run, size: panelSize, edition: edition, route: routeColor)
-        } else if edition.isContour {
-            panelImage = PosterMap.contourImage(
-                size: panelSize, ground: edition.ground, line: edition.mapWash, seed: contourSeed
-            )
         }
         let composition = StudioComposition(
             run: run, edition: edition, panelImage: panelImage,

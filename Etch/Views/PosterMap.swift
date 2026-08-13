@@ -1,6 +1,7 @@
 import MapKit
 import UIKit
 import SwiftUI
+import CoreImage
 
 /// Renders the map panel for a route poster: a muted MapKit snapshot of the run's area,
 /// tinted toward the brand Bone, with the route drawn aligned on top (white casing under
@@ -81,7 +82,7 @@ enum PosterMap {
     @MainActor
     static func studioPanel(for run: Run, size: CGSize, edition: StudioEdition,
                             route routeOverride: Color? = nil) async -> UIImage? {
-        guard edition.isMap else { return nil }
+        guard let kind = edition.mapKind else { return nil }
         let coordinates = run.coordinates
         guard coordinates.count > 1 else { return nil }
 
@@ -90,16 +91,27 @@ enum PosterMap {
         options.size = size
         options.scale = 2
         options.pointOfInterestFilter = .excludingAll
-        options.traitCollection = UITraitCollection(userInterfaceStyle: edition.isDark ? .dark : .light)
-        let config = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .muted)
-        config.pointOfInterestFilter = .excludingAll
-        options.preferredConfiguration = config
+        options.traitCollection = UITraitCollection(userInterfaceStyle: kind == .streetsDark ? .dark : .light)
+        switch kind {
+        case .streetsLight, .streetsDark:
+            let config = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .muted)
+            config.pointOfInterestFilter = .excludingAll
+            options.preferredConfiguration = config
+        case .satellite:
+            // Real terrain. Elevation adds relief shading where the land actually rises.
+            options.preferredConfiguration = MKImageryConfiguration()
+        }
 
         let snapshotter = MKMapSnapshotter(options: options)
         let snapshot: MKMapSnapshotter.Snapshot? = await withCheckedContinuation { continuation in
             snapshotter.start(with: .main) { snap, _ in continuation.resume(returning: snap) }
         }
         guard let snapshot else { return nil }
+
+        // Satellite is a photograph; desaturate it so the terrain reads as muted relief, not a
+        // holiday snap — keeping the route the hero, per the brand's "mute geography".
+        let baseImage = kind == .satellite
+            ? desaturated(snapshot.image, saturation: 0.42) : snapshot.image
 
         let format = UIGraphicsImageRendererFormat()
         format.scale = options.scale
@@ -111,7 +123,7 @@ enum PosterMap {
         return renderer.image { context in
             let cg = context.cgContext
 
-            snapshot.image.draw(in: CGRect(origin: .zero, size: size))
+            baseImage.draw(in: CGRect(origin: .zero, size: size))
             UIColor(edition.mapWash).withAlphaComponent(edition.mapWashAlpha).setFill()
             cg.fill(CGRect(origin: .zero, size: size))
 
@@ -149,57 +161,22 @@ enum PosterMap {
         }
     }
 
-    /// A generative topographic contour field for the Topographic edition: fine horizontal
-    /// lines that bend together like an atlas plate, with every fifth drawn as a stronger
-    /// index contour. Deterministic per `seed`, so a run always renders the same field. Pure
-    /// CoreGraphics — no map snapshot — so it's synchronous.
-    static func contourImage(size: CGSize, ground: Color, line: Color, seed: UInt64) -> UIImage {
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 2
-        format.opaque = true
-        let renderer = UIGraphicsImageRenderer(size: size, format: format)
-        let groundColor = UIColor(ground)
-        let lineColor = UIColor(line)
-        let p1 = Double(seed % 1000) / 1000 * .pi * 2
-        let p2 = Double((seed / 7) % 1000) / 1000 * .pi * 2
+    /// Shared CoreImage context for the satellite desaturation pass.
+    private static let ciContext = CIContext(options: nil)
 
-        return renderer.image { ctx in
-            let cg = ctx.cgContext
-            groundColor.setFill()
-            cg.fill(CGRect(origin: .zero, size: size))
-
-            let width = size.width, height = size.height
-            let spacing = max(16, height / 46)
-            let amp1 = height * 0.055
-            let amp2 = height * 0.022
-            cg.setLineCap(.round)
-
-            var index = 0
-            var baseY = -spacing * 2
-            while baseY < height + spacing * 2 {
-                let path = CGMutablePath()
-                var first = true
-                var x: CGFloat = -4
-                let li = Double(index)
-                while x <= width + 4 {
-                    let xd = Double(x)
-                    // The `li` terms are small so neighbouring lines bend together like real
-                    // contours rather than each wobbling independently.
-                    let d = amp1 * CGFloat(sin(xd * 0.0055 + li * 0.32 + p1))
-                          + amp2 * CGFloat(sin(xd * 0.017 + li * 0.16 + p2))
-                    let point = CGPoint(x: x, y: baseY + d)
-                    if first { path.move(to: point); first = false } else { path.addLine(to: point) }
-                    x += 6
-                }
-                let strong = index % 5 == 0
-                lineColor.withAlphaComponent(strong ? 0.55 : 0.26).setStroke()
-                cg.setLineWidth(strong ? 2.1 : 1.4)
-                cg.addPath(path)
-                cg.strokePath()
-                baseY += spacing
-                index += 1
-            }
-        }
+    /// Desaturates (and gently lifts) a snapshot so satellite terrain reads as muted relief.
+    private static func desaturated(_ image: UIImage, saturation: CGFloat) -> UIImage {
+        guard let input = CIImage(image: image),
+              let filter = CIFilter(name: "CIColorControls", parameters: [
+                kCIInputImageKey: input,
+                kCIInputSaturationKey: saturation,
+                kCIInputBrightnessKey: 0.03,
+                kCIInputContrastKey: 1.03
+              ]),
+              let output = filter.outputImage,
+              let cgImage = ciContext.createCGImage(output, from: input.extent)
+        else { return image }
+        return UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
     }
 
     /// In-memory cache + tile-sized renderer for the Timeline's month tiles.
