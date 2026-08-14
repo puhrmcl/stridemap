@@ -245,7 +245,31 @@ struct RunDetailView: View {
                     HStack(spacing: 8) {
                         ForEach(run.photoReferences, id: \.self) { identifier in
                             RunPhotoThumbnail(identifier: identifier)
+                                .overlay(alignment: .topLeading) {
+                                    if identifier == run.photoReferences.first {
+                                        Image(systemName: "star.fill")
+                                            .font(.system(size: 11, weight: .bold))
+                                            .foregroundStyle(.white)
+                                            .padding(5)
+                                            .background(Theme.accent, in: .circle)
+                                            .padding(6)
+                                    }
+                                }
                                 .onTapGesture { photoSelection = PhotoSelection(id: identifier) }
+                                .contextMenu {
+                                    if identifier != run.photoReferences.first {
+                                        Button {
+                                            setDefaultPhoto(identifier)
+                                        } label: {
+                                            Label("Set as Default", systemImage: "star")
+                                        }
+                                    }
+                                    Button(role: .destructive) {
+                                        deletePhoto(identifier)
+                                    } label: {
+                                        Label("Remove", systemImage: "trash")
+                                    }
+                                }
                         }
                         addPhotosButton {
                             ZStack {
@@ -255,6 +279,11 @@ struct RunDetailView: View {
                             .frame(width: 84, height: 84)
                         }
                     }
+                }
+                if run.photoReferences.count > 1 {
+                    Text("Touch and hold a photo to set the cover.")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
             }
         }
@@ -287,6 +316,18 @@ struct RunDetailView: View {
 
     private func deletePhoto(_ identifier: String) {
         run.photoReferences.removeAll { $0 == identifier }
+        run.updatedAt = Date()
+        try? context.save()
+    }
+
+    /// Makes a photo the run's default (cover) by moving it to the front — this is the photo
+    /// used on tiles, the timeline, and the Studio "Memory" edition.
+    private func setDefaultPhoto(_ identifier: String) {
+        guard let index = run.photoReferences.firstIndex(of: identifier), index != 0 else { return }
+        var refs = run.photoReferences
+        refs.remove(at: index)
+        refs.insert(identifier, at: 0)
+        run.photoReferences = refs
         run.updatedAt = Date()
         try? context.save()
     }
