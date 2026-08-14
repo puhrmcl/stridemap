@@ -11,6 +11,8 @@ struct StudioHomeView: View {
     /// The run whose Studio composition sheet is presented.
     @State private var studioRun: Run?
     @State private var showPrints = false
+    /// The aggregate map-print kind whose sheet is presented.
+    @State private var mapPrintKind: MapPrintKind?
 
     private var stats: RunStatistics { RunStatistics(runs) }
     /// Only runs with a route make good art.
@@ -35,6 +37,7 @@ struct StudioHomeView: View {
                             let favorites = mapped.filter(\.isFavorite)
                             if !favorites.isEmpty { subjectRow("Favorites", favorites.map { ($0, nil) }) }
                             subjectRow("Recent", Array(mapped.prefix(12)).map { ($0, nil) })
+                            mapPrintsSection
                             printsBand
                         }
                         .padding(.vertical, 14)
@@ -47,6 +50,7 @@ struct StudioHomeView: View {
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
             }
             .sheet(item: $studioRun) { StudioView(run: $0) }
+            .sheet(item: $mapPrintKind) { MapPrintView(runs: runs, kind: $0) }
         }
     }
 
@@ -108,6 +112,46 @@ struct StudioHomeView: View {
                         .padding(10)
                 }
             }
+    }
+
+    // MARK: Full-map prints (the whole history as one poster)
+
+    private var mapPrintsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Full-Map Prints")
+                .font(.system(.title3, design: .rounded).weight(.bold))
+                .padding(.horizontal, 20)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(MapPrintKind.allCases) { kind in
+                        Button { mapPrintKind = kind } label: { mapPrintCard(kind) }
+                            .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+        }
+    }
+
+    private func mapPrintCard(_ kind: MapPrintKind) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: kind.symbol)
+                .font(.system(size: 26, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+            Spacer(minLength: 0)
+            Text(kind.name)
+                .font(.system(.headline, design: .rounded))
+                .foregroundStyle(.primary)
+            Text(kind.descriptor)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .frame(width: 200, height: 180, alignment: .leading)
+        .background(Theme.accent.opacity(0.06), in: .rect(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Theme.accent.opacity(0.15), lineWidth: 1))
     }
 
     // MARK: Prints (entry point — fulfillment lands with the Prodigi backend)

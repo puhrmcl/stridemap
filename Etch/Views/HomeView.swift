@@ -44,6 +44,17 @@ struct HomeView: View {
     /// The bottom navigation buttons collapse behind a menu; tapping it expands them.
     @State private var menuExpanded = false
 
+    /// The full-map print kind that matches the current view.
+    private var currentPrintKind: MapPrintKind {
+        guard showLocations else { return .allRuns }
+        switch locationOverlay {
+        case .cities: return .cities
+        case .states: return .states
+        case .landmarks: return .landmarks
+        case .countries: return .allRuns
+        }
+    }
+
     /// TEMP diagnostic: counts bottom-button taps regardless of whether a sheet opens, so we
     /// can tell "the touch isn't landing" from "the touch lands but the page won't present".
 
@@ -144,6 +155,9 @@ struct HomeView: View {
             HStack {
                 Spacer()
                 VStack(alignment: .trailing, spacing: 10) {
+                    GlassIconButton(systemName: "printer.fill") {
+                        appModel.presentedSurface = .mapPrint
+                    }
                     mapStyleButton
                     if showLocations {
                         // Re-frame the overlay to fit all its pins / regions.
@@ -599,6 +613,7 @@ struct HomeView: View {
         case .search: SearchView()
         case .settings: SettingsView()
         case .profile: ProfileView()
+        case .mapPrint: MapPrintView(runs: allRuns, kind: currentPrintKind)
         }
     }
 }
