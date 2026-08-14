@@ -79,6 +79,51 @@ enum ElevationService {
         return field
     }
 
+    /// Samples up to `sampleCount` points evenly along the route and returns their terrain
+    /// elevations (metres) in order — a route elevation profile for the poster's silhouette
+    /// strip. One request (≤100 points), cached per route. nil on failure.
+    static func routeProfile(for coordinates: [CLLocationCoordinate2D],
+                             sampleCount: Int = 100) async -> [Double]? {
+        guard coordinates.count > 1 else { return nil }
+
+        // Evenly spaced indices along the route.
+        let n = coordinates.count
+        let count = min(sampleCount, n)
+        var sampled: [(lat: Double, lon: Double)] = []
+        sampled.reserveCapacity(count)
+        for i in 0..<count {
+            let idx = count == 1 ? 0 : Int((Double(i) * Double(n - 1) / Double(count - 1)).rounded())
+            let c = coordinates[min(idx, n - 1)]
+            sampled.append((c.latitude, c.longitude))
+        }
+
+        let key = routeCacheKey(sampled, sampleCount: sampleCount)
+        if let cached = readProfileCache(key) { return cached }
+
+        guard let profile = await fetchBatch(sampled) else { return nil }
+        writeProfileCache(key, profile)
+        return profile
+    }
+
+    private static func routeCacheKey(_ coords: [(lat: Double, lon: Double)], sampleCount: Int) -> String {
+        func r(_ v: Double) -> String { String(format: "%.3f", v) }
+        let first = coords.first!, last = coords.last!
+        let mid = coords[coords.count / 2]
+        return "route_\(coords.count)_\(sampleCount)_\(r(first.lat))_\(r(first.lon))_\(r(mid.lat))_\(r(mid.lon))_\(r(last.lat))_\(r(last.lon))"
+    }
+
+    private static func readProfileCache(_ key: String) -> [Double]? {
+        let url = cacheDirectory.appendingPathComponent(key + ".json")
+        guard let data = try? Data(contentsOf: url),
+              let values = try? JSONDecoder().decode([Double].self, from: data) else { return nil }
+        return values
+    }
+
+    private static func writeProfileCache(_ key: String, _ values: [Double]) {
+        let url = cacheDirectory.appendingPathComponent(key + ".json")
+        if let data = try? JSONEncoder().encode(values) { try? data.write(to: url) }
+    }
+
     /// One request of ≤100 coordinates, with a single retry to ride out a transient hiccup.
     /// nil once both attempts fail.
     private static func fetchBatch(_ coords: [(lat: Double, lon: Double)]) async -> [Double]? {

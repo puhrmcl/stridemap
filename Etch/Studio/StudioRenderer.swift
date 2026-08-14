@@ -17,6 +17,8 @@ enum StudioRenderer {
         var edition: StudioEdition
         var layout: StudioLayout = .classic
         var photoLayout: StudioPhotoLayout = .single
+        var statSlots: [StatMetric] = [.time, .pace, .elevationGain]
+        var showElevationProfile: Bool = false
         var includeWeather: Bool = false
         var routeColor: Color? = nil
         var textColor: Color? = nil
@@ -65,18 +67,28 @@ enum StudioRenderer {
         let pixelWidth = StudioComposition.width * scale
         async let panelTask = panelImage(for: request, panelPixelWidth: pixelWidth)
         async let photosTask = photoImages(for: request, panelPixelWidth: pixelWidth)
-        let (panel, photos) = await (panelTask, photosTask)
+        async let profileTask = elevationProfile(for: request)
+        let (panel, photos, profile) = await (panelTask, photosTask, profileTask)
         let composition = StudioComposition(
             run: request.run, edition: request.edition, panelImage: panel,
             photoImages: photos,
             includeWeather: request.includeWeather, layout: request.layout,
             photoLayout: request.photoLayout,
+            statSlots: request.statSlots,
+            elevationSamples: profile,
+            showElevationProfile: request.showElevationProfile,
             routeOverride: request.routeColor, textOverride: request.textColor,
             groundOverride: request.groundColor
         )
         let renderer = ImageRenderer(content: composition)
         renderer.scale = scale
         return renderer.uiImage
+    }
+
+    /// The route's terrain elevation profile, fetched only when the strip is enabled.
+    static func elevationProfile(for request: Request) async -> [Double] {
+        guard request.showElevationProfile else { return [] }
+        return await ElevationService.routeProfile(for: request.run.coordinates) ?? []
     }
 
     /// A print-resolution image whose long edge is ~`longEdgePixels` (capped for on-device

@@ -47,6 +47,11 @@ struct StudioComposition: View {
     var includeWeather: Bool = false
     var layout: StudioLayout = .classic
     var photoLayout: StudioPhotoLayout = .single
+    /// The footer's metric slots, in order — "complications" the user can retune.
+    var statSlots: [StatMetric] = [.time, .pace, .elevationGain]
+    /// Terrain elevations along the route (metres) for the profile silhouette; empty = no strip.
+    var elevationSamples: [Double] = []
+    var showElevationProfile: Bool = false
     /// User overrides; nil falls back to the edition's palette.
     var routeOverride: Color? = nil
     var textOverride: Color? = nil
@@ -71,13 +76,25 @@ struct StudioComposition: View {
         return groundOverride != nil ? autoInk.opacity(0.6) : edition.subtle
     }
 
+    private var hasElevationStrip: Bool { showElevationProfile && elevationSamples.count > 1 }
+
     var body: some View {
         VStack(spacing: 0) {
             art
+            if hasElevationStrip { elevationBand }
             footer
         }
         .frame(width: Self.width)
         .background(groundColor)
+    }
+
+    /// A filled elevation-profile silhouette spanning the width, sitting between the art and the
+    /// footer — the run's climb, read left to right.
+    private var elevationBand: some View {
+        ElevationProfileShape(samples: elevationSamples)
+            .fill(subtleColor.opacity(0.55))
+            .frame(width: Self.width, height: 150)
+            .background(groundColor)
     }
 
     // MARK: Art panel
@@ -199,9 +216,9 @@ struct StudioComposition: View {
             title(leading: true)
             heroBlock(leading: true)
             HStack(spacing: 28) {
-                editorialStat("TIME", Format.duration(run.movingTime))
-                editorialStat("PACE", Format.pace(secondsPerKm: run.paceSecondsPerKm))
-                editorialStat("ELEV GAIN", Format.elevationGain(run.elevationGain))
+                ForEach(Array(resolvedStats.enumerated()), id: \.offset) { _, item in
+                    editorialStat(item.label, item.value)
+                }
             }
             if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: true) }
             metaLine([placeLine, Format.date(run.startDate)], leading: true)
@@ -237,13 +254,17 @@ struct StudioComposition: View {
         .frame(maxWidth: .infinity, alignment: leading ? .leading : .center)
     }
 
+    /// The slot metrics resolved to (label, value) for this run, unavailable ones showing "—".
+    private var resolvedStats: [(label: String, value: String)] {
+        statSlots.map { (label: $0.label, value: $0.value(for: run) ?? "—") }
+    }
+
     private var statRow: some View {
         HStack(alignment: .top, spacing: 0) {
-            stat("TIME", Format.duration(run.movingTime))
-            statDivider
-            stat("PACE", Format.pace(secondsPerKm: run.paceSecondsPerKm))
-            statDivider
-            stat("ELEV GAIN", Format.elevationGain(run.elevationGain))
+            ForEach(Array(resolvedStats.enumerated()), id: \.offset) { index, item in
+                if index > 0 { statDivider }
+                stat(item.label, item.value)
+            }
         }
     }
 
@@ -307,5 +328,33 @@ struct StudioComposition: View {
 
     private var placeLine: String {
         [run.city, run.state].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
+    }
+}
+
+/// A filled area silhouette of an elevation series, drawn left→right and baselined at the bottom
+/// of its rect. Values are normalized within their own min/max so any run fills the band.
+struct ElevationProfileShape: Shape {
+    let samples: [Double]
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        guard samples.count > 1 else { return path }
+        let minV = samples.min() ?? 0
+        let maxV = samples.max() ?? 0
+        let span = max(maxV - minV, 1)
+
+        func point(_ i: Int) -> CGPoint {
+            let x = rect.minX + rect.width * CGFloat(i) / CGFloat(samples.count - 1)
+            let norm = (samples[i] - minV) / span
+            // Keep a little headroom so the peak doesn't touch the top edge.
+            let y = rect.maxY - CGFloat(norm) * rect.height * 0.88 - rect.height * 0.06
+            return CGPoint(x: x, y: y)
+        }
+
+        path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+        for i in samples.indices { path.addLine(to: point(i)) }
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }

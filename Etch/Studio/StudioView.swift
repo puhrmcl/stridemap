@@ -15,6 +15,8 @@ struct StudioView: View {
     @State private var groundColor: Color?
     @State private var layout: StudioLayout = .classic
     @State private var photoLayout: StudioPhotoLayout = .single
+    @State private var statSlots: [StatMetric] = [.time, .pace, .elevationGain]
+    @State private var showElevationProfile = false
     @State private var showPrints = false
     @State private var showCustomize = false
     @State private var showExport = false
@@ -156,6 +158,17 @@ struct StudioView: View {
                         colorRow("Ground", selection: $groundColor, swatches: groundSwatches, fallback: current.ground)
                     }
 
+                    if layout != .minimal {
+                        statSlotEditor
+                    }
+
+                    Toggle(isOn: $showElevationProfile) {
+                        Label("Elevation profile", systemImage: "mountain.2")
+                            .font(.system(.subheadline, design: .rounded))
+                    }
+                    .tint(Theme.accent)
+                    .frame(maxWidth: 280)
+
                     if run.hasWeather {
                         Toggle(isOn: $includeWeather) {
                             Label("Include weather", systemImage: "cloud.sun")
@@ -178,6 +191,58 @@ struct StudioView: View {
         .onChange(of: groundColor) { bump() }
         .onChange(of: layout) { bump() }
         .onChange(of: photoLayout) { bump() }
+        .onChange(of: statSlots) { bump() }
+        .onChange(of: showElevationProfile) { bump() }
+    }
+
+    /// "Complication"-style stat slots: tap a slot to choose which metric it shows, from a
+    /// curated set. Unavailable metrics (no HR, etc.) are greyed out.
+    private var statSlotEditor: some View {
+        HStack(spacing: 10) {
+            Text("Stats")
+                .font(.system(.caption, design: .rounded).weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 38, alignment: .leading)
+            ForEach(statSlots.indices, id: \.self) { i in
+                Menu {
+                    ForEach(StatMetric.allCases) { metric in
+                        Button {
+                            statSlots[i] = metric
+                        } label: {
+                            if metric == statSlots[i] {
+                                Label(metric.menuName, systemImage: "checkmark")
+                            } else {
+                                Text(metric.menuName)
+                            }
+                        }
+                        .disabled(!metric.isAvailable(for: run))
+                    }
+                } label: {
+                    slotChip(statSlots[i])
+                }
+                .menuStyle(.borderlessButton)
+            }
+        }
+        .frame(maxWidth: 340)
+    }
+
+    private func slotChip(_ metric: StatMetric) -> some View {
+        VStack(spacing: 2) {
+            Text(metric.value(for: run) ?? "—")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            Text(metric.label)
+                .font(.system(size: 9, weight: .semibold))
+                .tracking(1)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 6)
+        .background(Color.secondary.opacity(0.12), in: .rect(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.accent.opacity(0.35), lineWidth: 1))
     }
 
     private func colorRow(_ title: String, selection: Binding<Color?>, swatches: [Color], fallback: Color) -> some View {
@@ -251,6 +316,7 @@ struct StudioView: View {
     private func request(for edition: StudioEdition) -> StudioRenderer.Request {
         StudioRenderer.Request(
             run: run, edition: edition, layout: layout, photoLayout: photoLayout,
+            statSlots: statSlots, showElevationProfile: showElevationProfile,
             includeWeather: includeWeather, routeColor: routeColor, textColor: textColor,
             groundColor: edition.groundIsCanvas ? groundColor : nil
         )
