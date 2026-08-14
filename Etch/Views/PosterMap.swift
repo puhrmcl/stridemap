@@ -99,7 +99,7 @@ enum PosterMap {
             options.preferredConfiguration = config
         case .satellite:
             // Real terrain. Elevation adds relief shading where the land actually rises.
-            options.preferredConfiguration = MKImageryConfiguration()
+            options.preferredConfiguration = MKImageryMapConfiguration(elevationStyle: .flat)
         }
 
         let snapshotter = MKMapSnapshotter(options: options)
