@@ -12,6 +12,7 @@ enum MapPrintRenderer {
 
     /// Preview / working image at the given `ImageRenderer` scale.
     static func image(for request: MapPrintRequest, scale: CGFloat) async -> UIImage? {
+        if request.kind.isArt { return artImage(for: request, scale: scale) }
         let panelSize = CGSize(width: MapPrintComposition.width, height: MapPrintComposition.artHeight)
         let visited = request.kind == .states ? await visitedStateIntensities(request.runs) : [:]
         guard let panel = await panel(for: request, size: panelSize, visited: visited) else { return nil }
@@ -27,10 +28,67 @@ enum MapPrintRenderer {
 
     /// Print-resolution image (~18″ at 300 DPI), capped for on-device memory.
     static func printImage(for request: MapPrintRequest, longEdgePixels: CGFloat = 5400) async -> UIImage? {
-        let nominal = MapPrintComposition.nominalSize(request.orientation)
+        let nominal = request.posterNominalSize
         let target = min(longEdgePixels, maxLongEdgePixels)
         let scale = max(2, target / max(nominal.width, nominal.height))
         return await image(for: request, scale: scale)
+    }
+
+    // MARK: Wall Art — abstract, full-bleed, text-free
+
+    /// Every route projected directly (no base map) onto a solid ground, drawn thin with a touch
+    /// of transparency so overlaps build density — a gallery-grade line-art piece.
+    private static func artImage(for request: MapPrintRequest, scale: CGFloat) -> UIImage? {
+        let runs = request.mapped
+        guard !runs.isEmpty else { return nil }
+        let size = request.posterNominalSize
+        let palette = request.artPalette
+
+        let region = request.region
+        let latMax = region.center.latitude + region.span.latitudeDelta / 2
+        let latMin = region.center.latitude - region.span.latitudeDelta / 2
+        let lonMin = region.center.longitude - region.span.longitudeDelta / 2
+        let lonMax = region.center.longitude + region.span.longitudeDelta / 2
+        let lonScale = max(cos(((latMin + latMax) / 2) * .pi / 180), 0.01)
+        let dataW = max((lonMax - lonMin) * lonScale, 1e-6)
+        let dataH = max(latMax - latMin, 1e-6)
+        // Fill the poster while preserving geographic aspect, with breathing room.
+        let fit = min(size.width / dataW, size.height / dataH) * 0.86
+        let offX = (size.width - dataW * fit) / 2
+        let offY = (size.height - dataH * fit) / 2
+
+        func point(_ c: CLLocationCoordinate2D) -> CGPoint {
+            CGPoint(x: offX + (c.longitude - lonMin) * lonScale * fit,
+                    y: offY + (latMax - c.latitude) * fit)
+        }
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        let ground = UIColor(palette.ground)
+        let line = UIColor(palette.line)
+        let lineWidth = max(size.width / 560, 1)
+
+        return renderer.image { context in
+            ground.setFill()
+            context.cgContext.fill(CGRect(origin: .zero, size: size))
+            line.withAlphaComponent(0.55).setStroke()
+            for run in runs {
+                let coordinates = run.coordinates
+                guard coordinates.count > 1 else { continue }
+                let path = UIBezierPath()
+                var started = false
+                for coordinate in coordinates {
+                    let p = point(coordinate)
+                    if started { path.addLine(to: p) } else { path.move(to: p); started = true }
+                }
+                path.lineJoinStyle = .round
+                path.lineCapStyle = .round
+                path.lineWidth = lineWidth
+                path.stroke()
+            }
+        }
     }
 
     // MARK: Panel
@@ -68,6 +126,8 @@ enum MapPrintRenderer {
             cg.fill(CGRect(origin: .zero, size: size))
 
             switch request.kind {
+            case .artMap:
+                break   // handled by artImage; never reaches here
             case .allRuns:
                 if let name = request.boundaryStateName { drawStateBoundary(name, on: snapshot) }
                 drawRoutes(request.mapped, on: snapshot, route: route)

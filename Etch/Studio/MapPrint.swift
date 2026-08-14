@@ -3,11 +3,12 @@ import MapKit
 
 /// An aggregate map print — the whole running history rendered as one poster.
 enum MapPrintKind: String, CaseIterable, Identifiable {
-    case allRuns, states, cities, countries, landmarks
+    case artMap, allRuns, states, cities, countries, landmarks
     var id: String { rawValue }
 
     var name: String {
         switch self {
+        case .artMap:    return "Wall Art"
         case .allRuns:   return "All Runs"
         case .states:    return "States"
         case .cities:    return "Cities"
@@ -18,6 +19,7 @@ enum MapPrintKind: String, CaseIterable, Identifiable {
 
     var descriptor: String {
         switch self {
+        case .artMap:    return "Every route as abstract line art — no map, no words."
         case .allRuns:   return "Every route you've run, on one map."
         case .states:    return "The states you've run in, filled."
         case .cities:    return "Every city you've run in, pinned."
@@ -28,6 +30,7 @@ enum MapPrintKind: String, CaseIterable, Identifiable {
 
     var symbol: String {
         switch self {
+        case .artMap:    return "sparkles"
         case .allRuns:   return "scribble.variable"
         case .states:    return "map.fill"
         case .cities:    return "building.2.fill"
@@ -36,9 +39,10 @@ enum MapPrintKind: String, CaseIterable, Identifiable {
         }
     }
 
-    /// The label beneath the headline count.
+    /// The label beneath the headline count. Unused by the text-free Wall Art.
     var heroLabel: String {
         switch self {
+        case .artMap:    return ""
         case .allRuns:   return UnitSystem.current.label.uppercased()
         case .states:    return "STATES RUN"
         case .cities:    return "CITIES RUN"
@@ -51,7 +55,46 @@ enum MapPrintKind: String, CaseIterable, Identifiable {
     var supportsSinglePlace: Bool {
         switch self {
         case .states, .cities, .countries: return true
-        case .allRuns, .landmarks: return false
+        case .artMap, .allRuns, .landmarks: return false
+        }
+    }
+
+    /// The text-free, full-bleed abstract art (no base map, no footer).
+    var isArt: Bool { self == .artMap }
+}
+
+/// A curated palette for the Wall Art print — ground + line, chosen to read as gallery-grade art.
+enum MapArtPalette: String, CaseIterable, Identifiable {
+    case gallery, noir, blueprint, brass, sage
+    var id: String { rawValue }
+
+    var name: String {
+        switch self {
+        case .gallery:   return "Gallery"
+        case .noir:      return "Noir"
+        case .blueprint: return "Blueprint"
+        case .brass:     return "Brass"
+        case .sage:      return "Sage"
+        }
+    }
+
+    var ground: Color {
+        switch self {
+        case .gallery:   return Theme.Palette.bone
+        case .noir:      return Theme.Palette.ink
+        case .blueprint: return Theme.Palette.navy
+        case .brass:     return Theme.Palette.ink
+        case .sage:      return Theme.Palette.sage
+        }
+    }
+
+    var line: Color {
+        switch self {
+        case .gallery:   return Theme.Palette.ink
+        case .noir:      return Theme.Palette.bone
+        case .blueprint: return Color(red: 0.66, green: 0.80, blue: 0.95)
+        case .brass:     return Theme.Palette.brass
+        case .sage:      return Theme.Palette.ink
         }
     }
 }
@@ -66,11 +109,21 @@ struct MapPrintRequest {
     var orientation: StudioOrientation = .portrait
     /// When set, the outline of this US state is drawn behind the routes (single-state prints).
     var boundaryStateName: String? = nil
+    var artPalette: MapArtPalette = .gallery
     var routeColor: Color = Theme.Palette.blue
     var ground: Color = Theme.Palette.bone
 
     /// The runs that actually carry a drawable route.
     var mapped: [Run] { runs.filter(\.hasRoute) }
+
+    /// Nominal poster size. Wall Art is a full-bleed 2:3 / 3:2; the rest use the composition size.
+    var posterNominalSize: CGSize {
+        if kind.isArt {
+            return orientation == .landscape ? CGSize(width: 1500, height: 1000)
+                                             : CGSize(width: 1000, height: 1500)
+        }
+        return MapPrintComposition.nominalSize(orientation)
+    }
 
     static func make(kind: MapPrintKind, runs: [Run]) -> MapPrintRequest {
         MapPrintRequest(kind: kind, runs: runs, title: title(for: kind, runs: runs),
@@ -98,14 +151,14 @@ struct MapPrintRequest {
 
     private static func region(for kind: MapPrintKind, runs: [Run]) -> MKCoordinateRegion {
         switch kind {
+        case .artMap, .allRuns:
+            return boundingRegion(of: runs.filter(\.hasRoute))
         case .states:
             // Continental US; Alaska/Hawaii are drawn but the framing stays on the lower 48.
             return MKCoordinateRegion(
                 center: CLLocationCoordinate2D(latitude: 39.5, longitude: -98.35),
                 span: MKCoordinateSpan(latitudeDelta: 30, longitudeDelta: 40)
             )
-        case .allRuns:
-            return boundingRegion(of: runs.filter(\.hasRoute))
         case .cities:
             return boundingRegion(ofCoordinates: RunStatistics(runs).travelPlaces.map(\.coordinate))
         case .countries:
@@ -163,7 +216,7 @@ struct MapPrintRequest {
         let heroValue: String
         let subStats: [(label: String, value: String)]
         switch kind {
-        case .allRuns:
+        case .artMap, .allRuns:
             heroValue = miles
             subStats = [runsPair, citiesPair, statesPair]
         case .states:

@@ -11,6 +11,7 @@ struct MapPrintView: View {
     /// A specific place within the current kind; nil = the aggregate.
     @State private var focusName: String?
     @State private var orientation: StudioOrientation = .portrait
+    @State private var artPalette: MapArtPalette = .gallery
     /// >1 tightens onto the core, <1 pulls back for context.
     @State private var zoom: Double = 1.0
     /// Accumulated pan, as fractions of the current span.
@@ -43,7 +44,7 @@ struct MapPrintView: View {
         case .states:
             let grouped = Dictionary(grouping: runs.filter { !($0.state ?? "").isEmpty }, by: { $0.state ?? "" })
             return grouped.map { (name: $0.key, runs: $0.value) }.sorted { $0.runs.count > $1.runs.count }
-        case .allRuns, .landmarks:
+        case .artMap, .allRuns, .landmarks:
             return []
         }
     }
@@ -68,6 +69,7 @@ struct MapPrintView: View {
     private var request: MapPrintRequest {
         var req = baseRequest
         req.orientation = orientation
+        req.artPalette = artPalette
         let factor = 1.0 / zoom
         let latSpan = min(170, max(0.002, req.region.span.latitudeDelta * factor))
         let lonSpan = min(340, max(0.002, req.region.span.longitudeDelta * factor))
@@ -81,8 +83,15 @@ struct MapPrintView: View {
     }
 
     private var currentKey: String {
-        "\(kind.rawValue)-\(focusName ?? "all")-\(orientation.rawValue)-" +
+        "\(kind.rawValue)-\(focusName ?? "all")-\(orientation.rawValue)-\(artPalette.rawValue)-" +
         String(format: "%.2f-%.2f-%.2f", zoom, panX, panY)
+    }
+
+    private var previewAspect: CGFloat {
+        let s = kind.isArt
+            ? (orientation == .landscape ? CGSize(width: 1500, height: 1000) : CGSize(width: 1000, height: 1500))
+            : MapPrintComposition.nominalSize(orientation)
+        return s.width / s.height
     }
 
     var body: some View {
@@ -127,7 +136,7 @@ struct MapPrintView: View {
                     } else {
                         RoundedRectangle(cornerRadius: 10)
                             .fill(Theme.Palette.bone)
-                            .aspectRatio({ let s = MapPrintComposition.nominalSize(orientation); return s.width / s.height }(), contentMode: .fit)
+                            .aspectRatio(previewAspect, contentMode: .fit)
                             .overlay {
                                 VStack(spacing: 10) {
                                     ProgressView().tint(Theme.accent)
@@ -162,6 +171,7 @@ struct MapPrintView: View {
             HStack(spacing: 10) {
                 kindMenu
                 if kind.supportsSinglePlace, !focusPlaces.isEmpty { placeMenu }
+                if kind.isArt { paletteMenu }
             }
 
             Text(focusName == nil ? kind.descriptor : "A single \(singularKindName), framed to its runs.")
@@ -213,6 +223,16 @@ struct MapPrintView: View {
             }
         } label: {
             menuChip(icon: "scope", text: focusName ?? "All \(kind.name)")
+        }
+    }
+
+    private var paletteMenu: some View {
+        Menu {
+            Picker("Palette", selection: $artPalette) {
+                ForEach(MapArtPalette.allCases) { Text($0.name).tag($0) }
+            }
+        } label: {
+            menuChip(icon: "paintpalette", text: artPalette.name)
         }
     }
 
