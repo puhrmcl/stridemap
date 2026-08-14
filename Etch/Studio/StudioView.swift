@@ -15,6 +15,7 @@ struct StudioView: View {
     @State private var layout: StudioLayout = .classic
     @State private var showPrints = false
     @State private var showCustomize = false
+    @State private var showExport = false
     /// Bumped on any customization change; part of the cache key so artwork re-renders.
     @State private var revision = 0
 
@@ -52,15 +53,10 @@ struct StudioView: View {
                     Button { showPrints = true } label: { Image(systemName: "bag") }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    if let image = rendered[currentKey] {
-                        let title = "\(run.name) · \(current.name)"
-                        ShareLink(
-                            item: Image(uiImage: image),
-                            preview: SharePreview(title, image: Image(uiImage: image))
-                        ) {
-                            Image(systemName: "square.and.arrow.up")
+                    Button { showExport = true } label: { Image(systemName: "square.and.arrow.up") }
+                        .sheet(isPresented: $showExport) {
+                            StudioExportSheet(request: request(for: current))
                         }
-                    }
                 }
             }
             .sheet(isPresented: $showPrints) { PrintShopView(subjectTitle: run.name) }
@@ -232,24 +228,14 @@ struct StudioView: View {
 
     @MainActor
     private func render(_ edition: StudioEdition) async -> UIImage? {
-        let panelSize = CGSize(width: StudioComposition.width, height: StudioComposition.artHeight)
-        var panelImage: UIImage?
-        if edition.isPhoto {
-            // Memory fills the panel with the run's photo; the route is drawn over it in the
-            // composition.
-            if let id = run.photoReferences.first {
-                panelImage = await PhotoLibrary.image(for: id, targetSize: CGSize(width: 2000, height: 2000))
-            }
-        } else if edition.mapKind != nil {
-            panelImage = await PosterMap.studioPanel(for: run, size: panelSize, edition: edition, route: routeColor)
-        }
-        let composition = StudioComposition(
-            run: run, edition: edition, panelImage: panelImage,
-            includeWeather: includeWeather, layout: layout,
-            routeOverride: routeColor, textOverride: textColor
+        await StudioRenderer.image(for: request(for: edition), scale: 2)
+    }
+
+    /// The render request for a given edition, using the current layout/colour/weather options.
+    private func request(for edition: StudioEdition) -> StudioRenderer.Request {
+        StudioRenderer.Request(
+            run: run, edition: edition, layout: layout,
+            includeWeather: includeWeather, routeColor: routeColor, textColor: textColor
         )
-        let renderer = ImageRenderer(content: composition)
-        renderer.scale = 2
-        return renderer.uiImage
     }
 }
