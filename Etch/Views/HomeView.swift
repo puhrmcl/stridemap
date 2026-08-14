@@ -141,28 +141,26 @@ struct HomeView: View {
                 .padding(.top, 8)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 10) {
-                HStack {
-                    Spacer()
-                    VStack(spacing: 10) {
-                        mapStyleButton
-                        if showLocations {
-                            // Re-frame the overlay to fit all its pins / regions.
-                            GlassIconButton(systemName: "arrow.up.left.and.arrow.down.right") {
-                                locationRecenterToken += 1
-                            }
-                        } else {
-                            GlassIconButton(systemName: "location.fill") {
-                                appModel.recenterOnUser()
-                            }
-                            // Recenter/zoom the map to frame all the runs currently shown.
-                            GlassIconButton(systemName: "arrow.up.left.and.arrow.down.right") {
-                                fitShownRuns()
-                            }
+            HStack {
+                Spacer()
+                VStack(alignment: .trailing, spacing: 10) {
+                    mapStyleButton
+                    if showLocations {
+                        // Re-frame the overlay to fit all its pins / regions.
+                        GlassIconButton(systemName: "arrow.up.left.and.arrow.down.right") {
+                            locationRecenterToken += 1
+                        }
+                    } else {
+                        GlassIconButton(systemName: "location.fill") {
+                            appModel.recenterOnUser()
+                        }
+                        // Recenter/zoom the map to frame all the runs currently shown.
+                        GlassIconButton(systemName: "arrow.up.left.and.arrow.down.right") {
+                            fitShownRuns()
                         }
                     }
+                    bottomBar
                 }
-                bottomBar
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 12)
@@ -494,9 +492,6 @@ struct HomeView: View {
 
     private var bottomBar: some View {
         HStack(spacing: 10) {
-            GlassIconButton(systemName: menuExpanded ? "xmark" : "ellipsis", isActive: menuExpanded) {
-                withAnimation(Theme.spring) { menuExpanded.toggle() }
-            }
             if menuExpanded {
                 Group {
                     controlButton(icon: "person.crop.circle", surface: .profile)
@@ -504,9 +499,11 @@ struct HomeView: View {
                     controlButton(icon: "sparkles", surface: .highlights)
                     controlButton(icon: "photo.artframe", surface: .studio)
                 }
-                .transition(.move(edge: .leading).combined(with: .opacity))
+                .transition(.move(edge: .trailing).combined(with: .opacity))
             }
-            Spacer()
+            GlassIconButton(systemName: menuExpanded ? "xmark" : "ellipsis", isActive: menuExpanded) {
+                withAnimation(Theme.spring) { menuExpanded.toggle() }
+            }
         }
     }
 
