@@ -91,10 +91,17 @@ enum PosterMap {
         options.size = size
         options.scale = 2
         options.pointOfInterestFilter = .excludingAll
-        options.traitCollection = UITraitCollection(userInterfaceStyle: kind == .streetsDark ? .dark : .light)
+        let dark = kind == .streetsDark || kind == .standardDark
+        options.traitCollection = UITraitCollection(userInterfaceStyle: dark ? .dark : .light)
         switch kind {
         case .streetsLight, .streetsDark:
             let config = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .muted)
+            config.pointOfInterestFilter = .excludingAll
+            options.preferredConfiguration = config
+        case .standardLight, .standardDark:
+            // Default emphasis keeps Apple's full map colours (roads, parks, water) rather than
+            // the muted, archival treatment the other editions use.
+            let config = MKStandardMapConfiguration(elevationStyle: .flat)
             config.pointOfInterestFilter = .excludingAll
             options.preferredConfiguration = config
         case .satellite:
@@ -178,7 +185,7 @@ enum PosterMap {
         let lonMax = region.center.longitude + region.span.longitudeDelta / 2
 
         guard let field = await ElevationService.field(
-            latMin: latMin, latMax: latMax, lonMin: lonMin, lonMax: lonMax, rows: 48, cols: 48
+            latMin: latMin, latMax: latMax, lonMin: lonMin, lonMax: lonMax, rows: 40, cols: 40
         ) else { return nil }
         let segments = ContourExtractor.segments(for: field)
 
@@ -210,9 +217,9 @@ enum PosterMap {
                 contour.move(to: CGPoint(x: segment.a.x * size.width, y: segment.a.y * size.height))
                 contour.addLine(to: CGPoint(x: segment.b.x * size.width, y: segment.b.y * size.height))
             }
-            contour.lineWidth = 1.4
+            contour.lineWidth = 1.5
             contour.lineCapStyle = .round
-            lineColor.withAlphaComponent(0.5).setStroke()
+            lineColor.withAlphaComponent(0.62).setStroke()
             contour.stroke()
 
             // Route over the terrain, white-cased so it reads on any ground.

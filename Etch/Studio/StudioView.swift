@@ -15,6 +15,7 @@ struct StudioView: View {
     @State private var groundColor: Color?
     @State private var layout: StudioLayout = .classic
     @State private var photoLayout: StudioPhotoLayout = .single
+    @State private var heroMetric: StatMetric = .distance
     @State private var statSlots: [StatMetric] = [.time, .pace, .elevationGain]
     @State private var showElevationProfile = false
     @State private var showPrints = false
@@ -158,6 +159,8 @@ struct StudioView: View {
                         colorRow("Ground", selection: $groundColor, swatches: groundSwatches, fallback: current.ground)
                     }
 
+                    headlineEditor
+
                     if layout != .minimal {
                         statSlotEditor
                     }
@@ -191,8 +194,39 @@ struct StudioView: View {
         .onChange(of: groundColor) { bump() }
         .onChange(of: layout) { bump() }
         .onChange(of: photoLayout) { bump() }
+        .onChange(of: heroMetric) { bump() }
         .onChange(of: statSlots) { bump() }
         .onChange(of: showElevationProfile) { bump() }
+    }
+
+    /// The big headline metric — tap to swap the hero number (distance by default) for any
+    /// available metric.
+    private var headlineEditor: some View {
+        HStack(spacing: 10) {
+            Text("Headline")
+                .font(.system(.caption, design: .rounded).weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 62, alignment: .leading)
+            Menu {
+                ForEach(StatMetric.allCases) { metric in
+                    Button {
+                        heroMetric = metric
+                    } label: {
+                        if metric == heroMetric {
+                            Label(metric.menuName, systemImage: "checkmark")
+                        } else {
+                            Text(metric.menuName)
+                        }
+                    }
+                    .disabled(!metric.isAvailable(for: run))
+                }
+            } label: {
+                slotChip(heroMetric)
+            }
+            .menuStyle(.borderlessButton)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: 340)
     }
 
     /// "Complication"-style stat slots: tap a slot to choose which metric it shows, from a
@@ -316,7 +350,7 @@ struct StudioView: View {
     private func request(for edition: StudioEdition) -> StudioRenderer.Request {
         StudioRenderer.Request(
             run: run, edition: edition, layout: layout, photoLayout: photoLayout,
-            statSlots: statSlots, showElevationProfile: showElevationProfile,
+            heroMetric: heroMetric, statSlots: statSlots, showElevationProfile: showElevationProfile,
             includeWeather: includeWeather, routeColor: routeColor, textColor: textColor,
             groundColor: edition.groundIsCanvas ? groundColor : nil
         )

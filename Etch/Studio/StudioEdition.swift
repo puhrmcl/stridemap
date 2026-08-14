@@ -10,7 +10,7 @@ import SwiftUI
 struct StudioEdition: Identifiable, Equatable {
 
     enum ID: String, CaseIterable, Identifiable {
-        case gallery, terrain, minimal, night, topographic, memory
+        case gallery, atlas, atlasDark, terrain, minimal, night, topographic, memory
         var id: String { rawValue }
     }
 
@@ -19,6 +19,8 @@ struct StudioEdition: Identifiable, Equatable {
         case streetsLight   // muted standard map, light
         case streetsDark    // muted standard map, dark
         case satellite      // real terrain imagery (desaturated, muted) — actual topography
+        case standardLight  // full-colour Apple Maps, light
+        case standardDark   // full-colour Apple Maps, dark
     }
 
     /// How the art panel treats the ground behind the route.
@@ -60,14 +62,14 @@ struct StudioEdition: Identifiable, Equatable {
     var mapKind: MapKind? { if case .map(let kind) = surface { return kind }; return nil }
     var isPhoto: Bool { surface == .photo }
     var isContour: Bool { surface == .contour }
-    var isDark: Bool { mapKind == .streetsDark }
+    var isDark: Bool { mapKind == .streetsDark || mapKind == .standardDark }
     /// Editions whose ground shows behind vector/contour art, so a user ground colour is
     /// meaningful (and offered in Customize).
     var groundIsCanvas: Bool { surface == .paper || surface == .contour }
 
     // MARK: The collection
 
-    static let all: [StudioEdition] = [.gallery, .terrain, .minimal, .night, .topographic, .memory]
+    static let all: [StudioEdition] = [.gallery, .atlas, .atlasDark, .terrain, .minimal, .night, .topographic, .memory]
 
     static func edition(_ id: ID) -> StudioEdition { all.first { $0.id == id }! }
 
@@ -86,6 +88,27 @@ struct StudioEdition: Identifiable, Equatable {
         ground: Theme.Palette.bone, mapWash: Theme.Palette.bone, mapWashAlpha: 0.24,
         route: Theme.Palette.blue, casing: .white, routeWidth: 11, glow: false,
         ink: Theme.Palette.ink, subtle: Theme.Palette.ink.opacity(0.55), accent: Theme.Palette.blue
+    )
+
+    /// Atlas — the classic Apple Maps look in full daylight colour (no muting), route in Etch
+    /// Blue over it. For when the geography itself should read.
+    static let atlas = StudioEdition(
+        id: .atlas, name: "Atlas",
+        descriptor: "Classic Apple Maps colours, in daylight.",
+        surface: .map(.standardLight),
+        ground: Theme.Palette.bone, mapWash: .clear, mapWashAlpha: 0,
+        route: Theme.Palette.blue, casing: .white, routeWidth: 11, glow: false,
+        ink: Theme.Palette.ink, subtle: Theme.Palette.ink.opacity(0.55), accent: Theme.Palette.blue
+    )
+
+    /// Atlas Dark — the classic Apple Maps look in full dark-mode colour, route in Etch Blue.
+    static let atlasDark = StudioEdition(
+        id: .atlasDark, name: "Atlas Dark",
+        descriptor: "Classic Apple Maps colours, after dark.",
+        surface: .map(.standardDark),
+        ground: Theme.Palette.ink, mapWash: .clear, mapWashAlpha: 0,
+        route: Theme.Palette.blue, casing: .white, routeWidth: 11, glow: false,
+        ink: Theme.Palette.bone, subtle: Theme.Palette.bone.opacity(0.6), accent: Theme.Palette.blue
     )
 
     /// Terrain — geography as the material. The map reads more, washed toward Sage/earth, the

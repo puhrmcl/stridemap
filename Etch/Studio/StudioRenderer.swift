@@ -17,6 +17,7 @@ enum StudioRenderer {
         var edition: StudioEdition
         var layout: StudioLayout = .classic
         var photoLayout: StudioPhotoLayout = .single
+        var heroMetric: StatMetric = .distance
         var statSlots: [StatMetric] = [.time, .pace, .elevationGain]
         var showElevationProfile: Bool = false
         var includeWeather: Bool = false
@@ -74,6 +75,7 @@ enum StudioRenderer {
             photoImages: photos,
             includeWeather: request.includeWeather, layout: request.layout,
             photoLayout: request.photoLayout,
+            heroMetric: request.heroMetric,
             statSlots: request.statSlots,
             elevationSamples: profile,
             showElevationProfile: request.showElevationProfile,

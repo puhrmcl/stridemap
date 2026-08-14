@@ -40,36 +40,38 @@ enum ElevationService {
             }
         }
 
-        // Open-Meteo accepts up to 100 coordinates per request; fetch batches concurrently and
-        // reassemble in order. Any failed batch fails the whole field (caller falls back).
+        // Open-Meteo accepts up to 100 coordinates per request. Fetch batches in small
+        // concurrent waves (not all at once) so a burst doesn't trip the API's rate limit and
+        // null the whole grid; any failed batch after retry fails the field (caller falls back).
         let batchSize = 100
-        var batches: [(start: Int, coords: ArraySlice<(lat: Double, lon: Double)>)] = []
+        var batches: [(start: Int, coords: [(lat: Double, lon: Double)])] = []
         var i = 0
         while i < coords.count {
             let end = min(i + batchSize, coords.count)
-            batches.append((i, coords[i..<end]))
+            batches.append((i, Array(coords[i..<end])))
             i = end
         }
 
-        let results: [Int: [Double]]? = await withTaskGroup(of: (Int, [Double]?).self) { group in
-            for batch in batches {
-                let start = batch.start
-                let slice = Array(batch.coords)
-                group.addTask { (start, await fetchBatch(slice)) }
-            }
-            var collected: [Int: [Double]] = [:]
-            for await (start, elevations) in group {
-                guard let elevations else { return nil }
-                collected[start] = elevations
-            }
-            return collected
-        }
-
-        guard let results else { return nil }
-
         var values = [Double](repeating: 0, count: coords.count)
-        for (start, elevations) in results {
-            for (offset, value) in elevations.enumerated() { values[start + offset] = value }
+        let maxConcurrent = 5
+        var waveStart = 0
+        while waveStart < batches.count {
+            let wave = Array(batches[waveStart..<min(waveStart + maxConcurrent, batches.count)])
+            let waveResults = await withTaskGroup(of: (Int, [Double]?).self) { group in
+                for batch in wave {
+                    let start = batch.start
+                    let slice = batch.coords
+                    group.addTask { (start, await fetchBatch(slice)) }
+                }
+                var collected: [(Int, [Double]?)] = []
+                for await result in group { collected.append(result) }
+                return collected
+            }
+            for (start, elevations) in waveResults {
+                guard let elevations else { return nil }
+                for (offset, value) in elevations.enumerated() { values[start + offset] = value }
+            }
+            waveStart += maxConcurrent
         }
 
         let minE = values.min() ?? 0

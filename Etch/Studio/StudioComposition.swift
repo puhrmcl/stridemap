@@ -47,6 +47,8 @@ struct StudioComposition: View {
     var includeWeather: Bool = false
     var layout: StudioLayout = .classic
     var photoLayout: StudioPhotoLayout = .single
+    /// The metric shown as the big headline. Distance keeps the signature "MILES ETCHED" look.
+    var heroMetric: StatMetric = .distance
     /// The footer's metric slots, in order — "complications" the user can retune.
     var statSlots: [StatMetric] = [.time, .pace, .elevationGain]
     /// Terrain elevations along the route (metres) for the profile silhouette; empty = no strip.
@@ -240,18 +242,30 @@ struct StudioComposition: View {
 
     private func heroBlock(leading: Bool) -> some View {
         VStack(alignment: leading ? .leading : .center, spacing: 6) {
-            Text(heroNumber)
+            Text(heroValue)
                 .font(.system(size: 150, weight: .bold))
                 .tracking(-2)
                 .foregroundStyle(inkColor)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
-            Text("\(UnitSystem.current.label.uppercased()) ETCHED")
+            Text(heroCaption)
                 .font(.system(size: 24, weight: .semibold))
                 .tracking(8)
                 .foregroundStyle(edition.accent)
         }
         .frame(maxWidth: .infinity, alignment: leading ? .leading : .center)
+    }
+
+    /// The headline value. Distance keeps the signature bare number ("26.22"); any other chosen
+    /// metric shows its full formatted value.
+    private var heroValue: String {
+        heroMetric == .distance ? heroNumber : (heroMetric.value(for: run) ?? "—")
+    }
+
+    /// The caption beneath the headline. Distance keeps "MILES ETCHED"; others show the metric's
+    /// label.
+    private var heroCaption: String {
+        heroMetric == .distance ? "\(UnitSystem.current.label.uppercased()) ETCHED" : heroMetric.label
     }
 
     /// The slot metrics resolved to (label, value) for this run, unavailable ones showing "—".
