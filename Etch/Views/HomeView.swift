@@ -155,9 +155,6 @@ struct HomeView: View {
             HStack {
                 Spacer()
                 VStack(alignment: .trailing, spacing: 10) {
-                    GlassIconButton(systemName: "printer.fill") {
-                        appModel.presentedSurface = .mapPrint
-                    }
                     mapStyleButton
                     if showLocations {
                         // Re-frame the overlay to fit all its pins / regions.
