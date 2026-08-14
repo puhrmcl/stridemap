@@ -492,12 +492,11 @@ struct HomeView: View {
 
     private var bottomBar: some View {
         HStack(spacing: 10) {
-            controlButton(icon: "magnifyingglass", surface: .search)
+            controlButton(icon: "person.crop.circle", surface: .profile)
             controlButton(icon: "calendar", surface: .timeline)
             controlButton(icon: "sparkles", surface: .highlights)
             controlButton(icon: "photo.artframe", surface: .studio)
             Spacer()
-            controlButton(icon: "gearshape", surface: .settings)
         }
     }
 
@@ -591,6 +590,7 @@ struct HomeView: View {
         case .yearInReview: YearInReviewView(year: stats.years.first ?? Calendar.current.component(.year, from: Date()))
         case .search: SearchView()
         case .settings: SettingsView()
+        case .profile: ProfileView()
         }
     }
 }
