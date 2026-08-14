@@ -1,9 +1,9 @@
 import SwiftUI
 import MapKit
 
-/// An aggregate map print — the whole running history rendered as one poster, four ways.
+/// An aggregate map print — the whole running history rendered as one poster.
 enum MapPrintKind: String, CaseIterable, Identifiable {
-    case allRuns, states, cities, landmarks
+    case allRuns, states, cities, countries, landmarks
     var id: String { rawValue }
 
     var name: String {
@@ -11,6 +11,7 @@ enum MapPrintKind: String, CaseIterable, Identifiable {
         case .allRuns:   return "All Runs"
         case .states:    return "States"
         case .cities:    return "Cities"
+        case .countries: return "Countries"
         case .landmarks: return "Landmarks"
         }
     }
@@ -20,6 +21,7 @@ enum MapPrintKind: String, CaseIterable, Identifiable {
         case .allRuns:   return "Every route you've run, on one map."
         case .states:    return "The states you've run in, filled."
         case .cities:    return "Every city you've run in, pinned."
+        case .countries: return "Every country you've run in, pinned."
         case .landmarks: return "Parks, monuments & notable places you've run."
         }
     }
@@ -29,6 +31,7 @@ enum MapPrintKind: String, CaseIterable, Identifiable {
         case .allRuns:   return "scribble.variable"
         case .states:    return "map.fill"
         case .cities:    return "building.2.fill"
+        case .countries: return "globe.americas.fill"
         case .landmarks: return "mappin.and.ellipse"
         }
     }
@@ -39,7 +42,16 @@ enum MapPrintKind: String, CaseIterable, Identifiable {
         case .allRuns:   return UnitSystem.current.label.uppercased()
         case .states:    return "STATES RUN"
         case .cities:    return "CITIES RUN"
+        case .countries: return "COUNTRIES RUN"
         case .landmarks: return "LANDMARKS"
+        }
+    }
+
+    /// Kinds that can be narrowed to a single place (state / city / country).
+    var supportsSinglePlace: Bool {
+        switch self {
+        case .states, .cities, .countries: return true
+        case .allRuns, .landmarks: return false
         }
     }
 }
@@ -51,6 +63,7 @@ struct MapPrintRequest {
     var runs: [Run]
     var title: String
     var region: MKCoordinateRegion
+    var orientation: StudioOrientation = .portrait
     var routeColor: Color = Theme.Palette.blue
     var ground: Color = Theme.Palette.bone
 
@@ -93,6 +106,8 @@ struct MapPrintRequest {
             return boundingRegion(of: runs.filter(\.hasRoute))
         case .cities:
             return boundingRegion(ofCoordinates: RunStatistics(runs).travelPlaces.map(\.coordinate))
+        case .countries:
+            return boundingRegion(ofCoordinates: RunStatistics(runs).countryPlaces.map(\.coordinate))
         case .landmarks:
             return boundingRegion(ofCoordinates: RunStatistics(runs).landmarkPlaces.map(\.coordinate))
         }
@@ -155,6 +170,9 @@ struct MapPrintRequest {
         case .cities:
             heroValue = stats.cities.count.formatted()
             subStats = [unitPair, runsPair, statesPair]
+        case .countries:
+            heroValue = stats.countries.count.formatted()
+            subStats = [unitPair, runsPair, citiesPair]
         case .landmarks:
             heroValue = RunStatistics(runs).landmarkPlaces.count.formatted()
             subStats = [unitPair, runsPair, citiesPair]

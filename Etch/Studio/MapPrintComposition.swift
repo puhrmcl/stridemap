@@ -5,23 +5,36 @@ import SwiftUI
 /// mirroring the single-run `StudioComposition`.
 struct MapPrintComposition: View {
     var panelImage: UIImage
+    var orientation: StudioOrientation = .portrait
     var footer: MapPrintFooterData
 
     static let width: CGFloat = 1000
     static let artHeight: CGFloat = 1000
-    static var size: CGSize { CGSize(width: width, height: artHeight + 520) }
+    static let landscapeFooterWidth: CGFloat = 640
+
+    static func nominalSize(_ orientation: StudioOrientation) -> CGSize {
+        orientation == .landscape
+            ? CGSize(width: width + landscapeFooterWidth, height: artHeight)
+            : CGSize(width: width, height: artHeight + 520)
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Image(uiImage: panelImage)
-                .resizable()
-                .scaledToFill()
-                .frame(width: Self.width, height: Self.artHeight)
-                .clipped()
-            footerView
+        Group {
+            if orientation == .landscape {
+                HStack(spacing: 0) { panel; footerView }
+            } else {
+                VStack(spacing: 0) { panel; footerView }
+            }
         }
-        .frame(width: Self.width)
         .background(footer.ground)
+    }
+
+    private var panel: some View {
+        Image(uiImage: panelImage)
+            .resizable()
+            .scaledToFill()
+            .frame(width: Self.width, height: Self.artHeight)
+            .clipped()
     }
 
     private var footerView: some View {
@@ -59,7 +72,8 @@ struct MapPrintComposition: View {
             }
         }
         .padding(70)
-        .frame(width: Self.width)
+        .frame(width: orientation == .landscape ? Self.landscapeFooterWidth : Self.width,
+               height: orientation == .landscape ? Self.artHeight : nil)
         .background(footer.ground)
     }
 

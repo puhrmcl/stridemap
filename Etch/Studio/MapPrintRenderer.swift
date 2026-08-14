@@ -18,7 +18,7 @@ enum MapPrintRenderer {
 
         let boundaries = USStateBoundaries.shared
         let visitedCount = visited.keys.filter { boundaries.isState($0) }.count
-        let composition = MapPrintComposition(panelImage: panel,
+        let composition = MapPrintComposition(panelImage: panel, orientation: request.orientation,
                                               footer: request.footerData(visitedStateCount: visitedCount))
         let renderer = ImageRenderer(content: composition)
         renderer.scale = scale
@@ -27,8 +27,9 @@ enum MapPrintRenderer {
 
     /// Print-resolution image (~18″ at 300 DPI), capped for on-device memory.
     static func printImage(for request: MapPrintRequest, longEdgePixels: CGFloat = 5400) async -> UIImage? {
+        let nominal = MapPrintComposition.nominalSize(request.orientation)
         let target = min(longEdgePixels, maxLongEdgePixels)
-        let scale = max(2, target / MapPrintComposition.size.height)
+        let scale = max(2, target / max(nominal.width, nominal.height))
         return await image(for: request, scale: scale)
     }
 
@@ -73,6 +74,9 @@ enum MapPrintRenderer {
                 drawStates(visited: visited, on: snapshot)
             case .cities:
                 drawPins(RunStatistics(request.runs).travelPlaces.map(\.coordinate),
+                         on: snapshot, fill: route)
+            case .countries:
+                drawPins(RunStatistics(request.runs).countryPlaces.map(\.coordinate),
                          on: snapshot, fill: route)
             case .landmarks:
                 drawPins(RunStatistics(request.runs).landmarkPlaces.map(\.coordinate),
