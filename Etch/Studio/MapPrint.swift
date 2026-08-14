@@ -36,7 +36,7 @@ enum MapPrintKind: String, CaseIterable, Identifiable {
     /// The label beneath the headline count.
     var heroLabel: String {
         switch self {
-        case .allRuns:   return "\(UnitSystem.current.label.uppercased()) ETCHED"
+        case .allRuns:   return UnitSystem.current.label.uppercased()
         case .states:    return "STATES RUN"
         case .cities:    return "CITIES RUN"
         case .landmarks: return "LANDMARKS"

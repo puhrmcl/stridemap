@@ -16,7 +16,11 @@ enum StudioRenderer {
         var run: Run
         var edition: StudioEdition
         var layout: StudioLayout = .classic
+        var orientation: StudioOrientation = .portrait
         var photoLayout: StudioPhotoLayout = .single
+        var titleOverride: String? = nil
+        var dateOverride: String? = nil
+        var showEditorialPhoto: Bool = false
         var heroMetric: StatMetric = .distance
         var statSlots: [StatMetric] = [.time, .pace, .elevationGain]
         var showElevationProfile: Bool = false
@@ -48,8 +52,16 @@ enum StudioRenderer {
     /// share the panel. Empty for non-photo editions. `panelPixelWidth` is the full panel width;
     /// grid cells need only a fraction of it, keeping memory in check.
     static func photoImages(for request: Request, panelPixelWidth: CGFloat) async -> [UIImage] {
-        guard request.edition.isPhoto else { return [] }
-        let ids = Array(request.run.photoReferences.prefix(request.photoLayout.maxPhotos))
+        // Memory fills the panel (single or grid); the Editorial layout may show one cover photo
+        // beside the text.
+        let ids: [String]
+        if request.edition.isPhoto {
+            ids = Array(request.run.photoReferences.prefix(request.photoLayout.maxPhotos))
+        } else if request.showEditorialPhoto {
+            ids = Array(request.run.photoReferences.prefix(1))
+        } else {
+            ids = []
+        }
         guard !ids.isEmpty else { return [] }
         // In a grid the cell is at most half the panel; a single fills it.
         let cellWidth = ids.count > 1 ? panelPixelWidth / 2 : panelPixelWidth
@@ -74,7 +86,11 @@ enum StudioRenderer {
             run: request.run, edition: request.edition, panelImage: panel,
             photoImages: photos,
             includeWeather: request.includeWeather, layout: request.layout,
+            orientation: request.orientation,
             photoLayout: request.photoLayout,
+            titleOverride: request.titleOverride,
+            dateOverride: request.dateOverride,
+            showEditorialPhoto: request.showEditorialPhoto,
             heroMetric: request.heroMetric,
             statSlots: request.statSlots,
             elevationSamples: profile,
@@ -96,7 +112,8 @@ enum StudioRenderer {
     /// A print-resolution image whose long edge is ~`longEdgePixels` (capped for on-device
     /// memory). 5400 px ≈ 18″ at 300 DPI — a genuine gallery-grade file.
     static func printImage(for request: Request, longEdgePixels: CGFloat = 5400) async -> UIImage? {
-        let compositionLongEdge = StudioComposition.size.height   // nominal points
+        let nominal = StudioComposition.nominalSize(request.orientation)
+        let compositionLongEdge = max(nominal.width, nominal.height)   // nominal points
         let target = min(longEdgePixels, maxLongEdgePixels)
         let scale = max(2, target / compositionLongEdge)
         return await image(for: request, scale: scale)

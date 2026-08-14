@@ -14,6 +14,15 @@ enum StudioLayout: String, CaseIterable, Identifiable {
     }
 }
 
+/// Poster orientation. Portrait stacks the art over the footer; landscape sets the (square) art
+/// beside a footer column.
+enum StudioOrientation: String, CaseIterable, Identifiable {
+    case portrait, landscape
+    var id: String { rawValue }
+    var name: String { self == .portrait ? "Portrait" : "Landscape" }
+    var symbol: String { self == .portrait ? "rectangle.portrait" : "rectangle" }
+}
+
 /// How the Memory edition arranges the run's photos in the art panel. Only meaningful when the
 /// run has more than one photo; `single` shows the cover photo, `grid` composes a tasteful
 /// 2–4-up arrangement.
@@ -47,8 +56,14 @@ struct StudioComposition: View {
     var photoImages: [UIImage] = []
     var includeWeather: Bool = false
     var layout: StudioLayout = .classic
+    var orientation: StudioOrientation = .portrait
     var photoLayout: StudioPhotoLayout = .single
-    /// The metric shown as the big headline. Distance keeps the signature "MILES ETCHED" look.
+    /// User-typed overrides for the title and date; nil/empty falls back to the run's values.
+    var titleOverride: String? = nil
+    var dateOverride: String? = nil
+    /// Editorial layout only: show the cover photo in the open space beside the text.
+    var showEditorialPhoto: Bool = false
+    /// The metric shown as the big headline.
     var heroMetric: StatMetric = .distance
     /// The footer's metric slots, in order — "complications" the user can retune.
     var statSlots: [StatMetric] = [.time, .pace, .elevationGain]
@@ -62,7 +77,16 @@ struct StudioComposition: View {
 
     static let width: CGFloat = 1000
     static let artHeight: CGFloat = 1000
-    static var size: CGSize { CGSize(width: width, height: artHeight + 620) }
+    /// Footer column width in landscape (beside the square art).
+    static let landscapeFooterWidth: CGFloat = 640
+
+    /// Nominal poster size for a given orientation — used for print-scale math and preview
+    /// aspect ratios. The rendered footer height is dynamic; 620 is the portrait allowance.
+    static func nominalSize(_ orientation: StudioOrientation) -> CGSize {
+        orientation == .landscape
+            ? CGSize(width: width + landscapeFooterWidth, height: artHeight)
+            : CGSize(width: width, height: artHeight + 620)
+    }
 
     private var routeColor: Color { routeOverride ?? edition.route }
     private var groundColor: Color { groundOverride ?? edition.ground }
@@ -79,15 +103,26 @@ struct StudioComposition: View {
         return groundOverride != nil ? autoInk.opacity(0.6) : edition.subtle
     }
 
-    private var hasElevationStrip: Bool { showElevationProfile && elevationSamples.count > 1 }
+    /// The elevation strip only fits under the art in portrait.
+    private var hasElevationStrip: Bool {
+        showElevationProfile && elevationSamples.count > 1 && orientation == .portrait
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            art
-            if hasElevationStrip { elevationBand }
-            footer
+        Group {
+            if orientation == .landscape {
+                HStack(spacing: 0) {
+                    art
+                    footer
+                }
+            } else {
+                VStack(spacing: 0) {
+                    art
+                    if hasElevationStrip { elevationBand }
+                    footer
+                }
+            }
         }
-        .frame(width: Self.width)
         .background(groundColor)
     }
 
@@ -188,7 +223,8 @@ struct StudioComposition: View {
             }
         }
         .padding(70)
-        .frame(width: Self.width)
+        .frame(width: orientation == .landscape ? Self.landscapeFooterWidth : Self.width,
+               height: orientation == .landscape ? Self.artHeight : nil)
         .background(groundColor)
     }
 
@@ -201,7 +237,7 @@ struct StudioComposition: View {
             if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: false) }
             Rectangle().fill(subtleColor.opacity(0.4)).frame(width: 90, height: 2).padding(.vertical, 6)
             statRow
-            metaLine([Format.date(run.startDate)], leading: false).padding(.top, 6)
+            metaLine([dateText], leading: false).padding(.top, 6)
         }
     }
 
@@ -210,24 +246,35 @@ struct StudioComposition: View {
         VStack(spacing: 16) {
             title(leading: false)
             heroBlock(leading: false)
-            metaLine([placeLine, Format.date(run.startDate)], leading: false)
+            metaLine([placeLine, dateText], leading: false)
         }
     }
 
     /// Left-aligned, gallery-label feel: title, distance, a compact stat line, place · date.
+    /// Optionally sets the cover photo in the open space beside the text.
     private var editorialFooter: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            title(leading: true)
-            heroBlock(leading: true)
-            HStack(spacing: 28) {
-                ForEach(Array(resolvedStats.enumerated()), id: \.offset) { _, item in
-                    editorialStat(item.label, item.value)
+        HStack(alignment: .center, spacing: 44) {
+            VStack(alignment: .leading, spacing: 18) {
+                title(leading: true)
+                heroBlock(leading: true)
+                HStack(spacing: 28) {
+                    ForEach(Array(resolvedStats.enumerated()), id: \.offset) { _, item in
+                        editorialStat(item.label, item.value)
+                    }
                 }
+                if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: true) }
+                metaLine([placeLine, dateText], leading: true)
             }
-            if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: true) }
-            metaLine([placeLine, Format.date(run.startDate)], leading: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if showEditorialPhoto, let photo = photoImages.first {
+                Image(uiImage: photo)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 300, height: 380)
+                    .clipShape(.rect(cornerRadius: 12))
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// Four equal stats across — no big headline. The chosen Headline metric leads, followed by
@@ -244,7 +291,7 @@ struct StudioComposition: View {
                 }
             }
             if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: false) }
-            metaLine([Format.date(run.startDate)], leading: false).padding(.top, 4)
+            metaLine([dateText], leading: false).padding(.top, 4)
         }
     }
 
@@ -272,8 +319,18 @@ struct StudioComposition: View {
 
     // MARK: Footer pieces
 
+    /// The title/date shown, honouring user overrides (empty falls back to the run's values).
+    private var titleText: String {
+        if let titleOverride, !titleOverride.isEmpty { return titleOverride }
+        return run.name
+    }
+    private var dateText: String {
+        if let dateOverride, !dateOverride.isEmpty { return dateOverride }
+        return Format.date(run.startDate)
+    }
+
     private func title(leading: Bool) -> some View {
-        Text(run.name.uppercased())
+        Text(titleText.uppercased())
             .font(.system(size: 26, weight: .semibold))
             .tracking(4)
             .foregroundStyle(subtleColor)
@@ -304,10 +361,9 @@ struct StudioComposition: View {
         heroMetric == .distance ? heroNumber : (heroMetric.value(for: run) ?? "—")
     }
 
-    /// The caption beneath the headline. Distance keeps "MILES ETCHED"; others show the metric's
-    /// label.
+    /// The caption beneath the headline. Distance shows the unit; others show the metric's label.
     private var heroCaption: String {
-        heroMetric == .distance ? "\(UnitSystem.current.label.uppercased()) ETCHED" : heroMetric.label
+        heroMetric == .distance ? UnitSystem.current.label.uppercased() : heroMetric.label
     }
 
     /// The slot metrics resolved to (label, value) for this run, unavailable ones showing "—".

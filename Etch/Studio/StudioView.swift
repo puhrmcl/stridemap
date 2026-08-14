@@ -14,7 +14,11 @@ struct StudioView: View {
     @State private var textColor: Color?
     @State private var groundColor: Color?
     @State private var layout: StudioLayout = .classic
+    @State private var orientation: StudioOrientation = .portrait
     @State private var photoLayout: StudioPhotoLayout = .single
+    @State private var customTitle = ""
+    @State private var customDate = ""
+    @State private var showEditorialPhoto = false
     @State private var heroMetric: StatMetric = .distance
     @State private var statSlots: [StatMetric] = [.time, .pace, .elevationGain]
     @State private var showElevationProfile = false
@@ -85,7 +89,7 @@ struct StudioView: View {
                 } else {
                     RoundedRectangle(cornerRadius: 10)
                         .fill(edition.id == selection ? (groundColor ?? edition.ground) : edition.ground)
-                        .aspectRatio(StudioComposition.width / StudioComposition.size.height, contentMode: .fit)
+                        .aspectRatio({ let s = StudioComposition.nominalSize(orientation); return s.width / s.height }(), contentMode: .fit)
                         .overlay {
                             VStack(spacing: 10) {
                                 ProgressView().tint(edition.accent)
@@ -147,22 +151,38 @@ struct StudioView: View {
                         .frame(maxWidth: 320)
                     }
 
+                    Picker("Orientation", selection: $orientation) {
+                        ForEach(StudioOrientation.allCases) { Text($0.name).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 320)
+
                     Picker("Layout", selection: $layout) {
                         ForEach(StudioLayout.allCases) { Text($0.name).tag($0) }
                     }
                     .pickerStyle(.segmented)
                     .frame(maxWidth: 320)
 
+                    textFieldRow("Title", text: $customTitle, placeholder: run.name)
+                    textFieldRow("Date", text: $customDate, placeholder: Format.date(run.startDate))
+
                     colorRow("Path", selection: $routeColor, swatches: pathSwatches, fallback: current.route)
                     colorRow("Text", selection: $textColor, swatches: textSwatches, fallback: current.ink)
-                    if current.groundIsCanvas {
-                        colorRow("Ground", selection: $groundColor, swatches: groundSwatches, fallback: current.ground)
-                    }
+                    colorRow("Panel", selection: $groundColor, swatches: groundSwatches, fallback: current.ground)
 
                     headlineEditor
 
                     if layout != .minimal {
                         statSlotEditor
+                    }
+
+                    if layout == .editorial, !run.photoReferences.isEmpty {
+                        Toggle(isOn: $showEditorialPhoto) {
+                            Label("Photo beside text", systemImage: "photo")
+                                .font(.system(.subheadline, design: .rounded))
+                        }
+                        .tint(Theme.accent)
+                        .frame(maxWidth: 280)
                     }
 
                     Toggle(isOn: $showElevationProfile) {
@@ -193,10 +213,34 @@ struct StudioView: View {
         .onChange(of: textColor) { bump() }
         .onChange(of: groundColor) { bump() }
         .onChange(of: layout) { bump() }
+        .onChange(of: orientation) { bump() }
         .onChange(of: photoLayout) { bump() }
+        .onChange(of: customTitle) { bump() }
+        .onChange(of: customDate) { bump() }
+        .onChange(of: showEditorialPhoto) { bump() }
         .onChange(of: heroMetric) { bump() }
         .onChange(of: statSlots) { bump() }
         .onChange(of: showElevationProfile) { bump() }
+    }
+
+    private func textFieldRow(_ title: String, text: Binding<String>, placeholder: String) -> some View {
+        HStack(spacing: 10) {
+            Text(title)
+                .font(.system(.caption, design: .rounded).weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 62, alignment: .leading)
+            TextField(placeholder, text: text)
+                .font(.system(.subheadline, design: .rounded))
+                .textInputAutocapitalization(.words)
+                .submitLabel(.done)
+            if !text.wrappedValue.isEmpty {
+                Button { text.wrappedValue = "" } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: 340)
     }
 
     /// The big headline metric — tap to swap the hero number (distance by default) for any
@@ -349,10 +393,14 @@ struct StudioView: View {
     /// The render request for a given edition, using the current layout/colour/weather options.
     private func request(for edition: StudioEdition) -> StudioRenderer.Request {
         StudioRenderer.Request(
-            run: run, edition: edition, layout: layout, photoLayout: photoLayout,
+            run: run, edition: edition, layout: layout, orientation: orientation,
+            photoLayout: photoLayout,
+            titleOverride: customTitle.isEmpty ? nil : customTitle,
+            dateOverride: customDate.isEmpty ? nil : customDate,
+            showEditorialPhoto: showEditorialPhoto,
             heroMetric: heroMetric, statSlots: statSlots, showElevationProfile: showElevationProfile,
             includeWeather: includeWeather, routeColor: routeColor, textColor: textColor,
-            groundColor: edition.groundIsCanvas ? groundColor : nil
+            groundColor: groundColor
         )
     }
 }
