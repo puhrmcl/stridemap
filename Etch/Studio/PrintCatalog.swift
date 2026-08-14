@@ -14,7 +14,7 @@ struct PrintSize: Identifiable, Hashable {
 /// configurator. Fulfilment (quote → checkout → Prodigi order) is wired server-side once the
 /// backend lands; this layer is the customer-facing choice.
 enum PrintProduct: String, CaseIterable, Identifiable {
-    case print, poster, framed, canvas
+    case print, poster, framed, canvas, sticker
     var id: String { rawValue }
 
     var name: String {
@@ -23,6 +23,7 @@ enum PrintProduct: String, CaseIterable, Identifiable {
         case .poster: return "Poster"
         case .framed: return "Framed Print"
         case .canvas: return "Canvas"
+        case .sticker: return "Stickers"
         }
     }
 
@@ -33,6 +34,7 @@ enum PrintProduct: String, CaseIterable, Identifiable {
         case .poster: return "Large-format matte poster. Bold on a wall."
         case .framed: return "Classic frame, ready to hang out of the box."
         case .canvas: return "Gallery-wrapped canvas. Tactile and warm."
+        case .sticker: return "Die-cut vinyl. Your route on a bottle, laptop, or bar."
         }
     }
 
@@ -42,6 +44,7 @@ enum PrintProduct: String, CaseIterable, Identifiable {
         case .poster: return "Premium matte poster paper"
         case .framed: return "Archival print · hardwood frame · glazing"
         case .canvas: return "Poly-cotton canvas · wood stretcher"
+        case .sticker: return "Weatherproof die-cut vinyl"
         }
     }
 
@@ -51,6 +54,7 @@ enum PrintProduct: String, CaseIterable, Identifiable {
         case .poster: return "rectangle.portrait"
         case .framed: return "photo.artframe"
         case .canvas: return "photo"
+        case .sticker: return "seal"
         }
     }
 
@@ -70,6 +74,8 @@ enum PrintProduct: String, CaseIterable, Identifiable {
         case .canvas:
             return [.init(width: 12, height: 16), .init(width: 16, height: 20),
                     .init(width: 18, height: 24), .init(width: 24, height: 36)]
+        case .sticker:
+            return [.init(width: 3, height: 3), .init(width: 4, height: 4), .init(width: 5, height: 5)]
         }
     }
 }

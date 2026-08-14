@@ -10,7 +10,7 @@ import SwiftUI
 struct StudioEdition: Identifiable, Equatable {
 
     enum ID: String, CaseIterable, Identifiable {
-        case gallery, terrain, minimal, night, topographic
+        case gallery, terrain, minimal, night, topographic, memory
         var id: String { rawValue }
     }
 
@@ -23,8 +23,9 @@ struct StudioEdition: Identifiable, Equatable {
 
     /// How the art panel treats the ground behind the route.
     enum Surface: Equatable {
-        case map(MapKind)   // a real Apple Maps snapshot
+        case map(MapKind)   // a real Apple Maps snapshot (route embedded)
         case paper          // no map — the route on a plain material ground
+        case photo          // the run's own photo, with the route etched over it
     }
 
     let id: ID
@@ -50,16 +51,25 @@ struct StudioEdition: Identifiable, Equatable {
     let subtle: Color       // metadata type
     let accent: Color       // hairlines, the "Etched." mark, small signals
 
-    /// The art panel is a pre-rendered map snapshot (route embedded), not a SwiftUI vector route.
-    var usesImagePanel: Bool { if case .map = surface { return true }; return false }
+    /// The art panel is a pre-rendered image (map snapshot or photo), not a plain ground.
+    var usesImagePanel: Bool {
+        switch surface { case .map, .photo: return true; case .paper: return false }
+    }
     var mapKind: MapKind? { if case .map(let kind) = surface { return kind }; return nil }
+    var isPhoto: Bool { surface == .photo }
     var isDark: Bool { mapKind == .streetsDark }
 
     // MARK: The collection
 
-    static let all: [StudioEdition] = [.gallery, .terrain, .minimal, .night, .topographic]
+    static let all: [StudioEdition] = [.gallery, .terrain, .minimal, .night, .topographic, .memory]
 
     static func edition(_ id: ID) -> StudioEdition { all.first { $0.id == id }! }
+
+    /// Editions offered for a given run. Memory needs a photo, so it's only offered when the
+    /// run has one.
+    static func available(for run: Run) -> [StudioEdition] {
+        all.filter { $0.id != .memory || !run.photoReferences.isEmpty }
+    }
 
     /// Gallery — the house edition. A muted street map on Bone, the route in Etch Blue. The
     /// default; always looks composed.
@@ -113,6 +123,18 @@ struct StudioEdition: Identifiable, Equatable {
         mapWash: Theme.Palette.bone, mapWashAlpha: 0.30,
         route: Theme.Palette.blue, casing: .white, routeWidth: 11, glow: false,
         ink: Theme.Palette.ink, subtle: Theme.Palette.ink.opacity(0.55), accent: Theme.Palette.brass
+    )
+
+    /// Memory — the run's own photograph fills the panel, with the route etched over it in Etch
+    /// Blue. Route + photograph + the details beneath. Only offered when the run has a photo.
+    static let memory = StudioEdition(
+        id: .memory, name: "Memory",
+        descriptor: "Your photo from the day, with the route etched over it.",
+        surface: .photo,
+        ground: Theme.Palette.ink,
+        mapWash: .clear, mapWashAlpha: 0,
+        route: Theme.Palette.blue, casing: .white, routeWidth: 9, glow: false,
+        ink: Theme.Palette.bone, subtle: Theme.Palette.bone.opacity(0.6), accent: Theme.Palette.blue
     )
 
     static func == (lhs: StudioEdition, rhs: StudioEdition) -> Bool { lhs.id == rhs.id }

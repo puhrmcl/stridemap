@@ -24,6 +24,7 @@ struct StudioView: View {
     ]
     private let textSwatches: [Color] = [Theme.Palette.ink, Theme.Palette.bone, Theme.Palette.brass]
 
+    private var editions: [StudioEdition] { StudioEdition.available(for: run) }
     private var current: StudioEdition { StudioEdition.edition(selection) }
     private func key(_ id: StudioEdition.ID) -> String { "\(id.rawValue)-\(revision)" }
     private var currentKey: String { key(selection) }
@@ -32,7 +33,7 @@ struct StudioView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 TabView(selection: $selection) {
-                    ForEach(StudioEdition.all) { edition in
+                    ForEach(editions) { edition in
                         page(for: edition).tag(edition.id)
                     }
                 }
@@ -102,7 +103,7 @@ struct StudioView: View {
     private var controls: some View {
         VStack(spacing: 14) {
             HStack(spacing: 8) {
-                ForEach(StudioEdition.all) { edition in
+                ForEach(editions) { edition in
                     Circle()
                         .fill(edition.id == selection ? Theme.accent : Color.secondary.opacity(0.3))
                         .frame(width: 7, height: 7)
@@ -205,7 +206,13 @@ struct StudioView: View {
     private func render(_ edition: StudioEdition) async -> UIImage? {
         let panelSize = CGSize(width: StudioComposition.width, height: StudioComposition.artHeight)
         var panelImage: UIImage?
-        if edition.usesImagePanel {
+        if edition.isPhoto {
+            // Memory fills the panel with the run's photo; the route is drawn over it in the
+            // composition.
+            if let id = run.photoReferences.first {
+                panelImage = await PhotoLibrary.image(for: id, targetSize: CGSize(width: 2000, height: 2000))
+            }
+        } else if edition.mapKind != nil {
             panelImage = await PosterMap.studioPanel(for: run, size: panelSize, edition: edition, route: routeColor)
         }
         let composition = StudioComposition(

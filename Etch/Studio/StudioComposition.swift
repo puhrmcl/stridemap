@@ -43,8 +43,16 @@ struct StudioComposition: View {
         ZStack {
             edition.ground
             if edition.usesImagePanel, let panelImage {
-                // Map panels embed the route already.
                 Image(uiImage: panelImage).resizable().scaledToFill()
+                // Map panels embed the route; the Memory photo does not, so the route is etched
+                // over it — with a soft scrim so it reads on any photograph.
+                if edition.isPhoto, run.coordinates.count > 1 {
+                    LinearGradient(
+                        colors: [.black.opacity(0.28), .clear, .black.opacity(0.30)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                    routeArt.padding(120)
+                }
             } else if run.coordinates.count > 1 {
                 routeArt.padding(130)
             } else {
