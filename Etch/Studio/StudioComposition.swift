@@ -2,13 +2,14 @@ import SwiftUI
 
 /// How the run's data is arranged beneath the art — chosen independently of the edition.
 enum StudioLayout: String, CaseIterable, Identifiable {
-    case classic, minimal, editorial
+    case classic, minimal, editorial, grid
     var id: String { rawValue }
     var name: String {
         switch self {
         case .classic: return "Classic"
         case .minimal: return "Minimal"
         case .editorial: return "Editorial"
+        case .grid: return "4-Up"
         }
     }
 }
@@ -183,6 +184,7 @@ struct StudioComposition: View {
             case .classic: classicFooter
             case .minimal: minimalFooter
             case .editorial: editorialFooter
+            case .grid: gridFooter
             }
         }
         .padding(70)
@@ -226,6 +228,46 @@ struct StudioComposition: View {
             metaLine([placeLine, Format.date(run.startDate)], leading: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Four equal stats across — no big headline. The chosen Headline metric leads, followed by
+    /// the three slot metrics.
+    private var gridFooter: some View {
+        VStack(spacing: 18) {
+            title(leading: false)
+            if !placeLine.isEmpty { metaLine([placeLine], leading: false) }
+            Rectangle().fill(subtleColor.opacity(0.4)).frame(width: 90, height: 2).padding(.vertical, 4)
+            HStack(alignment: .top, spacing: 0) {
+                ForEach(Array(fourStats.enumerated()), id: \.offset) { index, item in
+                    if index > 0 { statDivider }
+                    gridStat(item.label, item.value)
+                }
+            }
+            if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: false) }
+            metaLine([Format.date(run.startDate)], leading: false).padding(.top, 4)
+        }
+    }
+
+    /// The Headline metric plus the three slot metrics, for the 4-Up layout.
+    private var fourStats: [(label: String, value: String)] {
+        [(label: heroMetric.label, value: heroMetric.value(for: run) ?? "—")] + resolvedStats
+    }
+
+    private func gridStat(_ label: String, _ value: String) -> some View {
+        VStack(spacing: 6) {
+            Text(value)
+                .font(.system(size: 26, weight: .bold))
+                .foregroundStyle(inkColor)
+                .minimumScaleFactor(0.5)
+                .lineLimit(1)
+            Text(label)
+                .font(.system(size: 13, weight: .semibold))
+                .tracking(1.5)
+                .foregroundStyle(subtleColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: Footer pieces
