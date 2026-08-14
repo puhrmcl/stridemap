@@ -10,6 +10,7 @@ struct StudioHomeView: View {
 
     /// The run whose Studio composition sheet is presented.
     @State private var studioRun: Run?
+    @State private var showPrints = false
 
     private var stats: RunStatistics { RunStatistics(runs) }
     /// Only runs with a route make good art.
@@ -115,21 +116,30 @@ struct StudioHomeView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Prints")
                 .font(.system(.title3, design: .rounded).weight(.bold))
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Gallery prints, framed art & canvas", systemImage: "photo.artframe")
-                    .font(.system(.headline, design: .rounded))
-                    .foregroundStyle(Theme.accent)
-                Text("Museum-grade paper, hardwood frames, and canvas — shipped to your door. Coming soon.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            Button { showPrints = true } label: {
+                HStack(spacing: 14) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Gallery prints, framed art & canvas", systemImage: "photo.artframe")
+                            .font(.system(.headline, design: .rounded))
+                            .foregroundStyle(Theme.accent)
+                        Text("Museum-grade paper, hardwood frames, and canvas — shipped to your door.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right").font(.footnote.weight(.bold)).foregroundStyle(.tertiary)
+                }
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 18))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18)
+                        .strokeBorder(Theme.accent.opacity(0.18), lineWidth: 1)
+                )
             }
-            .padding(18)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 18))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18)
-                    .strokeBorder(Theme.accent.opacity(0.18), lineWidth: 1)
-            )
+            .buttonStyle(.plain)
+            .sheet(isPresented: $showPrints) { PrintShopView(subjectTitle: nil) }
         }
         .padding(.horizontal, 20)
     }

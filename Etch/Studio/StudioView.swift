@@ -12,6 +12,7 @@ struct StudioView: View {
     @State private var includeWeather = false
     @State private var routeColor: Color?
     @State private var textColor: Color?
+    @State private var showPrints = false
     /// Bumped on any customization change; part of the cache key so artwork re-renders.
     @State private var revision = 0
 
@@ -45,6 +46,9 @@ struct StudioView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
                 ToolbarItem(placement: .topBarTrailing) {
+                    Button { showPrints = true } label: { Image(systemName: "bag") }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     if let image = rendered[currentKey] {
                         let title = "\(run.name) · \(current.name)"
                         ShareLink(
@@ -56,6 +60,7 @@ struct StudioView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showPrints) { PrintShopView(subjectTitle: run.name) }
             .task(id: currentKey) { await renderIfNeeded(selection) }
         }
     }
