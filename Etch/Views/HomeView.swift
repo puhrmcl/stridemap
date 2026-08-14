@@ -510,7 +510,7 @@ struct HomeView: View {
                 Group {
                     controlButton(icon: "person.crop.circle", surface: .profile)
                     controlButton(icon: "calendar", surface: .timeline)
-                    controlButton(icon: "sparkles", surface: .highlights)
+                    controlButton(icon: "trophy.fill", surface: .highlights)
                     controlButton(icon: "photo.artframe", surface: .studio)
                 }
                 .transition(.move(edge: .trailing).combined(with: .opacity))

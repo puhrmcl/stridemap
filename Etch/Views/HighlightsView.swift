@@ -21,7 +21,7 @@ struct HighlightsView: View {
                 }
                 .padding(20)
             }
-            .navigationTitle("Highlights")
+            .navigationTitle("Achievements")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

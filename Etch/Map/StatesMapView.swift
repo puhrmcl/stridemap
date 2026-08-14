@@ -104,21 +104,22 @@ struct StatesMapView: UIViewRepresentable {
             if let name, let intensity = intensities[name] {
                 if dark {
                     let blue = UIColor(Theme.Palette.blue)
-                    renderer.fillColor = blue.withAlphaComponent(0.30 + 0.45 * CGFloat(intensity))
-                    renderer.strokeColor = UIColor(Theme.Palette.bone).withAlphaComponent(0.9)
-                    renderer.lineWidth = 1.6
+                    // Near-solid fill so visited states clearly stand off dark imagery.
+                    renderer.fillColor = blue.withAlphaComponent(0.60 + 0.35 * CGFloat(intensity))
+                    renderer.strokeColor = UIColor(Theme.Palette.bone).withAlphaComponent(0.95)
+                    renderer.lineWidth = 2.0
                 } else {
                     let navy = UIColor(Theme.Palette.navy)
-                    renderer.fillColor = navy.withAlphaComponent(0.30 + 0.5 * CGFloat(intensity))
-                    renderer.strokeColor = navy.withAlphaComponent(0.9)
-                    renderer.lineWidth = 1.3
+                    renderer.fillColor = navy.withAlphaComponent(0.50 + 0.4 * CGFloat(intensity))
+                    renderer.strokeColor = navy.withAlphaComponent(1.0)
+                    renderer.lineWidth = 1.6
                 }
             } else {
                 renderer.fillColor = .clear
                 renderer.strokeColor = dark
-                    ? UIColor(Theme.Palette.bone).withAlphaComponent(0.5)
-                    : UIColor.label.withAlphaComponent(0.4)
-                renderer.lineWidth = dark ? 1.1 : 0.9
+                    ? UIColor(Theme.Palette.bone).withAlphaComponent(0.6)
+                    : UIColor.label.withAlphaComponent(0.5)
+                renderer.lineWidth = dark ? 1.2 : 1.0
             }
         }
     }
