@@ -41,6 +41,8 @@ struct HomeView: View {
     /// Bumped by the Locations recenter button; folded into the overlay map's id so the map is
     /// rebuilt and re-framed to fit all its pins/regions.
     @State private var locationRecenterToken = 0
+    /// The bottom navigation buttons collapse behind a menu; tapping it expands them.
+    @State private var menuExpanded = false
 
     /// TEMP diagnostic: counts bottom-button taps regardless of whether a sheet opens, so we
     /// can tell "the touch isn't landing" from "the touch lands but the page won't present".
@@ -492,10 +494,18 @@ struct HomeView: View {
 
     private var bottomBar: some View {
         HStack(spacing: 10) {
-            controlButton(icon: "person.crop.circle", surface: .profile)
-            controlButton(icon: "calendar", surface: .timeline)
-            controlButton(icon: "sparkles", surface: .highlights)
-            controlButton(icon: "photo.artframe", surface: .studio)
+            GlassIconButton(systemName: menuExpanded ? "xmark" : "ellipsis", isActive: menuExpanded) {
+                withAnimation(Theme.spring) { menuExpanded.toggle() }
+            }
+            if menuExpanded {
+                Group {
+                    controlButton(icon: "person.crop.circle", surface: .profile)
+                    controlButton(icon: "calendar", surface: .timeline)
+                    controlButton(icon: "sparkles", surface: .highlights)
+                    controlButton(icon: "photo.artframe", surface: .studio)
+                }
+                .transition(.move(edge: .leading).combined(with: .opacity))
+            }
             Spacer()
         }
     }
@@ -513,6 +523,7 @@ struct HomeView: View {
 
     private func controlButton(icon: String, surface: AppModel.Surface, active: Bool = false) -> some View {
         GlassIconButton(systemName: icon, isActive: active) {
+            menuExpanded = false
             appModel.presentedSurface = surface
         }
     }
