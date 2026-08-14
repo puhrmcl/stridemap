@@ -515,8 +515,9 @@ final class RunPinView: MKAnnotationView {
         let diameter: CGFloat = 30
         bounds = CGRect(x: 0, y: 0, width: diameter, height: diameter)
         layer.cornerRadius = diameter / 2
-        backgroundColor = UIColor(Theme.accent).withAlphaComponent(0.95)
-        layer.borderColor = UIColor.white.withAlphaComponent(0.9).cgColor
+        // Ink markers keep Etch Blue reserved for the route line itself — the one signal.
+        backgroundColor = UIColor(Theme.Palette.ink).withAlphaComponent(0.95)
+        layer.borderColor = UIColor(Theme.Palette.bone).withAlphaComponent(0.9).cgColor
         layer.borderWidth = 1.5
         layer.shadowColor = UIColor.black.cgColor
         layer.shadowOpacity = 0.2

@@ -33,6 +33,8 @@ struct CitiesMapView: UIViewRepresentable {
         map.showsScale = false
         map.preferredConfiguration = mapStyle.configuration()
         context.coordinator.appliedStyle = mapStyle
+        // Tonal wash so geography recedes; the Etch chips (annotations) stay above it.
+        map.addOverlay(MapWash.makeOverlay(), level: .aboveLabels)
         context.coordinator.rebuild(on: map, cities: cities)
         context.coordinator.frame(map, cities: cities)
         return map
@@ -97,42 +99,34 @@ struct CitiesMapView: UIViewRepresentable {
             )
         }
 
+        func mapView(_ mapView: MKMapView, rendererFor overlay: any MKOverlay) -> MKOverlayRenderer {
+            guard let polygon = overlay as? MKPolygon else { return MKOverlayRenderer(overlay: overlay) }
+            return MapWash.renderer(for: polygon)   // the only polygon here is the wash
+        }
+
         func mapView(_ mapView: MKMapView, viewFor annotation: any MKAnnotation) -> MKAnnotationView? {
             if annotation is MKUserLocation { return nil }
 
-            let accent = UIColor(Theme.accent)
+            func chip() -> EtchMarkerView {
+                (mapView.dequeueReusableAnnotationView(withIdentifier: EtchMarkerView.reuseID) as? EtchMarkerView)
+                    ?? EtchMarkerView(annotation: annotation, reuseIdentifier: EtchMarkerView.reuseID)
+            }
 
             if let cluster = annotation as? MKClusterAnnotation {
-                // A cluster of cities shows the total runs across them.
+                // A cluster of cities shows the total runs across them (no name).
                 let total = cluster.memberAnnotations
                     .compactMap { $0 as? CityAnnotation }
                     .reduce(0) { $0 + $1.count }
-                let id = "cityCluster"
-                let view = (mapView.dequeueReusableAnnotationView(withIdentifier: id) as? MKMarkerAnnotationView)
-                    ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: id)
+                let view = chip()
                 view.annotation = annotation
-                view.markerTintColor = accent
-                view.glyphText = "\(total)"
-                view.titleVisibility = .hidden
-                view.subtitleVisibility = .hidden
-                view.canShowCallout = false
+                view.configure(count: total, name: nil)
                 return view
             }
 
             guard let city = annotation as? CityAnnotation else { return nil }
-            let id = "city"
-            let view = (mapView.dequeueReusableAnnotationView(withIdentifier: id) as? MKMarkerAnnotationView)
-                ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: id)
+            let view = chip()
             view.annotation = annotation
-            view.markerTintColor = accent
-            view.glyphText = "\(city.count)"
-            view.titleVisibility = .visible   // shows the city name beneath the marker
-            view.subtitleVisibility = .hidden
-            view.canShowCallout = false
-            // No clustering: every listed city keeps its own labelled pin, even zoomed out.
-            // `.required` keeps them all on-screen rather than decluttering the smaller ones.
-            view.clusteringIdentifier = nil
-            view.displayPriority = .required
+            view.configure(count: city.count, name: city.name)
             return view
         }
 
@@ -196,8 +190,8 @@ final class CityClusterView: MKAnnotationView {
         let diameter = 30 + 34 * CGFloat(t)
         bounds = CGRect(x: 0, y: 0, width: diameter, height: diameter)
         layer.cornerRadius = diameter / 2
-        backgroundColor = UIColor(Theme.accent).withAlphaComponent(0.9)
-        layer.borderColor = UIColor.white.withAlphaComponent(0.9).cgColor
+        backgroundColor = UIColor(Theme.Palette.ink).withAlphaComponent(0.92)
+        layer.borderColor = UIColor(Theme.Palette.bone).withAlphaComponent(0.9).cgColor
         layer.borderWidth = 2
         label.frame = bounds
         label.font = .systemFont(ofSize: diameter > 44 ? 15 : 13, weight: .bold)

@@ -94,11 +94,13 @@ struct StatesMapView: UIViewRepresentable {
         }
 
         func style(_ renderer: MKPolygonRenderer, for polygon: MKPolygon) {
-            let accent = UIColor(Theme.accent)
+            // Visited states fill in graduated Navy (deeper = more runs). Etch Blue is kept for
+            // selection, so the choropleth reads as archival tone, not a flood of bright blue.
+            let navy = UIColor(Theme.Palette.navy)
             let name = nameByOverlay[ObjectIdentifier(polygon)]
             if let name, let intensity = intensities[name] {
-                renderer.fillColor = accent.withAlphaComponent(0.30 + 0.55 * CGFloat(intensity))
-                renderer.strokeColor = accent.withAlphaComponent(0.9)
+                renderer.fillColor = navy.withAlphaComponent(0.28 + 0.5 * CGFloat(intensity))
+                renderer.strokeColor = navy.withAlphaComponent(0.85)
                 renderer.lineWidth = 1
             } else {
                 renderer.fillColor = .clear

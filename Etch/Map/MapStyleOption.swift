@@ -29,7 +29,9 @@ enum MapStyleOption: String, CaseIterable, Identifiable {
     func configuration() -> MKMapConfiguration {
         switch self {
         case .standard:
-            let config = MKStandardMapConfiguration(elevationStyle: .flat)
+            // Muted emphasis desaturates the base map so geography recedes and the Etch route /
+            // markers are the only high-contrast thing on screen — archival, not navigational.
+            let config = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .muted)
             config.pointOfInterestFilter = .excludingAll
             return config
         case .satellite:

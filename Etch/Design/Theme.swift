@@ -8,6 +8,7 @@ enum Theme {
     /// reserved for achievement moments; Bone/Stone/Sage/Mist are the map-poster neutrals.
     enum Palette {
         static let ink = Color(red: 0.063, green: 0.094, blue: 0.125)   // #101820
+        static let navy = Color(red: 0.094, green: 0.208, blue: 0.357)  // #18355B
         static let blue = Color(red: 0.078, green: 0.451, blue: 0.902)  // #1473E6
         static let bone = Color(red: 0.957, green: 0.945, blue: 0.918)  // #F4F1EA
         static let stone = Color(red: 0.847, green: 0.831, blue: 0.800) // #D8D4CC
