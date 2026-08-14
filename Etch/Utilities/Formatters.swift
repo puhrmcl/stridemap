@@ -53,6 +53,12 @@ enum Format {
         return "\(Int(meters)) m"
     }
 
+    /// Elevation *gain* (ascent) with a delta triangle, e.g. "△ 1,204 ft". The value is the
+    /// change in elevation over the run, not an absolute altitude.
+    static func elevationGain(_ meters: Double, unit: UnitSystem = .current) -> String {
+        "△ " + elevation(meters, unit: unit)
+    }
+
     private static let mediumDate: DateFormatter = {
         let f = DateFormatter()
         f.dateStyle = .medium

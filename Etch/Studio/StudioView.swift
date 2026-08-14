@@ -13,6 +13,7 @@ struct StudioView: View {
     @State private var routeColor: Color?
     @State private var textColor: Color?
     @State private var layout: StudioLayout = .classic
+    @State private var photoLayout: StudioPhotoLayout = .single
     @State private var showPrints = false
     @State private var showCustomize = false
     @State private var showExport = false
@@ -133,6 +134,14 @@ struct StudioView: View {
 
             if showCustomize {
                 VStack(spacing: 12) {
+                    if current.isPhoto, run.photoReferences.count > 1 {
+                        Picker("Photos", selection: $photoLayout) {
+                            ForEach(StudioPhotoLayout.allCases) { Text($0.name).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(maxWidth: 320)
+                    }
+
                     Picker("Layout", selection: $layout) {
                         ForEach(StudioLayout.allCases) { Text($0.name).tag($0) }
                     }
@@ -162,6 +171,7 @@ struct StudioView: View {
         .onChange(of: routeColor) { bump() }
         .onChange(of: textColor) { bump() }
         .onChange(of: layout) { bump() }
+        .onChange(of: photoLayout) { bump() }
     }
 
     private func colorRow(_ title: String, selection: Binding<Color?>, swatches: [Color], fallback: Color) -> some View {
@@ -234,7 +244,7 @@ struct StudioView: View {
     /// The render request for a given edition, using the current layout/colour/weather options.
     private func request(for edition: StudioEdition) -> StudioRenderer.Request {
         StudioRenderer.Request(
-            run: run, edition: edition, layout: layout,
+            run: run, edition: edition, layout: layout, photoLayout: photoLayout,
             includeWeather: includeWeather, routeColor: routeColor, textColor: textColor
         )
     }

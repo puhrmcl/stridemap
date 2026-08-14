@@ -16,6 +16,7 @@ enum StudioRenderer {
         var run: Run
         var edition: StudioEdition
         var layout: StudioLayout = .classic
+        var photoLayout: StudioPhotoLayout = .single
         var includeWeather: Bool = false
         var routeColor: Color? = nil
         var textColor: Color? = nil
@@ -25,28 +26,44 @@ enum StudioRenderer {
     /// 300 DPI). Bigger sizes are rendered server-side once Studio Web / the print backend land.
     static let maxLongEdgePixels: CGFloat = 6000
 
-    /// The art panel image (muted map snapshot, or the run's photo for Memory). `panelPixelWidth`
-    /// sizes the photo request so a print render pulls a higher-resolution photo.
+    /// The map art panel image (muted map snapshot). Nil for photo and paper editions.
     static func panelImage(for request: Request, panelPixelWidth: CGFloat) async -> UIImage? {
-        if request.edition.isPhoto {
-            guard let id = request.run.photoReferences.first else { return nil }
-            let target = max(panelPixelWidth, 1200)
-            return await PhotoLibrary.image(for: id, targetSize: CGSize(width: target, height: target))
+        guard request.edition.mapKind != nil else { return nil }
+        let panelSize = CGSize(width: StudioComposition.width, height: StudioComposition.artHeight)
+        return await PosterMap.studioPanel(for: request.run, size: panelSize,
+                                           edition: request.edition, route: request.routeColor)
+    }
+
+    /// Loads the Memory edition's photos, cover-first, at a resolution matched to how many cells
+    /// share the panel. Empty for non-photo editions. `panelPixelWidth` is the full panel width;
+    /// grid cells need only a fraction of it, keeping memory in check.
+    static func photoImages(for request: Request, panelPixelWidth: CGFloat) async -> [UIImage] {
+        guard request.edition.isPhoto else { return [] }
+        let ids = Array(request.run.photoReferences.prefix(request.photoLayout.maxPhotos))
+        guard !ids.isEmpty else { return [] }
+        // In a grid the cell is at most half the panel; a single fills it.
+        let cellWidth = ids.count > 1 ? panelPixelWidth / 2 : panelPixelWidth
+        let target = max(cellWidth, 1200)
+        var images: [UIImage] = []
+        for id in ids {
+            if let image = await PhotoLibrary.image(for: id, targetSize: CGSize(width: target, height: target)) {
+                images.append(image)
+            }
         }
-        if request.edition.mapKind != nil {
-            let panelSize = CGSize(width: StudioComposition.width, height: StudioComposition.artHeight)
-            return await PosterMap.studioPanel(for: request.run, size: panelSize,
-                                               edition: request.edition, route: request.routeColor)
-        }
-        return nil
+        return images
     }
 
     /// Renders the composition at the given `ImageRenderer` scale.
     static func image(for request: Request, scale: CGFloat) async -> UIImage? {
-        let panel = await panelImage(for: request, panelPixelWidth: StudioComposition.width * scale)
+        let pixelWidth = StudioComposition.width * scale
+        async let panelTask = panelImage(for: request, panelPixelWidth: pixelWidth)
+        async let photosTask = photoImages(for: request, panelPixelWidth: pixelWidth)
+        let (panel, photos) = await (panelTask, photosTask)
         let composition = StudioComposition(
             run: request.run, edition: request.edition, panelImage: panel,
+            photoImages: photos,
             includeWeather: request.includeWeather, layout: request.layout,
+            photoLayout: request.photoLayout,
             routeOverride: request.routeColor, textOverride: request.textColor
         )
         let renderer = ImageRenderer(content: composition)

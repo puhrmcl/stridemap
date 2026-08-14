@@ -13,6 +13,22 @@ enum StudioLayout: String, CaseIterable, Identifiable {
     }
 }
 
+/// How the Memory edition arranges the run's photos in the art panel. Only meaningful when the
+/// run has more than one photo; `single` shows the cover photo, `grid` composes a tasteful
+/// 2–4-up arrangement.
+enum StudioPhotoLayout: String, CaseIterable, Identifiable {
+    case single, grid
+    var id: String { rawValue }
+    var name: String {
+        switch self {
+        case .single: return "Single"
+        case .grid: return "Grid"
+        }
+    }
+    /// How many photos this layout draws on.
+    var maxPhotos: Int { self == .single ? 1 : 4 }
+}
+
 /// The Etch Studio artwork: one parametric composition rendering any edition + layout for a
 /// run. Image editions (map snapshot, photo) receive a pre-rendered `panelImage`; paper
 /// editions draw the route as vector art. Rendered to an image for preview and export.
@@ -23,10 +39,14 @@ enum StudioLayout: String, CaseIterable, Identifiable {
 struct StudioComposition: View {
     let run: Run
     let edition: StudioEdition
-    /// Pre-rendered art panel (map snapshot or photo); nil for paper editions.
+    /// Pre-rendered art panel (map snapshot); nil for paper and photo editions.
     var panelImage: UIImage?
+    /// Loaded photos for the Memory edition, in cover-first order. One for `single`, up to four
+    /// for `grid`. Empty for non-photo editions.
+    var photoImages: [UIImage] = []
     var includeWeather: Bool = false
     var layout: StudioLayout = .classic
+    var photoLayout: StudioPhotoLayout = .single
     /// User overrides; nil falls back to the edition's palette.
     var routeOverride: Color? = nil
     var textOverride: Color? = nil
@@ -53,17 +73,12 @@ struct StudioComposition: View {
     private var art: some View {
         ZStack {
             edition.ground
-            if edition.usesImagePanel, let panelImage {
+            if edition.isPhoto {
+                // Memory: the photograph is the art. No route overlaid — a single cover photo or
+                // a tasteful grid, arranged clean; the run's data lives in the footer.
+                photoPanel
+            } else if edition.usesImagePanel, let panelImage {
                 Image(uiImage: panelImage).resizable().scaledToFill()
-                // Map panels embed the route; the Memory photo does not, so the route is etched
-                // over it — with a soft scrim so it reads on any photograph.
-                if edition.isPhoto, run.coordinates.count > 1 {
-                    LinearGradient(
-                        colors: [.black.opacity(0.28), .clear, .black.opacity(0.30)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                    routeArt.padding(120)
-                }
             } else if run.coordinates.count > 1 {
                 routeArt.padding(130)
             } else {
@@ -74,6 +89,44 @@ struct StudioComposition: View {
         }
         .frame(width: Self.width, height: Self.artHeight)
         .clipped()
+    }
+
+    // MARK: Photo panel (Memory)
+
+    /// Arranges the run's photos: a single filling image, or a magazine grid (2 = diptych,
+    /// 3 = one over two, 4 = 2×2). Gaps show the edition ground so the grid reads as a set.
+    @ViewBuilder private var photoPanel: some View {
+        let photos = photoLayout == .single ? Array(photoImages.prefix(1))
+                                            : Array(photoImages.prefix(4))
+        if photos.isEmpty {
+            Image(systemName: "photo")
+                .font(.system(size: 120, weight: .semibold))
+                .foregroundStyle(subtleColor)
+        } else if photos.count == 1 {
+            photoCell(photos[0])
+        } else if photos.count == 2 {
+            HStack(spacing: gridGap) { photoCell(photos[0]); photoCell(photos[1]) }
+        } else if photos.count == 3 {
+            VStack(spacing: gridGap) {
+                photoCell(photos[0])
+                HStack(spacing: gridGap) { photoCell(photos[1]); photoCell(photos[2]) }
+            }
+        } else {
+            VStack(spacing: gridGap) {
+                HStack(spacing: gridGap) { photoCell(photos[0]); photoCell(photos[1]) }
+                HStack(spacing: gridGap) { photoCell(photos[2]); photoCell(photos[3]) }
+            }
+        }
+    }
+
+    private var gridGap: CGFloat { 6 }
+
+    private func photoCell(_ image: UIImage) -> some View {
+        Image(uiImage: image)
+            .resizable()
+            .scaledToFill()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
     }
 
     private var routeArt: some View {
@@ -136,7 +189,7 @@ struct StudioComposition: View {
             HStack(spacing: 28) {
                 editorialStat("TIME", Format.duration(run.movingTime))
                 editorialStat("PACE", Format.pace(secondsPerKm: run.paceSecondsPerKm))
-                editorialStat("ELEV", Format.elevation(run.elevationGain))
+                editorialStat("ELEV GAIN", Format.elevationGain(run.elevationGain))
             }
             if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: true) }
             metaLine([placeLine, Format.date(run.startDate)], leading: true)
@@ -178,7 +231,7 @@ struct StudioComposition: View {
             statDivider
             stat("PACE", Format.pace(secondsPerKm: run.paceSecondsPerKm))
             statDivider
-            stat("ELEV", Format.elevation(run.elevationGain))
+            stat("ELEV GAIN", Format.elevationGain(run.elevationGain))
         }
     }
 
