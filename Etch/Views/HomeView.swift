@@ -495,6 +495,7 @@ struct HomeView: View {
             controlButton(icon: "magnifyingglass", surface: .search)
             controlButton(icon: "calendar", surface: .timeline)
             controlButton(icon: "sparkles", surface: .highlights)
+            controlButton(icon: "photo.artframe", surface: .studio)
             Spacer()
             controlButton(icon: "gearshape", surface: .settings)
         }
@@ -586,6 +587,7 @@ struct HomeView: View {
         case .filters: FilterView()
         case .timeline: TimelineView()
         case .highlights: HighlightsView()
+        case .studio: StudioHomeView()
         case .yearInReview: YearInReviewView(year: stats.years.first ?? Calendar.current.component(.year, from: Date()))
         case .search: SearchView()
         case .settings: SettingsView()
