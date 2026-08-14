@@ -88,14 +88,25 @@ enum ElevationService {
                              sampleCount: Int = 100) async -> [Double]? {
         guard coordinates.count > 1 else { return nil }
 
-        // Evenly spaced indices along the route.
+        // Sample evenly by *distance* along the route so the profile's x-axis is true distance —
+        // which lets the poster place accurate mile markers.
         let n = coordinates.count
         let count = min(sampleCount, n)
+        var cumulative = [Double](repeating: 0, count: n)
+        for i in 1..<n {
+            let a = CLLocation(latitude: coordinates[i - 1].latitude, longitude: coordinates[i - 1].longitude)
+            let b = CLLocation(latitude: coordinates[i].latitude, longitude: coordinates[i].longitude)
+            cumulative[i] = cumulative[i - 1] + a.distance(from: b)
+        }
+        let total = cumulative[n - 1]
+
         var sampled: [(lat: Double, lon: Double)] = []
         sampled.reserveCapacity(count)
+        var searchIdx = 0
         for i in 0..<count {
-            let idx = count == 1 ? 0 : Int((Double(i) * Double(n - 1) / Double(count - 1)).rounded())
-            let c = coordinates[min(idx, n - 1)]
+            let target = total > 0 ? Double(i) / Double(count - 1) * total : 0
+            while searchIdx < n - 1 && cumulative[searchIdx] < target { searchIdx += 1 }
+            let c = coordinates[min(searchIdx, n - 1)]
             sampled.append((c.latitude, c.longitude))
         }
 

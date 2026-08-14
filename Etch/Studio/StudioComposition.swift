@@ -63,6 +63,8 @@ struct StudioComposition: View {
     var dateOverride: String? = nil
     /// Editorial layout only: show the cover photo in the open space beside the text.
     var showEditorialPhoto: Bool = false
+    /// Memory edition only: etch the route over the photo(s).
+    var showMemoryRoute: Bool = false
     /// The metric shown as the big headline.
     var heroMetric: StatMetric = .distance
     /// The footer's metric slots, in order — "complications" the user can retune.
@@ -126,13 +128,47 @@ struct StudioComposition: View {
         .background(groundColor)
     }
 
-    /// A filled elevation-profile silhouette spanning the width, sitting between the art and the
-    /// footer — the run's climb, read left to right.
+    /// Whole distance units (miles/km) for the profile's markers.
+    private var distanceUnitCount: Int { max(0, Int(Format.distanceValue(run.distance))) }
+
+    /// An integrated elevation band: a labelled, gradient-filled profile with a crisp ridge line,
+    /// a baseline, and mile/km tick markers — styled to match the footer rather than sit apart.
     private var elevationBand: some View {
-        ElevationProfileShape(samples: elevationSamples)
-            .fill(subtleColor.opacity(0.55))
-            .frame(width: Self.width, height: 150)
-            .background(groundColor)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("ELEVATION  ·  \(UnitSystem.current.label.uppercased())")
+                .font(.system(size: 15, weight: .semibold))
+                .tracking(3)
+                .foregroundStyle(subtleColor)
+
+            ZStack {
+                ElevationProfileShape(samples: elevationSamples)
+                    .fill(LinearGradient(colors: [subtleColor.opacity(0.38), subtleColor.opacity(0.05)],
+                                         startPoint: .top, endPoint: .bottom))
+                ElevationLineShape(samples: elevationSamples)
+                    .stroke(subtleColor.opacity(0.85),
+                            style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                GeometryReader { geo in
+                    let w = geo.size.width, h = geo.size.height
+                    // Baseline.
+                    Path { p in p.move(to: CGPoint(x: 0, y: h)); p.addLine(to: CGPoint(x: w, y: h)) }
+                        .stroke(subtleColor.opacity(0.35), lineWidth: 1.5)
+                    // Mile / km ticks.
+                    if distanceUnitCount >= 2 && distanceUnitCount <= 60 {
+                        ForEach(Array(1..<distanceUnitCount), id: \.self) { i in
+                            let x = CGFloat(i) / CGFloat(distanceUnitCount) * w
+                            Path { p in p.move(to: CGPoint(x: x, y: h)); p.addLine(to: CGPoint(x: x, y: h - (i % 5 == 0 ? 16 : 9))) }
+                                .stroke(subtleColor.opacity(0.5), lineWidth: 1.5)
+                        }
+                    }
+                }
+            }
+            .frame(height: 130)
+        }
+        .padding(.horizontal, 70)
+        .padding(.top, 26)
+        .padding(.bottom, 10)
+        .frame(width: Self.width)
+        .background(groundColor)
     }
 
     // MARK: Art panel
@@ -141,9 +177,14 @@ struct StudioComposition: View {
         ZStack {
             groundColor
             if edition.isPhoto {
-                // Memory: the photograph is the art. No route overlaid — a single cover photo or
-                // a tasteful grid, arranged clean; the run's data lives in the footer.
+                // Memory: the photograph is the art — a single cover photo or a tasteful grid.
+                // The route is off by default, and can be etched over the photo on request.
                 photoPanel
+                if showMemoryRoute, run.coordinates.count > 1 {
+                    LinearGradient(colors: [.black.opacity(0.28), .clear, .black.opacity(0.32)],
+                                   startPoint: .top, endPoint: .bottom)
+                    routeArt.padding(120)
+                }
             } else if edition.usesImagePanel, let panelImage {
                 Image(uiImage: panelImage).resizable().scaledToFill()
             } else if run.coordinates.count > 1 {
@@ -186,7 +227,7 @@ struct StudioComposition: View {
         }
     }
 
-    private var gridGap: CGFloat { 6 }
+    private var gridGap: CGFloat { 12 }
 
     private func photoCell(_ image: UIImage) -> some View {
         Image(uiImage: image)
@@ -194,6 +235,7 @@ struct StudioComposition: View {
             .scaledToFill()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
+            .contentShape(Rectangle())
     }
 
     private var routeArt: some View {
@@ -467,6 +509,31 @@ struct ElevationProfileShape: Shape {
         for i in samples.indices { path.addLine(to: point(i)) }
         path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
         path.closeSubpath()
+        return path
+    }
+}
+
+/// The ridge line of an elevation series — the open top edge, matching `ElevationProfileShape`'s
+/// geometry so a stroke sits exactly atop its fill.
+struct ElevationLineShape: Shape {
+    let samples: [Double]
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        guard samples.count > 1 else { return path }
+        let minV = samples.min() ?? 0
+        let maxV = samples.max() ?? 0
+        let span = max(maxV - minV, 1)
+
+        func point(_ i: Int) -> CGPoint {
+            let x = rect.minX + rect.width * CGFloat(i) / CGFloat(samples.count - 1)
+            let norm = (samples[i] - minV) / span
+            let y = rect.maxY - CGFloat(norm) * rect.height * 0.88 - rect.height * 0.06
+            return CGPoint(x: x, y: y)
+        }
+
+        path.move(to: point(0))
+        for i in samples.indices.dropFirst() { path.addLine(to: point(i)) }
         return path
     }
 }

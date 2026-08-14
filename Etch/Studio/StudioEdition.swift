@@ -135,10 +135,10 @@ struct StudioEdition: Identifiable, Equatable {
     /// Night — Etch Ink ground, the route glowing Etch Blue. For race mornings and dark runs.
     static let night = StudioEdition(
         id: .night, name: "Night",
-        descriptor: "The route glowing on deep ink.",
+        descriptor: "The route in Etch Blue on deep ink.",
         surface: .map(.streetsDark),
         ground: Theme.Palette.ink, mapWash: Theme.Palette.ink, mapWashAlpha: 0.42,
-        route: Theme.Palette.blue, casing: nil, routeWidth: 10, glow: true,
+        route: Theme.Palette.blue, casing: nil, routeWidth: 10, glow: false,
         ink: Theme.Palette.bone, subtle: Theme.Palette.bone.opacity(0.6), accent: Theme.Palette.blue
     )
 

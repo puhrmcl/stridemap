@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import UniformTypeIdentifiers
 
 /// Details for a single run, shown as a sheet when a route is tapped.
 struct RunDetailView: View {
@@ -10,6 +11,7 @@ struct RunDetailView: View {
 
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var photoSelection: PhotoSelection?
+    @State private var draggingPhoto: String?
     @State private var isFindingPhotos = false
     @State private var showStudio = false
     @State private var showRename = false
@@ -255,7 +257,20 @@ struct RunDetailView: View {
                                             .padding(6)
                                     }
                                 }
+                                .opacity(draggingPhoto == identifier ? 0.5 : 1)
                                 .onTapGesture { photoSelection = PhotoSelection(id: identifier) }
+                                .onDrag {
+                                    draggingPhoto = identifier
+                                    return NSItemProvider(object: identifier as NSString)
+                                }
+                                .onDrop(of: [UTType.text], delegate: PhotoReorderDropDelegate(
+                                    item: identifier,
+                                    photos: Binding(
+                                        get: { run.photoReferences },
+                                        set: { run.photoReferences = $0; run.updatedAt = Date() }
+                                    ),
+                                    dragging: $draggingPhoto
+                                ))
                                 .contextMenu {
                                     if identifier != run.photoReferences.first {
                                         Button {
@@ -281,7 +296,7 @@ struct RunDetailView: View {
                     }
                 }
                 if run.photoReferences.count > 1 {
-                    Text("Touch and hold a photo to set the cover.")
+                    Text("Drag to reorder — the first photo is the cover.")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
@@ -384,5 +399,31 @@ struct RunDetailView: View {
                 .background(Theme.accent, in: .rect(cornerRadius: 16))
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Reorders the run's photos as one is dragged over another. Moving reorders `photos`, whose
+/// first element is the cover.
+private struct PhotoReorderDropDelegate: DropDelegate {
+    let item: String
+    @Binding var photos: [String]
+    @Binding var dragging: String?
+
+    func dropEntered(info: DropInfo) {
+        guard let dragging, dragging != item,
+              let from = photos.firstIndex(of: dragging),
+              let to = photos.firstIndex(of: item) else { return }
+        if photos[to] != dragging {
+            withAnimation {
+                photos.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+            }
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+
+    func performDrop(info: DropInfo) -> Bool {
+        dragging = nil
+        return true
     }
 }

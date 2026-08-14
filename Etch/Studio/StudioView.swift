@@ -19,6 +19,7 @@ struct StudioView: View {
     @State private var customTitle = ""
     @State private var customDate = ""
     @State private var showEditorialPhoto = false
+    @State private var showMemoryRoute = false
     @State private var heroMetric: StatMetric = .distance
     @State private var statSlots: [StatMetric] = [.time, .pace, .elevationGain]
     @State private var showElevationProfile = false
@@ -185,6 +186,15 @@ struct StudioView: View {
                         .frame(maxWidth: 280)
                     }
 
+                    if current.isPhoto {
+                        Toggle(isOn: $showMemoryRoute) {
+                            Label("Etch route over photo", systemImage: "scribble.variable")
+                                .font(.system(.subheadline, design: .rounded))
+                        }
+                        .tint(Theme.accent)
+                        .frame(maxWidth: 280)
+                    }
+
                     Toggle(isOn: $showElevationProfile) {
                         Label("Elevation profile", systemImage: "mountain.2")
                             .font(.system(.subheadline, design: .rounded))
@@ -218,6 +228,7 @@ struct StudioView: View {
         .onChange(of: customTitle) { bump() }
         .onChange(of: customDate) { bump() }
         .onChange(of: showEditorialPhoto) { bump() }
+        .onChange(of: showMemoryRoute) { bump() }
         .onChange(of: heroMetric) { bump() }
         .onChange(of: statSlots) { bump() }
         .onChange(of: showElevationProfile) { bump() }
@@ -398,6 +409,7 @@ struct StudioView: View {
             titleOverride: customTitle.isEmpty ? nil : customTitle,
             dateOverride: customDate.isEmpty ? nil : customDate,
             showEditorialPhoto: showEditorialPhoto,
+            showMemoryRoute: showMemoryRoute,
             heroMetric: heroMetric, statSlots: statSlots, showElevationProfile: showElevationProfile,
             includeWeather: includeWeather, routeColor: routeColor, textColor: textColor,
             groundColor: groundColor

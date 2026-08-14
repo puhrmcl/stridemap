@@ -21,6 +21,7 @@ enum StudioRenderer {
         var titleOverride: String? = nil
         var dateOverride: String? = nil
         var showEditorialPhoto: Bool = false
+        var showMemoryRoute: Bool = false
         var heroMetric: StatMetric = .distance
         var statSlots: [StatMetric] = [.time, .pace, .elevationGain]
         var showElevationProfile: Bool = false
@@ -91,6 +92,7 @@ enum StudioRenderer {
             titleOverride: request.titleOverride,
             dateOverride: request.dateOverride,
             showEditorialPhoto: request.showEditorialPhoto,
+            showMemoryRoute: request.showMemoryRoute,
             heroMetric: request.heroMetric,
             statSlots: request.statSlots,
             elevationSamples: profile,
