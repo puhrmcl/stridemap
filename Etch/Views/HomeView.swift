@@ -277,31 +277,44 @@ struct HomeView: View {
                 Label("Locations", systemImage: "mappin.and.ellipse").tag(ModeSelection.locations)
             }
         } label: {
-            HStack(spacing: 12) {
-                metric(
-                    value: Format.distanceValue(shownStats.totalDistanceMeters)
-                        .formatted(.number.precision(.fractionLength(0))),
-                    unit: UnitSystem.current.distanceSuffix,
-                    systemName: "point.topleft.down.to.point.bottomright.curvepath"
-                )
-                Rectangle()
-                    .fill(.secondary.opacity(0.3))
-                    .frame(width: 1, height: 18)
-                metric(
-                    value: shownStats.totalRuns.formatted(),
-                    unit: "runs",
-                    systemName: "figure.run"
-                )
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 2)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 12) {
+                    metric(
+                        value: Format.distanceValue(shownStats.totalDistanceMeters)
+                            .formatted(.number.precision(.fractionLength(0))),
+                        unit: UnitSystem.current.distanceSuffix,
+                        systemName: "point.topleft.down.to.point.bottomright.curvepath"
+                    )
+                    Rectangle()
+                        .fill(.secondary.opacity(0.3))
+                        .frame(width: 1, height: 18)
+                    metric(
+                        value: shownStats.totalRuns.formatted(),
+                        unit: "runs",
+                        systemName: "figure.run"
+                    )
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 2)
+                }
+                Text(currentModeLabel.uppercased())
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .tracking(1.2)
+                    .foregroundStyle(Theme.accent)
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 9)
+            .padding(.vertical, 8)
             .glassBackground(cornerRadius: 18)
         }
         .buttonStyle(.plain)
+    }
+
+    /// The currently shown view, for the pill's caption line.
+    private var currentModeLabel: String {
+        if showLocations { return "Locations" }
+        if showHistory { return "History" }
+        return appModel.filter.mode.rawValue
     }
 
     private func metric(value: String, unit: String, systemName: String) -> some View {
