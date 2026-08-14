@@ -107,9 +107,13 @@ enum StudioRenderer {
         return renderer.uiImage
     }
 
-    /// The route's terrain elevation profile, fetched only when the strip is enabled.
+    /// The route's terrain elevation profile, fetched when the strip is enabled or a chosen metric
+    /// needs it (start elevation).
     static func elevationProfile(for request: Request) async -> [Double] {
-        guard request.showElevationProfile else { return [] }
+        let needsProfile = request.showElevationProfile
+            || request.heroMetric.needsElevationProfile
+            || request.statSlots.contains(where: { $0.needsElevationProfile })
+        guard needsProfile else { return [] }
         return await ElevationService.routeProfile(for: request.run.coordinates) ?? []
     }
 

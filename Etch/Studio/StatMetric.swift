@@ -5,7 +5,7 @@ import Foundation
 /// only how to label and format themselves from a run; unavailable ones (no heart rate, etc.)
 /// report nil so the editor can grey them out.
 enum StatMetric: String, CaseIterable, Identifiable {
-    case distance, time, pace, elevationGain, avgHeartRate, calories, cadence, place, date, weather
+    case distance, time, pace, elevationGain, startElevation, avgHeartRate, calories, cadence, place, date, weather
 
     var id: String { rawValue }
 
@@ -16,6 +16,7 @@ enum StatMetric: String, CaseIterable, Identifiable {
         case .time:         return "TIME"
         case .pace:         return "PACE"
         case .elevationGain: return "ELEV GAIN"
+        case .startElevation: return "START ELEV"
         case .avgHeartRate: return "AVG HR"
         case .calories:     return "CALORIES"
         case .cadence:      return "CADENCE"
@@ -28,11 +29,15 @@ enum StatMetric: String, CaseIterable, Identifiable {
     /// A short name for the picker menu.
     var menuName: String {
         switch self {
-        case .elevationGain: return "Elevation gain"
-        case .avgHeartRate:  return "Avg heart rate"
-        default:             return label.capitalized
+        case .elevationGain:  return "Elevation gain"
+        case .startElevation: return "Start elevation"
+        case .avgHeartRate:   return "Avg heart rate"
+        default:              return label.capitalized
         }
     }
+
+    /// Start elevation is derived from the fetched terrain profile, not the run itself.
+    var needsElevationProfile: Bool { self == .startElevation }
 
     /// The formatted value for a run, or nil when the run has no data for this metric.
     func value(for run: Run) -> String? {
@@ -45,6 +50,8 @@ enum StatMetric: String, CaseIterable, Identifiable {
             return Format.pace(secondsPerKm: run.paceSecondsPerKm)
         case .elevationGain:
             return Format.elevationGain(run.elevationGain)
+        case .startElevation:
+            return nil   // resolved from the terrain profile by the composition
         case .avgHeartRate:
             guard let hr = run.averageHeartRate, hr > 0 else { return nil }
             return "\(Int(hr.rounded())) BPM"
@@ -64,5 +71,10 @@ enum StatMetric: String, CaseIterable, Identifiable {
         }
     }
 
-    func isAvailable(for run: Run) -> Bool { value(for: run) != nil }
+    func isAvailable(for run: Run) -> Bool {
+        // Start elevation comes from a terrain lookup along the route, so it's available whenever
+        // the run has a route.
+        if self == .startElevation { return run.coordinates.count > 1 }
+        return value(for: run) != nil
+    }
 }

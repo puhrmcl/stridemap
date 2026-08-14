@@ -155,9 +155,10 @@ struct StudioComposition: View {
     /// Whole distance units (miles/km) for the profile's markers.
     private var distanceUnitCount: Int { max(0, Int(Format.distanceValue(run.distance))) }
 
-    /// An integrated elevation band: a labelled, gradient-filled profile with a crisp ridge line,
-    /// a baseline, and mile/km tick markers — styled to match the footer rather than sit apart.
-    private var elevationBand: some View {
+    /// The elevation profile as chrome-less content (label + gradient fill + ridge line + baseline
+    /// + mile/km ticks). Fills its container's width, so it works in the portrait band and inside
+    /// a landscape footer column alike.
+    private var elevationProfileContent: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("ELEVATION  ·  \(UnitSystem.current.label.uppercased())")
                 .font(.system(size: 15, weight: .semibold))
@@ -188,11 +189,23 @@ struct StudioComposition: View {
             }
             .frame(height: 130)
         }
-        .padding(.horizontal, 70)
-        .padding(.top, 26)
-        .padding(.bottom, 10)
-        .frame(width: Self.width)
-        .background(groundColor)
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Portrait band, sitting between the art and the footer.
+    private var elevationBand: some View {
+        elevationProfileContent
+            .padding(.horizontal, 70)
+            .padding(.top, 26)
+            .padding(.bottom, 10)
+            .frame(width: Self.width)
+            .background(groundColor)
+    }
+
+    /// Whether to show the profile inside the footer (landscape, where there's no room between
+    /// the art and the footer for a band).
+    private var footerElevation: Bool {
+        showElevationProfile && elevationSamples.count > 1 && orientation == .landscape
     }
 
     // MARK: Art panel
@@ -301,18 +314,21 @@ struct StudioComposition: View {
     // MARK: Footer — arranged by layout
 
     private var footer: some View {
-        Group {
-            if memoryRouteInFooter && layout != .editorial {
-                // Route takes the hero slot; the four metrics run across beneath it.
-                memoryRouteFooter
-            } else {
-                switch layout {
-                case .classic: classicFooter
-                case .minimal: minimalFooter
-                case .editorial: editorialFooter
-                case .grid: gridFooter
+        VStack(spacing: 22) {
+            Group {
+                if memoryRouteInFooter && layout != .editorial {
+                    // Route takes the hero slot; the four metrics run across beneath it.
+                    memoryRouteFooter
+                } else {
+                    switch layout {
+                    case .classic: classicFooter
+                    case .minimal: minimalFooter
+                    case .editorial: editorialFooter
+                    case .grid: gridFooter
+                    }
                 }
             }
+            if footerElevation { elevationProfileContent }
         }
         .padding(70)
         .frame(width: isSideLayout ? Self.landscapeFooterWidth : artDimensions.width,
@@ -415,7 +431,16 @@ struct StudioComposition: View {
 
     /// The Headline metric plus the three slot metrics, for the 4-Up layout.
     private var fourStats: [(label: String, value: String)] {
-        [(label: heroMetric.label, value: heroMetric.value(for: run) ?? "—")] + resolvedStats
+        [(label: heroMetric.label, value: metricValue(heroMetric) ?? "—")] + resolvedStats
+    }
+
+    /// Resolves a metric's value, sourcing start elevation from the fetched terrain profile.
+    private func metricValue(_ metric: StatMetric) -> String? {
+        if metric == .startElevation {
+            guard let start = elevationSamples.first else { return nil }
+            return Format.elevation(start)
+        }
+        return metric.value(for: run)
     }
 
     private func gridStat(_ label: String, _ value: String) -> some View {
@@ -476,7 +501,7 @@ struct StudioComposition: View {
     /// The headline value. Distance keeps the signature bare number ("26.22"); any other chosen
     /// metric shows its full formatted value.
     private var heroValue: String {
-        heroMetric == .distance ? heroNumber : (heroMetric.value(for: run) ?? "—")
+        heroMetric == .distance ? heroNumber : (metricValue(heroMetric) ?? "—")
     }
 
     /// The caption beneath the headline. Distance shows the unit; others show the metric's label.
@@ -486,7 +511,7 @@ struct StudioComposition: View {
 
     /// The slot metrics resolved to (label, value) for this run, unavailable ones showing "—".
     private var resolvedStats: [(label: String, value: String)] {
-        statSlots.map { (label: $0.label, value: $0.value(for: run) ?? "—") }
+        statSlots.map { (label: $0.label, value: metricValue($0) ?? "—") }
     }
 
     private var statRow: some View {
