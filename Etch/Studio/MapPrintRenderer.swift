@@ -69,6 +69,7 @@ enum MapPrintRenderer {
 
             switch request.kind {
             case .allRuns:
+                if let name = request.boundaryStateName { drawStateBoundary(name, on: snapshot) }
                 drawRoutes(request.mapped, on: snapshot, route: route)
             case .states:
                 drawStates(visited: visited, on: snapshot)
@@ -101,6 +102,41 @@ enum MapPrintRenderer {
             path.lineWidth = 5
             path.stroke()
             route.withAlphaComponent(0.9).setStroke()
+            path.lineWidth = 3
+            path.stroke()
+
+            // A dot at the start keeps each run visible when the frame is zoomed out and the
+            // route itself collapses to a point.
+            if let first = coordinates.first {
+                let point = snapshot.point(for: first)
+                let radius: CGFloat = 5
+                let dot = UIBezierPath(ovalIn: CGRect(x: point.x - radius, y: point.y - radius,
+                                                      width: radius * 2, height: radius * 2))
+                UIColor.white.withAlphaComponent(0.85).setStroke()
+                route.setFill()
+                dot.fill()
+                dot.lineWidth = 1.5
+                dot.stroke()
+            }
+        }
+    }
+
+    /// Draws a US state's outline (single-state prints).
+    private static func drawStateBoundary(_ name: String, on snapshot: MKMapSnapshotter.Snapshot) {
+        guard let boundary = USStateBoundaries.shared.boundaries.first(where: { $0.name == name }) else { return }
+        let fill = UIColor(Theme.Palette.blue).withAlphaComponent(0.08)
+        let stroke = UIColor(Theme.Palette.blue).withAlphaComponent(0.7)
+        for polygon in boundary.polygons {
+            let path = UIBezierPath()
+            let pts = polygon.points()
+            for i in 0..<polygon.pointCount {
+                let point = snapshot.point(for: pts[i].coordinate)
+                if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
+            }
+            path.close()
+            fill.setFill()
+            path.fill()
+            stroke.setStroke()
             path.lineWidth = 3
             path.stroke()
         }

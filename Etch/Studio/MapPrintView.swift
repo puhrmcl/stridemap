@@ -51,7 +51,15 @@ struct MapPrintView: View {
     /// The base request — a single place drawn as routes, or the aggregate for the kind.
     private var baseRequest: MapPrintRequest {
         if let focusName, let place = focusPlaces.first(where: { $0.name == focusName }) {
-            return MapPrintRequest.make(kind: .allRuns, runs: place.runs)
+            var req = MapPrintRequest.make(kind: .allRuns, runs: place.runs)
+            // Outline the state. Resolve the boundary from a run's coordinate so it works whether
+            // run.state is an abbreviation ("AZ") or a full name.
+            if kind == .states,
+               let coord = place.runs.lazy.compactMap(\.startCoordinate).first,
+               let boundaryName = USStateBoundaries.shared.region(containing: coord) {
+                req.boundaryStateName = boundaryName
+            }
+            return req
         }
         return MapPrintRequest.make(kind: kind, runs: runs)
     }

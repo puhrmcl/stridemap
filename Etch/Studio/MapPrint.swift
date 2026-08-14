@@ -64,6 +64,8 @@ struct MapPrintRequest {
     var title: String
     var region: MKCoordinateRegion
     var orientation: StudioOrientation = .portrait
+    /// When set, the outline of this US state is drawn behind the routes (single-state prints).
+    var boundaryStateName: String? = nil
     var routeColor: Color = Theme.Palette.blue
     var ground: Color = Theme.Palette.bone
 

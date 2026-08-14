@@ -277,7 +277,7 @@ struct HomeView: View {
                 Label("Locations", systemImage: "mappin.and.ellipse").tag(ModeSelection.locations)
             }
         } label: {
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(spacing: 6) {
                 HStack(spacing: 12) {
                     metric(
                         value: Format.distanceValue(shownStats.totalDistanceMeters)
@@ -298,11 +298,16 @@ struct HomeView: View {
                         .foregroundStyle(.secondary)
                         .padding(.leading, 2)
                 }
+                Rectangle()
+                    .fill(.secondary.opacity(0.25))
+                    .frame(height: 1)
                 Text(currentModeLabel.uppercased())
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .tracking(1.2)
                     .foregroundStyle(Theme.accent)
+                    .frame(maxWidth: .infinity)
             }
+            .fixedSize(horizontal: true, vertical: false)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .glassBackground(cornerRadius: 18)
