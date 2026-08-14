@@ -12,11 +12,11 @@ struct StatTile: View {
             if let systemName {
                 Image(systemName: systemName)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(accent ? Theme.accent : .secondary)
+                    .foregroundStyle(Theme.accent)
             }
             Text(value)
                 .font(.system(size: 30, weight: .bold, design: .rounded))
-                .foregroundStyle(accent ? Theme.accent : .primary)
+                .foregroundStyle(.primary)
                 .contentTransition(.numericText())
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
