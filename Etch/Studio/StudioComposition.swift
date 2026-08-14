@@ -201,9 +201,14 @@ struct StudioComposition: View {
         ZStack {
             groundColor
             if edition.isPhoto {
-                // Memory: the photograph is the art — a single cover photo or a tasteful grid.
-                // When the route option is on it lives in the data area (footer), not on the photo.
+                // Memory: the photograph is the art. In portrait the route (when on) moves into
+                // the footer; in landscape it stays etched over the photo.
                 photoPanel
+                if memoryRoutePhoto {
+                    LinearGradient(colors: [.black.opacity(0.28), .clear, .black.opacity(0.32)],
+                                   startPoint: .top, endPoint: .bottom)
+                    routeArt.padding(120)
+                }
             } else if edition.usesImagePanel, let panelImage {
                 Image(uiImage: panelImage).resizable().scaledToFill()
             } else if run.coordinates.count > 1 {
@@ -269,8 +274,11 @@ struct StudioComposition: View {
             .clipped()
     }
 
-    /// True when the Memory route option is on — the route is drawn in the footer, not the photo.
-    private var memoryRouteInFooter: Bool { edition.isPhoto && showMemoryRoute && run.coordinates.count > 1 }
+    private var memoryRouteEnabled: Bool { edition.isPhoto && showMemoryRoute && run.coordinates.count > 1 }
+    /// Portrait: the route moves into the footer/data area.
+    private var memoryRouteInFooter: Bool { memoryRouteEnabled && orientation == .portrait }
+    /// Landscape: the route stays etched over the photo.
+    private var memoryRoutePhoto: Bool { memoryRouteEnabled && orientation == .landscape }
 
     private var routeArt: some View { routeGraphic(width: edition.routeWidth) }
 
