@@ -14,13 +14,20 @@ enum StudioLayout: String, CaseIterable, Identifiable {
     }
 }
 
-/// Poster orientation. Portrait stacks the art over the footer; landscape sets the (square) art
-/// beside a footer column.
+/// Poster orientation. Portrait stacks the art over the footer; landscape can set the art beside
+/// the data (side) or above it (bottom), per `StudioDataPlacement`.
 enum StudioOrientation: String, CaseIterable, Identifiable {
     case portrait, landscape
     var id: String { rawValue }
     var name: String { self == .portrait ? "Portrait" : "Landscape" }
     var symbol: String { self == .portrait ? "rectangle.portrait" : "rectangle" }
+}
+
+/// Where the run data sits relative to the art in landscape. Ignored in portrait (always bottom).
+enum StudioDataPlacement: String, CaseIterable, Identifiable {
+    case side, bottom
+    var id: String { rawValue }
+    var name: String { self == .side ? "Data Side" : "Data Bottom" }
 }
 
 /// How the Memory edition arranges the run's photos in the art panel. Only meaningful when the
@@ -57,6 +64,7 @@ struct StudioComposition: View {
     var includeWeather: Bool = false
     var layout: StudioLayout = .classic
     var orientation: StudioOrientation = .portrait
+    var dataPlacement: StudioDataPlacement = .side
     var photoLayout: StudioPhotoLayout = .single
     /// User-typed overrides for the title and date; nil/empty falls back to the run's values.
     var titleOverride: String? = nil
@@ -79,15 +87,27 @@ struct StudioComposition: View {
 
     static let width: CGFloat = 1000
     static let artHeight: CGFloat = 1000
-    /// Footer column width in landscape (beside the square art).
+    /// Footer column width in landscape when the data sits beside the art.
     static let landscapeFooterWidth: CGFloat = 640
+    /// Wide art size when landscape sets the data across the bottom.
+    static let wideArtWidth: CGFloat = 1640
+    static let wideArtHeight: CGFloat = 920
 
-    /// Nominal poster size for a given orientation — used for print-scale math and preview
-    /// aspect ratios. The rendered footer height is dynamic; 620 is the portrait allowance.
-    static func nominalSize(_ orientation: StudioOrientation) -> CGSize {
-        orientation == .landscape
-            ? CGSize(width: width + landscapeFooterWidth, height: artHeight)
-            : CGSize(width: width, height: artHeight + 620)
+    /// The art panel's pixel size for an orientation + placement.
+    static func artSize(_ orientation: StudioOrientation, _ placement: StudioDataPlacement) -> CGSize {
+        (orientation == .landscape && placement == .bottom)
+            ? CGSize(width: wideArtWidth, height: wideArtHeight)
+            : CGSize(width: width, height: artHeight)
+    }
+
+    /// Nominal poster size — used for print-scale math and preview aspect ratios. The rendered
+    /// footer height is dynamic; the constants below are the across-the-bottom allowances.
+    static func nominalSize(_ orientation: StudioOrientation, _ placement: StudioDataPlacement) -> CGSize {
+        switch (orientation, placement) {
+        case (.portrait, _):          return CGSize(width: width, height: artHeight + 620)
+        case (.landscape, .side):     return CGSize(width: width + landscapeFooterWidth, height: artHeight)
+        case (.landscape, .bottom):   return CGSize(width: wideArtWidth, height: wideArtHeight + 540)
+        }
     }
 
     private var routeColor: Color { routeOverride ?? edition.route }
@@ -105,6 +125,10 @@ struct StudioComposition: View {
         return groundOverride != nil ? autoInk.opacity(0.6) : edition.subtle
     }
 
+    private var artDimensions: CGSize { Self.artSize(orientation, dataPlacement) }
+    /// Landscape with the data column beside the art (vs. above/below it).
+    private var isSideLayout: Bool { orientation == .landscape && dataPlacement == .side }
+
     /// The elevation strip only fits under the art in portrait.
     private var hasElevationStrip: Bool {
         showElevationProfile && elevationSamples.count > 1 && orientation == .portrait
@@ -112,7 +136,7 @@ struct StudioComposition: View {
 
     var body: some View {
         Group {
-            if orientation == .landscape {
+            if isSideLayout {
                 HStack(spacing: 0) {
                     art
                     footer
@@ -195,7 +219,7 @@ struct StudioComposition: View {
                     .foregroundStyle(subtleColor)
             }
         }
-        .frame(width: Self.width, height: Self.artHeight)
+        .frame(width: artDimensions.width, height: artDimensions.height)
         .clipped()
     }
 
@@ -265,8 +289,8 @@ struct StudioComposition: View {
             }
         }
         .padding(70)
-        .frame(width: orientation == .landscape ? Self.landscapeFooterWidth : Self.width,
-               height: orientation == .landscape ? Self.artHeight : nil)
+        .frame(width: isSideLayout ? Self.landscapeFooterWidth : artDimensions.width,
+               height: isSideLayout ? artDimensions.height : nil)
         .background(groundColor)
     }
 

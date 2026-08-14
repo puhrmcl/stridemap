@@ -17,6 +17,7 @@ enum StudioRenderer {
         var edition: StudioEdition
         var layout: StudioLayout = .classic
         var orientation: StudioOrientation = .portrait
+        var dataPlacement: StudioDataPlacement = .side
         var photoLayout: StudioPhotoLayout = .single
         var titleOverride: String? = nil
         var dateOverride: String? = nil
@@ -37,7 +38,7 @@ enum StudioRenderer {
 
     /// The map / contour art panel image. Nil for photo and paper editions.
     static func panelImage(for request: Request, panelPixelWidth: CGFloat) async -> UIImage? {
-        let panelSize = CGSize(width: StudioComposition.width, height: StudioComposition.artHeight)
+        let panelSize = StudioComposition.artSize(request.orientation, request.dataPlacement)
         if request.edition.isContour {
             let ground = request.groundColor ?? request.edition.ground
             return await PosterMap.topographicPanel(for: request.run, size: panelSize,
@@ -88,6 +89,7 @@ enum StudioRenderer {
             photoImages: photos,
             includeWeather: request.includeWeather, layout: request.layout,
             orientation: request.orientation,
+            dataPlacement: request.dataPlacement,
             photoLayout: request.photoLayout,
             titleOverride: request.titleOverride,
             dateOverride: request.dateOverride,
@@ -114,7 +116,7 @@ enum StudioRenderer {
     /// A print-resolution image whose long edge is ~`longEdgePixels` (capped for on-device
     /// memory). 5400 px ≈ 18″ at 300 DPI — a genuine gallery-grade file.
     static func printImage(for request: Request, longEdgePixels: CGFloat = 5400) async -> UIImage? {
-        let nominal = StudioComposition.nominalSize(request.orientation)
+        let nominal = StudioComposition.nominalSize(request.orientation, request.dataPlacement)
         let compositionLongEdge = max(nominal.width, nominal.height)   // nominal points
         let target = min(longEdgePixels, maxLongEdgePixels)
         let scale = max(2, target / compositionLongEdge)

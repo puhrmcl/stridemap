@@ -15,6 +15,7 @@ struct StudioView: View {
     @State private var groundColor: Color?
     @State private var layout: StudioLayout = .classic
     @State private var orientation: StudioOrientation = .portrait
+    @State private var dataPlacement: StudioDataPlacement = .side
     @State private var photoLayout: StudioPhotoLayout = .single
     @State private var customTitle = ""
     @State private var customDate = ""
@@ -90,7 +91,7 @@ struct StudioView: View {
                 } else {
                     RoundedRectangle(cornerRadius: 10)
                         .fill(edition.id == selection ? (groundColor ?? edition.ground) : edition.ground)
-                        .aspectRatio({ let s = StudioComposition.nominalSize(orientation); return s.width / s.height }(), contentMode: .fit)
+                        .aspectRatio({ let s = StudioComposition.nominalSize(orientation, dataPlacement); return s.width / s.height }(), contentMode: .fit)
                         .overlay {
                             VStack(spacing: 10) {
                                 ProgressView().tint(edition.accent)
@@ -143,7 +144,8 @@ struct StudioView: View {
             .buttonStyle(.plain)
 
             if showCustomize {
-                VStack(spacing: 12) {
+                ScrollView {
+                    VStack(spacing: 12) {
                     if current.isPhoto, run.photoReferences.count > 1 {
                         Picker("Photos", selection: $photoLayout) {
                             ForEach(StudioPhotoLayout.allCases) { Text($0.name).tag($0) }
@@ -157,6 +159,14 @@ struct StudioView: View {
                     }
                     .pickerStyle(.segmented)
                     .frame(maxWidth: 320)
+
+                    if orientation == .landscape {
+                        Picker("Data", selection: $dataPlacement) {
+                            ForEach(StudioDataPlacement.allCases) { Text($0.name).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(maxWidth: 320)
+                    }
 
                     Picker("Layout", selection: $layout) {
                         ForEach(StudioLayout.allCases) { Text($0.name).tag($0) }
@@ -210,7 +220,11 @@ struct StudioView: View {
                         .tint(Theme.accent)
                         .frame(maxWidth: 280)
                     }
+                    }
+                    .padding(.bottom, 6)
                 }
+                .frame(maxHeight: 300)
+                .scrollBounceBehavior(.basedOnSize)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
@@ -224,6 +238,7 @@ struct StudioView: View {
         .onChange(of: groundColor) { bump() }
         .onChange(of: layout) { bump() }
         .onChange(of: orientation) { bump() }
+        .onChange(of: dataPlacement) { bump() }
         .onChange(of: photoLayout) { bump() }
         .onChange(of: customTitle) { bump() }
         .onChange(of: customDate) { bump() }
@@ -405,6 +420,7 @@ struct StudioView: View {
     private func request(for edition: StudioEdition) -> StudioRenderer.Request {
         StudioRenderer.Request(
             run: run, edition: edition, layout: layout, orientation: orientation,
+            dataPlacement: dataPlacement,
             photoLayout: photoLayout,
             titleOverride: customTitle.isEmpty ? nil : customTitle,
             dateOverride: customDate.isEmpty ? nil : customDate,

@@ -260,14 +260,23 @@ struct HomeView: View {
                 filterButton
             }
 
-            modeSelector
+            if showLocations { modeSelector }
         }
     }
 
-    /// One glass pill showing both totals — distance and run count — split by a hairline.
-    /// Tapping it zooms/recenters the map to the runs currently shown.
+    /// One glass pill showing both totals — distance and run count — with the map-mode dropdown
+    /// folded in: a chevron on the right opens the mode menu (filter modes / History / Locations).
     private var totalsPill: some View {
-        Button(action: fitShownRuns) {
+        Menu {
+            Picker("Map", selection: modeSelection) {
+                ForEach(RunFilter.Mode.allCases) { mode in
+                    Label(mode.rawValue, systemImage: mode.symbol).tag(ModeSelection.mode(mode))
+                }
+                Label("History", systemImage: "point.3.filled.connected.trianglepath.dotted")
+                    .tag(ModeSelection.history)
+                Label("Locations", systemImage: "mappin.and.ellipse").tag(ModeSelection.locations)
+            }
+        } label: {
             HStack(spacing: 12) {
                 metric(
                     value: Format.distanceValue(shownStats.totalDistanceMeters)
@@ -283,6 +292,10 @@ struct HomeView: View {
                     unit: "runs",
                     systemName: "figure.run"
                 )
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 2)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
@@ -337,17 +350,6 @@ struct HomeView: View {
         )
     }
 
-    private var currentModeLabel: String {
-        if showLocations { return "Locations" }
-        if showHistory { return "History" }
-        return appModel.filter.mode.rawValue
-    }
-    private var currentModeSymbol: String {
-        if showLocations { return "mappin.and.ellipse" }
-        if showHistory { return "point.3.filled.connected.trianglepath.dotted" }
-        return appModel.filter.mode.symbol
-    }
-
     /// The pins for the active pin-based overlay (cities / countries / landmarks).
     private var overlayPlaces: [RunStatistics.TravelPlace] {
         switch locationOverlay {
@@ -365,24 +367,8 @@ struct HomeView: View {
     private var modeSelector: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                Menu {
-                    Picker("Map", selection: modeSelection) {
-                        ForEach(RunFilter.Mode.allCases) { mode in
-                            Label(mode.rawValue, systemImage: mode.symbol).tag(ModeSelection.mode(mode))
-                        }
-                        Label("History", systemImage: "point.3.filled.connected.trianglepath.dotted")
-                            .tag(ModeSelection.history)
-                        Label("Locations", systemImage: "mappin.and.ellipse").tag(ModeSelection.locations)
-                    }
-                } label: {
-                    pill(symbol: currentModeSymbol, text: currentModeLabel)
-                }
-                .buttonStyle(.plain)
-
-                if showLocations {
-                    overlaySelector
-                    placesMenu
-                }
+                overlaySelector
+                placesMenu
             }
             .padding(.vertical, 3)   // room for the pills' soft shadows
         }
