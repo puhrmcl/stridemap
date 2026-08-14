@@ -14,6 +14,7 @@ struct StudioView: View {
     @State private var textColor: Color?
     @State private var layout: StudioLayout = .classic
     @State private var showPrints = false
+    @State private var showCustomize = false
     /// Bumped on any customization change; part of the cache key so artwork re-renders.
     @State private var revision = 0
 
@@ -120,22 +121,41 @@ struct StudioView: View {
                     .frame(maxWidth: 320)
             }
 
-            Picker("Layout", selection: $layout) {
-                ForEach(StudioLayout.allCases) { Text($0.name).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 320)
-
-            colorRow("Path", selection: $routeColor, swatches: pathSwatches, fallback: current.route)
-            colorRow("Text", selection: $textColor, swatches: textSwatches, fallback: current.ink)
-
-            if run.hasWeather {
-                Toggle(isOn: $includeWeather) {
-                    Label("Include weather", systemImage: "cloud.sun")
-                        .font(.system(.subheadline, design: .rounded))
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) { showCustomize.toggle() }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "slider.horizontal.3").font(.caption)
+                    Text("Customize")
+                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    Image(systemName: showCustomize ? "chevron.up" : "chevron.down")
+                        .font(.caption2.weight(.bold))
                 }
-                .tint(Theme.accent)
-                .frame(maxWidth: 280)
+                .foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(.plain)
+
+            if showCustomize {
+                VStack(spacing: 12) {
+                    Picker("Layout", selection: $layout) {
+                        ForEach(StudioLayout.allCases) { Text($0.name).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 320)
+
+                    colorRow("Path", selection: $routeColor, swatches: pathSwatches, fallback: current.route)
+                    colorRow("Text", selection: $textColor, swatches: textSwatches, fallback: current.ink)
+
+                    if run.hasWeather {
+                        Toggle(isOn: $includeWeather) {
+                            Label("Include weather", systemImage: "cloud.sun")
+                                .font(.system(.subheadline, design: .rounded))
+                        }
+                        .tint(Theme.accent)
+                        .frame(maxWidth: 280)
+                    }
+                }
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
         .padding(.vertical, 18)
