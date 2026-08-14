@@ -12,6 +12,7 @@ struct StudioView: View {
     @State private var includeWeather = false
     @State private var routeColor: Color?
     @State private var textColor: Color?
+    @State private var layout: StudioLayout = .classic
     @State private var showPrints = false
     /// Bumped on any customization change; part of the cache key so artwork re-renders.
     @State private var revision = 0
@@ -119,6 +120,12 @@ struct StudioView: View {
                     .frame(maxWidth: 320)
             }
 
+            Picker("Layout", selection: $layout) {
+                ForEach(StudioLayout.allCases) { Text($0.name).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 320)
+
             colorRow("Path", selection: $routeColor, swatches: pathSwatches, fallback: current.route)
             colorRow("Text", selection: $textColor, swatches: textSwatches, fallback: current.ink)
 
@@ -138,6 +145,7 @@ struct StudioView: View {
         .onChange(of: includeWeather) { bump() }
         .onChange(of: routeColor) { bump() }
         .onChange(of: textColor) { bump() }
+        .onChange(of: layout) { bump() }
     }
 
     private func colorRow(_ title: String, selection: Binding<Color?>, swatches: [Color], fallback: Color) -> some View {
@@ -217,7 +225,8 @@ struct StudioView: View {
         }
         let composition = StudioComposition(
             run: run, edition: edition, panelImage: panelImage,
-            includeWeather: includeWeather, routeOverride: routeColor, textOverride: textColor
+            includeWeather: includeWeather, layout: layout,
+            routeOverride: routeColor, textOverride: textColor
         )
         let renderer = ImageRenderer(content: composition)
         renderer.scale = 2
