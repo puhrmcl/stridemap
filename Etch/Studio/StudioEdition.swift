@@ -10,7 +10,7 @@ import SwiftUI
 struct StudioEdition: Identifiable, Equatable {
 
     enum ID: String, CaseIterable, Identifiable {
-        case gallery, atlas, atlasDark, terrain, minimal, night, topographic, memory
+        case gallery, atlas, atlasDark, terrain, minimal, night, memory
         var id: String { rawValue }
     }
 
@@ -69,7 +69,7 @@ struct StudioEdition: Identifiable, Equatable {
 
     // MARK: The collection
 
-    static let all: [StudioEdition] = [.gallery, .atlas, .atlasDark, .terrain, .minimal, .night, .topographic, .memory]
+    static let all: [StudioEdition] = [.gallery, .atlas, .atlasDark, .terrain, .minimal, .night, .memory]
 
     static func edition(_ id: ID) -> StudioEdition { all.first { $0.id == id }! }
 
@@ -140,18 +140,6 @@ struct StudioEdition: Identifiable, Equatable {
         ground: Theme.Palette.ink, mapWash: Theme.Palette.ink, mapWashAlpha: 0.42,
         route: Theme.Palette.blue, casing: nil, routeWidth: 10, glow: false,
         ink: Theme.Palette.bone, subtle: Theme.Palette.bone.opacity(0.6), accent: Theme.Palette.blue
-    )
-
-    /// Topographic — real terrain contour lines traced behind the route, pen-plotted style. The
-    /// ground defaults to deep ink but is customizable; the route sits over the contours.
-    static let topographic = StudioEdition(
-        id: .topographic, name: "Topographic",
-        descriptor: "Real elevation contours, pen-plotted behind your route.",
-        surface: .contour,
-        ground: Theme.Palette.ink,
-        mapWash: .clear, mapWashAlpha: 0,
-        route: Theme.Palette.blue, casing: .white, routeWidth: 10, glow: false,
-        ink: Theme.Palette.bone, subtle: Theme.Palette.bone.opacity(0.6), accent: Theme.Palette.brass
     )
 
     /// Memory — the run's own photograph fills the panel, with the route etched over it in Etch

@@ -225,41 +225,53 @@ struct StudioComposition: View {
 
     // MARK: Photo panel (Memory)
 
-    /// Arranges the run's photos: a single filling image, or a magazine grid (2 = diptych,
-    /// 3 = one over two, 4 = 2×2). Gaps show the edition ground so the grid reads as a set.
+    /// Arranges the run's photos into a hero-driven editorial grid: the cover (first) photo leads
+    /// with the largest tile, the rest fill a column beside or below it. 4 photos use a 2×2. Tiles
+    /// are sized exactly so the gaps (edition ground) read as a considered matte.
     @ViewBuilder private var photoPanel: some View {
         let photos = photoLayout == .single ? Array(photoImages.prefix(1))
                                             : Array(photoImages.prefix(4))
-        if photos.isEmpty {
-            Image(systemName: "photo")
-                .font(.system(size: 120, weight: .semibold))
-                .foregroundStyle(subtleColor)
-        } else if photos.count == 1 {
-            photoCell(photos[0])
-        } else if photos.count == 2 {
-            HStack(spacing: gridGap) { photoCell(photos[0]); photoCell(photos[1]) }
-        } else if photos.count == 3 {
-            VStack(spacing: gridGap) {
-                photoCell(photos[0])
-                HStack(spacing: gridGap) { photoCell(photos[1]); photoCell(photos[2]) }
-            }
-        } else {
-            VStack(spacing: gridGap) {
-                HStack(spacing: gridGap) { photoCell(photos[0]); photoCell(photos[1]) }
-                HStack(spacing: gridGap) { photoCell(photos[2]); photoCell(photos[3]) }
+        GeometryReader { geo in
+            let w = geo.size.width, h = geo.size.height, g = gridGap
+            let heroW = (w - g) * 0.62, sideW = (w - g) * 0.38
+            if photos.isEmpty {
+                Image(systemName: "photo")
+                    .font(.system(size: 120, weight: .semibold))
+                    .foregroundStyle(subtleColor)
+                    .frame(width: w, height: h)
+            } else if photos.count == 1 {
+                photoTile(photos[0], width: w, height: h)
+            } else if photos.count == 2 {
+                HStack(spacing: g) {
+                    photoTile(photos[0], width: heroW, height: h)
+                    photoTile(photos[1], width: sideW, height: h)
+                }
+            } else if photos.count == 3 {
+                HStack(spacing: g) {
+                    photoTile(photos[0], width: heroW, height: h)
+                    VStack(spacing: g) {
+                        photoTile(photos[1], width: sideW, height: (h - g) / 2)
+                        photoTile(photos[2], width: sideW, height: (h - g) / 2)
+                    }
+                }
+            } else {
+                let cw = (w - g) / 2, ch = (h - g) / 2
+                VStack(spacing: g) {
+                    HStack(spacing: g) { photoTile(photos[0], width: cw, height: ch); photoTile(photos[1], width: cw, height: ch) }
+                    HStack(spacing: g) { photoTile(photos[2], width: cw, height: ch); photoTile(photos[3], width: cw, height: ch) }
+                }
             }
         }
     }
 
     private var gridGap: CGFloat { 12 }
 
-    private func photoCell(_ image: UIImage) -> some View {
+    private func photoTile(_ image: UIImage, width: CGFloat, height: CGFloat) -> some View {
         Image(uiImage: image)
             .resizable()
             .scaledToFill()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(width: max(width, 1), height: max(height, 1))
             .clipped()
-            .contentShape(Rectangle())
     }
 
     private var routeArt: some View {
