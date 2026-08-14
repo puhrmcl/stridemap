@@ -202,13 +202,8 @@ struct StudioComposition: View {
             groundColor
             if edition.isPhoto {
                 // Memory: the photograph is the art — a single cover photo or a tasteful grid.
-                // The route is off by default, and can be etched over the photo on request.
+                // When the route option is on it lives in the data area (footer), not on the photo.
                 photoPanel
-                if showMemoryRoute, run.coordinates.count > 1 {
-                    LinearGradient(colors: [.black.opacity(0.28), .clear, .black.opacity(0.32)],
-                                   startPoint: .top, endPoint: .bottom)
-                    routeArt.padding(120)
-                }
             } else if edition.usesImagePanel, let panelImage {
                 Image(uiImage: panelImage).resizable().scaledToFill()
             } else if run.coordinates.count > 1 {
@@ -274,14 +269,20 @@ struct StudioComposition: View {
             .clipped()
     }
 
-    private var routeArt: some View {
+    /// True when the Memory route option is on — the route is drawn in the footer, not the photo.
+    private var memoryRouteInFooter: Bool { edition.isPhoto && showMemoryRoute && run.coordinates.count > 1 }
+
+    private var routeArt: some View { routeGraphic(width: edition.routeWidth) }
+
+    /// The route as vector art (optional casing under the coloured line), at a given stroke width.
+    private func routeGraphic(width: CGFloat) -> some View {
         ZStack {
             if let casing = edition.casing {
                 RouteShape(coordinates: run.coordinates)
-                    .stroke(casing.opacity(0.9), style: stroke(edition.routeWidth * 1.7))
+                    .stroke(casing.opacity(0.9), style: stroke(width * 1.7))
             }
             RouteShape(coordinates: run.coordinates)
-                .stroke(routeColor, style: stroke(edition.routeWidth))
+                .stroke(routeColor, style: stroke(width))
         }
     }
 
@@ -293,11 +294,16 @@ struct StudioComposition: View {
 
     private var footer: some View {
         Group {
-            switch layout {
-            case .classic: classicFooter
-            case .minimal: minimalFooter
-            case .editorial: editorialFooter
-            case .grid: gridFooter
+            if memoryRouteInFooter && layout != .editorial {
+                // Route takes the hero slot; the four metrics run across beneath it.
+                memoryRouteFooter
+            } else {
+                switch layout {
+                case .classic: classicFooter
+                case .minimal: minimalFooter
+                case .editorial: editorialFooter
+                case .grid: gridFooter
+                }
             }
         }
         .padding(70)
@@ -345,13 +351,39 @@ struct StudioComposition: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            if showEditorialPhoto, let photo = photoImages.first {
+            // The open space holds the route (Memory route option) or the cover photo.
+            if memoryRouteInFooter {
+                routeGraphic(width: 7)
+                    .frame(width: 320, height: 380)
+            } else if showEditorialPhoto, let photo = photoImages.first {
                 Image(uiImage: photo)
                     .resizable()
                     .scaledToFill()
                     .frame(width: 300, height: 380)
                     .clipShape(.rect(cornerRadius: 12))
             }
+        }
+    }
+
+    /// Memory with the route option, non-editorial layouts: the route sits where the big headline
+    /// would, and the four metrics run across beneath it.
+    private var memoryRouteFooter: some View {
+        VStack(spacing: 20) {
+            title(leading: false)
+            routeGraphic(width: 8)
+                .frame(maxWidth: .infinity)
+                .frame(height: 300)
+                .padding(.vertical, 4)
+            if !placeLine.isEmpty { metaLine([placeLine], leading: false) }
+            Rectangle().fill(subtleColor.opacity(0.4)).frame(width: 90, height: 2).padding(.vertical, 4)
+            HStack(alignment: .top, spacing: 0) {
+                ForEach(Array(fourStats.enumerated()), id: \.offset) { index, item in
+                    if index > 0 { statDivider }
+                    gridStat(item.label, item.value)
+                }
+            }
+            if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: false) }
+            metaLine([dateText], leading: false).padding(.top, 4)
         }
     }
 

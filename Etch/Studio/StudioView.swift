@@ -198,7 +198,7 @@ struct StudioView: View {
 
                     if current.isPhoto {
                         Toggle(isOn: $showMemoryRoute) {
-                            Label("Etch route over photo", systemImage: "scribble.variable")
+                            Label("Show route in layout", systemImage: "scribble.variable")
                                 .font(.system(.subheadline, design: .rounded))
                         }
                         .tint(Theme.accent)
