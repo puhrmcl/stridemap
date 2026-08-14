@@ -15,6 +15,7 @@ enum Theme {
         static let sage = Color(red: 0.733, green: 0.784, blue: 0.698)  // #BBC8B2
         static let mist = Color(red: 0.867, green: 0.902, blue: 0.918)  // #DDE6EA
         static let brass = Color(red: 0.690, green: 0.553, blue: 0.341) // #B08D57
+        static let forest = Color(red: 0.114, green: 0.204, blue: 0.180) // #1D342E — deep topo ground
     }
 
     /// Route colour palette. Routes render in the signature Etch Blue; the cooler tones remain

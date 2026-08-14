@@ -161,6 +161,82 @@ enum PosterMap {
         }
     }
 
+    /// Renders the art panel for the Topographic edition: real terrain contour lines (traced
+    /// from an Open-Meteo elevation grid via marching squares) over a chosen ground, with the
+    /// run's route drawn on top. Pen-plotted contour aesthetic. Returns nil if elevation can't be
+    /// fetched, so the caller can fall back.
+    @MainActor
+    static func topographicPanel(for run: Run, size: CGSize, edition: StudioEdition,
+                                 ground: Color, route routeOverride: Color? = nil) async -> UIImage? {
+        let coordinates = run.coordinates
+        guard coordinates.count > 1 else { return nil }
+
+        let region = region(for: run)
+        let latMax = region.center.latitude + region.span.latitudeDelta / 2
+        let latMin = region.center.latitude - region.span.latitudeDelta / 2
+        let lonMin = region.center.longitude - region.span.longitudeDelta / 2
+        let lonMax = region.center.longitude + region.span.longitudeDelta / 2
+
+        guard let field = await ElevationService.field(
+            latMin: latMin, latMax: latMax, lonMin: lonMin, lonMax: lonMax, rows: 48, cols: 48
+        ) else { return nil }
+        let segments = ContourExtractor.segments(for: field)
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 2
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+
+        let groundColor = UIColor(ground)
+        let lineColor = UIColor(ground.isDarkGround ? Theme.Palette.bone : Theme.Palette.ink)
+        let route = UIColor(routeOverride ?? edition.route)
+
+        func pixel(_ coordinate: CLLocationCoordinate2D) -> CGPoint {
+            CGPoint(
+                x: (coordinate.longitude - lonMin) / (lonMax - lonMin) * size.width,
+                y: (latMax - coordinate.latitude) / (latMax - latMin) * size.height
+            )
+        }
+
+        return renderer.image { context in
+            let cg = context.cgContext
+
+            groundColor.setFill()
+            cg.fill(CGRect(origin: .zero, size: size))
+
+            // Contour lines — one thin, round-capped path.
+            let contour = UIBezierPath()
+            for segment in segments {
+                contour.move(to: CGPoint(x: segment.a.x * size.width, y: segment.a.y * size.height))
+                contour.addLine(to: CGPoint(x: segment.b.x * size.width, y: segment.b.y * size.height))
+            }
+            contour.lineWidth = 1.4
+            contour.lineCapStyle = .round
+            lineColor.withAlphaComponent(0.5).setStroke()
+            contour.stroke()
+
+            // Route over the terrain, white-cased so it reads on any ground.
+            let path = UIBezierPath()
+            var started = false
+            for coordinate in coordinates {
+                let point = pixel(coordinate)
+                if started { path.addLine(to: point) } else { path.move(to: point); started = true }
+            }
+            path.lineJoinStyle = .round
+            path.lineCapStyle = .round
+
+            UIColor.white.withAlphaComponent(0.9).setStroke()
+            path.lineWidth = edition.routeWidth * 1.7
+            path.stroke()
+            route.setStroke()
+            path.lineWidth = edition.routeWidth
+            path.stroke()
+
+            if let first = coordinates.first { dot(cg, at: pixel(first), fill: UIColor(edition.accent), radius: edition.routeWidth) }
+            if let last = coordinates.last { dot(cg, at: pixel(last), fill: route, radius: edition.routeWidth) }
+        }
+    }
+
     /// Shared CoreImage context for the satellite desaturation pass.
     private static let ciContext = CIContext(options: nil)
 

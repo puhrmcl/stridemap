@@ -50,14 +50,26 @@ struct StudioComposition: View {
     /// User overrides; nil falls back to the edition's palette.
     var routeOverride: Color? = nil
     var textOverride: Color? = nil
+    var groundOverride: Color? = nil
 
     static let width: CGFloat = 1000
     static let artHeight: CGFloat = 1000
     static var size: CGSize { CGSize(width: width, height: artHeight + 620) }
 
     private var routeColor: Color { routeOverride ?? edition.route }
-    private var inkColor: Color { textOverride ?? edition.ink }
-    private var subtleColor: Color { textOverride.map { $0.opacity(0.6) } ?? edition.subtle }
+    private var groundColor: Color { groundOverride ?? edition.ground }
+
+    /// Type colour that stays legible on a user-chosen ground: an explicit text pick always
+    /// wins; otherwise, when the ground is overridden, derive ink/subtle from its luminance.
+    private var autoInk: Color { groundColor.isDarkGround ? Theme.Palette.bone : Theme.Palette.ink }
+    private var inkColor: Color {
+        if let textOverride { return textOverride }
+        return groundOverride != nil ? autoInk : edition.ink
+    }
+    private var subtleColor: Color {
+        if let textOverride { return textOverride.opacity(0.6) }
+        return groundOverride != nil ? autoInk.opacity(0.6) : edition.subtle
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -65,14 +77,14 @@ struct StudioComposition: View {
             footer
         }
         .frame(width: Self.width)
-        .background(edition.ground)
+        .background(groundColor)
     }
 
     // MARK: Art panel
 
     private var art: some View {
         ZStack {
-            edition.ground
+            groundColor
             if edition.isPhoto {
                 // Memory: the photograph is the art. No route overlaid — a single cover photo or
                 // a tasteful grid, arranged clean; the run's data lives in the footer.
@@ -156,7 +168,7 @@ struct StudioComposition: View {
         }
         .padding(70)
         .frame(width: Self.width)
-        .background(edition.ground)
+        .background(groundColor)
     }
 
     /// Centred, full: title, big distance, place, sparse stat row, date.

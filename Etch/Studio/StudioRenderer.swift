@@ -20,16 +20,23 @@ enum StudioRenderer {
         var includeWeather: Bool = false
         var routeColor: Color? = nil
         var textColor: Color? = nil
+        var groundColor: Color? = nil
     }
 
     /// Largest long edge (px) rendered on-device, to stay within memory limits (~18–20″ at
     /// 300 DPI). Bigger sizes are rendered server-side once Studio Web / the print backend land.
     static let maxLongEdgePixels: CGFloat = 6000
 
-    /// The map art panel image (muted map snapshot). Nil for photo and paper editions.
+    /// The map / contour art panel image. Nil for photo and paper editions.
     static func panelImage(for request: Request, panelPixelWidth: CGFloat) async -> UIImage? {
-        guard request.edition.mapKind != nil else { return nil }
         let panelSize = CGSize(width: StudioComposition.width, height: StudioComposition.artHeight)
+        if request.edition.isContour {
+            let ground = request.groundColor ?? request.edition.ground
+            return await PosterMap.topographicPanel(for: request.run, size: panelSize,
+                                                    edition: request.edition, ground: ground,
+                                                    route: request.routeColor)
+        }
+        guard request.edition.mapKind != nil else { return nil }
         return await PosterMap.studioPanel(for: request.run, size: panelSize,
                                            edition: request.edition, route: request.routeColor)
     }
@@ -64,7 +71,8 @@ enum StudioRenderer {
             photoImages: photos,
             includeWeather: request.includeWeather, layout: request.layout,
             photoLayout: request.photoLayout,
-            routeOverride: request.routeColor, textOverride: request.textColor
+            routeOverride: request.routeColor, textOverride: request.textColor,
+            groundOverride: request.groundColor
         )
         let renderer = ImageRenderer(content: composition)
         renderer.scale = scale

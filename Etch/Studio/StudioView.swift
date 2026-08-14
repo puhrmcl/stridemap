@@ -12,6 +12,7 @@ struct StudioView: View {
     @State private var includeWeather = false
     @State private var routeColor: Color?
     @State private var textColor: Color?
+    @State private var groundColor: Color?
     @State private var layout: StudioLayout = .classic
     @State private var photoLayout: StudioPhotoLayout = .single
     @State private var showPrints = false
@@ -27,6 +28,7 @@ struct StudioView: View {
         Theme.Palette.blue, Theme.Palette.ink, Theme.Palette.bone, Theme.Palette.brass, Theme.Palette.sage
     ]
     private let textSwatches: [Color] = [Theme.Palette.ink, Theme.Palette.bone, Theme.Palette.brass]
+    private let groundSwatches: [Color] = [Theme.Palette.ink, Theme.Palette.forest, Theme.Palette.bone]
 
     private var editions: [StudioEdition] { StudioEdition.available(for: run) }
     private var current: StudioEdition { StudioEdition.edition(selection) }
@@ -79,7 +81,7 @@ struct StudioView: View {
                         .shadow(color: .black.opacity(0.22), radius: 20, y: 10)
                 } else {
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(edition.ground)
+                        .fill(edition.id == selection ? (groundColor ?? edition.ground) : edition.ground)
                         .aspectRatio(StudioComposition.width / StudioComposition.size.height, contentMode: .fit)
                         .overlay {
                             VStack(spacing: 10) {
@@ -150,6 +152,9 @@ struct StudioView: View {
 
                     colorRow("Path", selection: $routeColor, swatches: pathSwatches, fallback: current.route)
                     colorRow("Text", selection: $textColor, swatches: textSwatches, fallback: current.ink)
+                    if current.groundIsCanvas {
+                        colorRow("Ground", selection: $groundColor, swatches: groundSwatches, fallback: current.ground)
+                    }
 
                     if run.hasWeather {
                         Toggle(isOn: $includeWeather) {
@@ -170,6 +175,7 @@ struct StudioView: View {
         .onChange(of: includeWeather) { bump() }
         .onChange(of: routeColor) { bump() }
         .onChange(of: textColor) { bump() }
+        .onChange(of: groundColor) { bump() }
         .onChange(of: layout) { bump() }
         .onChange(of: photoLayout) { bump() }
     }
@@ -245,7 +251,8 @@ struct StudioView: View {
     private func request(for edition: StudioEdition) -> StudioRenderer.Request {
         StudioRenderer.Request(
             run: run, edition: edition, layout: layout, photoLayout: photoLayout,
-            includeWeather: includeWeather, routeColor: routeColor, textColor: textColor
+            includeWeather: includeWeather, routeColor: routeColor, textColor: textColor,
+            groundColor: edition.groundIsCanvas ? groundColor : nil
         )
     }
 }

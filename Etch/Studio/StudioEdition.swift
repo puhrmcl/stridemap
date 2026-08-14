@@ -26,6 +26,7 @@ struct StudioEdition: Identifiable, Equatable {
         case map(MapKind)   // a real Apple Maps snapshot (route embedded)
         case paper          // no map — the route on a plain material ground
         case photo          // the run's own photo, with the route etched over it
+        case contour        // real terrain contour lines traced behind the route
     }
 
     let id: ID
@@ -51,13 +52,18 @@ struct StudioEdition: Identifiable, Equatable {
     let subtle: Color       // metadata type
     let accent: Color       // hairlines, the "Etched." mark, small signals
 
-    /// The art panel is a pre-rendered image (map snapshot or photo), not a plain ground.
+    /// The art panel is a pre-rendered image (map snapshot, photo, or contour field), not a plain
+    /// vector ground.
     var usesImagePanel: Bool {
-        switch surface { case .map, .photo: return true; case .paper: return false }
+        switch surface { case .map, .photo, .contour: return true; case .paper: return false }
     }
     var mapKind: MapKind? { if case .map(let kind) = surface { return kind }; return nil }
     var isPhoto: Bool { surface == .photo }
+    var isContour: Bool { surface == .contour }
     var isDark: Bool { mapKind == .streetsDark }
+    /// Editions whose ground shows behind vector/contour art, so a user ground colour is
+    /// meaningful (and offered in Customize).
+    var groundIsCanvas: Bool { surface == .paper || surface == .contour }
 
     // MARK: The collection
 
@@ -113,16 +119,16 @@ struct StudioEdition: Identifiable, Equatable {
         ink: Theme.Palette.bone, subtle: Theme.Palette.bone.opacity(0.6), accent: Theme.Palette.blue
     )
 
-    /// Topographic — the route over the real terrain (satellite imagery, desaturated and washed
-    /// toward Bone so the land reads as muted relief rather than a photo). Actual topography.
+    /// Topographic — real terrain contour lines traced behind the route, pen-plotted style. The
+    /// ground defaults to deep ink but is customizable; the route sits over the contours.
     static let topographic = StudioEdition(
         id: .topographic, name: "Topographic",
-        descriptor: "The route over the real terrain, muted to the material.",
-        surface: .map(.satellite),
-        ground: Theme.Palette.bone,
-        mapWash: Theme.Palette.bone, mapWashAlpha: 0.30,
-        route: Theme.Palette.blue, casing: .white, routeWidth: 11, glow: false,
-        ink: Theme.Palette.ink, subtle: Theme.Palette.ink.opacity(0.55), accent: Theme.Palette.brass
+        descriptor: "Real elevation contours, pen-plotted behind your route.",
+        surface: .contour,
+        ground: Theme.Palette.ink,
+        mapWash: .clear, mapWashAlpha: 0,
+        route: Theme.Palette.blue, casing: .white, routeWidth: 10, glow: false,
+        ink: Theme.Palette.bone, subtle: Theme.Palette.bone.opacity(0.6), accent: Theme.Palette.brass
     )
 
     /// Memory — the run's own photograph fills the panel, with the route etched over it in Etch
