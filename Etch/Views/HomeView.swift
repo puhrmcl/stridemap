@@ -394,28 +394,27 @@ struct HomeView: View {
     private var placesMenu: some View {
         if locationOverlay == .states {
             if !stateRanked.isEmpty {
-                placesMenuLabel(title: "State") {
+                placesMenuLabel(title: "View") {
                     ForEach(stateRanked, id: \.name) { item in
                         Button("\(item.name)  ·  \(item.count)") { focusStateName = item.name }
                     }
                 }
             }
         } else if !overlayPlaces.isEmpty {
-            placesMenuLabel(title: jumpTitle) {
+            placesMenuLabel(title: "View") {
                 ForEach(overlayPlaces) { place in
-                    Button("\(place.label)  ·  \(place.runs.count)") { focusCity = place.coordinate }
+                    Button("\(shortPlaceLabel(place))  ·  \(place.runs.count)") { focusCity = place.coordinate }
                 }
             }
         }
     }
 
-    private var jumpTitle: String {
-        switch locationOverlay {
-        case .cities: return "City"
-        case .countries: return "Country"
-        case .landmarks: return "Spot"
-        case .states: return "State"
-        }
+    /// A compact place label that stays on one menu line — for cities, drops the country so
+    /// "Gilbert, AZ, United States" reads "Gilbert, AZ". Other overlays use the full label.
+    private func shortPlaceLabel(_ place: RunStatistics.TravelPlace) -> String {
+        guard locationOverlay == .cities else { return place.label }
+        let parts = place.label.components(separatedBy: ", ")
+        return parts.count >= 2 ? parts.prefix(2).joined(separator: ", ") : place.label
     }
 
     private func placesMenuLabel<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
