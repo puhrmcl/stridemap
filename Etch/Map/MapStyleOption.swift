@@ -24,6 +24,15 @@ enum MapStyleOption: String, CaseIterable, Identifiable {
         }
     }
 
+    /// True when the base map is dark imagery, so overlays need light (rather than dark) ink to
+    /// stay legible.
+    var isDarkBase: Bool {
+        switch self {
+        case .standard: return false
+        case .satellite, .hybrid: return true
+        }
+    }
+
     /// A fresh MapKit configuration for this style. Points of interest are excluded so the
     /// map stays calm and the routes are the focus.
     func configuration() -> MKMapConfiguration {

@@ -94,18 +94,31 @@ struct StatesMapView: UIViewRepresentable {
         }
 
         func style(_ renderer: MKPolygonRenderer, for polygon: MKPolygon) {
-            // Visited states fill in graduated Navy (deeper = more runs). Etch Blue is kept for
-            // selection, so the choropleth reads as archival tone, not a flood of bright blue.
-            let navy = UIColor(Theme.Palette.navy)
+            // The choropleth has to read on any base map: dark imagery (satellite/hybrid) needs
+            // light ink and a brighter fill; the pale standard map needs dark ink. Visited states
+            // fill graduated (deeper = more runs); every state keeps a visible outline so the
+            // country reads even where nothing's been run.
+            let dark = (appliedStyle ?? .standard).isDarkBase
             let name = nameByOverlay[ObjectIdentifier(polygon)]
+
             if let name, let intensity = intensities[name] {
-                renderer.fillColor = navy.withAlphaComponent(0.28 + 0.5 * CGFloat(intensity))
-                renderer.strokeColor = navy.withAlphaComponent(0.85)
-                renderer.lineWidth = 1
+                if dark {
+                    let blue = UIColor(Theme.Palette.blue)
+                    renderer.fillColor = blue.withAlphaComponent(0.30 + 0.45 * CGFloat(intensity))
+                    renderer.strokeColor = UIColor(Theme.Palette.bone).withAlphaComponent(0.9)
+                    renderer.lineWidth = 1.6
+                } else {
+                    let navy = UIColor(Theme.Palette.navy)
+                    renderer.fillColor = navy.withAlphaComponent(0.30 + 0.5 * CGFloat(intensity))
+                    renderer.strokeColor = navy.withAlphaComponent(0.9)
+                    renderer.lineWidth = 1.3
+                }
             } else {
                 renderer.fillColor = .clear
-                renderer.strokeColor = UIColor.secondaryLabel.withAlphaComponent(0.28)
-                renderer.lineWidth = 0.5
+                renderer.strokeColor = dark
+                    ? UIColor(Theme.Palette.bone).withAlphaComponent(0.5)
+                    : UIColor.label.withAlphaComponent(0.4)
+                renderer.lineWidth = dark ? 1.1 : 0.9
             }
         }
     }
