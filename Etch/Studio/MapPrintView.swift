@@ -22,6 +22,7 @@ struct MapPrintView: View {
         case all, favorites, races
         case year(Int)
         case place(String)   // a city short-label from `travelPlaces`
+        case state(String)   // a state as stored on the run (e.g. "AZ")
     }
     /// Single-state print: editable title + which metrics are shown.
     @State private var stateTitle: String = ""
@@ -82,6 +83,8 @@ struct MapPrintView: View {
             guard let place = RunStatistics(runs).travelPlaces.first(where: { cityLabel($0) == name }) else { return runs }
             let ids = Set(place.runs.map(\.id))
             return runs.filter { ids.contains($0.id) }
+        case .state(let name):
+            return runs.filter { ($0.state ?? "") == name }
         }
     }
 
@@ -92,6 +95,7 @@ struct MapPrintView: View {
         case .races:     return "Races"
         case .year(let y): return String(y)
         case .place(let name): return name
+        case .state(let name): return name
         }
     }
 
@@ -353,6 +357,9 @@ struct MapPrintView: View {
         let stats = RunStatistics(runs)
         let years = stats.years
         let places = stats.travelPlaces
+        let states = Dictionary(grouping: runs.filter { !($0.state ?? "").isEmpty }, by: { $0.state ?? "" })
+            .map { (name: $0.key, count: $0.value.count) }
+            .sorted { $0.count != $1.count ? $0.count > $1.count : $0.name < $1.name }
         return Menu {
             Button { artFilter = .all } label: {
                 Label("All Runs", systemImage: artFilter == .all ? "checkmark" : "circle.grid.2x2")
@@ -371,6 +378,13 @@ struct MapPrintView: View {
                 Menu("Year") {
                     ForEach(years, id: \.self) { year in
                         Button(String(year)) { artFilter = .year(year) }
+                    }
+                }
+            }
+            if !states.isEmpty {
+                Menu("State") {
+                    ForEach(states, id: \.name) { state in
+                        Button("\(state.name)  ·  \(state.count)") { artFilter = .state(state.name) }
                     }
                 }
             }
