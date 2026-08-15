@@ -12,6 +12,7 @@ struct MapPrintView: View {
     @State private var focusName: String?
     @State private var orientation: StudioOrientation = .portrait
     @State private var artPalette: MapArtPalette = .gallery
+    @State private var artStyle: MapArtStyle = .lines
     /// >1 tightens onto the core, <1 pulls back for context.
     @State private var zoom: Double = 1.0
     /// Accumulated pan, as fractions of the current span.
@@ -70,6 +71,7 @@ struct MapPrintView: View {
         var req = baseRequest
         req.orientation = orientation
         req.artPalette = artPalette
+        req.artStyle = artStyle
         let factor = 1.0 / zoom
         let latSpan = min(170, max(0.002, req.region.span.latitudeDelta * factor))
         let lonSpan = min(340, max(0.002, req.region.span.longitudeDelta * factor))
@@ -83,7 +85,7 @@ struct MapPrintView: View {
     }
 
     private var currentKey: String {
-        "\(kind.rawValue)-\(focusName ?? "all")-\(orientation.rawValue)-\(artPalette.rawValue)-" +
+        "\(kind.rawValue)-\(focusName ?? "all")-\(orientation.rawValue)-\(artPalette.rawValue)-\(artStyle.rawValue)-" +
         String(format: "%.2f-%.2f-%.2f", zoom, panX, panY)
     }
 
@@ -171,7 +173,9 @@ struct MapPrintView: View {
             HStack(spacing: 10) {
                 kindMenu
                 if kind.supportsSinglePlace, !focusPlaces.isEmpty { placeMenu }
-                if kind.isArt { paletteMenu }
+            }
+            if kind.isArt {
+                HStack(spacing: 10) { paletteMenu; styleMenu }
             }
 
             Text(focusName == nil ? kind.descriptor : "A single \(singularKindName), framed to its runs.")
@@ -233,6 +237,16 @@ struct MapPrintView: View {
             }
         } label: {
             menuChip(icon: "paintpalette", text: artPalette.name)
+        }
+    }
+
+    private var styleMenu: some View {
+        Menu {
+            Picker("Style", selection: $artStyle) {
+                ForEach(MapArtStyle.allCases) { Text($0.name).tag($0) }
+            }
+        } label: {
+            menuChip(icon: "wand.and.stars", text: artStyle.name)
         }
     }
 

@@ -36,8 +36,9 @@ enum MapPrintRenderer {
 
     // MARK: Wall Art — abstract, full-bleed, text-free
 
-    /// Every route projected directly (no base map) onto a solid ground, drawn thin with a touch
-    /// of transparency so overlaps build density — a gallery-grade line-art piece.
+    /// Every route projected directly (no base map) onto a solid ground. The weight, opacity and
+    /// treatment adapt to how much you've run, so it reads as art whether that's five runs or five
+    /// hundred.
     private static func artImage(for request: MapPrintRequest, scale: CGFloat) -> UIImage? {
         let runs = request.mapped
         guard !runs.isEmpty else { return nil }
@@ -52,8 +53,7 @@ enum MapPrintRenderer {
         let lonScale = max(cos(((latMin + latMax) / 2) * .pi / 180), 0.01)
         let dataW = max((lonMax - lonMin) * lonScale, 1e-6)
         let dataH = max(latMax - latMin, 1e-6)
-        // Fill the poster while preserving geographic aspect, with breathing room.
-        let fit = min(size.width / dataW, size.height / dataH) * 0.86
+        let fit = min(size.width / dataW, size.height / dataH) * 0.82   // generous gallery margin
         let offX = (size.width - dataW * fit) / 2
         let offY = (size.height - dataH * fit) / 2
 
@@ -62,31 +62,89 @@ enum MapPrintRenderer {
                     y: offY + (latMax - c.latitude) * fit)
         }
 
+        // Adapt weight/opacity to route count: few = bold & solid, many = fine & layered.
+        let count = runs.count
+        let unit = size.width / 1000
+        let lineWidth: CGFloat = (count <= 12 ? 4.2 : count <= 80 ? 2.8 : 1.9) * unit
+        let alpha: CGFloat = count <= 12 ? 0.95 : count <= 80 ? 0.78 : 0.55
+
         let format = UIGraphicsImageRendererFormat()
         format.scale = scale
         format.opaque = true
         let renderer = UIGraphicsImageRenderer(size: size, format: format)
         let ground = UIColor(palette.ground)
         let line = UIColor(palette.line)
-        let lineWidth = max(size.width / 560, 1)
+
+        func routePath(_ run: Run) -> UIBezierPath? {
+            let coordinates = run.coordinates
+            guard coordinates.count > 1 else { return nil }
+            let path = UIBezierPath()
+            var started = false
+            for coordinate in coordinates {
+                let p = point(coordinate)
+                if started { path.addLine(to: p) } else { path.move(to: p); started = true }
+            }
+            path.lineJoinStyle = .round
+            path.lineCapStyle = .round
+            return path
+        }
 
         return renderer.image { context in
+            let cg = context.cgContext
             ground.setFill()
-            context.cgContext.fill(CGRect(origin: .zero, size: size))
-            line.withAlphaComponent(0.55).setStroke()
-            for run in runs {
-                let coordinates = run.coordinates
-                guard coordinates.count > 1 else { continue }
-                let path = UIBezierPath()
-                var started = false
-                for coordinate in coordinates {
-                    let p = point(coordinate)
-                    if started { path.addLine(to: p) } else { path.move(to: p); started = true }
+            cg.fill(CGRect(origin: .zero, size: size))
+
+            switch request.artStyle {
+            case .lines:
+                line.withAlphaComponent(alpha).setStroke()
+                for run in runs {
+                    guard let path = routePath(run) else { continue }
+                    path.lineWidth = lineWidth
+                    path.stroke()
                 }
-                path.lineJoinStyle = .round
-                path.lineCapStyle = .round
-                path.lineWidth = lineWidth
-                path.stroke()
+
+            case .glow:
+                // Additive light on dark grounds makes overlaps glow; on light grounds fall back
+                // to a soft-shadowed line so it still reads.
+                if palette.isDark { cg.setBlendMode(.plusLighter) }
+                for run in runs {
+                    guard let path = routePath(run) else { continue }
+                    cg.saveGState()
+                    cg.setShadow(offset: .zero, blur: lineWidth * 3, color: line.cgColor)
+                    line.withAlphaComponent(alpha * 0.7).setStroke()
+                    path.lineWidth = lineWidth
+                    path.stroke()
+                    cg.restoreGState()
+                }
+                cg.setBlendMode(.normal)
+
+            case .points:
+                // A constellation of where you've been — elegant for a few runs, a starfield for
+                // many. Sized to the count.
+                let radius: CGFloat = (count <= 12 ? 11 : count <= 80 ? 7 : 4.5) * unit
+                for run in runs {
+                    guard let first = run.coordinates.first else { continue }
+                    let p = point(first)
+                    let rect = CGRect(x: p.x - radius, y: p.y - radius, width: radius * 2, height: radius * 2)
+                    cg.saveGState()
+                    if palette.isDark {
+                        cg.setShadow(offset: .zero, blur: radius * 1.6, color: line.cgColor)
+                    }
+                    line.withAlphaComponent(alpha).setFill()
+                    UIBezierPath(ovalIn: rect).fill()
+                    cg.restoreGState()
+                }
+            }
+
+            // Gallery finish: a subtle vignette for depth.
+            let center = CGPoint(x: size.width / 2, y: size.height / 2)
+            let maxDim = max(size.width, size.height)
+            let colors = [UIColor.clear.cgColor, UIColor.black.withAlphaComponent(0.16).cgColor] as CFArray
+            if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                         colors: colors, locations: [0, 1]) {
+                cg.drawRadialGradient(gradient, startCenter: center, startRadius: maxDim * 0.32,
+                                      endCenter: center, endRadius: maxDim * 0.72,
+                                      options: .drawsAfterEndLocation)
             }
         }
     }

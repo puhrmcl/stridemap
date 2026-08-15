@@ -97,6 +97,22 @@ enum MapArtPalette: String, CaseIterable, Identifiable {
         case .sage:      return Theme.Palette.ink
         }
     }
+
+    /// Whether the ground is dark (glow reads as additive light here).
+    var isDark: Bool { ground.isDarkGround }
+}
+
+/// The Wall Art rendering treatment.
+enum MapArtStyle: String, CaseIterable, Identifiable {
+    case lines, glow, points
+    var id: String { rawValue }
+    var name: String {
+        switch self {
+        case .lines:  return "Lines"
+        case .glow:   return "Glow"
+        case .points: return "Points"
+        }
+    }
 }
 
 /// Everything needed to render one aggregate print: the kind, the runs in scope, and a framed
@@ -110,6 +126,7 @@ struct MapPrintRequest {
     /// When set, the outline of this US state is drawn behind the routes (single-state prints).
     var boundaryStateName: String? = nil
     var artPalette: MapArtPalette = .gallery
+    var artStyle: MapArtStyle = .lines
     var routeColor: Color = Theme.Palette.blue
     var ground: Color = Theme.Palette.bone
 
@@ -151,7 +168,10 @@ struct MapPrintRequest {
 
     private static func region(for kind: MapPrintKind, runs: [Run]) -> MKCoordinateRegion {
         switch kind {
-        case .artMap, .allRuns:
+        case .artMap:
+            // Frame the dense core, not the full spread, so outlier trips don't shrink the art.
+            return denseRegion(of: runs.filter(\.hasRoute))
+        case .allRuns:
             return boundingRegion(of: runs.filter(\.hasRoute))
         case .states:
             // Continental US; Alaska/Hawaii are drawn but the framing stays on the lower 48.
@@ -166,6 +186,23 @@ struct MapPrintRequest {
         case .landmarks:
             return boundingRegion(ofCoordinates: RunStatistics(runs).landmarkPlaces.map(\.coordinate))
         }
+    }
+
+    /// A region framing the *core* of activity — the 5th–95th percentile of run centres — so a
+    /// handful of far-flung trips don't collapse the everyday training area into specks.
+    private static func denseRegion(of runs: [Run]) -> MKCoordinateRegion {
+        let centers = runs.map {
+            CLLocationCoordinate2D(latitude: ($0.minLatitude + $0.maxLatitude) / 2,
+                                   longitude: ($0.minLongitude + $0.maxLongitude) / 2)
+        }
+        guard centers.count > 3 else { return boundingRegion(of: runs) }
+        let lats = centers.map(\.latitude).sorted()
+        let lons = centers.map(\.longitude).sorted()
+        func pct(_ a: [Double], _ p: Double) -> Double {
+            a[min(a.count - 1, max(0, Int((Double(a.count - 1) * p).rounded())))]
+        }
+        return region(minLat: pct(lats, 0.05), maxLat: pct(lats, 0.95),
+                      minLon: pct(lons, 0.05), maxLon: pct(lons, 0.95))
     }
 
     /// A region framing every run's cached bounding box, with padding.
