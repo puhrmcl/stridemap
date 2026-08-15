@@ -7,6 +7,7 @@ import SwiftData
 struct StudioHomeView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(AppModel.self) private var appModel
     @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
     /// Posters the user kept, newest edit first.
     @Query(sort: \SavedPoster.updatedAt, order: .reverse) private var savedPosters: [SavedPoster]
@@ -19,9 +20,11 @@ struct StudioHomeView: View {
     /// The aggregate map-print kind whose sheet is presented.
     @State private var mapPrintKind: MapPrintKind?
 
-    private var stats: RunStatistics { RunStatistics(runs) }
+    /// Runs limited to the app-wide activity scope (All / Runs / Hikes / Walks).
+    private var scopedRuns: [Run] { runs.scoped(to: appModel.activityScope) }
+    private var stats: RunStatistics { RunStatistics(scopedRuns) }
     /// Only runs with a route make good art.
-    private var mapped: [Run] { runs.filter(\.hasRoute) }
+    private var mapped: [Run] { scopedRuns.filter(\.hasRoute) }
 
     var body: some View {
         NavigationStack {
@@ -62,7 +65,7 @@ struct StudioHomeView: View {
                     StudioView(run: run, poster: poster)
                 }
             }
-            .sheet(item: $mapPrintKind) { MapPrintView(runs: runs, kind: $0) }
+            .sheet(item: $mapPrintKind) { MapPrintView(runs: scopedRuns, kind: $0) }
         }
     }
 
@@ -135,13 +138,16 @@ struct StudioHomeView: View {
         var out: [(Run, String?)] = []
         if let r = stats.longestRun, r.hasRoute { out.append((r, "Furthest")) }
         if let r = stats.longestDurationRun, r.hasRoute { out.append((r, "Longest")) }
-        if let r = stats.fastestRun, r.hasRoute { out.append((r, "Fastest")) }
+        // Pace-based superlatives only make sense for runs (a hike's "fastest" is meaningless).
+        if appModel.activityScope.usesPace, let r = stats.fastestRun, r.hasRoute { out.append((r, "Fastest")) }
         if let r = stats.highestClimb, r.hasRoute { out.append((r, "Highest")) }
 
-        // Best effort at each marquee race distance — a personal record worth a poster.
-        let prByLabel = Dictionary(uniqueKeysWithValues: stats.personalRecords.map { ($0.label, $0.run) })
-        for label in ["Marathon", "Half Marathon", "10K", "5K"] {
-            if let r = prByLabel[label], r.hasRoute { out.append((r, label)) }
+        // Best effort at each marquee race distance — a personal record worth a poster (runs only).
+        if appModel.activityScope.usesPace {
+            let prByLabel = Dictionary(uniqueKeysWithValues: stats.personalRecords.map { ($0.label, $0.run) })
+            for label in ["Marathon", "Half Marathon", "10K", "5K"] {
+                if let r = prByLabel[label], r.hasRoute { out.append((r, label)) }
+            }
         }
 
         if let r = mapped.min(by: { $0.startDate < $1.startDate }) { out.append((r, "First")) }

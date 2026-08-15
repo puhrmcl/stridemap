@@ -16,14 +16,16 @@ struct TimelineView: View {
     /// Month section to scroll to after switching to Months (set when a year tile is tapped).
     @State private var scrollTarget: String?
 
-    private var stats: RunStatistics { RunStatistics(runs) }
+    /// Runs limited to the app-wide activity scope (All / Runs / Hikes / Walks).
+    private var scopedRuns: [Run] { runs.scoped(to: appModel.activityScope) }
+    private var stats: RunStatistics { RunStatistics(scopedRuns) }
     private var monthGroups: [RunStatistics.MonthGroup] { stats.monthGroups }
     private var years: [Int] { stats.years }
 
     var body: some View {
         NavigationStack {
             Group {
-                if runs.isEmpty {
+                if scopedRuns.isEmpty {
                     ContentUnavailableView(
                         "No Runs Yet",
                         systemImage: "calendar",
@@ -54,7 +56,7 @@ struct TimelineView: View {
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
             }
             .safeAreaInset(edge: .bottom) {
-                if !runs.isEmpty { scopePicker }
+                if !scopedRuns.isEmpty { scopePicker }
             }
         }
     }
@@ -142,7 +144,7 @@ struct TimelineView: View {
 
     private var allContent: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 4), spacing: 4) {
-            ForEach(runs) { run in
+            ForEach(scopedRuns) { run in
                 photoTile(run, corner: 6)
             }
         }
@@ -191,7 +193,7 @@ struct TimelineView: View {
 
     private func runs(in year: Int) -> [Run] {
         let cal = Calendar.current
-        return runs.filter { cal.component(.year, from: $0.startDate) == year }
+        return scopedRuns.filter { cal.component(.year, from: $0.startDate) == year }
     }
 
     /// The id of the earliest month group in a year — the beginning of that year.

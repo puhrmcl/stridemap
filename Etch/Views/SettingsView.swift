@@ -11,6 +11,7 @@ struct SettingsView: View {
 
     @AppStorage("appearance") private var appearance = Appearance.system.rawValue
     @AppStorage("unitSystem") private var unitSystem = UnitSystem.miles.rawValue
+    @AppStorage("includeWalks") private var includeWalks = false
 
     @State private var exportURL: URL?
     @State private var showDeleteConfirm = false
@@ -23,6 +24,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 sourcesSection
+                activitiesSection
                 syncSection
                 photosSection
                 appearanceSection
@@ -97,6 +99,21 @@ struct SettingsView: View {
 
     private var runsMissingMaps: Int {
         runs.filter { $0.healthKitID != nil && !$0.hasRoute }.count
+    }
+
+    private var activitiesSection: some View {
+        Section {
+            Toggle(isOn: $includeWalks) {
+                Label("Include Walks", systemImage: "figure.walk")
+            }
+            .onChange(of: includeWalks) { _, on in
+                if on { Task { await sync.sync() } }
+            }
+        } header: {
+            Text("Activities")
+        } footer: {
+            Text("Runs and hikes are always imported. Turn this on to also bring in walking workouts — off by default because Apple Watch logs many short walks. When enabled, walks import on the next sync; a full Delete & re-sync backfills older ones.")
+        }
     }
 
     private var syncSection: some View {

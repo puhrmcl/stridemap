@@ -50,12 +50,16 @@ an opt-out** (Apple Watch auto-logs many short walks, so walks need the toggle b
   workout type; hike routes hydrate; time-of-day default name is type-aware ("Morning Hike"); sync
   summary reports the hike count. *Note:* until Phase 2, hikes appear mixed into the runs UI (counted
   in "N runs", eligible for run superlatives) — that's the confirmation they landed.
-- **Phase 2 (todo):** activity selector on the left of the totals pill (All / Runs / Hikes, default
-  All, icons); activity-aware labels/stats ("928 activities"); consistent filtering across
-  map/timeline/studio; **add walks** with an "Include walks" setting (default off/opt-in given volume).
-- **Phase 3 (todo):** per-type Achievements (separate Runs / Hikes sections; hike superlatives =
-  longest / most climb / highest point, no pace); hike-appropriate Studio (elevation hero, drop
-  pace/"race"); type-aware Studio subject rows.
+- **Phase 2 (done, b147):** activity selector on the left of the totals pill (All / Runs / Hikes,
+  default All each launch, icons); count relabels ("928 activities" / "886 runs" / "42 hikes");
+  consistent scope across Home map/totals, Timeline, Studio, Achievements; **walks** added with an
+  "Include walks" setting (Settings, default off) that gates import + the selector. Pace superlatives
+  (Fastest, distance PRs) hidden for hikes/walks.
+- **Phase 3 (partial / todo):** per-type sectioning in Achievements when scope = All (currently the
+  achievements scope to the selected type; a dual Runs/Hikes layout for "All" is still todo);
+  hike-appropriate Studio hero (elevation instead of pace) and type-aware Studio metric defaults;
+  scope the secondary surfaces (Profile, Year in Review, Search, States) too; walk **backfill** on
+  toggle-on (today only forward sync imports walks — a full Delete & re-sync backfills older ones).
 - **AllTrails history:** no public API. Realistic paths — (a) Apple Health sync (AllTrails → Health,
   picked up automatically going forward); (b) GPX import via the existing file pipeline for historical.
   Nike Run Club is runs-only (not a hike source).

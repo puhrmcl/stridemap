@@ -8,7 +8,9 @@ struct HighlightsView: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var runs: [Run]
 
-    private var stats: RunStatistics { RunStatistics(runs) }
+    /// Runs limited to the app-wide activity scope (All / Runs / Hikes / Walks).
+    private var scopedRuns: [Run] { runs.scoped(to: appModel.activityScope) }
+    private var stats: RunStatistics { RunStatistics(scopedRuns) }
 
     var body: some View {
         NavigationStack {
@@ -33,7 +35,7 @@ struct HighlightsView: View {
 
     private var reachSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("You have run")
+            Text("Your reach")
                 .font(.system(.title2, design: .rounded).weight(.bold))
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
@@ -66,15 +68,16 @@ struct HighlightsView: View {
                 .font(.system(.title3, design: .rounded).weight(.bold))
 
             if let furthest = stats.longestRun {
-                SuperlativeRow(icon: "arrow.left.and.right", title: "Furthest Run", value: Format.distance(furthest.distance), subtitle: furthest.name) { focus(furthest) }
+                SuperlativeRow(icon: "arrow.left.and.right", title: "Furthest", value: Format.distance(furthest.distance), subtitle: furthest.name) { focus(furthest) }
             }
             if let longest = stats.longestDurationRun {
-                SuperlativeRow(icon: "clock", title: "Longest Run", value: Format.duration(longest.movingTime), subtitle: longest.name) { focus(longest) }
+                SuperlativeRow(icon: "clock", title: "Longest", value: Format.duration(longest.movingTime), subtitle: longest.name) { focus(longest) }
             }
             if let climb = stats.highestClimb {
                 SuperlativeRow(icon: "mountain.2", title: "Highest Climb", value: Format.elevation(climb.elevationGain), subtitle: climb.name) { focus(climb) }
             }
-            if let fastest = stats.fastestRun {
+            // Pace is a running concept — hidden for hikes/walks.
+            if appModel.activityScope.usesPace, let fastest = stats.fastestRun {
                 SuperlativeRow(icon: "bolt.fill", title: "Fastest Pace", value: Format.pace(secondsPerKm: fastest.paceSecondsPerKm), subtitle: fastest.name) { focus(fastest) }
             }
             if let north = stats.northernmostRun {
@@ -97,7 +100,8 @@ struct HighlightsView: View {
     @ViewBuilder
     private var personalBestsSection: some View {
         let prs = stats.personalRecords
-        if !prs.isEmpty {
+        // Distance-time PRs are a running concept; only shown when pace applies.
+        if appModel.activityScope.usesPace, !prs.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Personal Bests")
                     .font(.system(.title3, design: .rounded).weight(.bold))

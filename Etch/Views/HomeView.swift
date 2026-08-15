@@ -68,23 +68,27 @@ struct HomeView: View {
     /// TEMP diagnostic: counts bottom-button taps regardless of whether a sheet opens, so we
     /// can tell "the touch isn't landing" from "the touch lands but the page won't present".
 
-    private var stats: RunStatistics { RunStatistics(allRuns) }
+    /// Runs limited to the active activity scope (All / Runs / Hikes / Walks) — the base for every
+    /// map, total, and overview below.
+    private var scopedRuns: [Run] { allRuns.scoped(to: appModel.activityScope) }
+
+    private var stats: RunStatistics { RunStatistics(scopedRuns) }
 
     /// Runs passing the active filter.
     private var visibleRuns: [Run] {
         let prs = appModel.filter.mode == .prs ? stats.prRunIDs : []
-        return allRuns.filter { appModel.filter.matches($0, isPR: prs.contains($0.id)) }
+        return scopedRuns.filter { appModel.filter.matches($0, isPR: prs.contains($0.id)) }
     }
 
     private var visibleStats: RunStatistics { RunStatistics(visibleRuns) }
 
-    /// The overview modes ignore the active filter and show everything.
+    /// The overview modes ignore the active filter and show everything (within scope).
     private var isOverviewMode: Bool { showLocations }
 
     /// The runs the map is currently showing. Overview modes show everything; the route map
     /// shows the active filter's runs.
     private var shownRuns: [Run] {
-        isOverviewMode ? allRuns : visibleRuns
+        isOverviewMode ? scopedRuns : visibleRuns
     }
 
     /// Totals for whatever the map is currently showing.
@@ -175,6 +179,10 @@ struct HomeView: View {
         }
         // Applying a filter reframes the route map to the newly filtered runs.
         .onChange(of: appModel.filter) {
+            if !isOverviewMode { appModel.fit(visibleRuns) }
+        }
+        // Switching activity type reframes the route map to the newly scoped set.
+        .onChange(of: appModel.activityScope) {
             if !isOverviewMode { appModel.fit(visibleRuns) }
         }
         // Controls float via safe-area insets rather than a ZStack overlay, so SwiftUI owns
@@ -304,6 +312,39 @@ struct HomeView: View {
     /// One glass pill showing both totals — distance and run count — with the map-mode dropdown
     /// folded in: a chevron on the right opens the mode menu (filter modes / History / Locations).
     private var totalsPill: some View {
+        HStack(spacing: 10) {
+            activitySelector
+            Rectangle()
+                .fill(.secondary.opacity(0.25))
+                .frame(width: 1, height: 30)
+            totalsMenu
+        }
+        .fixedSize(horizontal: true, vertical: false)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .glassBackground(cornerRadius: 18)
+    }
+
+    /// The activity-type selector on the left of the pill — All / Runs / Hikes (Walks when the
+    /// user opts in). Changing it re-scopes the whole app.
+    private var activitySelector: some View {
+        Menu {
+            Picker("Activity", selection: activityBinding) {
+                ForEach(activityScopeOptions) { scope in
+                    Label(scope.label, systemImage: scope.icon).tag(scope)
+                }
+            }
+        } label: {
+            Image(systemName: appModel.activityScope.icon)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Theme.accentOnGlass)
+                .frame(width: 24, height: 30)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// The distance + count totals, with the map-mode dropdown folded in on the right.
+    private var totalsMenu: some View {
         Menu {
             Picker("Map", selection: modeSelection) {
                 ForEach(RunFilter.Mode.allCases) { mode in
@@ -325,8 +366,8 @@ struct HomeView: View {
                         .frame(width: 1, height: 18)
                     metric(
                         value: shownStats.totalRuns.formatted(),
-                        unit: "runs",
-                        systemName: "figure.run"
+                        unit: appModel.activityScope.countNoun,
+                        systemName: appModel.activityScope.icon
                     )
                     Image(systemName: "chevron.down")
                         .font(.system(size: 11, weight: .bold))
@@ -343,16 +384,27 @@ struct HomeView: View {
                     .frame(maxWidth: .infinity)
             }
             .fixedSize(horizontal: true, vertical: false)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .glassBackground(cornerRadius: 18)
         }
         .buttonStyle(.plain)
     }
 
-    /// The currently shown view, for the pill's caption line.
+    private var activityBinding: Binding<ActivityScope> {
+        Binding(
+            get: { appModel.activityScope },
+            set: { newValue in withAnimation(Theme.gentle) { appModel.activityScope = newValue } }
+        )
+    }
+
+    /// The scopes offered — Walks only when the user has opted in.
+    private var activityScopeOptions: [ActivityScope] {
+        ActivitySettings.includeWalks ? ActivityScope.allCases : ActivityScope.allCases.filter { $0 != .walks }
+    }
+
+    /// The currently shown view, for the pill's caption line. When no map-mode filter is applied,
+    /// it names the activity scope instead of the generic "All Runs".
     private var currentModeLabel: String {
         if showLocations { return "Locations" }
+        if appModel.filter.mode == .all { return appModel.activityScope.label }
         return appModel.filter.mode.rawValue
     }
 
@@ -519,7 +571,7 @@ struct HomeView: View {
     /// Number of runs that have a start coordinate — the input to both overview maps. Drives
     /// recomputation so the maps fill in as routes arrive.
     private var locatedRunCount: Int {
-        allRuns.reduce(0) { $0 + ($1.startLatitude != nil ? 1 : 0) }
+        scopedRuns.reduce(0) { $0 + ($1.startLatitude != nil ? 1 : 0) }
     }
 
     /// Located runs not yet checked for a nearby landmark — drives progressive detection.
@@ -529,7 +581,7 @@ struct HomeView: View {
 
     /// Every run's start point that has GPS, paired with its identity, for the Cities map.
     private var runStartPoints: [RunMapPoint] {
-        allRuns.compactMap { run in
+        scopedRuns.compactMap { run in
             run.startCoordinate.map { RunMapPoint(id: run.id, coordinate: $0) }
         }
     }
@@ -703,7 +755,7 @@ struct HomeView: View {
         case .search: SearchView()
         case .settings: SettingsView()
         case .profile: ProfileView()
-        case .mapPrint: MapPrintView(runs: allRuns, kind: currentPrintKind)
+        case .mapPrint: MapPrintView(runs: scopedRuns, kind: currentPrintKind)
         }
     }
 }

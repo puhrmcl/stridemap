@@ -9,6 +9,8 @@ import Observation
 final class AppModel {
 
     var filter = RunFilter()
+    /// The activity type shown across the app — All by default on each launch, per the design.
+    var activityScope: ActivityScope = .all
     var selectedRunID: UUID?
     var command: MapCameraCommand?
 

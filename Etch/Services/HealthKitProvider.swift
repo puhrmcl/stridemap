@@ -32,7 +32,8 @@ final class HealthKitProvider: ActivityProvider {
         let all = await allWorkouts()
         let running = all.reduce(0) { $0 + ($1.workoutActivityType == .running ? 1 : 0) }
         let hiking = all.reduce(0) { $0 + ($1.workoutActivityType == .hiking ? 1 : 0) }
-        return "\(all.count) workouts · \(running) runs · \(hiking) hikes"
+        let walking = all.reduce(0) { $0 + ($1.workoutActivityType == .walking ? 1 : 0) }
+        return "\(all.count) workouts · \(running) runs · \(hiking) hikes · \(walking) walks"
     }
 
     private func allWorkouts() async -> [HKWorkout] {
@@ -118,9 +119,13 @@ final class HealthKitProvider: ActivityProvider {
 
     // MARK: Workout query
 
-    /// The activity types we ingest from Apple Health. Running and hiking today; walking is a
-    /// Phase-2 add (it needs an opt-out because Apple Watch auto-logs many short walks).
-    private static let importedWorkoutTypes: [HKWorkoutActivityType] = [.running, .hiking]
+    /// The activity types we ingest from Apple Health. Running and hiking always; walking only
+    /// when the user opts in (Apple Watch auto-logs many short walks, so it's off by default).
+    private static var importedWorkoutTypes: [HKWorkoutActivityType] {
+        var types: [HKWorkoutActivityType] = [.running, .hiking]
+        if UserDefaults.standard.bool(forKey: "includeWalks") { types.append(.walking) }
+        return types
+    }
 
     private func runningWorkouts(since: Date?) async throws -> [HKWorkout] {
         let typePredicate = NSCompoundPredicate(orPredicateWithSubpredicates:
