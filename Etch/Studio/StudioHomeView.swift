@@ -58,7 +58,7 @@ struct StudioHomeView: View {
 
     private var intro: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Make it lasting.")
+            Text("Leave your mark.")
                 .font(.system(.title, design: .rounded).weight(.bold))
             Text("Turn a run, a race, or a favorite into gallery-grade art.")
                 .font(.system(.body, design: .rounded))
