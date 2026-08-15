@@ -10,7 +10,7 @@ import SwiftUI
 struct StudioEdition: Identifiable, Equatable {
 
     enum ID: String, CaseIterable, Identifiable {
-        case gallery, atlas, atlasDark, terrain, minimal, night, memory
+        case gallery, atlas, atlasDark, satellite, terrain, minimal, night, memory
         var id: String { rawValue }
     }
 
@@ -69,7 +69,7 @@ struct StudioEdition: Identifiable, Equatable {
 
     // MARK: The collection
 
-    static let all: [StudioEdition] = [.gallery, .atlas, .atlasDark, .terrain, .minimal, .night, .memory]
+    static let all: [StudioEdition] = [.gallery, .atlas, .atlasDark, .satellite, .terrain, .minimal, .night, .memory]
 
     static func edition(_ id: ID) -> StudioEdition { all.first { $0.id == id }! }
 
@@ -107,6 +107,17 @@ struct StudioEdition: Identifiable, Equatable {
         descriptor: "Classic Apple Maps colours, after dark.",
         surface: .map(.standardDark),
         ground: Theme.Palette.ink, mapWash: .clear, mapWashAlpha: 0,
+        route: Theme.Palette.blue, casing: .white, routeWidth: 11, glow: false,
+        ink: Theme.Palette.bone, subtle: Theme.Palette.bone.opacity(0.6), accent: Theme.Palette.blue
+    )
+
+    /// Satellite — the route over real aerial imagery, gently deepened so the Etch Blue route
+    /// still leads.
+    static let satellite = StudioEdition(
+        id: .satellite, name: "Satellite",
+        descriptor: "The route over real aerial imagery.",
+        surface: .map(.satellite),
+        ground: Theme.Palette.ink, mapWash: Theme.Palette.ink, mapWashAlpha: 0.14,
         route: Theme.Palette.blue, casing: .white, routeWidth: 11, glow: false,
         ink: Theme.Palette.bone, subtle: Theme.Palette.bone.opacity(0.6), accent: Theme.Palette.blue
     )
