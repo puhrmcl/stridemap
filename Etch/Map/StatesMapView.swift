@@ -194,8 +194,8 @@ struct StatesMapView: UIViewRepresentable {
 
             // A state is selected: shade only it, and let every other state fall back to a faint
             // outline so the selection reads on its own.
-            if let selectedName {
-                if name == selectedName {
+            if let selectedName = selectedName {
+                if let name, name == selectedName {
                     fillVisited(renderer, dark: dark, intensity: intensities[name] ?? 1)
                 } else {
                     outlineOnly(renderer, dark: dark, faint: true)
