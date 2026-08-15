@@ -50,8 +50,9 @@ struct StudioHomeView: View {
                     }
                 }
             }
-            .navigationTitle("Etch Studio")
-            .navigationBarTitleDisplayMode(.large)
+            // The logo wordmark leads the page, so keep the bar title inline and blank.
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
             }
@@ -108,12 +109,19 @@ struct StudioHomeView: View {
     // MARK: Intro
 
     private var intro: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Leave your mark.")
-                .font(.system(.title, design: .rounded).weight(.bold))
-            Text("Turn a run, a race, or a favorite into gallery-grade art.")
-                .font(.system(.body, design: .rounded))
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 16) {
+            Image("StudioLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 44)
+                .accessibilityLabel("Etch Studio")
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Leave your mark.")
+                    .font(.system(.title, design: .rounded).weight(.bold))
+                Text("Turn a run, a race, or a favorite into gallery-grade art.")
+                    .font(.system(.body, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.horizontal, 20)
     }
