@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// Etch Studio: a gallery-like way to turn a run into a finished piece. The user swipes
 /// through curated *editions* — each a complete composition — and can retune the path and text
@@ -6,7 +7,11 @@ import SwiftUI
 /// hero, chrome stays quiet.
 struct StudioView: View {
     let run: Run
+    /// When opened from a kept poster, its stored recipe seeds every control below and future
+    /// saves update it in place instead of creating a duplicate.
+    private let existingPoster: SavedPoster?
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
 
     @State private var selection: StudioEdition.ID = .gallery
     @State private var includeWeather = false
@@ -27,11 +32,40 @@ struct StudioView: View {
     @State private var showPrints = false
     @State private var showCustomize = false
     @State private var showExport = false
+    /// The id of the kept poster this composition is linked to, once saved — so a second Save
+    /// updates the same piece rather than piling up copies.
+    @State private var savedPosterID: UUID?
+    /// Drives the brief "Kept in Studio" confirmation after a save.
+    @State private var showSavedConfirmation = false
     /// Bumped on any customization change; part of the cache key so artwork re-renders.
     @State private var revision = 0
 
     @State private var rendered: [String: UIImage] = [:]
     @State private var rendering: Set<String> = []
+
+    init(run: Run, poster: SavedPoster? = nil) {
+        self.run = run
+        self.existingPoster = poster
+        guard let p = poster else { return }
+        _selection = State(initialValue: p.editionID)
+        _includeWeather = State(initialValue: p.includeWeather)
+        _routeColor = State(initialValue: Color(hex: p.routeColorHex))
+        _textColor = State(initialValue: Color(hex: p.textColorHex))
+        _groundColor = State(initialValue: Color(hex: p.groundColorHex))
+        _layout = State(initialValue: StudioLayout(rawValue: p.layoutRaw) ?? .classic)
+        _orientation = State(initialValue: StudioOrientation(rawValue: p.orientationRaw) ?? .portrait)
+        _dataPlacement = State(initialValue: StudioDataPlacement(rawValue: p.dataPlacementRaw) ?? .side)
+        _photoLayout = State(initialValue: StudioPhotoLayout(rawValue: p.photoLayoutRaw) ?? .single)
+        _customTitle = State(initialValue: p.customTitle)
+        _customDate = State(initialValue: p.customDate)
+        _showEditorialPhoto = State(initialValue: p.showEditorialPhoto)
+        _showMemoryRoute = State(initialValue: p.showMemoryRoute)
+        _heroMetric = State(initialValue: StatMetric(rawValue: p.heroMetricRaw) ?? .distance)
+        let slots = p.statSlotsRaw.compactMap { StatMetric(rawValue: $0) }
+        _statSlots = State(initialValue: slots.isEmpty ? [.time, .pace, .elevationGain] : slots)
+        _showElevationProfile = State(initialValue: p.showElevationProfile)
+        _savedPosterID = State(initialValue: p.id)
+    }
 
     private let pathSwatches: [Color] = [
         Theme.Palette.blue, Theme.Palette.ink, Theme.Palette.bone, Theme.Palette.brass, Theme.Palette.sage
@@ -62,6 +96,12 @@ struct StudioView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
                 ToolbarItem(placement: .topBarTrailing) {
+                    Button { save() } label: {
+                        Image(systemName: savedPosterID == nil ? "bookmark" : "bookmark.fill")
+                    }
+                    .accessibilityLabel(savedPosterID == nil ? "Keep in Studio" : "Update saved poster")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button { showPrints = true } label: { Image(systemName: "bag") }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -71,8 +111,24 @@ struct StudioView: View {
                         }
                 }
             }
+            .overlay(alignment: .top) { savedConfirmation }
             .sheet(isPresented: $showPrints) { PrintShopView(subjectTitle: run.name) }
             .task(id: currentKey) { await renderIfNeeded(selection) }
+        }
+    }
+
+    /// A brief pill confirming the composition was kept, so the user knows it's now in Studio.
+    @ViewBuilder
+    private var savedConfirmation: some View {
+        if showSavedConfirmation {
+            Label("Kept in Studio", systemImage: "checkmark.circle.fill")
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16).padding(.vertical, 10)
+                .background(Theme.accent, in: .capsule)
+                .shadow(color: .black.opacity(0.2), radius: 10, y: 4)
+                .padding(.top, 8)
+                .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
 
@@ -391,6 +447,61 @@ struct StudioView: View {
                 .overlay(Circle().stroke(Theme.accent, lineWidth: isSelected ? 2.5 : 0).padding(-3))
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: Keeping
+
+    /// Persist the current composition. If it's already linked to a kept poster, update that one
+    /// in place; otherwise create a new one. Either way it's now kept in Studio.
+    private func save() {
+        if let id = savedPosterID,
+           let existing = try? modelContext.fetch(
+               FetchDescriptor<SavedPoster>(predicate: #Predicate { $0.id == id })
+           ).first {
+            writeRecipe(into: existing)
+        } else {
+            let poster = SavedPoster(
+                runID: run.id, runName: run.name,
+                editionRaw: selection.rawValue, layoutRaw: layout.rawValue,
+                orientationRaw: orientation.rawValue, dataPlacementRaw: dataPlacement.rawValue,
+                photoLayoutRaw: photoLayout.rawValue, customTitle: customTitle, customDate: customDate,
+                heroMetricRaw: heroMetric.rawValue, statSlotsRaw: statSlots.map(\.rawValue),
+                showEditorialPhoto: showEditorialPhoto, showMemoryRoute: showMemoryRoute,
+                showElevationProfile: showElevationProfile, includeWeather: includeWeather,
+                routeColorHex: routeColor?.hexString, textColorHex: textColor?.hexString,
+                groundColorHex: groundColor?.hexString
+            )
+            modelContext.insert(poster)
+            savedPosterID = poster.id
+        }
+
+        withAnimation(.spring(duration: 0.35)) { showSavedConfirmation = true }
+        Task {
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            withAnimation(.easeInOut(duration: 0.3)) { showSavedConfirmation = false }
+        }
+    }
+
+    /// Copy the live controls into an existing kept poster.
+    private func writeRecipe(into p: SavedPoster) {
+        p.runName = run.name
+        p.editionRaw = selection.rawValue
+        p.layoutRaw = layout.rawValue
+        p.orientationRaw = orientation.rawValue
+        p.dataPlacementRaw = dataPlacement.rawValue
+        p.photoLayoutRaw = photoLayout.rawValue
+        p.customTitle = customTitle
+        p.customDate = customDate
+        p.heroMetricRaw = heroMetric.rawValue
+        p.statSlotsRaw = statSlots.map(\.rawValue)
+        p.showEditorialPhoto = showEditorialPhoto
+        p.showMemoryRoute = showMemoryRoute
+        p.showElevationProfile = showElevationProfile
+        p.includeWeather = includeWeather
+        p.routeColorHex = routeColor?.hexString
+        p.textColorHex = textColor?.hexString
+        p.groundColorHex = groundColor?.hexString
+        p.updatedAt = Date()
     }
 
     // MARK: Rendering

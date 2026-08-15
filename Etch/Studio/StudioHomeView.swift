@@ -6,10 +6,15 @@ import SwiftData
 /// configurator or a shop: the artwork leads, commerce stays quiet.
 struct StudioHomeView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
+    /// Posters the user kept, newest edit first.
+    @Query(sort: \SavedPoster.updatedAt, order: .reverse) private var savedPosters: [SavedPoster]
 
     /// The run whose Studio composition sheet is presented.
     @State private var studioRun: Run?
+    /// A kept poster being reopened (restores its saved recipe).
+    @State private var openedPoster: SavedPoster?
     @State private var showPrints = false
     /// The aggregate map-print kind whose sheet is presented.
     @State private var mapPrintKind: MapPrintKind?
@@ -31,6 +36,7 @@ struct StudioHomeView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 30) {
                             intro
+                            if !keptPosters.isEmpty { keptSection }
                             if !milestones.isEmpty { subjectRow("Milestones", milestones) }
                             let races = mapped.filter(\.isRace)
                             if !races.isEmpty { subjectRow("Races", races.map { ($0, nil) }) }
@@ -50,8 +56,53 @@ struct StudioHomeView: View {
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
             }
             .sheet(item: $studioRun) { StudioView(run: $0) }
+            .sheet(item: $openedPoster) { poster in
+                if let run = run(for: poster) {
+                    StudioView(run: run, poster: poster)
+                }
+            }
             .sheet(item: $mapPrintKind) { MapPrintView(runs: runs, kind: $0) }
         }
+    }
+
+    // MARK: Kept posters (the pieces the user saved)
+
+    /// Only posters whose run is still around — a deleted run can't be recomposed.
+    private var keptPosters: [SavedPoster] {
+        savedPosters.filter { poster in runs.contains { $0.id == poster.runID } }
+    }
+
+    private func run(for poster: SavedPoster) -> Run? {
+        runs.first { $0.id == poster.runID }
+    }
+
+    private var keptSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Your Etches")
+                .font(.system(.title3, design: .rounded).weight(.bold))
+                .padding(.horizontal, 20)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 12) {
+                    ForEach(keptPosters) { poster in
+                        if let run = run(for: poster) {
+                            Button { openedPoster = poster } label: {
+                                SavedPosterCard(run: run, poster: poster)
+                            }
+                            .buttonStyle(.plain)
+                            .contextMenu {
+                                Button { openedPoster = poster } label: { Label("Open", systemImage: "square.and.pencil") }
+                                Button(role: .destructive) { delete(poster) } label: { Label("Delete", systemImage: "trash") }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+        }
+    }
+
+    private func delete(_ poster: SavedPoster) {
+        modelContext.delete(poster)
     }
 
     // MARK: Intro
@@ -186,5 +237,79 @@ struct StudioHomeView: View {
             .sheet(isPresented: $showPrints) { PrintShopView(subjectTitle: nil) }
         }
         .padding(.horizontal, 20)
+    }
+}
+
+/// A kept poster on the Studio home shelf — its actual composition re-rendered at preview
+/// resolution, with the run's name beneath. Tapping the enclosing button reopens it in Studio
+/// with the saved recipe restored.
+private struct SavedPosterCard: View {
+    let run: Run
+    let poster: SavedPoster
+
+    @State private var thumbnail: UIImage?
+
+    private var edition: StudioEdition { StudioEdition.edition(poster.editionID) }
+    private var orientation: StudioOrientation { StudioOrientation(rawValue: poster.orientationRaw) ?? .portrait }
+    private var dataPlacement: StudioDataPlacement { StudioDataPlacement(rawValue: poster.dataPlacementRaw) ?? .side }
+    private var aspect: CGFloat {
+        let s = StudioComposition.nominalSize(orientation, dataPlacement)
+        return s.width / s.height
+    }
+    private var title: String { poster.customTitle.isEmpty ? run.name : poster.customTitle }
+    private var cardWidth: CGFloat { orientation == .landscape ? 210 : 150 }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Group {
+                if let thumbnail {
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                } else {
+                    Rectangle()
+                        .fill(Color(hex: poster.groundColorHex) ?? edition.ground)
+                        .aspectRatio(aspect, contentMode: .fit)
+                        .overlay { ProgressView().tint(edition.accent) }
+                }
+            }
+            .frame(width: cardWidth)
+            .clipShape(.rect(cornerRadius: 12))
+            .shadow(color: .black.opacity(0.18), radius: 10, y: 5)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Text(edition.name)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: cardWidth, alignment: .leading)
+        }
+        .task(id: poster.updatedAt) { await renderThumbnail() }
+    }
+
+    private func renderThumbnail() async {
+        let slots = poster.statSlotsRaw.compactMap { StatMetric(rawValue: $0) }
+        let request = StudioRenderer.Request(
+            run: run, edition: edition,
+            layout: StudioLayout(rawValue: poster.layoutRaw) ?? .classic,
+            orientation: orientation, dataPlacement: dataPlacement,
+            photoLayout: StudioPhotoLayout(rawValue: poster.photoLayoutRaw) ?? .single,
+            titleOverride: poster.customTitle.isEmpty ? nil : poster.customTitle,
+            dateOverride: poster.customDate.isEmpty ? nil : poster.customDate,
+            showEditorialPhoto: poster.showEditorialPhoto,
+            showMemoryRoute: poster.showMemoryRoute,
+            heroMetric: StatMetric(rawValue: poster.heroMetricRaw) ?? .distance,
+            statSlots: slots.isEmpty ? [.time, .pace, .elevationGain] : slots,
+            showElevationProfile: poster.showElevationProfile,
+            includeWeather: poster.includeWeather,
+            routeColor: Color(hex: poster.routeColorHex),
+            textColor: Color(hex: poster.textColorHex),
+            groundColor: Color(hex: poster.groundColorHex)
+        )
+        thumbnail = await StudioRenderer.image(for: request, scale: 1)
     }
 }

@@ -16,7 +16,7 @@ struct EtchApp: App {
 
     init() {
         do {
-            let container = try ModelContainer(for: Run.self)
+            let container = try ModelContainer(for: Run.self, SavedPoster.self)
             self.modelContainer = container
             let health = HealthKitService()
             _healthKit = State(initialValue: health)
