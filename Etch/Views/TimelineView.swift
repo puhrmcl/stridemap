@@ -13,6 +13,8 @@ struct TimelineView: View {
         var id: String { rawValue }
     }
     @State private var scope: Scope = .years
+    /// Month section to scroll to after switching to Months (set when a year tile is tapped).
+    @State private var scrollTarget: String?
 
     private var stats: RunStatistics { RunStatistics(runs) }
     private var monthGroups: [RunStatistics.MonthGroup] { stats.monthGroups }
@@ -28,11 +30,20 @@ struct TimelineView: View {
                         description: Text("Sync your runs to build your timeline.")
                     )
                 } else {
-                    ScrollView {
-                        switch scope {
-                        case .years: yearsContent
-                        case .months: monthsContent
-                        case .all: allContent
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            switch scope {
+                            case .years: yearsContent
+                            case .months: monthsContent
+                            case .all: allContent
+                            }
+                        }
+                        // After a year tile switches us to Months, scroll to that year's start.
+                        .task(id: scrollTarget) {
+                            guard let target = scrollTarget else { return }
+                            try? await Task.sleep(nanoseconds: 80_000_000)
+                            withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(target, anchor: .top) }
+                            scrollTarget = nil
                         }
                     }
                 }
@@ -67,6 +78,7 @@ struct TimelineView: View {
             ForEach(years, id: \.self) { year in
                 let yearRuns = runs(in: year)
                 Button {
+                    scrollTarget = firstMonthID(ofYear: year)
                     withAnimation(.easeInOut(duration: 0.25)) { scope = .months }
                 } label: {
                     YearCard(
@@ -93,6 +105,7 @@ struct TimelineView: View {
                     sectionHeader(title: Format.monthYear(group.date),
                                   detail: "\(group.runs.count) · \(Format.distance(group.totalDistance, decimals: 0))")
                 }
+                .id(group.id)
             }
         }
         .padding(.horizontal, 12)
@@ -179,6 +192,14 @@ struct TimelineView: View {
     private func runs(in year: Int) -> [Run] {
         let cal = Calendar.current
         return runs.filter { cal.component(.year, from: $0.startDate) == year }
+    }
+
+    /// The id of the earliest month group in a year — the beginning of that year.
+    private func firstMonthID(ofYear year: Int) -> String? {
+        let cal = Calendar.current
+        return monthGroups
+            .filter { cal.component(.year, from: $0.date) == year }
+            .min(by: { $0.date < $1.date })?.id
     }
 
     /// The most representative run for a year's hero image: the longest one that has a route.
