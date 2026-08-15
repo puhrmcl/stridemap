@@ -291,9 +291,14 @@ struct HomeView: View {
 
     private var topBar: some View {
         VStack(spacing: 10) {
-            HStack(spacing: 10) {
+            HStack {
+                Spacer()
                 totalsPill
                 Spacer()
+            }
+            // The sync spinner sits at the trailing edge as an overlay, so it never shifts the
+            // centred pill.
+            .overlay(alignment: .trailing) {
                 if sync.isSyncing {
                     GlassContainer(padding: 10, cornerRadius: 18) {
                         HStack(spacing: 6) {
@@ -302,7 +307,6 @@ struct HomeView: View {
                         }
                     }
                 }
-                filterButton
             }
 
             if showLocations { modeSelector }
@@ -400,12 +404,17 @@ struct HomeView: View {
         ActivitySettings.includeWalks ? ActivityScope.allCases : ActivityScope.allCases.filter { $0 != .walks }
     }
 
-    /// The currently shown view, for the pill's caption line. When no map-mode filter is applied,
-    /// it names the activity scope instead of the generic "All Runs".
+    /// The pill's caption line. A specific map-mode filter (Races, PRs…) or Locations names itself;
+    /// otherwise it reads "All Activity" / "All Runs" / "All Hikes" per the selected activity.
     private var currentModeLabel: String {
         if showLocations { return "Locations" }
-        if appModel.filter.mode == .all { return appModel.activityScope.label }
-        return appModel.filter.mode.rawValue
+        if appModel.filter.mode != .all { return appModel.filter.mode.rawValue }
+        switch appModel.activityScope {
+        case .all:   return "All Activity"
+        case .runs:  return "All Runs"
+        case .hikes: return "All Hikes"
+        case .walks: return "All Walks"
+        }
     }
 
     private func metric(value: String, unit: String, systemName: String) -> some View {
