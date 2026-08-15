@@ -35,8 +35,9 @@ struct StudioView: View {
     /// The id of the kept poster this composition is linked to, once saved — so a second Save
     /// updates the same piece rather than piling up copies.
     @State private var savedPosterID: UUID?
-    /// Drives the brief "Kept in Studio" confirmation after a save.
+    /// Drives the brief confirmation pill after a keep/update/remove.
     @State private var showSavedConfirmation = false
+    @State private var confirmationText = "Kept in Studio"
     /// Bumped on any customization change; part of the cache key so artwork re-renders.
     @State private var revision = 0
 
@@ -96,10 +97,24 @@ struct StudioView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { save() } label: {
+                    Menu {
+                        if savedPosterID == nil {
+                            Button { saveAsNew() } label: { Label("Keep in Studio", systemImage: "bookmark") }
+                        } else {
+                            Button { updateSaved() } label: {
+                                Label("Update saved", systemImage: "arrow.triangle.2.circlepath")
+                            }
+                            Button { saveAsNew() } label: {
+                                Label("Save as new copy", systemImage: "plus.square.on.square")
+                            }
+                            Button(role: .destructive) { removeSaved() } label: {
+                                Label("Remove from Studio", systemImage: "bookmark.slash")
+                            }
+                        }
+                    } label: {
                         Image(systemName: savedPosterID == nil ? "bookmark" : "bookmark.fill")
                     }
-                    .accessibilityLabel(savedPosterID == nil ? "Keep in Studio" : "Update saved poster")
+                    .accessibilityLabel(savedPosterID == nil ? "Keep in Studio" : "Saved — options")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showPrints = true } label: { Image(systemName: "bag") }
@@ -121,7 +136,7 @@ struct StudioView: View {
     @ViewBuilder
     private var savedConfirmation: some View {
         if showSavedConfirmation {
-            Label("Kept in Studio", systemImage: "checkmark.circle.fill")
+            Label(confirmationText, systemImage: "checkmark.circle.fill")
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 16).padding(.vertical, 10)
@@ -451,30 +466,55 @@ struct StudioView: View {
 
     // MARK: Keeping
 
-    /// Persist the current composition. If it's already linked to a kept poster, update that one
-    /// in place; otherwise create a new one. Either way it's now kept in Studio.
-    private func save() {
-        if let id = savedPosterID,
-           let existing = try? modelContext.fetch(
-               FetchDescriptor<SavedPoster>(predicate: #Predicate { $0.id == id })
-           ).first {
-            writeRecipe(into: existing)
-        } else {
-            let poster = SavedPoster(
-                runID: run.id, runName: run.name,
-                editionRaw: selection.rawValue, layoutRaw: layout.rawValue,
-                orientationRaw: orientation.rawValue, dataPlacementRaw: dataPlacement.rawValue,
-                photoLayoutRaw: photoLayout.rawValue, customTitle: customTitle, customDate: customDate,
-                heroMetricRaw: heroMetric.rawValue, statSlotsRaw: statSlots.map(\.rawValue),
-                showEditorialPhoto: showEditorialPhoto, showMemoryRoute: showMemoryRoute,
-                showElevationProfile: showElevationProfile, includeWeather: includeWeather,
-                routeColorHex: routeColor?.hexString, textColorHex: textColor?.hexString,
-                groundColorHex: groundColor?.hexString
-            )
-            modelContext.insert(poster)
-            savedPosterID = poster.id
-        }
+    /// The kept poster this composition is currently linked to, if any.
+    private var linkedPoster: SavedPoster? {
+        guard let id = savedPosterID else { return nil }
+        return try? modelContext.fetch(
+            FetchDescriptor<SavedPoster>(predicate: #Predicate { $0.id == id })
+        ).first
+    }
 
+    /// A fresh SavedPoster capturing the current composition.
+    private func makePoster() -> SavedPoster {
+        SavedPoster(
+            runID: run.id, runName: run.name,
+            editionRaw: selection.rawValue, layoutRaw: layout.rawValue,
+            orientationRaw: orientation.rawValue, dataPlacementRaw: dataPlacement.rawValue,
+            photoLayoutRaw: photoLayout.rawValue, customTitle: customTitle, customDate: customDate,
+            heroMetricRaw: heroMetric.rawValue, statSlotsRaw: statSlots.map(\.rawValue),
+            showEditorialPhoto: showEditorialPhoto, showMemoryRoute: showMemoryRoute,
+            showElevationProfile: showElevationProfile, includeWeather: includeWeather,
+            routeColorHex: routeColor?.hexString, textColorHex: textColor?.hexString,
+            groundColorHex: groundColor?.hexString
+        )
+    }
+
+    /// Keep the current composition as a *new* piece in Studio, and link to it — so the same run
+    /// can hold several saved versions (a Gallery and a Night, say).
+    private func saveAsNew() {
+        let poster = makePoster()
+        modelContext.insert(poster)
+        savedPosterID = poster.id
+        confirm("Kept in Studio")
+    }
+
+    /// Overwrite the linked kept poster with the current composition.
+    private func updateSaved() {
+        guard let existing = linkedPoster else { saveAsNew(); return }
+        writeRecipe(into: existing)
+        confirm("Updated")
+    }
+
+    /// Un-keep: remove the linked poster from Studio.
+    private func removeSaved() {
+        if let existing = linkedPoster { modelContext.delete(existing) }
+        savedPosterID = nil
+        confirm("Removed from Studio")
+    }
+
+    /// Flash a brief confirmation pill.
+    private func confirm(_ text: String) {
+        confirmationText = text
         withAnimation(.spring(duration: 0.35)) { showSavedConfirmation = true }
         Task {
             try? await Task.sleep(nanoseconds: 1_600_000_000)
