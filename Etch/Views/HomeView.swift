@@ -309,7 +309,7 @@ struct HomeView: View {
                 Text(currentModeLabel.uppercased())
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .tracking(1.2)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(Theme.accentOnGlass)
                     .frame(maxWidth: .infinity)
             }
             .fixedSize(horizontal: true, vertical: false)
@@ -331,7 +331,7 @@ struct HomeView: View {
         HStack(spacing: 6) {
             Image(systemName: systemName)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Theme.accent)
+                .foregroundStyle(Theme.accentOnGlass)
             Text(value)
                 .font(.system(.subheadline, design: .rounded).weight(.bold))
                 .contentTransition(.numericText())

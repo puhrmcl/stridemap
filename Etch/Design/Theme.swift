@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Visual language for Etch: calm, premium, minimal. Colours are tuned to sit
 /// beautifully on top of both light and dark Apple Maps.
@@ -10,6 +11,7 @@ enum Theme {
         static let ink = Color(red: 0.063, green: 0.094, blue: 0.125)   // #101820
         static let navy = Color(red: 0.094, green: 0.208, blue: 0.357)  // #18355B
         static let blue = Color(red: 0.078, green: 0.451, blue: 0.902)  // #1473E6
+        static let blueBright = Color(red: 0.361, green: 0.659, blue: 1.0) // #5CA8FF — Etch Blue lifted for dark grounds
         static let bone = Color(red: 0.957, green: 0.945, blue: 0.918)  // #F4F1EA
         static let stone = Color(red: 0.847, green: 0.831, blue: 0.800) // #D8D4CC
         static let sage = Color(red: 0.733, green: 0.784, blue: 0.698)  // #BBC8B2
@@ -50,6 +52,13 @@ enum Theme {
 
     /// Primary/active accent — the official Etch Blue (#1473E6).
     static let accent = Palette.blue
+
+    /// Etch Blue tuned for the translucent floating map chrome. Identical to `accent` in light
+    /// contexts, but lifts to a brighter blue in dark mode — the deep #1473E6 is nearly
+    /// unreadable as small icons/labels on the dark glass over a night or satellite map.
+    static let accentOnGlass = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark ? UIColor(Palette.blueBright) : UIColor(Palette.blue)
+    })
 
     /// Reserved for achievement moments (PRs, milestones) — used sparingly.
     static let achievement = Palette.brass

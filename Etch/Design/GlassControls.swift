@@ -24,7 +24,7 @@ struct GlassIconButton: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(isActive ? Theme.accent : .primary)
+                .foregroundStyle(isActive ? Theme.accentOnGlass : .primary)
                 .frame(width: 46, height: 46)
                 .glassBackground(cornerRadius: 23)
         }
@@ -43,7 +43,7 @@ struct GlassPill: View {
             if let systemName {
                 Image(systemName: systemName)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(Theme.accentOnGlass)
             }
             if let value {
                 Text(value)
