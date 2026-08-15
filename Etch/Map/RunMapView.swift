@@ -89,7 +89,7 @@ struct RunMapView: UIViewRepresentable {
 
         context.coordinator.updateOverlays(with: runs, fadeWithAge: fadeWithAge)
         context.coordinator.updateSelection(selectedRunID)
-        context.coordinator.refreshRunPins()
+        context.coordinator.rebuildClusters(force: false)
 
         // On entering history, frame everything so the whole footprint is in view. Otherwise,
         // the first time we have runs to show, frame the map to them so it opens centered on
@@ -127,8 +127,16 @@ struct RunMapView: UIViewRepresentable {
 
         /// Lightweight start points for the mapped runs, used to place tappable pins.
         private var runPoints: [(id: UUID, coordinate: CLLocationCoordinate2D)] = []
-        /// run id → its pin annotation.
-        private var pinsByID: [UUID: RunStartAnnotation] = [:]
+        /// run id → its start coordinate, for framing a cluster's members on drill-in.
+        private var coordByID: [UUID: CLLocationCoordinate2D] = [:]
+        /// Our own zoom-aware clusters. MapKit's automatic clustering silently drops annotations
+        /// at low zoom (pins must be below `.required` to cluster, which lets MapKit *declutter*
+        /// them), so with hundreds of runs many count bubbles vanish when zoomed out. We instead
+        /// grid-cluster the runs ourselves and mark every bubble `.required` — so every run is
+        /// always represented and the counts sum correctly at any zoom.
+        private var clusterAnnotations: [RunClusterAnnotation] = []
+        /// The map-point cell size the current clusters were built at; rebuild when zoom changes it.
+        private var clusterCellSize: Double = 0
 
         /// History heatmap: the overlay image view and the decimated points feeding it.
         var heatView: UIImageView?
@@ -171,6 +179,7 @@ struct RunMapView: UIViewRepresentable {
 
             // Snapshot start points for the tappable pins (only mapped runs get one).
             runPoints = routed.compactMap { run in run.startCoordinate.map { (run.id, $0) } }
+            coordByID = Dictionary(runPoints.map { ($0.id, $0.coordinate) }, uniquingKeysWith: { first, _ in first })
 
             let newIDs = Set(routed.map { $0.id })
             let oldIDs = Set(overlaysByID.keys)
@@ -274,92 +283,90 @@ struct RunMapView: UIViewRepresentable {
 
         // MARK: Run pins
 
-        /// Places one runner pin per mapped run and lets MapKit cluster them: zoomed out they
-        /// collapse into count bubbles, and tapping drills in until single runs are tappable.
-        /// All pins are added (not viewport-culled) so cluster counts are accurate. History
-        /// mode shows none.
-        func refreshRunPins() {
-            guard let map else { return }
-            guard parent.renderStyle == .routes else {
-                removeAllRunPins()
+        /// Groups the run start points into screen-grid cells at the current zoom, one annotation
+        /// per cell (a runner pin for a single run, a count bubble for several). Rebuilds when the
+        /// zoom changes the cell size or the run set changes; panning doesn't churn (the grid is
+        /// anchored in map space). History mode shows none.
+        func rebuildClusters(force: Bool) {
+            guard let map, parent.renderStyle == .routes, !runPoints.isEmpty else {
+                removeAllClusters()
                 return
             }
+            let width = Double(map.bounds.width)
+            guard width > 0 else { return }
+            // A cell ~68 screen points wide, expressed in map points so it's zoom-aware.
+            let cell = max(1, (map.visibleMapRect.width / width) * 68)
+            let cellChanged = clusterCellSize <= 0 || abs(cell - clusterCellSize) / max(clusterCellSize, 1) > 0.25
+            let represented = clusterAnnotations.reduce(0) { $0 + $1.runIDs.count }
+            guard force || cellChanged || represented != runPoints.count else { return }
 
-            let desired = Dictionary(runPoints.map { ($0.id, $0.coordinate) },
-                                     uniquingKeysWith: { first, _ in first })
+            var buckets: [String: (ids: [UUID], sumX: Double, sumY: Double)] = [:]
+            for point in runPoints {
+                let mp = MKMapPoint(point.coordinate)
+                let gx = Int(floor(mp.x / cell)), gy = Int(floor(mp.y / cell))
+                let key = "\(gx),\(gy)"
+                var bucket = buckets[key] ?? (ids: [], sumX: 0, sumY: 0)
+                bucket.ids.append(point.id)
+                bucket.sumX += mp.x
+                bucket.sumY += mp.y
+                buckets[key] = bucket
+            }
+            var newAnnotations: [RunClusterAnnotation] = []
+            newAnnotations.reserveCapacity(buckets.count)
+            for bucket in buckets.values {
+                let n = Double(bucket.ids.count)
+                let coordinate = MKMapPoint(x: bucket.sumX / n, y: bucket.sumY / n).coordinate
+                newAnnotations.append(RunClusterAnnotation(runIDs: bucket.ids, coordinate: coordinate))
+            }
 
-            for (id, pin) in pinsByID where desired[id] == nil {
-                map.removeAnnotation(pin)
-                pinsByID[id] = nil
-            }
-            var toAdd: [RunStartAnnotation] = []
-            for (id, coordinate) in desired where pinsByID[id] == nil {
-                let pin = RunStartAnnotation(runID: id, coordinate: coordinate)
-                pinsByID[id] = pin
-                toAdd.append(pin)
-            }
-            if !toAdd.isEmpty { map.addAnnotations(toAdd) }
+            map.removeAnnotations(clusterAnnotations)
+            clusterAnnotations = newAnnotations
+            map.addAnnotations(newAnnotations)
+            clusterCellSize = cell
         }
 
-        private func removeAllRunPins() {
-            guard let map, !pinsByID.isEmpty else { return }
-            map.removeAnnotations(Array(pinsByID.values))
-            pinsByID.removeAll()
+        private func removeAllClusters() {
+            guard let map, !clusterAnnotations.isEmpty else { return }
+            map.removeAnnotations(clusterAnnotations)
+            clusterAnnotations.removeAll()
+            clusterCellSize = 0
         }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: any MKAnnotation) -> MKAnnotationView? {
             if annotation is MKUserLocation { return nil }
+            guard let cluster = annotation as? RunClusterAnnotation else { return nil }
 
-            // Several pins on top of each other collapse into a count bubble; tapping it
-            // zooms in to separate them.
-            if let cluster = annotation as? MKClusterAnnotation {
+            // Several runs in one grid cell → a count bubble; a single run → a runner pin. Both
+            // are `.required` and carry no clusteringIdentifier, so MapKit never re-clusters or
+            // hides them — our grid already resolved the density.
+            if cluster.runIDs.count > 1 {
                 let id = "runCluster"
                 let view = (mapView.dequeueReusableAnnotationView(withIdentifier: id) as? CityClusterView)
                     ?? CityClusterView(annotation: annotation, reuseIdentifier: id)
                 view.annotation = annotation
-                view.configure(count: cluster.memberAnnotations.count, total: max(runPoints.count, 1))
+                view.configure(count: cluster.runIDs.count, total: max(runPoints.count, 1))
+                view.displayPriority = .required
                 return view
             }
 
-            guard annotation is RunStartAnnotation else { return nil }
             let id = "runPin"
             let view = (mapView.dequeueReusableAnnotationView(withIdentifier: id) as? RunPinView)
                 ?? RunPinView(annotation: annotation, reuseIdentifier: id)
             view.annotation = annotation
-            // Re-assert the clustering properties on every (re)use. Setting them only in init is
-            // unreliable — a dequeued view can come back without them, which suppresses the
-            // count-bubble clustering and leaves close runs stacked as individual pins.
-            view.clusteringIdentifier = "runPin"
-            view.displayPriority = .defaultHigh
-            view.collisionMode = .circle
+            view.clusteringIdentifier = nil
+            view.displayPriority = .required
             return view
         }
 
         func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
-            if let cluster = view.annotation as? MKClusterAnnotation {
-                let members = cluster.memberAnnotations.compactMap { $0 as? RunStartAnnotation }
-                var rect = MKMapRect.null
-                for member in cluster.memberAnnotations {
-                    let point = MKMapPoint(member.coordinate)
-                    rect = rect.union(MKMapRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2))
-                }
-                // If the stacked runs are all at essentially the same spot, zooming can't
-                // separate them — show a pick-list instead. Otherwise drill in.
-                if members.count > 1, clusterSpanMeters(rect, at: cluster.coordinate.latitude) < 150 {
-                    parent.stackedRunIDs = members.map(\.runID)
-                } else {
-                    mapView.setVisibleMapRect(
-                        rect,
-                        edgePadding: UIEdgeInsets(top: 140, left: 80, bottom: 220, right: 80),
-                        animated: true
-                    )
-                }
-                mapView.deselectAnnotation(view.annotation, animated: false)
-            } else if let pin = view.annotation as? RunStartAnnotation {
-                // Open the run's detail sheet AND zoom to that run's full path, framing it into
-                // the map area above the (roughly half-height) detail sheet.
-                parent.selectedRunID = pin.runID
-                if let overlay = overlaysByID[pin.runID] {
+            guard let cluster = view.annotation as? RunClusterAnnotation else { return }
+            mapView.deselectAnnotation(view.annotation, animated: false)
+
+            // A single run: open its detail and frame its path above the (half-height) sheet.
+            if cluster.runIDs.count == 1 {
+                let runID = cluster.runIDs[0]
+                parent.selectedRunID = runID
+                if let overlay = overlaysByID[runID] {
                     let bottomInset = max(mapView.bounds.height * 0.55, 220)
                     mapView.setVisibleMapRect(
                         overlay.boundingMapRect,
@@ -367,7 +374,24 @@ struct RunMapView: UIViewRepresentable {
                         animated: true
                     )
                 }
-                mapView.deselectAnnotation(view.annotation, animated: false)
+                return
+            }
+
+            // A count bubble: zoom to its members' extent, or list them if they're co-located.
+            var rect = MKMapRect.null
+            for id in cluster.runIDs {
+                guard let coordinate = coordByID[id] else { continue }
+                let point = MKMapPoint(coordinate)
+                rect = rect.union(MKMapRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2))
+            }
+            if clusterSpanMeters(rect, at: cluster.coordinate.latitude) < 150 {
+                parent.stackedRunIDs = cluster.runIDs
+            } else if !rect.isNull {
+                mapView.setVisibleMapRect(
+                    rect,
+                    edgePadding: UIEdgeInsets(top: 140, left: 80, bottom: 220, right: 80),
+                    animated: true
+                )
             }
         }
 
@@ -434,6 +458,7 @@ struct RunMapView: UIViewRepresentable {
         /// the map as the user pans and zooms.
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
             if parent.renderStyle == .history { updateHeatmap() }
+            else { rebuildClusters(force: false) }
         }
 
         /// Renders the History heat image for the current viewport (or hides it outside
@@ -533,12 +558,23 @@ struct RunMapView: UIViewRepresentable {
 }
 
 /// A tappable pin marking a mapped run's start point; carries the run identity so tapping
-/// it can open that run's detail sheet.
+/// it can open that run's detail sheet. Used by the States map (MapKit-clustered).
 final class RunStartAnnotation: NSObject, MKAnnotation {
     let runID: UUID
     @objc dynamic var coordinate: CLLocationCoordinate2D
     init(runID: UUID, coordinate: CLLocationCoordinate2D) {
         self.runID = runID
+        self.coordinate = coordinate
+    }
+}
+
+/// A home-map cluster: the runs grouped into one screen-grid cell. Carries the member run ids so
+/// a tap can drill in (zoom to their extent) or list them. One run → shown as a runner pin.
+final class RunClusterAnnotation: NSObject, MKAnnotation {
+    let runIDs: [UUID]
+    @objc dynamic var coordinate: CLLocationCoordinate2D
+    init(runIDs: [UUID], coordinate: CLLocationCoordinate2D) {
+        self.runIDs = runIDs
         self.coordinate = coordinate
     }
 }
