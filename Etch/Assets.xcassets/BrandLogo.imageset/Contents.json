@@ -1,0 +1,7 @@
+{
+  "images" : [
+    { "filename" : "etch-light.png", "idiom" : "universal" },
+    { "appearances" : [ { "appearance" : "luminosity", "value" : "dark" } ], "filename" : "etch-dark.png", "idiom" : "universal" }
+  ],
+  "info" : { "author" : "xcode", "version" : 1 }
+}

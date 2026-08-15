@@ -12,11 +12,30 @@ struct RootView: View {
 
     @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding = false
 
+    /// The brand splash covers the app on launch, then fades away.
+    @State private var showSplash = true
+
     private var isReady: Bool {
         didCompleteOnboarding || healthKit.hasRequestedAuthorization || auth.isAuthenticated
     }
 
     var body: some View {
+        ZStack {
+            content
+            if showSplash {
+                SplashView()
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
+        }
+        .task {
+            // Hold the logo briefly, then fade into the app.
+            try? await Task.sleep(nanoseconds: 1_300_000_000)
+            withAnimation(.easeInOut(duration: 0.5)) { showSplash = false }
+        }
+    }
+
+    private var content: some View {
         Group {
             if isReady {
                 HomeView()
