@@ -316,23 +316,27 @@ struct HomeView: View {
     /// One glass pill showing both totals — distance and run count — with the map-mode dropdown
     /// folded in: a chevron on the right opens the mode menu (filter modes / History / Locations).
     private var totalsPill: some View {
-        VStack(spacing: 5) {
-            HStack(spacing: 8) {
-                activitySelector
-                Rectangle()
-                    .fill(.secondary.opacity(0.3))
-                    .frame(width: 1, height: 16)
-                totalsMenu
-            }
-            // Full-width rule under the totals, separating the numbers from the caption.
+        HStack(spacing: 10) {
+            // The activity icon stretches the full height of the pill on the left.
+            activitySelector
+                .frame(maxHeight: .infinity)
+            // Full-height rule dividing the icon from the totals column.
             Rectangle()
-                .fill(.secondary.opacity(0.25))
-                .frame(height: 1)
-            Text(currentModeLabel.uppercased())
-                .font(.system(size: 9, weight: .semibold, design: .rounded))
-                .tracking(1.2)
-                .foregroundStyle(Theme.accentOnGlass)
-                .frame(maxWidth: .infinity)
+                .fill(.secondary.opacity(0.3))
+                .frame(width: 1)
+                .frame(maxHeight: .infinity)
+            // Right column: the totals row, a rule beneath it, then the current-view caption.
+            VStack(spacing: 4) {
+                totalsMenu
+                Rectangle()
+                    .fill(.secondary.opacity(0.25))
+                    .frame(height: 1)
+                Text(currentModeLabel.uppercased())
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .tracking(1.2)
+                    .foregroundStyle(Theme.accentOnGlass)
+                    .frame(maxWidth: .infinity)
+            }
         }
         .fixedSize(horizontal: true, vertical: false)
         .padding(.horizontal, 12)
@@ -351,9 +355,11 @@ struct HomeView: View {
             }
         } label: {
             Image(systemName: appModel.activityScope.icon)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Theme.accentOnGlass)
-                .frame(width: 22, height: 22)
+                .frame(width: 26)
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
