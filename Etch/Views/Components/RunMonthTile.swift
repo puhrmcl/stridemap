@@ -31,6 +31,9 @@ struct RunMonthTile: View {
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
                 .padding(compact ? 8 : 12)
+
+                routeBadge(compact: compact)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
             }
             .task(id: sizeKey(geo.size)) { await load(size: geo.size) }
         }
@@ -53,6 +56,22 @@ struct RunMonthTile: View {
                 colors: [Theme.Palette.stone, Theme.Palette.mist],
                 startPoint: .top, endPoint: .bottom
             )
+        }
+    }
+
+    /// A small chip in the top-right showing the run's route — useful when a photo covers the
+    /// tile and the map fallback (which already shows the route) isn't drawn.
+    @ViewBuilder
+    private func routeBadge(compact: Bool) -> some View {
+        if !run.photoReferences.isEmpty, run.coordinates.count > 1 {
+            let chip: CGFloat = compact ? 32 : 44
+            RouteShape(coordinates: run.coordinates)
+                .stroke(.white, style: StrokeStyle(lineWidth: compact ? 1.6 : 2, lineCap: .round, lineJoin: .round))
+                .padding(compact ? 5 : 7)
+                .frame(width: chip, height: chip)
+                .background(.black.opacity(0.3), in: .rect(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.white.opacity(0.25), lineWidth: 0.5))
+                .padding(compact ? 6 : 8)
         }
     }
 
