@@ -94,37 +94,13 @@ enum MapPrintRenderer {
 
     // MARK: Wall Art — abstract, full-bleed, text-free
 
-    /// Every route projected directly (no base map) onto a solid ground. The weight, opacity and
-    /// treatment adapt to how much you've run, so it reads as art whether that's five runs or five
-    /// hundred.
+    /// Text-free abstract wall art, four ways — always full and balanced whether that's five runs
+    /// or five hundred.
     private static func artImage(for request: MapPrintRequest, scale: CGFloat) -> UIImage? {
         let runs = request.mapped
         guard !runs.isEmpty else { return nil }
         let size = request.posterNominalSize
         let palette = request.artPalette
-
-        let region = request.region
-        let latMax = region.center.latitude + region.span.latitudeDelta / 2
-        let latMin = region.center.latitude - region.span.latitudeDelta / 2
-        let lonMin = region.center.longitude - region.span.longitudeDelta / 2
-        let lonMax = region.center.longitude + region.span.longitudeDelta / 2
-        let lonScale = max(cos(((latMin + latMax) / 2) * .pi / 180), 0.01)
-        let dataW = max((lonMax - lonMin) * lonScale, 1e-6)
-        let dataH = max(latMax - latMin, 1e-6)
-        let fit = min(size.width / dataW, size.height / dataH) * 0.82   // generous gallery margin
-        let offX = (size.width - dataW * fit) / 2
-        let offY = (size.height - dataH * fit) / 2
-
-        func point(_ c: CLLocationCoordinate2D) -> CGPoint {
-            CGPoint(x: offX + (c.longitude - lonMin) * lonScale * fit,
-                    y: offY + (latMax - c.latitude) * fit)
-        }
-
-        // Adapt weight/opacity to route count: few = bold & solid, many = fine & layered.
-        let count = runs.count
-        let unit = size.width / 1000
-        let lineWidth: CGFloat = (count <= 12 ? 4.2 : count <= 80 ? 2.8 : 1.9) * unit
-        let alpha: CGFloat = count <= 12 ? 0.95 : count <= 80 ? 0.78 : 0.55
 
         let format = UIGraphicsImageRendererFormat()
         format.scale = scale
@@ -132,20 +108,7 @@ enum MapPrintRenderer {
         let renderer = UIGraphicsImageRenderer(size: size, format: format)
         let ground = UIColor(palette.ground)
         let line = UIColor(palette.line)
-
-        func routePath(_ run: Run) -> UIBezierPath? {
-            let coordinates = run.coordinates
-            guard coordinates.count > 1 else { return nil }
-            let path = UIBezierPath()
-            var started = false
-            for coordinate in coordinates {
-                let p = point(coordinate)
-                if started { path.addLine(to: p) } else { path.move(to: p); started = true }
-            }
-            path.lineJoinStyle = .round
-            path.lineCapStyle = .round
-            return path
-        }
+        let unit = size.width / 1000
 
         return renderer.image { context in
             let cg = context.cgContext
@@ -153,76 +116,10 @@ enum MapPrintRenderer {
             cg.fill(CGRect(origin: .zero, size: size))
 
             switch request.artStyle {
-            case .lines:
-                line.withAlphaComponent(alpha).setStroke()
-                for run in runs {
-                    guard let path = routePath(run) else { continue }
-                    path.lineWidth = lineWidth
-                    path.stroke()
-                }
-
-            case .glow:
-                // Additive light on dark grounds makes overlaps glow; on light grounds fall back
-                // to a soft-shadowed line so it still reads.
-                if palette.isDark { cg.setBlendMode(.plusLighter) }
-                for run in runs {
-                    guard let path = routePath(run) else { continue }
-                    cg.saveGState()
-                    cg.setShadow(offset: .zero, blur: lineWidth * 3, color: line.cgColor)
-                    line.withAlphaComponent(alpha * 0.7).setStroke()
-                    path.lineWidth = lineWidth
-                    path.stroke()
-                    cg.restoreGState()
-                }
-                cg.setBlendMode(.normal)
-
-            case .points:
-                // A constellation of where you've been — elegant for a few runs, a starfield for
-                // many. Sized to the count.
-                let radius: CGFloat = (count <= 12 ? 11 : count <= 80 ? 7 : 4.5) * unit
-                for run in runs {
-                    guard let first = run.coordinates.first else { continue }
-                    let p = point(first)
-                    let rect = CGRect(x: p.x - radius, y: p.y - radius, width: radius * 2, height: radius * 2)
-                    cg.saveGState()
-                    if palette.isDark {
-                        cg.setShadow(offset: .zero, blur: radius * 1.6, color: line.cgColor)
-                    }
-                    line.withAlphaComponent(alpha).setFill()
-                    UIBezierPath(ovalIn: rect).fill()
-                    cg.restoreGState()
-                }
-
-            case .clusters:
-                // Group nearby runs into bubbles sized by how many runs are there — the home map's
-                // cluster view, as art.
-                let cell = size.width / 18
-                var bins: [String: (sumX: CGFloat, sumY: CGFloat, count: Int)] = [:]
-                for run in runs {
-                    guard let first = run.coordinates.first else { continue }
-                    let p = point(first)
-                    let key = "\(Int((p.x / cell).rounded(.down)))_\(Int((p.y / cell).rounded(.down)))"
-                    var bin = bins[key] ?? (0, 0, 0)
-                    bin.sumX += p.x; bin.sumY += p.y; bin.count += 1
-                    bins[key] = bin
-                }
-                let maxCount = CGFloat(bins.values.map(\.count).max() ?? 1)
-                for bin in bins.values {
-                    let c = CGPoint(x: bin.sumX / CGFloat(bin.count), y: bin.sumY / CGFloat(bin.count))
-                    let t = sqrt(CGFloat(bin.count) / maxCount)
-                    let radius = (7 + 26 * t) * unit
-                    let rect = CGRect(x: c.x - radius, y: c.y - radius, width: radius * 2, height: radius * 2)
-                    cg.saveGState()
-                    if palette.isDark { cg.setShadow(offset: .zero, blur: radius * 0.7, color: line.cgColor) }
-                    line.withAlphaComponent(0.85).setFill()
-                    UIBezierPath(ovalIn: rect).fill()
-                    cg.restoreGState()
-                    // A soft ring for a considered, cluster-marker feel.
-                    line.withAlphaComponent(0.4).setStroke()
-                    let ring = UIBezierPath(ovalIn: rect.insetBy(dx: -radius * 0.4, dy: -radius * 0.4))
-                    ring.lineWidth = 1.5 * unit
-                    ring.stroke()
-                }
+            case .grid:          drawGrid(runs, size: size, line: line, unit: unit)
+            case .bloom:         drawBloom(runs, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark)
+            case .homeTurf:      drawHomeTurf(runs, region: request.region, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark)
+            case .constellation: drawConstellation(runs, region: request.region, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark)
             }
 
             // Gallery finish: a subtle vignette for depth.
@@ -235,6 +132,187 @@ enum MapPrintRenderer {
                                       endCenter: center, endRadius: maxDim * 0.72,
                                       options: .drawsAfterEndLocation)
             }
+        }
+    }
+
+    /// A geography projector mapping coordinates into the poster, aspect-preserving with margin.
+    private static func geoProjector(region: MKCoordinateRegion, size: CGSize,
+                                     margin: CGFloat = 0.82) -> (CLLocationCoordinate2D) -> CGPoint {
+        let latMax = region.center.latitude + region.span.latitudeDelta / 2
+        let latMin = region.center.latitude - region.span.latitudeDelta / 2
+        let lonMin = region.center.longitude - region.span.longitudeDelta / 2
+        let lonMax = region.center.longitude + region.span.longitudeDelta / 2
+        let lonScale = max(cos(((latMin + latMax) / 2) * .pi / 180), 0.01)
+        let dataW = max((lonMax - lonMin) * lonScale, 1e-6)
+        let dataH = max(latMax - latMin, 1e-6)
+        let fit = min(size.width / dataW, size.height / dataH) * margin
+        let offX = (size.width - dataW * fit) / 2
+        let offY = (size.height - dataH * fit) / 2
+        return { c in
+            CGPoint(x: offX + (c.longitude - lonMin) * lonScale * fit,
+                    y: offY + (latMax - c.latitude) * fit)
+        }
+    }
+
+    private static func routePath(_ coordinates: [CLLocationCoordinate2D],
+                                  project: (CLLocationCoordinate2D) -> CGPoint) -> UIBezierPath? {
+        guard coordinates.count > 1 else { return nil }
+        let path = UIBezierPath()
+        var started = false
+        for c in coordinates {
+            let p = project(c)
+            if started { path.addLine(to: p) } else { path.move(to: p); started = true }
+        }
+        path.lineJoinStyle = .round
+        path.lineCapStyle = .round
+        return path
+    }
+
+    // MARK: The Grid — a contact sheet of per-run glyphs
+
+    private static func drawGrid(_ runs: [Run], size: CGSize, line: UIColor, unit: CGFloat) {
+        let sorted = runs.sorted { $0.startDate < $1.startDate }   // a chronicle
+        let n = sorted.count
+        let aspect = Double(size.width / size.height)
+        var cols = max(1, Int((Double(n) * aspect).squareRoot().rounded()))
+        cols = min(cols, n)
+        let rows = Int(ceil(Double(n) / Double(cols)))
+
+        let margin = size.width * 0.06
+        let cellW = (size.width - margin * 2) / CGFloat(cols)
+        let cellH = (size.height - margin * 2) / CGFloat(rows)
+        let glyphWidth = max(min(cellW, cellH) / 16, 0.8)
+        line.withAlphaComponent(0.92).setStroke()
+
+        for (i, run) in sorted.enumerated() {
+            let r = i / cols, c = i % cols
+            let cell = CGRect(x: margin + CGFloat(c) * cellW, y: margin + CGFloat(r) * cellH,
+                              width: cellW, height: cellH)
+            let inner = cell.insetBy(dx: cellW * 0.16, dy: cellH * 0.16)
+            drawGlyph(run.coordinates, in: inner, lineWidth: glyphWidth)
+        }
+    }
+
+    /// Draws a route normalized to fill a rect (aspect-preserving, centred) — geography irrelevant.
+    private static func drawGlyph(_ coordinates: [CLLocationCoordinate2D], in rect: CGRect, lineWidth: CGFloat) {
+        guard coordinates.count > 1 else { return }
+        let lats = coordinates.map(\.latitude), lons = coordinates.map(\.longitude)
+        let minLat = lats.min()!, maxLat = lats.max()!, minLon = lons.min()!, maxLon = lons.max()!
+        let lonScale = max(cos(((minLat + maxLat) / 2) * .pi / 180), 0.01)
+        let dataW = max((maxLon - minLon) * lonScale, 1e-6)
+        let dataH = max(maxLat - minLat, 1e-6)
+        let scale = min(rect.width / dataW, rect.height / dataH)
+        let offX = rect.minX + (rect.width - dataW * scale) / 2
+        let offY = rect.minY + (rect.height - dataH * scale) / 2
+        let path = UIBezierPath()
+        var started = false
+        for c in coordinates {
+            let p = CGPoint(x: offX + (c.longitude - minLon) * lonScale * scale,
+                            y: offY + (maxLat - c.latitude) * scale)
+            if started { path.addLine(to: p) } else { path.move(to: p); started = true }
+        }
+        path.lineWidth = lineWidth
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+        path.stroke()
+    }
+
+    // MARK: The Bloom — every route re-centred to a common origin
+
+    private static func drawBloom(_ runs: [Run], size: CGSize, line: UIColor, unit: CGFloat,
+                                  cg: CGContext, dark: Bool) {
+        let withRoutes = runs.filter { $0.coordinates.count > 1 }
+        guard !withRoutes.isEmpty else { return }
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        // Common projection: re-centre each route at its start, one global scale, north up.
+        let midLat = withRoutes.compactMap { $0.coordinates.first?.latitude }.reduce(0, +) / Double(withRoutes.count)
+        let lonScale = max(cos(midLat * .pi / 180), 0.01)
+        var maxExtent = 1e-6
+        for run in withRoutes {
+            guard let start = run.coordinates.first else { continue }
+            for c in run.coordinates {
+                let dx = (c.longitude - start.longitude) * lonScale
+                let dy = (c.latitude - start.latitude)
+                maxExtent = max(maxExtent, (dx * dx + dy * dy).squareRoot())
+            }
+        }
+        let radius = Double(min(size.width, size.height)) * 0.42
+        let scale = radius / maxExtent
+        let lineWidth = (withRoutes.count <= 12 ? 3.4 : withRoutes.count <= 80 ? 2.2 : 1.5) * unit
+
+        if dark { cg.setBlendMode(.plusLighter) }
+        for (i, run) in withRoutes.enumerated() {
+            guard let start = run.coordinates.first else { continue }
+            let t = withRoutes.count > 1 ? CGFloat(i) / CGFloat(withRoutes.count - 1) : 1  // 0 old → 1 new
+            line.withAlphaComponent(0.22 + 0.6 * t).setStroke()
+            let path = UIBezierPath()
+            var started = false
+            for c in run.coordinates {
+                let p = CGPoint(x: center.x + CGFloat((c.longitude - start.longitude) * lonScale * scale),
+                                y: center.y - CGFloat((c.latitude - start.latitude) * scale))
+                if started { path.addLine(to: p) } else { path.move(to: p); started = true }
+            }
+            path.lineWidth = lineWidth
+            path.lineCapStyle = .round
+            path.lineJoinStyle = .round
+            path.stroke()
+        }
+        cg.setBlendMode(.normal)
+    }
+
+    // MARK: Home Turf — the dense tangle, as heat
+
+    private static func drawHomeTurf(_ runs: [Run], region: MKCoordinateRegion, size: CGSize,
+                                     line: UIColor, unit: CGFloat, cg: CGContext, dark: Bool) {
+        let project = geoProjector(region: region, size: size)
+        let count = runs.count
+        let lineWidth = (count <= 12 ? 4.0 : count <= 80 ? 2.6 : 1.8) * unit
+        let alpha: CGFloat = count <= 12 ? 0.9 : count <= 80 ? 0.66 : 0.42
+        if dark { cg.setBlendMode(.plusLighter) }
+        for run in runs {
+            guard let path = routePath(run.coordinates, project: project) else { continue }
+            cg.saveGState()
+            cg.setShadow(offset: .zero, blur: lineWidth * 2.6, color: line.cgColor)
+            line.withAlphaComponent(alpha).setStroke()
+            path.lineWidth = lineWidth
+            path.stroke()
+            cg.restoreGState()
+        }
+        cg.setBlendMode(.normal)
+    }
+
+    // MARK: Constellation — points placed by geography, sized by distance
+
+    private static func drawConstellation(_ runs: [Run], region: MKCoordinateRegion, size: CGSize,
+                                          line: UIColor, unit: CGFloat, cg: CGContext, dark: Bool) {
+        let project = geoProjector(region: region, size: size)
+        let sorted = runs.sorted { $0.startDate < $1.startDate }
+
+        // A quiet chronological thread linking the runs.
+        let thread = UIBezierPath()
+        var started = false
+        for run in sorted {
+            guard let start = run.startCoordinate else { continue }
+            let p = project(start)
+            if started { thread.addLine(to: p) } else { thread.move(to: p); started = true }
+        }
+        line.withAlphaComponent(0.16).setStroke()
+        thread.lineWidth = 1 * unit
+        thread.stroke()
+
+        // Points sized by distance.
+        let maxDist = runs.map(\.distance).max() ?? 1
+        for run in runs {
+            guard let start = run.startCoordinate else { continue }
+            let p = project(start)
+            let t = maxDist > 0 ? CGFloat(run.distance / maxDist) : 0
+            let radius = (3 + 10 * t.squareRoot()) * unit
+            let rect = CGRect(x: p.x - radius, y: p.y - radius, width: radius * 2, height: radius * 2)
+            cg.saveGState()
+            if dark { cg.setShadow(offset: .zero, blur: radius * 1.5, color: line.cgColor) }
+            line.withAlphaComponent(0.9).setFill()
+            UIBezierPath(ovalIn: rect).fill()
+            cg.restoreGState()
         }
     }
 

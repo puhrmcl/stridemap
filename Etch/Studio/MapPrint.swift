@@ -121,14 +121,29 @@ enum StateMetric: String, CaseIterable, Identifiable {
 
 /// The Wall Art rendering treatment.
 enum MapArtStyle: String, CaseIterable, Identifiable {
-    case lines, glow, points, clusters
+    /// A contact sheet — each run its own normalized glyph in its own cell.
+    case grid
+    /// Every route re-centred to a common origin, radiating outward.
+    case bloom
+    /// The densest-cluster tangle (home turf), rendered as heat.
+    case homeTurf
+    /// Each run a point placed by geography, sized by distance, on a dark field.
+    case constellation
     var id: String { rawValue }
     var name: String {
         switch self {
-        case .lines:    return "Lines"
-        case .glow:     return "Glow"
-        case .points:   return "Points"
-        case .clusters: return "Clusters"
+        case .grid:          return "Grid"
+        case .bloom:         return "Bloom"
+        case .homeTurf:      return "Home Turf"
+        case .constellation: return "Constellation"
+        }
+    }
+    var descriptor: String {
+        switch self {
+        case .grid:          return "Every run as its own glyph, in a grid."
+        case .bloom:         return "Every route radiating from one centre."
+        case .homeTurf:      return "The dense tangle of your home turf."
+        case .constellation: return "Your runs as a constellation of points."
         }
     }
 }
@@ -144,7 +159,7 @@ struct MapPrintRequest {
     /// When set, the outline of this US state is drawn behind the routes (single-state prints).
     var boundaryStateName: String? = nil
     var artPalette: MapArtPalette = .gallery
-    var artStyle: MapArtStyle = .lines
+    var artStyle: MapArtStyle = .grid
     /// Single-state print options.
     var isSingleState: Bool = false
     var stateMetrics: [StateMetric] = StateMetric.allCases

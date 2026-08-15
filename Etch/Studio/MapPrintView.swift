@@ -12,7 +12,7 @@ struct MapPrintView: View {
     @State private var focusName: String?
     @State private var orientation: StudioOrientation = .portrait
     @State private var artPalette: MapArtPalette = .gallery
-    @State private var artStyle: MapArtStyle = .lines
+    @State private var artStyle: MapArtStyle = .grid
     /// Single-state print: editable title + which metrics are shown.
     @State private var stateTitle: String = ""
     @State private var stateMetrics: Set<StateMetric> = Set(StateMetric.allCases)
@@ -182,7 +182,7 @@ struct MapPrintView: View {
             .gesture(
                 DragGesture(minimumDistance: 14)
                     .onEnded { value in
-                        guard geo.size.width > 0, geo.size.height > 0 else { return }
+                        guard framingRelevant, geo.size.width > 0, geo.size.height > 0 else { return }
                         panX += Double(value.translation.width / geo.size.width)
                         panY += Double(value.translation.height / geo.size.height)
                     }
@@ -203,7 +203,7 @@ struct MapPrintView: View {
             }
             if isSingleState { stateControls }
 
-            Text(focusName == nil ? kind.descriptor : "A single \(singularKindName), framed to its runs.")
+            Text(descriptorText)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -215,12 +215,24 @@ struct MapPrintView: View {
             .pickerStyle(.segmented)
             .frame(maxWidth: 320)
 
-            zoomPanRow
+            if framingRelevant { zoomPanRow }
         }
         .padding(.vertical, 16)
         .padding(.horizontal, 24)
         .frame(maxWidth: .infinity)
         .background(.regularMaterial)
+    }
+
+    private var descriptorText: String {
+        if kind.isArt { return artStyle.descriptor }
+        if focusName != nil { return "A single \(singularKindName), framed to its runs." }
+        return kind.descriptor
+    }
+
+    /// Grid and Bloom are geography-agnostic, so zoom/pan don't apply.
+    private var framingRelevant: Bool {
+        if kind.isArt { return artStyle == .homeTurf || artStyle == .constellation }
+        return true
     }
 
     private var singularKindName: String {
