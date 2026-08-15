@@ -38,6 +38,8 @@ struct HomeView: View {
     /// A jump-to target set by the places menu; the overview map zooms to it, then clears it.
     @State private var focusStateName: String?
     @State private var focusCity: CLLocationCoordinate2D?
+    /// The last place picked from the "View" menu, shown on its label until the overlay changes.
+    @State private var selectedPlaceLabel: String?
     /// Bumped by the Locations recenter button; folded into the overlay map's id so the map is
     /// rebuilt and re-framed to fit all its pins/regions.
     @State private var locationRecenterToken = 0
@@ -125,6 +127,9 @@ struct HomeView: View {
             }
         }
         .ignoresSafeArea()
+        // The "View" label reflects the chosen place; reset it when the overlay or mode changes.
+        .onChange(of: locationOverlay) { selectedPlaceLabel = nil }
+        .onChange(of: showLocations) { selectedPlaceLabel = nil }
         // Recompute whenever States is showing and the number of located runs changes, so the
         // choropleth fills in as Strava/HealthKit routes give older runs coordinates (rather
         // than caching one sparse result forever).
@@ -412,16 +417,22 @@ struct HomeView: View {
     private var placesMenu: some View {
         if locationOverlay == .states {
             if !stateRanked.isEmpty {
-                placesMenuLabel(title: "View") {
+                placesMenuLabel(title: selectedPlaceLabel ?? "View") {
                     ForEach(stateRanked, id: \.name) { item in
-                        Button("\(item.name)  ·  \(item.count)") { focusStateName = item.name }
+                        Button("\(item.name)  ·  \(item.count)") {
+                            focusStateName = item.name
+                            selectedPlaceLabel = item.name
+                        }
                     }
                 }
             }
         } else if !overlayPlaces.isEmpty {
-            placesMenuLabel(title: "View") {
+            placesMenuLabel(title: selectedPlaceLabel ?? "View") {
                 ForEach(overlayPlaces) { place in
-                    Button("\(shortPlaceLabel(place))  ·  \(place.runs.count)") { focusCity = place.coordinate }
+                    Button("\(shortPlaceLabel(place))  ·  \(place.runs.count)") {
+                        focusCity = place.coordinate
+                        selectedPlaceLabel = shortPlaceLabel(place)
+                    }
                 }
             }
         }
