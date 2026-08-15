@@ -52,10 +52,19 @@ struct RunMonthTile: View {
                 .frame(width: size.width, height: size.height)
                 .clipped()
         } else {
-            LinearGradient(
-                colors: [Theme.Palette.stone, Theme.Palette.mist],
-                startPoint: .top, endPoint: .bottom
-            )
+            ZStack {
+                LinearGradient(
+                    colors: [Theme.Palette.stone, Theme.Palette.mist],
+                    startPoint: .top, endPoint: .bottom
+                )
+                // Treadmill runs have no route to draw — mark them with a clean indoor glyph so
+                // the tile reads as intentional, not as a missing map.
+                if run.isIndoor {
+                    Image(systemName: IndoorGlyph.symbol)
+                        .font(.system(size: min(size.width, size.height) * 0.26, weight: .semibold))
+                        .foregroundStyle(Theme.Palette.ink.opacity(0.45))
+                }
+            }
         }
     }
 

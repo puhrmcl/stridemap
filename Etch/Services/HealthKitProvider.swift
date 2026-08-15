@@ -227,6 +227,8 @@ final class HealthKitProvider: ActivityProvider {
         activity.maxHeartRate = heartRate(of: workout, .discreteMax)
         activity.averageCadence = cadence(of: workout)
         activity.sportType = "Run"
+        // Treadmill / indoor: Apple Health flags these; they carry no GPS route.
+        activity.isIndoor = (workout.metadata?[HKMetadataKeyIndoorWorkout] as? NSNumber)?.boolValue
         activity.name = workout.metadata?[HKMetadataKeyWorkoutBrandName] as? String
         applyWeather(from: workout, to: &activity)
         return activity

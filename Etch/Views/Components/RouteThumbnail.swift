@@ -1,9 +1,21 @@
 import SwiftUI
 import CoreLocation
 
+/// The indoor/treadmill glyph, resolved once to the first available SF Symbol so a missing name
+/// on any OS version can't render a blank box. Shared by every routeless-run surface.
+enum IndoorGlyph {
+    static let symbol: String = {
+        for name in ["figure.run.treadmill", "figure.indoor.run", "figure.run"] where UIImage(systemName: name) != nil {
+            return name
+        }
+        return "figure.run"
+    }()
+}
+
 /// A lightweight, static thumbnail of a run's route — the shape drawn as a blue line on a
 /// dark tile. Cheap enough to render hundreds in a grid (unlike a live `Map`), and gives the
-/// timeline an "etched" look. Runs without a route show a quiet placeholder.
+/// timeline an "etched" look. Runs without a route show a quiet placeholder — an indoor
+/// treatment for treadmill runs, or a plain runner for routes still syncing.
 struct RouteThumbnail: View {
     let run: Run
     var lineWidth: CGFloat = 2.5
@@ -23,6 +35,15 @@ struct RouteThumbnail: View {
                         style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
                     )
                     .padding(10)
+            } else if run.isIndoor {
+                VStack(spacing: 5) {
+                    Image(systemName: IndoorGlyph.symbol)
+                        .font(.system(size: 22, weight: .semibold))
+                    Text("INDOOR")
+                        .font(.system(size: 8, weight: .bold, design: .rounded))
+                        .tracking(1.5)
+                }
+                .foregroundStyle(.secondary)
             } else {
                 Image(systemName: "figure.run")
                     .font(.system(size: 20, weight: .semibold))

@@ -25,9 +25,13 @@ struct RunDetailView: View {
                 VStack(spacing: 20) {
                     header
 
-                    RunPreviewMap(run: run, interactive: true)
-                        .frame(height: 240)
-                        .clipShape(.rect(cornerRadius: Theme.cardRadius))
+                    if run.isIndoor {
+                        indoorPreview
+                    } else {
+                        RunPreviewMap(run: run, interactive: true)
+                            .frame(height: 240)
+                            .clipShape(.rect(cornerRadius: Theme.cardRadius))
+                    }
 
                     metrics
 
@@ -82,6 +86,29 @@ struct RunDetailView: View {
                 }
             }
         }
+    }
+
+    /// Stands in for the map on treadmill / indoor runs, which have no route to show — a clean
+    /// indoor card instead of a blank ocean map.
+    private var indoorPreview: some View {
+        ZStack {
+            LinearGradient(colors: [Theme.Palette.stone, Theme.Palette.mist],
+                           startPoint: .top, endPoint: .bottom)
+            VStack(spacing: 10) {
+                Image(systemName: IndoorGlyph.symbol)
+                    .font(.system(size: 52, weight: .semibold))
+                    .foregroundStyle(Theme.Palette.ink.opacity(0.55))
+                Text("Indoor Run")
+                    .font(.system(.headline, design: .rounded))
+                    .foregroundStyle(Theme.Palette.ink.opacity(0.7))
+                Text("No route recorded")
+                    .font(.system(.caption, design: .rounded))
+                    .foregroundStyle(Theme.Palette.ink.opacity(0.45))
+            }
+        }
+        .frame(height: 240)
+        .frame(maxWidth: .infinity)
+        .clipShape(.rect(cornerRadius: Theme.cardRadius))
     }
 
     /// Full-width title block at the top of the sheet. Lives in the scroll content (not the

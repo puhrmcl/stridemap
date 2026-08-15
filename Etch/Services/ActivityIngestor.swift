@@ -66,6 +66,8 @@ final class ActivityIngestor {
     /// existing metadata from another provider.
     private func mergeHealthKit(_ activity: ImportedActivity, into run: Run) {
         run.healthKitID = activity.externalID
+        // HealthKit is authoritative for indoor: adopt its flag when it says so.
+        if activity.isIndoor == true { run.isIndoor = true }
         if run.originApp == nil { run.originApp = activity.originApp }
         if run.averageHeartRate == nil { run.averageHeartRate = activity.averageHeartRate }
         if run.maxHeartRate == nil { run.maxHeartRate = activity.maxHeartRate }
@@ -247,7 +249,8 @@ final class ActivityIngestor {
             sportType: activity.sportType ?? "Run",
             isRace: activity.isRace ?? false,
             isCommute: activity.isCommute ?? false,
-            isTrail: activity.isTrail ?? false
+            isTrail: activity.isTrail ?? false,
+            isIndoor: activity.isIndoor ?? false
         )
         run.importMethod = activity.importMethod
         run.activityType = activity.activityType

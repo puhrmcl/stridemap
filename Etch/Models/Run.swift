@@ -107,6 +107,10 @@ final class Run {
     var raceIsCustom: Bool = false
     var isCommute: Bool
     var isTrail: Bool
+    /// True for treadmill / indoor runs (HealthKit's `HKMetadataKeyIndoorWorkout`). These carry
+    /// no GPS route, so the UI represents them with an indoor treatment instead of a map.
+    /// Defaulted so existing runs migrate cleanly.
+    var isIndoor: Bool = false
 
     // MARK: User & future-proofing
 
@@ -153,6 +157,7 @@ final class Run {
         isRace: Bool = false,
         isCommute: Bool = false,
         isTrail: Bool = false,
+        isIndoor: Bool = false,
         gear: String? = nil,
         notes: String? = nil,
         isFavorite: Bool = false,
@@ -188,6 +193,7 @@ final class Run {
         self.isRace = isRace
         self.isCommute = isCommute
         self.isTrail = isTrail
+        self.isIndoor = isIndoor
         self.gear = gear
         self.notes = notes
         self.isFavorite = isFavorite

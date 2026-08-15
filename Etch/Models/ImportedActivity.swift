@@ -52,6 +52,8 @@ struct ImportedActivity {
     var isRace: Bool? = nil
     var isCommute: Bool? = nil
     var isTrail: Bool? = nil
+    /// Treadmill / indoor workout (HealthKit `HKMetadataKeyIndoorWorkout`).
+    var isIndoor: Bool? = nil
     var gear: String? = nil
     var notes: String? = nil
 
