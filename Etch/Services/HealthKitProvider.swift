@@ -31,7 +31,8 @@ final class HealthKitProvider: ActivityProvider {
     func workoutSummary() async -> String {
         let all = await allWorkouts()
         let running = all.reduce(0) { $0 + ($1.workoutActivityType == .running ? 1 : 0) }
-        return "\(all.count) workouts · \(running) runs"
+        let hiking = all.reduce(0) { $0 + ($1.workoutActivityType == .hiking ? 1 : 0) }
+        return "\(all.count) workouts · \(running) runs · \(hiking) hikes"
     }
 
     private func allWorkouts() async -> [HKWorkout] {
@@ -117,9 +118,14 @@ final class HealthKitProvider: ActivityProvider {
 
     // MARK: Workout query
 
+    /// The activity types we ingest from Apple Health. Running and hiking today; walking is a
+    /// Phase-2 add (it needs an opt-out because Apple Watch auto-logs many short walks).
+    private static let importedWorkoutTypes: [HKWorkoutActivityType] = [.running, .hiking]
+
     private func runningWorkouts(since: Date?) async throws -> [HKWorkout] {
-        let runningPredicate = HKQuery.predicateForWorkouts(with: .running)
-        var predicates: [NSPredicate] = [runningPredicate]
+        let typePredicate = NSCompoundPredicate(orPredicateWithSubpredicates:
+            Self.importedWorkoutTypes.map { HKQuery.predicateForWorkouts(with: $0) })
+        var predicates: [NSPredicate] = [typePredicate]
         if let since {
             predicates.append(HKQuery.predicateForSamples(withStart: since, end: nil, options: .strictStartDate))
         }
@@ -205,6 +211,17 @@ final class HealthKitProvider: ActivityProvider {
 
     // MARK: Mapping
 
+    /// Maps a HealthKit workout type to our normalized activity type. We import running and
+    /// hiking; anything else (shouldn't occur given the query) falls back to run.
+    private static func activityType(for type: HKWorkoutActivityType) -> ActivityType {
+        switch type {
+        case .running: return .run
+        case .hiking:  return .hike
+        case .walking: return .walk
+        default:       return .run
+        }
+    }
+
     private func makeActivity(from workout: HKWorkout, coordinates: [CLLocationCoordinate2D]) -> ImportedActivity {
         let sourceName = workout.sourceRevision.source.name
         let origin = ActivitySource.detect(fromSourceName: sourceName)
@@ -226,7 +243,9 @@ final class HealthKitProvider: ActivityProvider {
         activity.averageHeartRate = heartRate(of: workout, .discreteAverage)
         activity.maxHeartRate = heartRate(of: workout, .discreteMax)
         activity.averageCadence = cadence(of: workout)
-        activity.sportType = "Run"
+        let kind = Self.activityType(for: workout.workoutActivityType)
+        activity.activityType = kind
+        activity.sportType = kind.rawValue.capitalized   // "Run" / "Hike"
         // Treadmill / indoor: Apple Health flags these; they carry no GPS route.
         activity.isIndoor = (workout.metadata?[HKMetadataKeyIndoorWorkout] as? NSNumber)?.boolValue
         activity.name = workout.metadata?[HKMetadataKeyWorkoutBrandName] as? String

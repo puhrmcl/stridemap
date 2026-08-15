@@ -299,6 +299,12 @@ final class ActivityIngestor {
         case 17..<21: part = "Evening"
         default: part = "Night"
         }
-        return "\(part) Run"
+        let noun: String
+        switch activity.activityType {
+        case .hike: noun = "Hike"
+        case .walk: noun = "Walk"
+        default:    noun = "Run"
+        }
+        return "\(part) \(noun)"
     }
 }

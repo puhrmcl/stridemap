@@ -40,6 +40,26 @@ is 2:3, single-state ~5:7, framed/footer variants are taller non-standard ratios
   aspects (8×10 & 16×20 = 4:5, 18×24 = 3:4, A-series ≈ 1:1.41), so print needs the same aspect
   flexibility. Exact dims/bleed come from the Prodigi product catalog — build when that lands.
 
+## Multi-activity (hikes, then walks) — Phase 1 shipped (b146)
+The `Run` model already carries `ActivityType` (run/walk/hike/…); we're teaching the importer and
+UI to be type-aware rather than adding a model. Decisions made: **per-type** achievements/superlatives
+(pace/PRs stay run-only; hikes get longest/most-climb/highest); include hikes now, **walks later with
+an opt-out** (Apple Watch auto-logs many short walks, so walks need the toggle before import).
+
+- **Phase 1 (done):** HealthKit query expanded to `.running` + `.hiking`; `activityType` set from the
+  workout type; hike routes hydrate; time-of-day default name is type-aware ("Morning Hike"); sync
+  summary reports the hike count. *Note:* until Phase 2, hikes appear mixed into the runs UI (counted
+  in "N runs", eligible for run superlatives) — that's the confirmation they landed.
+- **Phase 2 (todo):** activity selector on the left of the totals pill (All / Runs / Hikes, default
+  All, icons); activity-aware labels/stats ("928 activities"); consistent filtering across
+  map/timeline/studio; **add walks** with an "Include walks" setting (default off/opt-in given volume).
+- **Phase 3 (todo):** per-type Achievements (separate Runs / Hikes sections; hike superlatives =
+  longest / most climb / highest point, no pace); hike-appropriate Studio (elevation hero, drop
+  pace/"race"); type-aware Studio subject rows.
+- **AllTrails history:** no public API. Realistic paths — (a) Apple Health sync (AllTrails → Health,
+  picked up automatically going forward); (b) GPX import via the existing file pipeline for historical.
+  Nike Run Club is runs-only (not a hike source).
+
 ## Maps
 - Countries choropleth: select-to-isolate + run pins, mirroring the state-selection behavior (b134). Optional: higher-res country boundary data if the 110m simplification looks too coarse up close.
 - Home-map cluster rebuild: optional cross-fade / smoother threshold if the zoom re-draw feels flickery.
