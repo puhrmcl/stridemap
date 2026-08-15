@@ -44,10 +44,16 @@ struct RunMapView: UIViewRepresentable {
         map.preferredConfiguration = mapStyle.configuration()
         context.coordinator.appliedStyle = mapStyle
 
-        // NOTE: the route-tap gesture is temporarily disabled to isolate a button
-        // responsiveness issue — it was the prime suspect for swallowing control taps. If
-        // the floating buttons work reliably without it, route selection will be
-        // reimplemented in a way that can't interfere with the SwiftUI controls.
+        // Tap a route line to open its run. The recognizer never cancels touches and only acts
+        // when the tap lands on (or very near) a route, so it can't swallow taps meant for the
+        // floating SwiftUI controls or the map's own gestures.
+        let tap = UITapGestureRecognizer(target: context.coordinator,
+                                         action: #selector(Coordinator.handleRouteTap(_:)))
+        tap.delegate = context.coordinator
+        tap.cancelsTouchesInView = false
+        tap.delaysTouchesBegan = false
+        tap.delaysTouchesEnded = false
+        map.addGestureRecognizer(tap)
 
         context.coordinator.map = map
 
@@ -357,6 +363,55 @@ struct RunMapView: UIViewRepresentable {
                 }
                 mapView.deselectAnnotation(view.annotation, animated: false)
             }
+        }
+
+        // MARK: Route tapping
+
+        /// Opens the run whose route line is closest to the tap, if any is within a small radius.
+        @objc func handleRouteTap(_ gesture: UITapGestureRecognizer) {
+            guard gesture.state == .ended, let map, parent.renderStyle == .routes else { return }
+            let tapPoint = gesture.location(in: map)
+
+            // If the tap landed on a pin / cluster bubble, let MapKit's selection handle it.
+            var view: UIView? = map.hitTest(tapPoint, with: nil)
+            while let current = view {
+                if current is MKAnnotationView { return }
+                view = current.superview
+            }
+
+            let threshold: CGFloat = 22
+            var best: (id: UUID, distance: CGFloat)?
+            for (id, overlay) in overlaysByID {
+                let count = overlay.pointCount
+                guard count > 1 else { continue }
+                let points = overlay.points()
+                let step = max(1, count / 160)   // sample to keep the tap cheap
+                var i = 0
+                while i < count {
+                    let screen = map.convert(points[i].coordinate, toPointTo: map)
+                    let distance = hypot(screen.x - tapPoint.x, screen.y - tapPoint.y)
+                    if distance <= threshold, best == nil || distance < best!.distance {
+                        best = (id, distance)
+                    }
+                    i += step
+                }
+            }
+
+            guard let best else { return }
+            parent.selectedRunID = best.id
+            if let overlay = overlaysByID[best.id] {
+                let bottomInset = max(map.bounds.height * 0.55, 220)
+                map.setVisibleMapRect(
+                    overlay.boundingMapRect,
+                    edgePadding: UIEdgeInsets(top: 120, left: 50, bottom: bottomInset, right: 50),
+                    animated: true
+                )
+            }
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+            true
         }
 
         /// Largest side of a bounding map rect converted to meters — used to decide whether a
