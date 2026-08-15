@@ -25,6 +25,21 @@ Run videos in galleries and video output in Etch Studio for digital sharing.
 - Map Strava's "trainer" flag → `isIndoor` (currently HealthKit-only).
 - One-time backfill: flag `isIndoor` on already-stored routeless runs (today only newly synced runs get flagged).
 
+## Studio output sizes / aspect ratios
+Two separate problems: **pixels/DPI** (trivial — we already scale to ~5400px @ 300 DPI, PNG) and
+**aspect + layout** (the real work — compositions are authored at fixed aspects: Wall Art portrait
+is 2:3, single-state ~5:7, framed/footer variants are taller non-standard ratios).
+
+- **Core capability:** make the composition **aspect-adaptive**, driven by an `OutputTarget`
+  (aspect + pixel target + optional bleed/safe zone/format). Build once; both social and print ride on it.
+- **Social sizes (digital, do first — good forcing function):** an "Output" picker for **1:1**
+  (IG square), **4:5** (IG feed), **9:16** (Story/Reel/TikTok). 9:16 needs a genuine tall layout,
+  not a crop. No bleed/DPI concerns — digital only. De-risks the aspect-adaptive layout for print.
+- **Print / drop-shipping (defer to Prodigi wiring):** files must match each SKU's exact aspect +
+  bleed (3–5mm) + safe zone, 300 DPI at physical size, sRGB, JPEG. Standard frame sizes are mixed
+  aspects (8×10 & 16×20 = 4:5, 18×24 = 3:4, A-series ≈ 1:1.41), so print needs the same aspect
+  flexibility. Exact dims/bleed come from the Prodigi product catalog — build when that lands.
+
 ## Maps
 - Countries choropleth: select-to-isolate + run pins, mirroring the state-selection behavior (b134). Optional: higher-res country boundary data if the 110m simplification looks too coarse up close.
 - Home-map cluster rebuild: optional cross-fade / smoother threshold if the zoom re-draw feels flickery.
