@@ -504,31 +504,6 @@ struct RunMapView: UIViewRepresentable {
 
         // MARK: Tap hit-testing
 
-        @objc func handleTap(_ gesture: UITapGestureRecognizer) {
-            guard let map else { return }
-            let point = gesture.location(in: map)
-            let coordinate = map.convert(point, toCoordinateFrom: map)
-            let tapMapPoint = MKMapPoint(coordinate)
-            // Tolerance scales with zoom so taps stay forgiving when zoomed out.
-            let tolerance = 12 * map.visibleMapRect.width / Double(map.bounds.width)
-
-            var best: (id: UUID, distance: Double)?
-            for (id, overlay) in overlaysByID {
-                let distance = overlay.distance(to: tapMapPoint)
-                if distance < tolerance, best == nil || distance < best!.distance {
-                    best = (id, distance)
-                }
-            }
-            if let best {
-                parent.selectedRunID = best.id
-            }
-        }
-
-        func gestureRecognizer(
-            _ gestureRecognizer: UIGestureRecognizer,
-            shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
-        ) -> Bool { true }
-
         /// The floating controls sit in bands at the top (totals + filters) and bottom
         /// (toolbar, locate/layers). The map fills the whole screen underneath them, so its
         /// route-tap recognizer would otherwise swallow touches meant for those buttons —
