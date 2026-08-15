@@ -190,6 +190,9 @@ struct MapPrintRequest {
     var artPalette: MapArtPalette = .gallery
     var artStyle: MapArtStyle = .grid
     var artWeight: MapArtWeight = .medium
+    /// Zoom for the geography-free art styles that don't use `region` (Bloom scales its radiating
+    /// routes by this). 1 = fit; >1 tightens/enlarges, <1 pulls back.
+    var artZoom: CGFloat = 1
     /// Single-state print options.
     var isSingleState: Bool = false
     var stateMetrics: [StateMetric] = StateMetric.allCases

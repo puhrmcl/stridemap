@@ -134,6 +134,7 @@ struct MapPrintView: View {
         req.artPalette = artPalette
         req.artStyle = artStyle
         req.artWeight = artWeight
+        req.artZoom = CGFloat(zoom)   // Bloom (and other region-free art) scale by this.
         let factor = 1.0 / zoom
         let latSpan = min(170, max(0.002, req.region.span.latitudeDelta * factor))
         let lonSpan = min(340, max(0.002, req.region.span.longitudeDelta * factor))
@@ -232,7 +233,7 @@ struct MapPrintView: View {
             .gesture(
                 DragGesture(minimumDistance: 14)
                     .onEnded { value in
-                        guard framingRelevant, geo.size.width > 0, geo.size.height > 0 else { return }
+                        guard panRelevant, geo.size.width > 0, geo.size.height > 0 else { return }
                         panX += Double(value.translation.width / geo.size.width)
                         panY += Double(value.translation.height / geo.size.height)
                     }
@@ -269,7 +270,7 @@ struct MapPrintView: View {
             .pickerStyle(.segmented)
             .frame(maxWidth: 320)
 
-            if framingRelevant { zoomPanRow }
+            if zoomRelevant { zoomPanRow }
         }
         .padding(.vertical, 16)
         .padding(.horizontal, 24)
@@ -283,8 +284,17 @@ struct MapPrintView: View {
         return kind.descriptor
     }
 
-    /// Grid and Bloom are geography-agnostic, so zoom/pan don't apply.
-    private var framingRelevant: Bool {
+    /// When the zoom control applies. Every map-based print, plus the art styles that scale:
+    /// Home Turf / Constellation frame by geography, and Bloom scales its radiating routes. Grid
+    /// (a fixed contact sheet) has no zoom.
+    private var zoomRelevant: Bool {
+        if kind.isArt { return artStyle == .homeTurf || artStyle == .constellation || artStyle == .bloom }
+        return true
+    }
+
+    /// When drag-to-pan applies — only the geography-framed views. Bloom is centred, so it zooms
+    /// but doesn't pan.
+    private var panRelevant: Bool {
         if kind.isArt { return artStyle == .homeTurf || artStyle == .constellation }
         return true
     }
@@ -478,7 +488,9 @@ struct MapPrintView: View {
                 .disabled(zoom >= 6)
 
             Spacer(minLength: 8)
-            Label("Drag to pan", systemImage: "hand.draw").font(.caption).foregroundStyle(.secondary)
+            if panRelevant {
+                Label("Drag to pan", systemImage: "hand.draw").font(.caption).foregroundStyle(.secondary)
+            }
 
             if zoom != 1 || panX != 0 || panY != 0 {
                 Button("Reset") { resetFrame() }.font(.system(.subheadline, design: .rounded))

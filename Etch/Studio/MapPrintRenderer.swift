@@ -118,7 +118,7 @@ enum MapPrintRenderer {
             let weight = request.artWeight.multiplier
             switch request.artStyle {
             case .grid:          drawGrid(runs, size: size, line: line, unit: unit, weight: weight)
-            case .bloom:         drawBloom(runs, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark, weight: weight)
+            case .bloom:         drawBloom(runs, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark, weight: weight, zoom: request.artZoom)
             case .homeTurf:      drawHomeTurf(runs, region: request.region, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark, weight: weight)
             case .constellation: drawConstellation(runs, region: request.region, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark, weight: weight)
             }
@@ -241,7 +241,7 @@ enum MapPrintRenderer {
     // MARK: The Bloom — every route re-centred to a common origin
 
     private static func drawBloom(_ runs: [Run], size: CGSize, line: UIColor, unit: CGFloat,
-                                  cg: CGContext, dark: Bool, weight: CGFloat) {
+                                  cg: CGContext, dark: Bool, weight: CGFloat, zoom: CGFloat) {
         let withRoutes = runs.filter { $0.coordinates.count > 1 }
         guard !withRoutes.isEmpty else { return }
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
@@ -258,7 +258,7 @@ enum MapPrintRenderer {
             }
         }
         let radius = Double(min(size.width, size.height)) * 0.42
-        let scale = radius / maxExtent
+        let scale = radius / maxExtent * Double(zoom)
         let lineWidth = (withRoutes.count <= 12 ? 3.4 : withRoutes.count <= 80 ? 2.2 : 1.5) * unit * weight
 
         if dark { cg.setBlendMode(.plusLighter) }
