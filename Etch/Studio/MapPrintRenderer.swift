@@ -134,6 +134,37 @@ enum MapPrintRenderer {
                     UIBezierPath(ovalIn: rect).fill()
                     cg.restoreGState()
                 }
+
+            case .clusters:
+                // Group nearby runs into bubbles sized by how many runs are there — the home map's
+                // cluster view, as art.
+                let cell = size.width / 18
+                var bins: [String: (sumX: CGFloat, sumY: CGFloat, count: Int)] = [:]
+                for run in runs {
+                    guard let first = run.coordinates.first else { continue }
+                    let p = point(first)
+                    let key = "\(Int((p.x / cell).rounded(.down)))_\(Int((p.y / cell).rounded(.down)))"
+                    var bin = bins[key] ?? (0, 0, 0)
+                    bin.sumX += p.x; bin.sumY += p.y; bin.count += 1
+                    bins[key] = bin
+                }
+                let maxCount = CGFloat(bins.values.map(\.count).max() ?? 1)
+                for bin in bins.values {
+                    let c = CGPoint(x: bin.sumX / CGFloat(bin.count), y: bin.sumY / CGFloat(bin.count))
+                    let t = sqrt(CGFloat(bin.count) / maxCount)
+                    let radius = (7 + 26 * t) * unit
+                    let rect = CGRect(x: c.x - radius, y: c.y - radius, width: radius * 2, height: radius * 2)
+                    cg.saveGState()
+                    if palette.isDark { cg.setShadow(offset: .zero, blur: radius * 0.7, color: line.cgColor) }
+                    line.withAlphaComponent(0.85).setFill()
+                    UIBezierPath(ovalIn: rect).fill()
+                    cg.restoreGState()
+                    // A soft ring for a considered, cluster-marker feel.
+                    line.withAlphaComponent(0.4).setStroke()
+                    let ring = UIBezierPath(ovalIn: rect.insetBy(dx: -radius * 0.4, dy: -radius * 0.4))
+                    ring.lineWidth = 1.5 * unit
+                    ring.stroke()
+                }
             }
 
             // Gallery finish: a subtle vignette for depth.

@@ -104,13 +104,14 @@ enum MapArtPalette: String, CaseIterable, Identifiable {
 
 /// The Wall Art rendering treatment.
 enum MapArtStyle: String, CaseIterable, Identifiable {
-    case lines, glow, points
+    case lines, glow, points, clusters
     var id: String { rawValue }
     var name: String {
         switch self {
-        case .lines:  return "Lines"
-        case .glow:   return "Glow"
-        case .points: return "Points"
+        case .lines:    return "Lines"
+        case .glow:     return "Glow"
+        case .points:   return "Points"
+        case .clusters: return "Clusters"
         }
     }
 }
