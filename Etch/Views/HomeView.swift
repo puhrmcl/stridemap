@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import CoreLocation
+import MapKit
 
 /// The specific overlay shown under the home map's "Locations" mode.
 enum LocationOverlay: String, CaseIterable, Identifiable {
@@ -33,6 +34,11 @@ struct HomeView: View {
     @State private var stateIntensities: [String: Double] = [:]
     /// States ranked by run count, for the home-map "jump to state" menu.
     @State private var stateRanked: [(name: String, count: Int)] = []
+    /// The single selected state (full boundary name). When set, the States map centres on it,
+    /// unshades the rest, and pins its runs.
+    @State private var selectedStateName: String?
+    /// Start points of the runs inside the selected state — the pins drawn over it.
+    @State private var selectedStateRunPoints: [RunMapPoint] = []
     @State private var countryIntensities: [String: Double] = [:]
     /// Countries ranked by run count, for the home-map "jump to country" menu.
     @State private var countryRanked: [(name: String, count: Int)] = []
@@ -100,7 +106,11 @@ struct HomeView: View {
                     StatesMapView(
                         intensities: stateIntensities,
                         mapStyle: mapStyle,
-                        focusStateName: $focusStateName
+                        focusStateName: $focusStateName,
+                        selectedName: selectedStateName,
+                        runPoints: selectedStateRunPoints,
+                        selectedRunID: $appModel.selectedRunID,
+                        stackedRunIDs: $appModel.stackedRunIDs
                     )
                     .id("states-\(locationRecenterToken)")
                 } else if locationOverlay == .countries {
@@ -134,9 +144,16 @@ struct HomeView: View {
             }
         }
         .ignoresSafeArea()
-        // The "View" label reflects the chosen place; reset it when the overlay or mode changes.
-        .onChange(of: locationOverlay) { selectedPlaceLabel = nil }
-        .onChange(of: showLocations) { selectedPlaceLabel = nil }
+        // The "View" label reflects the chosen place; reset it (and any selected state) when the
+        // overlay or mode changes.
+        .onChange(of: locationOverlay) { selectedPlaceLabel = nil; selectedStateName = nil }
+        .onChange(of: showLocations) { selectedPlaceLabel = nil; selectedStateName = nil }
+        // Recompute the selected state's run pins whenever the selection or the located-run set
+        // changes.
+        .onChange(of: selectedStateName) { recomputeSelectedStateRunPoints() }
+        .onChange(of: locatedRunCount) {
+            if selectedStateName != nil { recomputeSelectedStateRunPoints() }
+        }
         // Recompute whenever States is showing and the number of located runs changes, so the
         // choropleth fills in as Strava/HealthKit routes give older runs coordinates (rather
         // than caching one sparse result forever).
@@ -174,8 +191,11 @@ struct HomeView: View {
                 VStack(alignment: .trailing, spacing: 10) {
                     mapStyleButton
                     if showLocations {
-                        // Re-frame the overlay to fit all its pins / regions.
+                        // Re-frame the overlay to fit all its pins / regions (and drop any single
+                        // state selection so the full choropleth returns).
                         GlassIconButton(systemName: "arrow.up.left.and.arrow.down.right") {
+                            selectedStateName = nil
+                            selectedPlaceLabel = nil
                             locationRecenterToken += 1
                         }
                     } else {
@@ -422,8 +442,16 @@ struct HomeView: View {
         if locationOverlay == .states {
             if !stateRanked.isEmpty {
                 placesMenuLabel(title: selectedPlaceLabel ?? "View") {
+                    if selectedStateName != nil {
+                        Button {
+                            selectedStateName = nil
+                            selectedPlaceLabel = nil
+                            locationRecenterToken += 1   // reframe the full choropleth
+                        } label: { Label("All States", systemImage: "map") }
+                    }
                     ForEach(stateRanked, id: \.name) { item in
                         Button("\(item.name)  ·  \(item.count)") {
+                            selectedStateName = item.name
                             focusStateName = item.name
                             selectedPlaceLabel = item.name
                         }
@@ -526,6 +554,21 @@ struct HomeView: View {
         stateRanked = counts
             .map { (name: $0.key, count: $0.value) }
             .sorted { $0.count != $1.count ? $0.count > $1.count : $0.name < $1.name }
+    }
+
+    /// The located runs whose start point falls inside the selected state — the pins drawn over
+    /// it. Cheap: only the one selected boundary's polygons are tested, behind a bbox pre-filter.
+    private func recomputeSelectedStateRunPoints() {
+        guard let name = selectedStateName,
+              let boundary = USStateBoundaries.shared.boundaries.first(where: { $0.name == name }) else {
+            selectedStateRunPoints = []
+            return
+        }
+        selectedStateRunPoints = runStartPoints.filter { point in
+            let mapPoint = MKMapPoint(point.coordinate)
+            guard boundary.boundingMapRect.contains(mapPoint) else { return false }
+            return boundary.polygons.contains { $0.contains(mapPoint) }
+        }
     }
 
     /// Attributes each located run to a country by point-in-polygon and shades proportionally to
