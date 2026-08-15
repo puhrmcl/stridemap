@@ -590,6 +590,10 @@ final class RunPinView: MKAnnotationView {
 
         canShowCallout = false
         clusteringIdentifier = "runPin"
+        // Clustering only kicks in when the priority is below `.required` — the default. Leaving
+        // it `.required` keeps every pin on screen, so close runs pile up as overlapping glyphs
+        // instead of collapsing into a single numbered count bubble you can tap to drill into.
+        displayPriority = .defaultHigh
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
