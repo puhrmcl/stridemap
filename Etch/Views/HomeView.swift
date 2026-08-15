@@ -316,17 +316,28 @@ struct HomeView: View {
     /// One glass pill showing both totals — distance and run count — with the map-mode dropdown
     /// folded in: a chevron on the right opens the mode menu (filter modes / History / Locations).
     private var totalsPill: some View {
-        HStack(spacing: 10) {
-            activitySelector
+        VStack(spacing: 5) {
+            HStack(spacing: 8) {
+                activitySelector
+                Rectangle()
+                    .fill(.secondary.opacity(0.3))
+                    .frame(width: 1, height: 16)
+                totalsMenu
+            }
+            // Full-width rule under the totals, separating the numbers from the caption.
             Rectangle()
                 .fill(.secondary.opacity(0.25))
-                .frame(width: 1, height: 30)
-            totalsMenu
+                .frame(height: 1)
+            Text(currentModeLabel.uppercased())
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .tracking(1.2)
+                .foregroundStyle(Theme.accentOnGlass)
+                .frame(maxWidth: .infinity)
         }
         .fixedSize(horizontal: true, vertical: false)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .glassBackground(cornerRadius: 18)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .glassBackground(cornerRadius: 16)
     }
 
     /// The activity-type selector on the left of the pill — All / Runs / Hikes (Walks when the
@@ -340,9 +351,9 @@ struct HomeView: View {
             }
         } label: {
             Image(systemName: appModel.activityScope.icon)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(Theme.accentOnGlass)
-                .frame(width: 24, height: 30)
+                .frame(width: 22, height: 22)
         }
         .buttonStyle(.plain)
     }
@@ -357,37 +368,26 @@ struct HomeView: View {
                 Label("Locations", systemImage: "mappin.and.ellipse").tag(ModeSelection.locations)
             }
         } label: {
-            VStack(spacing: 6) {
-                HStack(spacing: 12) {
-                    metric(
-                        value: Format.distanceValue(shownStats.totalDistanceMeters)
-                            .formatted(.number.precision(.fractionLength(0))),
-                        unit: UnitSystem.current.distanceSuffix,
-                        systemName: "point.topleft.down.to.point.bottomright.curvepath"
-                    )
-                    Rectangle()
-                        .fill(.secondary.opacity(0.3))
-                        .frame(width: 1, height: 18)
-                    metric(
-                        value: shownStats.totalRuns.formatted(),
-                        unit: appModel.activityScope.countNoun,
-                        systemName: appModel.activityScope.icon
-                    )
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.secondary)
-                        .padding(.leading, 2)
-                }
+            HStack(spacing: 10) {
+                metric(
+                    value: Format.distanceValue(shownStats.totalDistanceMeters)
+                        .formatted(.number.precision(.fractionLength(0))),
+                    unit: UnitSystem.current.distanceSuffix,
+                    systemName: "point.topleft.down.to.point.bottomright.curvepath"
+                )
                 Rectangle()
-                    .fill(.secondary.opacity(0.25))
-                    .frame(height: 1)
-                Text(currentModeLabel.uppercased())
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .tracking(1.2)
-                    .foregroundStyle(Theme.accentOnGlass)
-                    .frame(maxWidth: .infinity)
+                    .fill(.secondary.opacity(0.3))
+                    .frame(width: 1, height: 16)
+                metric(
+                    value: shownStats.totalRuns.formatted(),
+                    unit: appModel.activityScope.countNoun,
+                    systemName: appModel.activityScope.icon
+                )
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 1)
             }
-            .fixedSize(horizontal: true, vertical: false)
         }
         .buttonStyle(.plain)
     }
