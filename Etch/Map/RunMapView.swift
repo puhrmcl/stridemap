@@ -326,6 +326,12 @@ struct RunMapView: UIViewRepresentable {
             let view = (mapView.dequeueReusableAnnotationView(withIdentifier: id) as? RunPinView)
                 ?? RunPinView(annotation: annotation, reuseIdentifier: id)
             view.annotation = annotation
+            // Re-assert the clustering properties on every (re)use. Setting them only in init is
+            // unreliable — a dequeued view can come back without them, which suppresses the
+            // count-bubble clustering and leaves close runs stacked as individual pins.
+            view.clusteringIdentifier = "runPin"
+            view.displayPriority = .defaultHigh
+            view.collisionMode = .circle
             return view
         }
 

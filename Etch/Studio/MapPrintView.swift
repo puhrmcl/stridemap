@@ -357,7 +357,9 @@ struct MapPrintView: View {
         let stats = RunStatistics(runs)
         let years = stats.years
         let places = stats.travelPlaces
-        let states = Dictionary(grouping: runs.filter { !($0.state ?? "").isEmpty }, by: { $0.state ?? "" })
+        let grouped: [String: [Run]] = Dictionary(grouping: runs.filter { !($0.state ?? "").isEmpty },
+                                                  by: { $0.state ?? "" })
+        let states: [(name: String, count: Int)] = grouped
             .map { (name: $0.key, count: $0.value.count) }
             .sorted { $0.count != $1.count ? $0.count > $1.count : $0.name < $1.name }
         return Menu {
