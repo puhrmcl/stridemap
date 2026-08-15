@@ -26,8 +26,6 @@ struct HomeView: View {
     @AppStorage("mapStyle") private var mapStyleRaw = MapStyleOption.standard.rawValue
     private var mapStyle: MapStyleOption { MapStyleOption(rawValue: mapStyleRaw) ?? .standard }
 
-    /// When true, the map shows the accumulative "etch" view of all tracked history.
-    @State private var showHistory = false
     /// When true, the map shows a Locations overlay (cities / states / countries / landmarks).
     @State private var showLocations = false
     /// Which Locations overlay is active.
@@ -35,8 +33,12 @@ struct HomeView: View {
     @State private var stateIntensities: [String: Double] = [:]
     /// States ranked by run count, for the home-map "jump to state" menu.
     @State private var stateRanked: [(name: String, count: Int)] = []
+    @State private var countryIntensities: [String: Double] = [:]
+    /// Countries ranked by run count, for the home-map "jump to country" menu.
+    @State private var countryRanked: [(name: String, count: Int)] = []
     /// A jump-to target set by the places menu; the overview map zooms to it, then clears it.
     @State private var focusStateName: String?
+    @State private var focusCountryName: String?
     @State private var focusCity: CLLocationCoordinate2D?
     /// The last place picked from the "View" menu, shown on its label until the overlay changes.
     @State private var selectedPlaceLabel: String?
@@ -71,7 +73,7 @@ struct HomeView: View {
     private var visibleStats: RunStatistics { RunStatistics(visibleRuns) }
 
     /// The overview modes ignore the active filter and show everything.
-    private var isOverviewMode: Bool { showHistory || showLocations }
+    private var isOverviewMode: Bool { showLocations }
 
     /// The runs the map is currently showing. Overview modes show everything; the route map
     /// shows the active filter's runs.
@@ -101,6 +103,13 @@ struct HomeView: View {
                         focusStateName: $focusStateName
                     )
                     .id("states-\(locationRecenterToken)")
+                } else if locationOverlay == .countries {
+                    CountriesMapView(
+                        intensities: countryIntensities,
+                        mapStyle: mapStyle,
+                        focusCountryName: $focusCountryName
+                    )
+                    .id("countries-\(locationRecenterToken)")
                 } else {
                     CitiesMapView(
                         cities: overlayPlaces,
@@ -116,13 +125,11 @@ struct HomeView: View {
                 }
             } else {
                 RunMapView(
-                    // History shows the whole body of work, so it ignores the active filter.
-                    runs: showHistory ? allRuns : visibleRuns,
+                    runs: visibleRuns,
                     selectedRunID: $appModel.selectedRunID,
                     stackedRunIDs: $appModel.stackedRunIDs,
                     command: $appModel.command,
-                    mapStyle: mapStyle,
-                    renderStyle: showHistory ? .history : .routes
+                    mapStyle: mapStyle
                 )
             }
         }
@@ -136,6 +143,11 @@ struct HomeView: View {
         .task(id: (showLocations && locationOverlay == .states) ? locatedRunCount : -1) {
             guard showLocations, locationOverlay == .states else { return }
             await computeStateIntensities()
+        }
+        // Same, for the Countries choropleth.
+        .task(id: (showLocations && locationOverlay == .countries) ? locatedRunCount : -3) {
+            guard showLocations, locationOverlay == .countries else { return }
+            await computeCountryIntensities()
         }
         // Detect nearby landmarks while the Landmarks overlay is open. Keying on the number of
         // unchecked runs makes each completed pass re-fire the next one, filling in over time;
@@ -277,8 +289,6 @@ struct HomeView: View {
                 ForEach(RunFilter.Mode.allCases) { mode in
                     Label(mode.rawValue, systemImage: mode.symbol).tag(ModeSelection.mode(mode))
                 }
-                Label("History", systemImage: "point.3.filled.connected.trianglepath.dotted")
-                    .tag(ModeSelection.history)
                 Label("Locations", systemImage: "mappin.and.ellipse").tag(ModeSelection.locations)
             }
         } label: {
@@ -323,7 +333,6 @@ struct HomeView: View {
     /// The currently shown view, for the pill's caption line.
     private var currentModeLabel: String {
         if showLocations { return "Locations" }
-        if showHistory { return "History" }
         return appModel.filter.mode.rawValue
     }
 
@@ -345,7 +354,6 @@ struct HomeView: View {
     /// overlay (whose specific overlay is chosen by a secondary dropdown).
     private enum ModeSelection: Hashable {
         case mode(RunFilter.Mode)
-        case history
         case locations
     }
 
@@ -353,19 +361,15 @@ struct HomeView: View {
         Binding(
             get: {
                 if showLocations { return .locations }
-                if showHistory { return .history }
                 return .mode(appModel.filter.mode)
             },
             set: { newValue in
-                showHistory = false
                 showLocations = false
                 switch newValue {
                 case .mode(let mode):
                     var f = appModel.filter
                     f.mode = mode
                     appModel.setFilter(f)
-                case .history:
-                    showHistory = true
                 case .locations:
                     showLocations = true
                 }
@@ -373,13 +377,13 @@ struct HomeView: View {
         )
     }
 
-    /// The pins for the active pin-based overlay (cities / countries / landmarks).
+    /// The pins for the active pin-based overlay (cities / landmarks). States and countries are
+    /// choropleths, not pins.
     private var overlayPlaces: [RunStatistics.TravelPlace] {
         switch locationOverlay {
         case .cities: return stats.travelPlaces
-        case .countries: return stats.countryPlaces
         case .landmarks: return stats.landmarkPlaces
-        case .states: return []
+        case .states, .countries: return []
         }
     }
 
@@ -421,6 +425,17 @@ struct HomeView: View {
                     ForEach(stateRanked, id: \.name) { item in
                         Button("\(item.name)  ·  \(item.count)") {
                             focusStateName = item.name
+                            selectedPlaceLabel = item.name
+                        }
+                    }
+                }
+            }
+        } else if locationOverlay == .countries {
+            if !countryRanked.isEmpty {
+                placesMenuLabel(title: selectedPlaceLabel ?? "View") {
+                    ForEach(countryRanked, id: \.name) { item in
+                        Button("\(item.name)  ·  \(item.count)") {
+                            focusCountryName = item.name
                             selectedPlaceLabel = item.name
                         }
                     }
@@ -509,6 +524,27 @@ struct HomeView: View {
         let maxCount = counts.values.max() ?? 1
         stateIntensities = counts.mapValues { min(1, (Double($0) / Double(maxCount)).squareRoot()) }
         stateRanked = counts
+            .map { (name: $0.key, count: $0.value) }
+            .sorted { $0.count != $1.count ? $0.count > $1.count : $0.name < $1.name }
+    }
+
+    /// Attributes each located run to a country by point-in-polygon and shades proportionally to
+    /// run count — the country sibling of `computeStateIntensities`.
+    private func computeCountryIntensities() async {
+        let coordinates = runStartPoints.map(\.coordinate)
+        let boundaries = WorldCountryBoundaries.shared
+        let counts = await Task.detached(priority: .userInitiated) { () -> [String: Int] in
+            var counts: [String: Int] = [:]
+            for coordinate in coordinates {
+                if let name = boundaries.region(containing: coordinate) {
+                    counts[name, default: 0] += 1
+                }
+            }
+            return counts
+        }.value
+        let maxCount = counts.values.max() ?? 1
+        countryIntensities = counts.mapValues { min(1, (Double($0) / Double(maxCount)).squareRoot()) }
+        countryRanked = counts
             .map { (name: $0.key, count: $0.value) }
             .sorted { $0.count != $1.count ? $0.count > $1.count : $0.name < $1.name }
     }
