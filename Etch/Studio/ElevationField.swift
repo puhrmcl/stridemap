@@ -118,6 +118,44 @@ enum ElevationService {
         return profile
     }
 
+    /// Terrain elevations (metres) for an arbitrary set of points, batched in waves. Used for the
+    /// state print's high/low elevation. Best-effort: nil if any batch fails.
+    static func elevations(for coordinates: [CLLocationCoordinate2D]) async -> [Double]? {
+        guard !coordinates.isEmpty else { return [] }
+        let capped = coordinates.count > 400 ? Array(coordinates.prefix(400)) : coordinates
+        let coords = capped.map { (lat: $0.latitude, lon: $0.longitude) }
+
+        var batches: [(start: Int, coords: [(lat: Double, lon: Double)])] = []
+        var i = 0
+        while i < coords.count {
+            let end = min(i + 100, coords.count)
+            batches.append((i, Array(coords[i..<end])))
+            i = end
+        }
+
+        var values = [Double](repeating: 0, count: coords.count)
+        var waveStart = 0
+        while waveStart < batches.count {
+            let wave = Array(batches[waveStart..<min(waveStart + 5, batches.count)])
+            let waveResults = await withTaskGroup(of: (Int, [Double]?).self) { group in
+                for batch in wave {
+                    let start = batch.start
+                    let slice = batch.coords
+                    group.addTask { (start, await fetchBatch(slice)) }
+                }
+                var collected: [(Int, [Double]?)] = []
+                for await result in group { collected.append(result) }
+                return collected
+            }
+            for (start, elevations) in waveResults {
+                guard let elevations else { return nil }
+                for (offset, value) in elevations.enumerated() { values[start + offset] = value }
+            }
+            waveStart += 5
+        }
+        return values
+    }
+
     private static func routeCacheKey(_ coords: [(lat: Double, lon: Double)], sampleCount: Int) -> String {
         func r(_ v: Double) -> String { String(format: "%.3f", v) }
         let first = coords.first!, last = coords.last!

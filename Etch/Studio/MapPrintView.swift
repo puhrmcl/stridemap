@@ -13,6 +13,9 @@ struct MapPrintView: View {
     @State private var orientation: StudioOrientation = .portrait
     @State private var artPalette: MapArtPalette = .gallery
     @State private var artStyle: MapArtStyle = .lines
+    /// Single-state print: editable title + which metrics are shown.
+    @State private var stateTitle: String = ""
+    @State private var stateMetrics: Set<StateMetric> = Set(StateMetric.allCases)
     /// >1 tightens onto the core, <1 pulls back for context.
     @State private var zoom: Double = 1.0
     /// Accumulated pan, as fractions of the current span.
@@ -54,12 +57,21 @@ struct MapPrintView: View {
     private var baseRequest: MapPrintRequest {
         if let focusName, let place = focusPlaces.first(where: { $0.name == focusName }) {
             var req = MapPrintRequest.make(kind: .allRuns, runs: place.runs)
-            // Outline the state. Resolve the boundary from a run's coordinate so it works whether
-            // run.state is an abbreviation ("AZ") or a full name.
-            if kind == .states,
-               let coord = place.runs.lazy.compactMap(\.startCoordinate).first,
-               let boundaryName = USStateBoundaries.shared.region(containing: coord) {
-                req.boundaryStateName = boundaryName
+            if kind == .states {
+                req.isSingleState = true
+                req.stateMetrics = StateMetric.allCases.filter { stateMetrics.contains($0) }
+                req.titleOverride = stateTitle.isEmpty ? nil : stateTitle
+                // Centre on the state and show its full name; resolve from a run's coordinate so it
+                // works whether run.state is an abbreviation ("AZ") or a full name.
+                if let coord = place.runs.lazy.compactMap(\.startCoordinate).first,
+                   let boundaryName = USStateBoundaries.shared.region(containing: coord) {
+                    req.boundaryStateName = boundaryName
+                    req.title = boundaryName
+                    if let rect = USStateBoundaries.shared.boundingMapRect(for: boundaryName) {
+                        req.region = MKCoordinateRegion(rect.insetBy(dx: -rect.width * 0.06,
+                                                                     dy: -rect.height * 0.06))
+                    }
+                }
             }
             return req
         }
@@ -84,15 +96,27 @@ struct MapPrintView: View {
         return req
     }
 
+    private var isSingleState: Bool { kind == .states && focusName != nil }
+
+    private var stateMetricsKey: String {
+        StateMetric.allCases.filter { stateMetrics.contains($0) }.map(\.rawValue).joined(separator: ",")
+    }
+
     private var currentKey: String {
         "\(kind.rawValue)-\(focusName ?? "all")-\(orientation.rawValue)-\(artPalette.rawValue)-\(artStyle.rawValue)-" +
+        "\(stateTitle)|\(stateMetricsKey)-" +
         String(format: "%.2f-%.2f-%.2f", zoom, panX, panY)
     }
 
     private var previewAspect: CGFloat {
-        let s = kind.isArt
-            ? (orientation == .landscape ? CGSize(width: 1500, height: 1000) : CGSize(width: 1000, height: 1500))
-            : MapPrintComposition.nominalSize(orientation)
+        let s: CGSize
+        if kind.isArt {
+            s = orientation == .landscape ? CGSize(width: 1500, height: 1000) : CGSize(width: 1000, height: 1500)
+        } else if isSingleState {
+            s = orientation == .landscape ? CGSize(width: 1500, height: 1000) : CGSize(width: 1000, height: 1400)
+        } else {
+            s = MapPrintComposition.nominalSize(orientation)
+        }
         return s.width / s.height
     }
 
@@ -117,8 +141,8 @@ struct MapPrintView: View {
             .sheet(isPresented: $showExport) { MapPrintExportSheet(request: request) }
             .sheet(isPresented: $showPrints) { PrintShopView(subjectTitle: request.title) }
             .task(id: currentKey) { await renderIfNeeded(currentKey) }
-            .onChange(of: kind) { focusName = nil; resetFrame() }
-            .onChange(of: focusName) { resetFrame() }
+            .onChange(of: kind) { focusName = nil; stateTitle = ""; resetFrame() }
+            .onChange(of: focusName) { stateTitle = ""; resetFrame() }
         }
     }
 
@@ -177,6 +201,7 @@ struct MapPrintView: View {
             if kind.isArt {
                 HStack(spacing: 10) { paletteMenu; styleMenu }
             }
+            if isSingleState { stateControls }
 
             Text(focusName == nil ? kind.descriptor : "A single \(singularKindName), framed to its runs.")
                 .font(.subheadline)
@@ -248,6 +273,57 @@ struct MapPrintView: View {
         } label: {
             menuChip(icon: "wand.and.stars", text: artStyle.name)
         }
+    }
+
+    /// The full state name, used as the editable title's placeholder.
+    private var currentStateName: String {
+        guard let place = focusPlaces.first(where: { $0.name == focusName }),
+              let coord = place.runs.lazy.compactMap(\.startCoordinate).first,
+              let name = USStateBoundaries.shared.region(containing: coord) else { return focusName ?? "State" }
+        return name
+    }
+
+    private var stateControls: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "textformat").font(.caption).foregroundStyle(.secondary)
+                TextField(currentStateName, text: $stateTitle)
+                    .font(.system(.subheadline, design: .rounded))
+                    .textInputAutocapitalization(.words)
+                if !stateTitle.isEmpty {
+                    Button { stateTitle = "" } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .frame(maxWidth: 340)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(StateMetric.allCases) { metricChip($0) }
+                }
+                .padding(.horizontal, 2)
+            }
+            .frame(maxWidth: 360)
+        }
+    }
+
+    private func metricChip(_ metric: StateMetric) -> some View {
+        let on = stateMetrics.contains(metric)
+        return Button {
+            if on { stateMetrics.remove(metric) } else { stateMetrics.insert(metric) }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: on ? "checkmark.circle.fill" : "circle").font(.caption)
+                Text(metric.name).font(.system(.caption, design: .rounded).weight(.semibold))
+            }
+            .foregroundStyle(on ? Color.white : Theme.accent)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(on ? Theme.accent : Theme.accent.opacity(0.12), in: .capsule)
+        }
+        .buttonStyle(.plain)
     }
 
     private func menuChip(icon: String, text: String) -> some View {

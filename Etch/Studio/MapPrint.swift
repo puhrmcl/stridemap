@@ -102,6 +102,23 @@ enum MapArtPalette: String, CaseIterable, Identifiable {
     var isDark: Bool { ground.isDarkGround }
 }
 
+/// A toggleable metric on the single-state print.
+enum StateMetric: String, CaseIterable, Identifiable {
+    case runs, miles, cities, highElev, lowElev
+    var id: String { rawValue }
+    var name: String {
+        switch self {
+        case .runs:     return "Runs"
+        case .miles:    return "Miles"
+        case .cities:   return "Cities"
+        case .highElev: return "High Elev"
+        case .lowElev:  return "Low Elev"
+        }
+    }
+    /// Needs a terrain-elevation lookup for the state's runs.
+    var needsElevation: Bool { self == .highElev || self == .lowElev }
+}
+
 /// The Wall Art rendering treatment.
 enum MapArtStyle: String, CaseIterable, Identifiable {
     case lines, glow, points, clusters
@@ -128,8 +145,35 @@ struct MapPrintRequest {
     var boundaryStateName: String? = nil
     var artPalette: MapArtPalette = .gallery
     var artStyle: MapArtStyle = .lines
+    /// Single-state print options.
+    var isSingleState: Bool = false
+    var stateMetrics: [StateMetric] = StateMetric.allCases
+    var titleOverride: String? = nil
     var routeColor: Color = Theme.Palette.blue
     var ground: Color = Theme.Palette.bone
+
+    /// The title shown, honouring a user edit.
+    var displayTitle: String { (titleOverride?.isEmpty == false ? titleOverride : nil) ?? title }
+
+    /// Full-bleed state poster size (map fills the page; metrics float over the bottom).
+    var statePosterSize: CGSize {
+        orientation == .landscape ? CGSize(width: 1500, height: 1000) : CGSize(width: 1000, height: 1400)
+    }
+
+    /// Builds the enabled state metrics as (label, value), given fetched high/low elevation.
+    func stateFooterMetrics(elevHigh: Double?, elevLow: Double?) -> [(label: String, value: String)] {
+        let stats = RunStatistics(runs)
+        return stateMetrics.compactMap { metric -> (label: String, value: String)? in
+            switch metric {
+            case .runs:   return ("RUNS", stats.totalRuns.formatted())
+            case .miles:  return (UnitSystem.current.label.uppercased(),
+                                  Format.distanceValue(stats.totalDistanceMeters).formatted(.number.precision(.fractionLength(0))))
+            case .cities: return ("CITIES", stats.cities.count.formatted())
+            case .highElev: return elevHigh.map { ("HIGH ELEV", Format.elevation($0)) }
+            case .lowElev:  return elevLow.map { ("LOW ELEV", Format.elevation($0)) }
+            }
+        }
+    }
 
     /// The runs that actually carry a drawable route.
     var mapped: [Run] { runs.filter(\.hasRoute) }
@@ -140,6 +184,7 @@ struct MapPrintRequest {
             return orientation == .landscape ? CGSize(width: 1500, height: 1000)
                                              : CGSize(width: 1000, height: 1500)
         }
+        if isSingleState { return statePosterSize }
         return MapPrintComposition.nominalSize(orientation)
     }
 

@@ -13,6 +13,7 @@ enum MapPrintRenderer {
     /// Preview / working image at the given `ImageRenderer` scale.
     static func image(for request: MapPrintRequest, scale: CGFloat) async -> UIImage? {
         if request.kind.isArt { return artImage(for: request, scale: scale) }
+        if request.isSingleState { return await stateImage(for: request, scale: scale) }
         let panelSize = CGSize(width: MapPrintComposition.width, height: MapPrintComposition.artHeight)
         let visited = request.kind == .states ? await visitedStateIntensities(request.runs) : [:]
         guard let panel = await panel(for: request, size: panelSize, visited: visited) else { return nil }
@@ -32,6 +33,63 @@ enum MapPrintRenderer {
         let target = min(longEdgePixels, maxLongEdgePixels)
         let scale = max(2, target / max(nominal.width, nominal.height))
         return await image(for: request, scale: scale)
+    }
+
+    // MARK: Single-state print — map fills the page, metrics float over the bottom
+
+    private static func stateImage(for request: MapPrintRequest, scale: CGFloat) async -> UIImage? {
+        let size = request.statePosterSize
+        guard let panel = await statePanel(for: request, size: size) else { return nil }
+
+        // High / low terrain elevation across the state's run starts (best-effort).
+        var high: Double?, low: Double?
+        if request.stateMetrics.contains(where: { $0.needsElevation }) {
+            let starts = request.mapped.compactMap(\.startCoordinate)
+            if let elevations = await ElevationService.elevations(for: starts), !elevations.isEmpty {
+                high = elevations.max(); low = elevations.min()
+            }
+        }
+
+        let metrics = request.stateFooterMetrics(elevHigh: high, elevLow: low)
+        let composition = StatePrintComposition(panelImage: panel, title: request.displayTitle,
+                                                metrics: metrics, size: size)
+        let renderer = ImageRenderer(content: composition)
+        renderer.scale = scale
+        return renderer.uiImage
+    }
+
+    /// The full-page state map: the muted region snapshot with the state outline and the routes.
+    private static func statePanel(for request: MapPrintRequest, size: CGSize) async -> UIImage? {
+        let options = MKMapSnapshotter.Options()
+        options.region = request.region
+        options.size = size
+        options.scale = 2
+        options.pointOfInterestFilter = .excludingAll
+        options.traitCollection = UITraitCollection(userInterfaceStyle: .light)
+        let config = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .muted)
+        config.pointOfInterestFilter = .excludingAll
+        options.preferredConfiguration = config
+
+        let snapshotter = MKMapSnapshotter(options: options)
+        let snapshot: MKMapSnapshotter.Snapshot? = await withCheckedContinuation { continuation in
+            snapshotter.start(with: .main) { snap, _ in continuation.resume(returning: snap) }
+        }
+        guard let snapshot else { return nil }
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = options.scale
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        let route = UIColor(request.routeColor)
+        let bone = UIColor(Theme.Palette.bone)
+
+        return renderer.image { context in
+            snapshot.image.draw(in: CGRect(origin: .zero, size: size))
+            bone.withAlphaComponent(0.14).setFill()
+            context.cgContext.fill(CGRect(origin: .zero, size: size))
+            if let name = request.boundaryStateName { drawStateBoundary(name, on: snapshot) }
+            drawRoutes(request.mapped, on: snapshot, route: route)
+        }
     }
 
     // MARK: Wall Art — abstract, full-bleed, text-free
