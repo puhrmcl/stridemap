@@ -22,6 +22,8 @@ struct StudioView: View {
     @State private var orientation: StudioOrientation = .portrait
     @State private var dataPlacement: StudioDataPlacement = .side
     @State private var photoLayout: StudioPhotoLayout = .single
+    /// The share/export canvas — Poster (native) or a social aspect (Square / Feed / Story).
+    @State private var outputSize: StudioOutputSize = .poster
     @State private var customTitle = ""
     @State private var customDate = ""
     @State private var showEditorialPhoto = false
@@ -147,6 +149,13 @@ struct StudioView: View {
         }
     }
 
+    /// Aspect (w/h) of the current output — the social canvas when one is chosen, else the poster.
+    private var previewAspect: CGFloat {
+        if let aspect = outputSize.aspect { return aspect }
+        let s = StudioComposition.nominalSize(orientation, dataPlacement)
+        return s.width / s.height
+    }
+
     // MARK: Pages
 
     private func page(for edition: StudioEdition) -> some View {
@@ -162,7 +171,7 @@ struct StudioView: View {
                 } else {
                     RoundedRectangle(cornerRadius: 10)
                         .fill(edition.id == selection ? (groundColor ?? edition.ground) : edition.ground)
-                        .aspectRatio({ let s = StudioComposition.nominalSize(orientation, dataPlacement); return s.width / s.height }(), contentMode: .fit)
+                        .aspectRatio(previewAspect, contentMode: .fit)
                         .overlay {
                             VStack(spacing: 10) {
                                 ProgressView().tint(edition.accent)
@@ -227,6 +236,15 @@ struct StudioView: View {
 
                     Picker("Orientation", selection: $orientation) {
                         ForEach(StudioOrientation.allCases) { Text($0.name).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 320)
+
+                    // Output canvas — Poster (print proportions) or a social aspect for sharing.
+                    Picker("Output", selection: $outputSize) {
+                        ForEach(StudioOutputSize.allCases) { size in
+                            Label(size.name, systemImage: size.symbol).tag(size)
+                        }
                     }
                     .pickerStyle(.segmented)
                     .frame(maxWidth: 320)
@@ -318,6 +336,7 @@ struct StudioView: View {
         .onChange(of: heroMetric) { bump() }
         .onChange(of: statSlots) { bump() }
         .onChange(of: showElevationProfile) { bump() }
+        .onChange(of: outputSize) { bump() }
     }
 
     private func textFieldRow(_ title: String, text: Binding<String>, placeholder: String) -> some View {
@@ -579,7 +598,7 @@ struct StudioView: View {
             showMemoryRoute: showMemoryRoute,
             heroMetric: heroMetric, statSlots: statSlots, showElevationProfile: showElevationProfile,
             includeWeather: includeWeather, routeColor: routeColor, textColor: textColor,
-            groundColor: groundColor
+            groundColor: groundColor, outputSize: outputSize
         )
     }
 }

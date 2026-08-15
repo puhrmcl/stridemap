@@ -23,6 +23,40 @@ enum StudioOrientation: String, CaseIterable, Identifiable {
     var symbol: String { self == .portrait ? "rectangle.portrait" : "rectangle" }
 }
 
+/// The share/export canvas. `poster` keeps the composition's native print proportions; the others
+/// mat it onto a social-platform aspect (the poster centred on its ground colour) for digital
+/// sharing — no layout reflow, so every edition stays composed at any size.
+enum StudioOutputSize: String, CaseIterable, Identifiable {
+    case poster, square, feed, story
+    var id: String { rawValue }
+    var name: String {
+        switch self {
+        case .poster: return "Poster"
+        case .square: return "Square"
+        case .feed:   return "Feed"
+        case .story:  return "Story"
+        }
+    }
+    /// A shape/social cue for the picker (SF Symbols has no brand logos, so these evoke the format).
+    var symbol: String {
+        switch self {
+        case .poster: return "photo.artframe"
+        case .square: return "square"
+        case .feed:   return "rectangle.portrait"
+        case .story:  return "iphone"
+        }
+    }
+    /// Target width ÷ height. nil keeps the composition's native aspect.
+    var aspect: CGFloat? {
+        switch self {
+        case .poster: return nil
+        case .square: return 1
+        case .feed:   return 4.0 / 5.0    // Instagram feed
+        case .story:  return 9.0 / 16.0   // Stories / Reels / TikTok
+        }
+    }
+}
+
 /// Where the run data sits relative to the art in landscape. Ignored in portrait (always bottom).
 enum StudioDataPlacement: String, CaseIterable, Identifiable {
     case side, bottom

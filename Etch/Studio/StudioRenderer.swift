@@ -30,6 +30,8 @@ enum StudioRenderer {
         var routeColor: Color? = nil
         var textColor: Color? = nil
         var groundColor: Color? = nil
+        /// The share/export canvas — `poster` (native) or a social aspect the poster is matted onto.
+        var outputSize: StudioOutputSize = .poster
     }
 
     /// Largest long edge (px) rendered on-device, to stay within memory limits (~18–20″ at
@@ -104,7 +106,32 @@ enum StudioRenderer {
         )
         let renderer = ImageRenderer(content: composition)
         renderer.scale = scale
-        return renderer.uiImage
+        guard let base = renderer.uiImage else { return nil }
+        guard let aspect = request.outputSize.aspect else { return base }
+        return matted(base, aspect: aspect, ground: request.groundColor ?? request.edition.ground)
+    }
+
+    /// Places the finished poster centred on a `ground`-filled canvas of the target aspect — the
+    /// social-share framing. Sized from the poster's *actual* rendered dimensions (not an estimate),
+    /// so it can never clip, whatever the edition/footer height.
+    private static func matted(_ image: UIImage, aspect: CGFloat, ground: Color) -> UIImage {
+        let size = image.size
+        let margin: CGFloat = 1.06
+        var width = size.width * margin
+        var height = size.height * margin
+        if width / height < aspect { width = height * aspect } else { height = width / aspect }
+        let canvas = CGSize(width: width, height: height)
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = image.scale
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: canvas, format: format)
+        return renderer.image { context in
+            UIColor(ground).setFill()
+            context.fill(CGRect(origin: .zero, size: canvas))
+            let origin = CGPoint(x: (canvas.width - size.width) / 2, y: (canvas.height - size.height) / 2)
+            image.draw(in: CGRect(origin: origin, size: size))
+        }
     }
 
     /// The route's terrain elevation profile, fetched when the strip is enabled or a chosen metric
@@ -117,11 +144,13 @@ enum StudioRenderer {
         return await ElevationService.routeProfile(for: request.run.coordinates) ?? []
     }
 
-    /// A print-resolution image whose long edge is ~`longEdgePixels` (capped for on-device
-    /// memory). 5400 px ≈ 18″ at 300 DPI — a genuine gallery-grade file.
+    /// The export image. A `poster` renders at print resolution (~5400 px long edge ≈ 18″ @ 300 DPI);
+    /// a social size renders at a lighter digital resolution (the matting happens inside `image`).
     static func printImage(for request: Request, longEdgePixels: CGFloat = 5400) async -> UIImage? {
         let nominal = StudioComposition.nominalSize(request.orientation, request.dataPlacement)
         let compositionLongEdge = max(nominal.width, nominal.height)   // nominal points
+        // Social exports don't need print DPI; ~2× the composition keeps files light to share.
+        guard request.outputSize.aspect == nil else { return await image(for: request, scale: 2) }
         let target = min(longEdgePixels, maxLongEdgePixels)
         let scale = max(2, target / compositionLongEdge)
         return await image(for: request, scale: scale)
