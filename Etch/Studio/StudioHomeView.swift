@@ -120,13 +120,26 @@ struct StudioHomeView: View {
 
     // MARK: Subject rows
 
-    /// The standout runs, each with a small label — the most Studio-worthy subjects.
+    /// The standout runs, each with a small label — the most Studio-worthy subjects. Ordered so
+    /// the marquee superlatives lead, then benchmark-distance bests, then the firsts/edges. Any
+    /// run that qualifies twice keeps its first (highest-priority) label.
     private var milestones: [(Run, String?)] {
         var out: [(Run, String?)] = []
         if let r = stats.longestRun, r.hasRoute { out.append((r, "Furthest")) }
         if let r = stats.longestDurationRun, r.hasRoute { out.append((r, "Longest")) }
         if let r = stats.fastestRun, r.hasRoute { out.append((r, "Fastest")) }
         if let r = stats.highestClimb, r.hasRoute { out.append((r, "Highest")) }
+
+        // Best effort at each marquee race distance — a personal record worth a poster.
+        let prByLabel = Dictionary(uniqueKeysWithValues: stats.personalRecords.map { ($0.label, $0.run) })
+        for label in ["Marathon", "Half Marathon", "10K", "5K"] {
+            if let r = prByLabel[label], r.hasRoute { out.append((r, label)) }
+        }
+
+        if let r = mapped.min(by: { $0.startDate < $1.startDate }) { out.append((r, "First")) }
+        if let r = stats.northernmostRun, r.hasRoute { out.append((r, "Northernmost")) }
+        if let r = stats.southernmostRun, r.hasRoute { out.append((r, "Southernmost")) }
+
         var seen = Set<UUID>()
         return out.filter { seen.insert($0.0.id).inserted }
     }
