@@ -1,0 +1,35 @@
+# Etch — Backlog
+
+Deferred ideas and follow-ups we've agreed to come back to. Not scheduled; no order implied.
+
+## Video support (pinned)
+Run videos in galleries and video output in Etch Studio for digital sharing.
+
+- **Open decision — gallery media model:** separate `videoReferences: [String]` (simplest; posters/prints stay image-only by construction) **vs** a unified, capture-time-ordered typed media list (nicer gallery, more model/migration work). *Pinned — decide when we pick this up.*
+- **Phase 1 — videos in galleries (low complexity):**
+  - Photo refs are already `PHAsset.localIdentifier` strings, so videos are just assets with `mediaType == .video` — no new storage (we only store references).
+  - Widen `PhotoLibrary.matchingIdentifiers` predicate to `image OR video` (videos carry creationDate + location, so time/location matching is unchanged).
+  - Thumbnails: `PHImageManager.requestImage` already returns a poster frame for videos — show a play badge overlay.
+  - Full-screen viewer (`RunPhotoViews.swift`): branch to `VideoPlayer` backed by `PHImageManager.requestPlayerItem` (handles iCloud download).
+  - Photo picker filter: `.images` → `.any(of: [.images, .videos])`.
+  - Risks: iCloud-only videos need a network fetch (spinner); Live Photos treated as image for v1.
+- **Phase 2 — Studio "Motion / Reel" export (high complexity, digital-only):**
+  - New output type — not the static `ImageRenderer` → PNG path. Composite the run video with an Etch overlay (route trace + title + key stats) burned in, export a vertical 9:16 MP4 for Stories/Reels.
+  - Pipeline: `AVMutableComposition` + `AVMutableVideoComposition` + `CALayer` overlay via `AVVideoCompositionCoreAnimationTool` → `AVAssetExportSession` (with progress UI).
+  - MVP: static burned overlay. V2: animate the route drawing in as the clip plays.
+  - Risks: export time/memory on older devices, portrait/landscape source handling, audio keep/mute, share file size. Prints stay image-only.
+
+## Indoor / treadmill runs (b139 shipped capture + tiles)
+- Effort-trace visual for indoor tiles (pace/HR ribbon) in place of a route glyph.
+- "＋ N indoor runs" acknowledgment in the home-map totals so indoor runs aren't silently absent from the map.
+- Map Strava's "trainer" flag → `isIndoor` (currently HealthKit-only).
+- One-time backfill: flag `isIndoor` on already-stored routeless runs (today only newly synced runs get flagged).
+
+## Maps
+- Countries choropleth: select-to-isolate + run pins, mirroring the state-selection behavior (b134). Optional: higher-res country boundary data if the 110m simplification looks too coarse up close.
+- Home-map cluster rebuild: optional cross-fade / smoother threshold if the zoom re-draw feels flickery.
+
+## Studio / prints
+- Optional: auto-keep exported posters (vs the current explicit bookmark) so every export lands in "Your Etches".
+- Wall Art state filter: full state names ("Arizona") via point-in-polygon vs the stored abbreviations ("AZ").
+- Distance-PR milestones: add 1K / 1-mile if we want finer granularity than 5K+.
