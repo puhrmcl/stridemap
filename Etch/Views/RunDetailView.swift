@@ -130,7 +130,7 @@ struct RunDetailView: View {
             }
             HStack(spacing: 12) {
                 metric("Pace", Format.pace(secondsPerKm: run.paceSecondsPerKm), "speedometer")
-                metric("Elevation", Format.elevation(run.elevationGain), "mountain.2")
+                metric("Elevation Gain", Format.elevation(run.elevationGain), "mountain.2")
             }
             HStack(spacing: 12) {
                 metric("Date", Format.date(run.startDate), "calendar")
@@ -150,6 +150,10 @@ struct RunDetailView: View {
                         metric("Cadence", "\(Int(cadence)) spm", "figure.run")
                     }
                 }
+            }
+            // Weather, when the run captured it.
+            if let weather = run.weatherLine() {
+                metric("Weather", weather, "cloud.sun")
             }
         }
     }
