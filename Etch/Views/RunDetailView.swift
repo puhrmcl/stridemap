@@ -134,20 +134,18 @@ struct RunDetailView: View {
             }
             HStack(spacing: 12) {
                 metric("Date", Format.date(run.startDate), "calendar")
-                if let hr = run.averageHeartRate, hr > 0 {
-                    metric("Avg HR", "\(Int(hr)) bpm", "heart")
-                } else {
-                    metric("Type", cleanSportType, "figure.run")
-                }
+                metric("Type", cleanSportType, "figure.run")
             }
-            // Optional rich metrics only appear when the source provided them.
-            if hasSecondaryMetrics {
+            // Physiological metrics (Energy, Avg HR, Cadence), two per row, as available.
+            ForEach(Array(stride(from: 0, to: physioMetrics.count, by: 2)), id: \.self) { i in
                 HStack(spacing: 12) {
-                    if let energy = run.activeEnergy, energy > 0 {
-                        metric("Energy", "\(Int(energy)) kcal", "flame")
-                    }
-                    if let cadence = run.averageCadence, cadence > 0 {
-                        metric("Cadence", "\(Int(cadence)) spm", "figure.run")
+                    let a = physioMetrics[i]
+                    metric(a.label, a.value, a.icon)
+                    if i + 1 < physioMetrics.count {
+                        let b = physioMetrics[i + 1]
+                        metric(b.label, b.value, b.icon)
+                    } else {
+                        Color.clear.frame(maxWidth: .infinity)
                     }
                 }
             }
@@ -158,8 +156,19 @@ struct RunDetailView: View {
         }
     }
 
-    private var hasSecondaryMetrics: Bool {
-        (run.activeEnergy ?? 0) > 0 || (run.averageCadence ?? 0) > 0
+    /// The available physiological metrics, ordered so heart rate sits next to energy.
+    private var physioMetrics: [(label: String, value: String, icon: String)] {
+        var items: [(label: String, value: String, icon: String)] = []
+        if let energy = run.activeEnergy, energy > 0 {
+            items.append((label: "Energy", value: "\(Int(energy)) kcal", icon: "flame"))
+        }
+        if let hr = run.averageHeartRate, hr > 0 {
+            items.append((label: "Avg HR", value: "\(Int(hr)) bpm", icon: "heart"))
+        }
+        if let cadence = run.averageCadence, cadence > 0 {
+            items.append((label: "Cadence", value: "\(Int(cadence)) spm", icon: "figure.run"))
+        }
+        return items
     }
 
     private var cleanSportType: String {
