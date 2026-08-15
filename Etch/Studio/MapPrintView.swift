@@ -14,6 +14,15 @@ struct MapPrintView: View {
     @State private var artPalette: MapArtPalette = .gallery
     @State private var artStyle: MapArtStyle = .grid
     @State private var artWeight: MapArtWeight = .medium
+    /// Narrows which runs the Wall Art draws from (all / favorites / races / a year / a place).
+    @State private var artFilter: ArtFilter = .all
+
+    /// A subset selector for the Wall Art. Only choices that actually match runs are offered.
+    enum ArtFilter: Hashable {
+        case all, favorites, races
+        case year(Int)
+        case place(String)   // a city short-label from `travelPlaces`
+    }
     /// Single-state print: editable title + which metrics are shown.
     @State private var stateTitle: String = ""
     @State private var stateMetrics: Set<StateMetric> = Set(StateMetric.allCases)
@@ -54,8 +63,43 @@ struct MapPrintView: View {
         }
     }
 
+    /// A compact "City, ST" label for a travel place (drops the country).
+    private func cityLabel(_ place: RunStatistics.TravelPlace) -> String {
+        let parts = place.label.components(separatedBy: ", ")
+        return parts.count >= 2 ? parts.prefix(2).joined(separator: ", ") : place.label
+    }
+
+    /// The runs the Wall Art draws from, after the active filter.
+    private var artFilteredRuns: [Run] {
+        switch artFilter {
+        case .all:       return runs
+        case .favorites: return runs.filter(\.isFavorite)
+        case .races:     return runs.filter(\.isRace)
+        case .year(let y):
+            let cal = Calendar.current
+            return runs.filter { cal.component(.year, from: $0.startDate) == y }
+        case .place(let name):
+            guard let place = RunStatistics(runs).travelPlaces.first(where: { cityLabel($0) == name }) else { return runs }
+            let ids = Set(place.runs.map(\.id))
+            return runs.filter { ids.contains($0.id) }
+        }
+    }
+
+    private var artFilterLabel: String {
+        switch artFilter {
+        case .all:       return "All Runs"
+        case .favorites: return "Favorites"
+        case .races:     return "Races"
+        case .year(let y): return String(y)
+        case .place(let name): return name
+        }
+    }
+
     /// The base request — a single place drawn as routes, or the aggregate for the kind.
     private var baseRequest: MapPrintRequest {
+        if kind.isArt {
+            return MapPrintRequest.make(kind: kind, runs: artFilteredRuns)
+        }
         if let focusName, let place = focusPlaces.first(where: { $0.name == focusName }) {
             var req = MapPrintRequest.make(kind: .allRuns, runs: place.runs)
             if kind == .states {
@@ -106,7 +150,7 @@ struct MapPrintView: View {
 
     private var currentKey: String {
         "\(kind.rawValue)-\(focusName ?? "all")-\(orientation.rawValue)-\(artPalette.rawValue)-\(artStyle.rawValue)-\(artWeight.rawValue)-" +
-        "\(stateTitle)|\(stateMetricsKey)-" +
+        "\(artFilterLabel)-\(stateTitle)|\(stateMetricsKey)-" +
         String(format: "%.2f-%.2f-%.2f", zoom, panX, panY)
     }
 
@@ -143,7 +187,7 @@ struct MapPrintView: View {
             .sheet(isPresented: $showExport) { MapPrintExportSheet(request: request) }
             .sheet(isPresented: $showPrints) { PrintShopView(subjectTitle: request.title) }
             .task(id: currentKey) { await renderIfNeeded(currentKey) }
-            .onChange(of: kind) { focusName = nil; stateTitle = ""; resetFrame() }
+            .onChange(of: kind) { focusName = nil; stateTitle = ""; artFilter = .all; resetFrame() }
             .onChange(of: focusName) { stateTitle = ""; resetFrame() }
         }
     }
@@ -202,7 +246,7 @@ struct MapPrintView: View {
             }
             if kind.isArt {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) { styleMenu; paletteMenu; weightMenu }
+                    HStack(spacing: 10) { artFilterMenu; styleMenu; paletteMenu; weightMenu }
                         .padding(.horizontal, 2)
                 }
                 .frame(maxWidth: 360)
@@ -300,6 +344,47 @@ struct MapPrintView: View {
             }
         } label: {
             menuChip(icon: "lineweight", text: artWeight.name)
+        }
+    }
+
+    /// Narrows the Wall Art to a subset of runs. Only options that match at least one run are
+    /// shown, so a selection can never empty the poster.
+    private var artFilterMenu: some View {
+        let stats = RunStatistics(runs)
+        let years = stats.years
+        let places = stats.travelPlaces
+        return Menu {
+            Button { artFilter = .all } label: {
+                Label("All Runs", systemImage: artFilter == .all ? "checkmark" : "circle.grid.2x2")
+            }
+            if runs.contains(where: \.isFavorite) {
+                Button { artFilter = .favorites } label: {
+                    Label("Favorites", systemImage: artFilter == .favorites ? "checkmark" : "star")
+                }
+            }
+            if runs.contains(where: \.isRace) {
+                Button { artFilter = .races } label: {
+                    Label("Races", systemImage: artFilter == .races ? "checkmark" : "flag.checkered")
+                }
+            }
+            if !years.isEmpty {
+                Menu("Year") {
+                    ForEach(years, id: \.self) { year in
+                        Button(String(year)) { artFilter = .year(year) }
+                    }
+                }
+            }
+            if !places.isEmpty {
+                Menu("Location") {
+                    ForEach(places) { place in
+                        Button("\(cityLabel(place))  ·  \(place.runs.count)") {
+                            artFilter = .place(cityLabel(place))
+                        }
+                    }
+                }
+            }
+        } label: {
+            menuChip(icon: "line.3.horizontal.decrease", text: artFilterLabel)
         }
     }
 
