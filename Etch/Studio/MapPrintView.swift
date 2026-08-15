@@ -13,6 +13,7 @@ struct MapPrintView: View {
     @State private var orientation: StudioOrientation = .portrait
     @State private var artPalette: MapArtPalette = .gallery
     @State private var artStyle: MapArtStyle = .grid
+    @State private var artWeight: MapArtWeight = .medium
     /// Single-state print: editable title + which metrics are shown.
     @State private var stateTitle: String = ""
     @State private var stateMetrics: Set<StateMetric> = Set(StateMetric.allCases)
@@ -84,6 +85,7 @@ struct MapPrintView: View {
         req.orientation = orientation
         req.artPalette = artPalette
         req.artStyle = artStyle
+        req.artWeight = artWeight
         let factor = 1.0 / zoom
         let latSpan = min(170, max(0.002, req.region.span.latitudeDelta * factor))
         let lonSpan = min(340, max(0.002, req.region.span.longitudeDelta * factor))
@@ -103,7 +105,7 @@ struct MapPrintView: View {
     }
 
     private var currentKey: String {
-        "\(kind.rawValue)-\(focusName ?? "all")-\(orientation.rawValue)-\(artPalette.rawValue)-\(artStyle.rawValue)-" +
+        "\(kind.rawValue)-\(focusName ?? "all")-\(orientation.rawValue)-\(artPalette.rawValue)-\(artStyle.rawValue)-\(artWeight.rawValue)-" +
         "\(stateTitle)|\(stateMetricsKey)-" +
         String(format: "%.2f-%.2f-%.2f", zoom, panX, panY)
     }
@@ -199,7 +201,11 @@ struct MapPrintView: View {
                 if kind.supportsSinglePlace, !focusPlaces.isEmpty { placeMenu }
             }
             if kind.isArt {
-                HStack(spacing: 10) { paletteMenu; styleMenu }
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) { styleMenu; paletteMenu; weightMenu }
+                        .padding(.horizontal, 2)
+                }
+                .frame(maxWidth: 360)
             }
             if isSingleState { stateControls }
 
@@ -284,6 +290,16 @@ struct MapPrintView: View {
             }
         } label: {
             menuChip(icon: "wand.and.stars", text: artStyle.name)
+        }
+    }
+
+    private var weightMenu: some View {
+        Menu {
+            Picker("Weight", selection: $artWeight) {
+                ForEach(MapArtWeight.allCases) { Text($0.name).tag($0) }
+            }
+        } label: {
+            menuChip(icon: "lineweight", text: artWeight.name)
         }
     }
 

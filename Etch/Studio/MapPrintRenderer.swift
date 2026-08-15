@@ -115,11 +115,12 @@ enum MapPrintRenderer {
             ground.setFill()
             cg.fill(CGRect(origin: .zero, size: size))
 
+            let weight = request.artWeight.multiplier
             switch request.artStyle {
-            case .grid:          drawGrid(runs, size: size, line: line, unit: unit)
-            case .bloom:         drawBloom(runs, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark)
-            case .homeTurf:      drawHomeTurf(runs, region: request.region, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark)
-            case .constellation: drawConstellation(runs, region: request.region, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark)
+            case .grid:          drawGrid(runs, size: size, line: line, unit: unit, weight: weight)
+            case .bloom:         drawBloom(runs, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark, weight: weight)
+            case .homeTurf:      drawHomeTurf(runs, region: request.region, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark, weight: weight)
+            case .constellation: drawConstellation(runs, region: request.region, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark, weight: weight)
             }
 
             // Gallery finish: a subtle vignette for depth.
@@ -170,23 +171,43 @@ enum MapPrintRenderer {
 
     // MARK: The Grid — a contact sheet of per-run glyphs
 
-    private static func drawGrid(_ runs: [Run], size: CGSize, line: UIColor, unit: CGFloat) {
+    private static func drawGrid(_ runs: [Run], size: CGSize, line: UIColor, unit: CGFloat, weight: CGFloat) {
         let sorted = runs.sorted { $0.startDate < $1.startDate }   // a chronicle
         let n = sorted.count
+        guard n > 0 else { return }
         let aspect = Double(size.width / size.height)
-        var cols = max(1, Int((Double(n) * aspect).squareRoot().rounded()))
-        cols = min(cols, n)
+        let ideal = min(n, max(1, Int((Double(n) * aspect).squareRoot().rounded())))
+
+        // Pick a column count near the ideal that leaves the fewest empty cells on the last row,
+        // so the grid never ends in a lone orphan glyph dangling under a full block. Ties break
+        // toward the ideal (aspect-true) column count.
+        var cols = ideal
+        var bestGap = Int.max
+        for candidate in max(1, ideal - 3)...min(n, ideal + 3) {
+            let remainder = n % candidate
+            let gap = remainder == 0 ? 0 : candidate - remainder
+            if gap < bestGap || (gap == bestGap && abs(candidate - ideal) < abs(cols - ideal)) {
+                bestGap = gap
+                cols = candidate
+            }
+        }
         let rows = Int(ceil(Double(n) / Double(cols)))
+        let lastRowCount = n - (rows - 1) * cols   // glyphs on the final (possibly partial) row
 
         let margin = size.width * 0.06
         let cellW = (size.width - margin * 2) / CGFloat(cols)
         let cellH = (size.height - margin * 2) / CGFloat(rows)
-        let glyphWidth = max(min(cellW, cellH) / 16, 0.8)
+        let glyphWidth = max(min(cellW, cellH) / 16 * weight, 0.8)
         line.withAlphaComponent(0.92).setStroke()
 
         for (i, run) in sorted.enumerated() {
             let r = i / cols, c = i % cols
-            let cell = CGRect(x: margin + CGFloat(c) * cellW, y: margin + CGFloat(r) * cellH,
+            // Centre the final partial row so any leftover glyphs sit in the middle rather than
+            // hanging off the left edge.
+            let rowCount = (r == rows - 1) ? lastRowCount : cols
+            let rowOffset = CGFloat(cols - rowCount) / 2 * cellW
+            let cell = CGRect(x: margin + rowOffset + CGFloat(c) * cellW,
+                              y: margin + CGFloat(r) * cellH,
                               width: cellW, height: cellH)
             let inner = cell.insetBy(dx: cellW * 0.16, dy: cellH * 0.16)
             drawGlyph(run.coordinates, in: inner, lineWidth: glyphWidth)
@@ -220,7 +241,7 @@ enum MapPrintRenderer {
     // MARK: The Bloom — every route re-centred to a common origin
 
     private static func drawBloom(_ runs: [Run], size: CGSize, line: UIColor, unit: CGFloat,
-                                  cg: CGContext, dark: Bool) {
+                                  cg: CGContext, dark: Bool, weight: CGFloat) {
         let withRoutes = runs.filter { $0.coordinates.count > 1 }
         guard !withRoutes.isEmpty else { return }
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
@@ -238,7 +259,7 @@ enum MapPrintRenderer {
         }
         let radius = Double(min(size.width, size.height)) * 0.42
         let scale = radius / maxExtent
-        let lineWidth = (withRoutes.count <= 12 ? 3.4 : withRoutes.count <= 80 ? 2.2 : 1.5) * unit
+        let lineWidth = (withRoutes.count <= 12 ? 3.4 : withRoutes.count <= 80 ? 2.2 : 1.5) * unit * weight
 
         if dark { cg.setBlendMode(.plusLighter) }
         for (i, run) in withRoutes.enumerated() {
@@ -263,10 +284,10 @@ enum MapPrintRenderer {
     // MARK: Home Turf — the dense tangle, as heat
 
     private static func drawHomeTurf(_ runs: [Run], region: MKCoordinateRegion, size: CGSize,
-                                     line: UIColor, unit: CGFloat, cg: CGContext, dark: Bool) {
+                                     line: UIColor, unit: CGFloat, cg: CGContext, dark: Bool, weight: CGFloat) {
         let project = geoProjector(region: region, size: size)
         let count = runs.count
-        let lineWidth = (count <= 12 ? 4.0 : count <= 80 ? 2.6 : 1.8) * unit
+        let lineWidth = (count <= 12 ? 4.0 : count <= 80 ? 2.6 : 1.8) * unit * weight
         let alpha: CGFloat = count <= 12 ? 0.9 : count <= 80 ? 0.66 : 0.42
         if dark { cg.setBlendMode(.plusLighter) }
         for run in runs {
@@ -284,7 +305,7 @@ enum MapPrintRenderer {
     // MARK: Constellation — points placed by geography, sized by distance
 
     private static func drawConstellation(_ runs: [Run], region: MKCoordinateRegion, size: CGSize,
-                                          line: UIColor, unit: CGFloat, cg: CGContext, dark: Bool) {
+                                          line: UIColor, unit: CGFloat, cg: CGContext, dark: Bool, weight: CGFloat) {
         let project = geoProjector(region: region, size: size)
         let sorted = runs.sorted { $0.startDate < $1.startDate }
 
@@ -297,7 +318,7 @@ enum MapPrintRenderer {
             if started { thread.addLine(to: p) } else { thread.move(to: p); started = true }
         }
         line.withAlphaComponent(0.16).setStroke()
-        thread.lineWidth = 1 * unit
+        thread.lineWidth = 1 * unit * weight
         thread.stroke()
 
         // Points sized by distance.
@@ -306,7 +327,7 @@ enum MapPrintRenderer {
             guard let start = run.startCoordinate else { continue }
             let p = project(start)
             let t = maxDist > 0 ? CGFloat(run.distance / maxDist) : 0
-            let radius = (3 + 10 * t.squareRoot()) * unit
+            let radius = (3 + 10 * t.squareRoot()) * unit * weight
             let rect = CGRect(x: p.x - radius, y: p.y - radius, width: radius * 2, height: radius * 2)
             cg.saveGState()
             if dark { cg.setShadow(offset: .zero, blur: radius * 1.5, color: line.cgColor) }

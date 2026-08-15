@@ -65,7 +65,7 @@ enum MapPrintKind: String, CaseIterable, Identifiable {
 
 /// A curated palette for the Wall Art print — ground + line, chosen to read as gallery-grade art.
 enum MapArtPalette: String, CaseIterable, Identifiable {
-    case gallery, noir, blueprint, brass, sage
+    case gallery, noir, blueprint, brass, sage, rose, forest, graphite
     var id: String { rawValue }
 
     var name: String {
@@ -75,6 +75,9 @@ enum MapArtPalette: String, CaseIterable, Identifiable {
         case .blueprint: return "Blueprint"
         case .brass:     return "Brass"
         case .sage:      return "Sage"
+        case .rose:      return "Rose"
+        case .forest:    return "Forest"
+        case .graphite:  return "Graphite"
         }
     }
 
@@ -85,6 +88,9 @@ enum MapArtPalette: String, CaseIterable, Identifiable {
         case .blueprint: return Theme.Palette.navy
         case .brass:     return Theme.Palette.ink
         case .sage:      return Theme.Palette.sage
+        case .rose:      return Theme.Palette.bone
+        case .forest:    return Theme.Palette.forest
+        case .graphite:  return Theme.Palette.stone
         }
     }
 
@@ -95,6 +101,9 @@ enum MapArtPalette: String, CaseIterable, Identifiable {
         case .blueprint: return Color(red: 0.66, green: 0.80, blue: 0.95)
         case .brass:     return Theme.Palette.brass
         case .sage:      return Theme.Palette.ink
+        case .rose:      return Color(red: 0.71, green: 0.20, blue: 0.29)   // #B5344A deep rose
+        case .forest:    return Theme.Palette.sage
+        case .graphite:  return Theme.Palette.ink
         }
     }
 
@@ -148,6 +157,26 @@ enum MapArtStyle: String, CaseIterable, Identifiable {
     }
 }
 
+/// Line weight for the Wall Art — a global multiplier on every stroke/point.
+enum MapArtWeight: String, CaseIterable, Identifiable {
+    case fine, medium, bold
+    var id: String { rawValue }
+    var name: String {
+        switch self {
+        case .fine:   return "Fine"
+        case .medium: return "Medium"
+        case .bold:   return "Bold"
+        }
+    }
+    var multiplier: CGFloat {
+        switch self {
+        case .fine:   return 0.6
+        case .medium: return 1.0
+        case .bold:   return 1.7
+        }
+    }
+}
+
 /// Everything needed to render one aggregate print: the kind, the runs in scope, and a framed
 /// region + title. Build one with `make(kind:runs:)`, which derives the region and a scope name.
 struct MapPrintRequest {
@@ -160,6 +189,7 @@ struct MapPrintRequest {
     var boundaryStateName: String? = nil
     var artPalette: MapArtPalette = .gallery
     var artStyle: MapArtStyle = .grid
+    var artWeight: MapArtWeight = .medium
     /// Single-state print options.
     var isSingleState: Bool = false
     var stateMetrics: [StateMetric] = StateMetric.allCases
