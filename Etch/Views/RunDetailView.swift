@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import PhotosUI
 import UniformTypeIdentifiers
 
@@ -8,6 +9,14 @@ struct RunDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.modelContext) private var context
+    @Query private var allRuns: [Run]
+
+    /// Whether this run is a milestone — a record or superlative among activities of its type, so it
+    /// gets the same gold-trophy treatment as its map pin.
+    private var isMilestone: Bool {
+        let peers = allRuns.filter { $0.activityType == run.activityType }
+        return RunStatistics(peers).milestoneRunIDs.contains(run.id)
+    }
 
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var photoSelection: PhotoSelection?
@@ -131,6 +140,7 @@ struct RunDetailView: View {
     /// "Ni…/Brec…" in the cramped leading toolbar slot.
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
+            if isMilestone { milestoneBadge }
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(run.name)
                     .font(.system(.title2, design: .rounded).weight(.bold))
@@ -153,6 +163,21 @@ struct RunDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// A gold badge mirroring the map's trophy pin — this run is a record / superlative.
+    private var milestoneBadge: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "trophy.fill")
+                .font(.system(size: 12, weight: .bold))
+            Text("MILESTONE")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .tracking(1)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(Theme.Palette.brass, in: .capsule)
     }
 
     private func rename() {

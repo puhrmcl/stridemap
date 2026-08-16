@@ -113,15 +113,8 @@ struct HomeView: View {
 
     private var stats: RunStatistics { RunStatistics(scopedRuns) }
 
-    /// Runs that count as milestones — their map pins get the gold trophy. Distance PRs plus the
-    /// marquee superlatives (furthest, longest, fastest, highest climb), matching Studio's set.
-    private var milestoneRunIDs: Set<UUID> {
-        var ids = stats.prRunIDs
-        for run in [stats.longestRun, stats.longestDurationRun, stats.fastestRun, stats.highestClimb] {
-            if let run { ids.insert(run.id) }
-        }
-        return ids
-    }
+    /// Runs that count as milestones — their map pins get the gold trophy.
+    private var milestoneRunIDs: Set<UUID> { stats.milestoneRunIDs }
 
     /// Runs passing the active filter.
     private var visibleRuns: [Run] {

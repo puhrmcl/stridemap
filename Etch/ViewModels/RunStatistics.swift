@@ -100,6 +100,19 @@ struct RunStatistics {
         return "\(lat),\(lon)"
     }
 
+    // MARK: Milestones
+
+    /// Runs that count as milestones — the marquee superlatives (furthest, longest, fastest,
+    /// highest climb) plus every distance PR. Drives the gold trophy pin on the map and the
+    /// milestone badge in run detail, so both agree.
+    var milestoneRunIDs: Set<UUID> {
+        var ids = prRunIDs
+        for run in [longestRun, longestDurationRun, fastestRun, highestClimb] {
+            if let run { ids.insert(run.id) }
+        }
+        return ids
+    }
+
     // MARK: Personal records (PRs)
 
     /// Activity ids that set a new all-time longest-distance record when they happened.
