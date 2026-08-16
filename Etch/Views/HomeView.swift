@@ -492,6 +492,9 @@ struct HomeView: View {
                 .font(.system(.caption, design: .rounded).weight(.medium))
                 .foregroundStyle(.secondary)
         }
+        // Inside a Menu label the row can get width-compressed, which silently drops the
+        // secondary unit text ("mi" / "runs"). Pin it to its natural size so the labels stay.
+        .fixedSize()
     }
 
     /// What the map is currently showing: a run-filter mode, the history etch, or a Locations
