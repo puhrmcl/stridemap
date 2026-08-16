@@ -434,9 +434,9 @@ struct HomeView: View {
                     unit: effectiveScope.countNoun,
                     systemName: effectiveScope.icon
                 )
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.down.circle.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.accentOnGlass)
                     .padding(.leading, 1)
             }
         }
