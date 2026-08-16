@@ -55,11 +55,15 @@ an opt-out** (Apple Watch auto-logs many short walks, so walks need the toggle b
   consistent scope across Home map/totals, Timeline, Studio, Achievements; **walks** added with an
   "Include walks" setting (Settings, default off) that gates import + the selector. Pace superlatives
   (Fastest, distance PRs) hidden for hikes/walks.
-- **Phase 3 (partial / todo):** per-type sectioning in Achievements when scope = All (currently the
-  achievements scope to the selected type; a dual Runs/Hikes layout for "All" is still todo);
+- **Phase 3 (partial / todo):** *Achievements done (b152)* — the tab now has two faces: **All
+  Activities** shows the bigger story (combined reach + a per-discipline hub you tap to dive into a
+  type's own page), while a **specific activity** shows that discipline's records/PRs/recaps; a
+  scope switcher chip in the tab header both names and changes the scope, mirroring the home pill.
+  **Per-activity visibility** shipped too — Settings toggles for Hikes (default on) and Walks
+  (default off) hide a type everywhere (import, totals, maps, achievements, studio). *Still todo:*
   hike-appropriate Studio hero (elevation instead of pace) and type-aware Studio metric defaults;
-  scope the secondary surfaces (Profile, Year in Review, Search, States) too; walk **backfill** on
-  toggle-on (today only forward sync imports walks — a full Delete & re-sync backfills older ones).
+  scope the remaining secondary surfaces (Profile, Search, States); walk/hike **backfill** on
+  toggle-on (today only forward sync imports them — a full Delete & re-sync backfills older ones).
 - **AllTrails history:** no public API. Realistic paths — (a) Apple Health sync (AllTrails → Health,
   picked up automatically going forward); (b) GPX import via the existing file pipeline for historical.
   Nike Run Club is runs-only (not a hike source).

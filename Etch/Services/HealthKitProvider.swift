@@ -119,11 +119,12 @@ final class HealthKitProvider: ActivityProvider {
 
     // MARK: Workout query
 
-    /// The activity types we ingest from Apple Health. Running and hiking always; walking only
-    /// when the user opts in (Apple Watch auto-logs many short walks, so it's off by default).
+    /// The activity types we ingest from Apple Health. Running always; hiking unless turned off;
+    /// walking only when opted in (Apple Watch auto-logs many short walks, so it's off by default).
     private static var importedWorkoutTypes: [HKWorkoutActivityType] {
-        var types: [HKWorkoutActivityType] = [.running, .hiking]
-        if UserDefaults.standard.bool(forKey: "includeWalks") { types.append(.walking) }
+        var types: [HKWorkoutActivityType] = [.running]
+        if ActivitySettings.includeHikes { types.append(.hiking) }
+        if ActivitySettings.includeWalks { types.append(.walking) }
         return types
     }
 

@@ -11,6 +11,7 @@ struct SettingsView: View {
 
     @AppStorage("appearance") private var appearance = Appearance.system.rawValue
     @AppStorage("unitSystem") private var unitSystem = UnitSystem.miles.rawValue
+    @AppStorage("includeHikes") private var includeHikes = true
     @AppStorage("includeWalks") private var includeWalks = false
 
     @State private var exportURL: URL?
@@ -103,8 +104,14 @@ struct SettingsView: View {
 
     private var activitiesSection: some View {
         Section {
+            Toggle(isOn: $includeHikes) {
+                Label("Hikes", systemImage: "figure.hiking")
+            }
+            .onChange(of: includeHikes) { _, on in
+                if on { Task { await sync.sync() } }
+            }
             Toggle(isOn: $includeWalks) {
-                Label("Include Walks", systemImage: "figure.walk")
+                Label("Walks", systemImage: "figure.walk")
             }
             .onChange(of: includeWalks) { _, on in
                 if on { Task { await sync.sync() } }
@@ -112,7 +119,7 @@ struct SettingsView: View {
         } header: {
             Text("Activities")
         } footer: {
-            Text("Runs and hikes are always imported. Turn this on to also bring in walking workouts — off by default because Apple Watch logs many short walks. When enabled, walks import on the next sync; a full Delete & re-sync backfills older ones.")
+            Text("Runs are always shown. Turn a type off to hide it everywhere — the totals, maps, achievements, and studio all scope to what's on. Walks are off by default because Apple Watch logs many short walks. Turning a type on imports it on the next sync; a full Delete & re-sync backfills older ones.")
         }
     }
 

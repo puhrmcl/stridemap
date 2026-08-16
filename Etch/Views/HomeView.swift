@@ -405,9 +405,9 @@ struct HomeView: View {
         )
     }
 
-    /// The scopes offered — Walks only when the user has opted in.
+    /// The scopes offered — hikes/walks appear only when their visibility is on.
     private var activityScopeOptions: [ActivityScope] {
-        ActivitySettings.includeWalks ? ActivityScope.allCases : ActivityScope.allCases.filter { $0 != .walks }
+        ActivitySettings.visibleScopes
     }
 
     /// The pill's caption line. A specific map-mode filter (Races, PRs…) or Locations names itself;

@@ -50,18 +50,38 @@ enum ActivityScope: String, CaseIterable, Identifiable {
     var usesPace: Bool { self == .runs || self == .all }
 }
 
-/// Whether walks are shown anywhere. Off by default — Apple Watch auto-logs many short walks.
+/// Per-activity visibility. Runs are the base and always shown; hikes and walks can each be turned
+/// off so someone who only cares about running never sees the rest. Hikes are on by default (a
+/// deliberate import); walks are off by default because Apple Watch auto-logs many short walks.
 enum ActivitySettings {
+    /// Defaults to `true` when the key was never written — the positive default for hikes.
+    static var includeHikes: Bool { UserDefaults.standard.object(forKey: "includeHikes") as? Bool ?? true }
     static var includeWalks: Bool { UserDefaults.standard.bool(forKey: "includeWalks") }
+
+    /// Whether a given scope is currently visible (Runs and All always are).
+    static func isVisible(_ scope: ActivityScope) -> Bool {
+        switch scope {
+        case .all, .runs: return true
+        case .hikes:      return includeHikes
+        case .walks:      return includeWalks
+        }
+    }
+
+    /// The scopes offered in every activity selector, in order — the disabled ones dropped.
+    static var visibleScopes: [ActivityScope] {
+        ActivityScope.allCases.filter(isVisible)
+    }
 }
 
 extension Sequence where Element == Run {
-    /// Narrows to the scope. Walks are excluded everywhere unless the user opted in, so a stray
-    /// walk never pollutes the runs/hikes views.
+    /// Narrows to the scope. Hidden activity types (hikes/walks the user turned off) are excluded
+    /// everywhere, so a stray walk never pollutes the runs view and hikes vanish when hidden.
     func scoped(to scope: ActivityScope) -> [Run] {
+        let includeHikes = ActivitySettings.includeHikes
         let includeWalks = ActivitySettings.includeWalks
         return filter { run in
             let type = run.activityType
+            if type == .hike && !includeHikes { return false }
             if type == .walk && !includeWalks { return false }
             switch scope {
             case .all:   return true

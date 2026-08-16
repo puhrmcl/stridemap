@@ -1,25 +1,38 @@
 import SwiftUI
 import SwiftData
 
-/// A fun, rewarding highlights screen: where you've been and what you've conquered — reach,
-/// records, personal bests, and yearly recaps.
+/// A fun, rewarding highlights screen. Two faces of the same tab, chosen by the app-wide activity
+/// scope: **All Activities** tells the bigger story — your combined reach and a per-discipline
+/// breakdown you can tap to dive in — while a **specific activity** (Runs / Hikes / Walks) shows
+/// that discipline's own records, personal bests, and recaps.
 struct HighlightsView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(\.dismiss) private var dismiss
     @Query private var runs: [Run]
 
+    private var scope: ActivityScope { appModel.activityScope }
+
     /// Runs limited to the app-wide activity scope (All / Runs / Hikes / Walks).
-    private var scopedRuns: [Run] { runs.scoped(to: appModel.activityScope) }
+    private var scopedRuns: [Run] { runs.scoped(to: scope) }
     private var stats: RunStatistics { RunStatistics(scopedRuns) }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    reachSection
-                    superlativesSection
-                    personalBestsSection
-                    recapsSection
+                    scopeSwitcher
+                    if scope == .all {
+                        // The bigger story: combined reach, a per-discipline hub, and recaps.
+                        reachSection
+                        breakdownSection
+                        recapsSection
+                    } else {
+                        // One discipline's deep dive: its records, bests, and recaps.
+                        reachSection
+                        superlativesSection
+                        personalBestsSection
+                        recapsSection
+                    }
                 }
                 .padding(20)
             }
@@ -30,8 +43,52 @@ struct HighlightsView: View {
                     Button("Done") { dismiss() }
                 }
             }
+            .onAppear {
+                // A scope hidden in Settings (e.g. hikes turned off) shouldn't linger here.
+                if !ActivitySettings.isVisible(scope) { setScope(.all) }
+            }
         }
     }
+
+    // MARK: Scope switcher / indicator
+
+    /// The header chip that both names the current scope and switches it — mirroring the home
+    /// pill's activity selector, so the achievements tab is filterable in place.
+    private var scopeSwitcher: some View {
+        Menu {
+            Picker("Activity", selection: scopeBinding) {
+                ForEach(ActivitySettings.visibleScopes) { s in
+                    Label(s.label, systemImage: s.icon).tag(s)
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: scope.icon)
+                    .font(.system(size: 15, weight: .semibold))
+                Text(scope == .all ? "All Activities" : scope.label)
+                    .font(.system(.subheadline, design: .rounded).weight(.bold))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .foregroundStyle(Theme.accentOnGlass)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .background(.regularMaterial, in: .capsule)
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var scopeBinding: Binding<ActivityScope> {
+        Binding(get: { scope }, set: { setScope($0) })
+    }
+
+    private func setScope(_ newValue: ActivityScope) {
+        withAnimation(Theme.gentle) { appModel.activityScope = newValue }
+    }
+
+    // MARK: Reach (shared, scopes with the selection)
 
     private var reachSection: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -55,12 +112,86 @@ struct HighlightsView: View {
                 StatTile(
                     value: Format.distanceValue(stats.totalDistanceMeters).formatted(.number.precision(.fractionLength(0))),
                     label: "Total \(UnitSystem.current.distanceSuffix)",
-                    systemName: "figure.run",
+                    systemName: scope.icon,
                     accent: true
                 )
             }
         }
     }
+
+    // MARK: All-Activities — the per-discipline hub ("bigger story")
+
+    /// The scopes with their own detail page, in order — All excluded, hidden types dropped.
+    private var breakdownScopes: [ActivityScope] {
+        ActivitySettings.visibleScopes.filter { $0 != .all }
+    }
+
+    private var breakdownSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Text("Your activities")
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+                Spacer()
+                Text("Tap to explore")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            ForEach(breakdownScopes) { s in
+                let subset = RunStatistics(runs.scoped(to: s))
+                if subset.totalRuns > 0 {
+                    Button { setScope(s) } label: { breakdownRow(s, subset) }
+                        .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func breakdownRow(_ s: ActivityScope, _ subset: RunStatistics) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: s.icon)
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(Theme.accentOnGlass)
+                .frame(width: 38)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(s.label)
+                    .font(.system(.headline, design: .rounded).weight(.bold))
+                Text(breakdownDetail(s, subset))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 1) {
+                Text(subset.totalRuns.formatted())
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+                Text(s.countNoun)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.vertical, 14)
+        .padding(.horizontal, 18)
+        .background(.regularMaterial, in: .rect(cornerRadius: 18))
+    }
+
+    /// The secondary line under each discipline — distance always, plus climb for hikes and
+    /// moving time for walks, so each type leads with the metric that suits it.
+    private func breakdownDetail(_ s: ActivityScope, _ subset: RunStatistics) -> String {
+        let distance = Format.distance(subset.totalDistanceMeters, decimals: 0)
+        switch s {
+        case .hikes: return "\(distance) · \(Format.elevation(subset.totalElevationMeters)) climbed"
+        case .walks: return "\(distance) · \(Format.duration(subset.totalMovingTime))"
+        default:     return "\(distance) · \(Format.duration(subset.totalMovingTime))"
+        }
+    }
+
+    // MARK: Specific activity — records & bests
 
     private var superlativesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -77,7 +208,7 @@ struct HighlightsView: View {
                 SuperlativeRow(icon: "mountain.2", title: "Highest Climb", value: Format.elevation(climb.elevationGain), subtitle: climb.name) { focus(climb) }
             }
             // Pace is a running concept — hidden for hikes/walks.
-            if appModel.activityScope.usesPace, let fastest = stats.fastestRun {
+            if scope.usesPace, let fastest = stats.fastestRun {
                 SuperlativeRow(icon: "bolt.fill", title: "Fastest Pace", value: Format.pace(secondsPerKm: fastest.paceSecondsPerKm), subtitle: fastest.name) { focus(fastest) }
             }
             if let north = stats.northernmostRun {
@@ -101,7 +232,7 @@ struct HighlightsView: View {
     private var personalBestsSection: some View {
         let prs = stats.personalRecords
         // Distance-time PRs are a running concept; only shown when pace applies.
-        if appModel.activityScope.usesPace, !prs.isEmpty {
+        if scope.usesPace, !prs.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Personal Bests")
                     .font(.system(.title3, design: .rounded).weight(.bold))
@@ -118,6 +249,8 @@ struct HighlightsView: View {
         }
     }
 
+    // MARK: Recaps (shared, scopes with the selection)
+
     private var recapsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Year in Review")
@@ -132,7 +265,7 @@ struct HighlightsView: View {
                         Text(String(year))
                             .font(.system(.title3, design: .rounded).weight(.bold))
                         Spacer()
-                        Text("\(yearStats.totalRuns) runs · \(Format.distance(yearStats.totalDistanceMeters, decimals: 0))")
+                        Text("\(yearStats.totalRuns) \(scope.countNoun) · \(Format.distance(yearStats.totalDistanceMeters, decimals: 0))")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(.tertiary)
