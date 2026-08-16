@@ -11,20 +11,10 @@ struct ProfileView: View {
     @State private var showSearch = false
     @State private var showSettings = false
 
-    /// Concrete activity types (not "All") that are both enabled in Settings and actually present.
-    /// When only one qualifies, there's nothing to filter between.
-    private var presentActivityScopes: [ActivityScope] {
-        [.runs, .hikes, .walks].filter { ActivitySettings.isVisible($0) && !allRuns.scoped(to: $0).isEmpty }
-    }
-    private var isSingleActivity: Bool { presentActivityScopes.count <= 1 }
-    private var soleScope: ActivityScope { presentActivityScopes.first ?? .runs }
-
-    /// The scope the totals reflect: the sole type when there's only one, `.all` if the stored
-    /// scope was hidden in Settings, otherwise the user's selection.
+    /// The scope the totals reflect — the user's app-wide selection, clamped back to All if the
+    /// stored scope was hidden in Settings. The filter is always available here on the profile hub.
     private var scope: ActivityScope {
-        if isSingleActivity { return soleScope }
-        if !ActivitySettings.isVisible(appModel.activityScope) { return .all }
-        return appModel.activityScope
+        ActivitySettings.isVisible(appModel.activityScope) ? appModel.activityScope : .all
     }
 
     /// Totals honour the activity filter and drop activities the user kept out of totals.
@@ -73,8 +63,8 @@ struct ProfileView: View {
                 Rectangle().fill(.secondary.opacity(0.3)).frame(width: 1, height: 30)
                 stat(value: stats.totalRuns.formatted(), label: scope.countNoun)
             }
-            // Filter the totals by activity — only when there's more than one type to choose from.
-            if !isSingleActivity { scopeFilter }
+            // The activity filter always lives on the profile hub.
+            scopeFilter
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)

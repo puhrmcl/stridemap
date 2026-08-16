@@ -78,6 +78,13 @@ struct StudioHomeView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Image("StudioLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 22)
+                        .accessibilityLabel("Etch Studio")
+                }
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
             }
             .sheet(item: $studioRun) { StudioView(run: $0) }
@@ -174,11 +181,6 @@ struct StudioHomeView: View {
 
     private var intro: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Image("StudioLogo")
-                .resizable()
-                .scaledToFit()
-                .frame(height: 44)
-                .accessibilityLabel("Etch Studio")
             VStack(alignment: .leading, spacing: 6) {
                 Text("Leave your mark.")
                     .font(.system(.title, design: .rounded).weight(.bold))
