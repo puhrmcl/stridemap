@@ -95,6 +95,11 @@ struct SettingsView: View {
             } label: {
                 Label("Add Your History", systemImage: "square.and.arrow.down")
             }
+            NavigationLink {
+                ConnectAppsView()
+            } label: {
+                Label("Connect Your Apps", systemImage: "link")
+            }
         } header: {
             Text("Sources")
         } footer: {
