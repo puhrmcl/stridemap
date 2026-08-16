@@ -6,6 +6,7 @@ import SwiftData
 struct TimelineView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
     @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
 
     enum Scope: String, CaseIterable, Identifiable {
@@ -172,6 +173,16 @@ struct TimelineView: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button(role: .destructive) { delete(run) } label: {
+                Label("Delete Run", systemImage: "trash")
+            }
+        }
+    }
+
+    private func delete(_ run: Run) {
+        context.delete(run)
+        try? context.save()
     }
 
     private func sectionHeader(title: String, detail: String) -> some View {

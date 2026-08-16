@@ -16,6 +16,7 @@ struct RunDetailView: View {
     @State private var showStudio = false
     @State private var showRename = false
     @State private var draftName = ""
+    @State private var showDeleteConfirm = false
 
     private struct PhotoSelection: Identifiable { let id: String }
 
@@ -46,8 +47,14 @@ struct RunDetailView: View {
                     if run.isStravaLinked {
                         openInStrava
                     }
+
+                    deleteButton
                 }
                 .padding(20)
+            }
+            .confirmationDialog("Delete this run? This can't be undone.", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+                Button("Delete Run", role: .destructive) { deleteRun() }
+                Button("Cancel", role: .cancel) {}
             }
             .sheet(isPresented: $showStudio) {
                 StudioView(run: run)
@@ -146,6 +153,30 @@ struct RunDetailView: View {
         run.name = trimmed
         run.nameIsCustom = true
         run.updatedAt = Date()
+        try? context.save()
+    }
+
+    /// Destructive delete at the foot of the sheet. Removes the run from Etch entirely — it will
+    /// re-import on the next sync if it still exists in a connected source (Apple Health / Strava),
+    /// but hand-added races and imported files are gone for good.
+    private var deleteButton: some View {
+        Button(role: .destructive) {
+            showDeleteConfirm = true
+        } label: {
+            Label("Delete Run", systemImage: "trash")
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .foregroundStyle(.red)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+        }
+        .buttonStyle(.plain)
+        .padding(.top, 4)
+    }
+
+    private func deleteRun() {
+        // Dismiss first so the sheet isn't rendering a deleted object, then remove and save.
+        dismiss()
+        context.delete(run)
         try? context.save()
     }
 
