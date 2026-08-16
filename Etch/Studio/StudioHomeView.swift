@@ -95,8 +95,9 @@ struct StudioHomeView: View {
                         }
                     }
                     ToolbarItem(placement: .principal) {
-                        Image("StudioLogo").resizable().scaledToFit().frame(height: 20)
-                            .accessibilityLabel("Etch Studio")
+                        // Studio is the app's home here, so lead with the Etch brand mark.
+                        Image("BrandLogo").resizable().scaledToFit().frame(height: 22)
+                            .accessibilityLabel("Etch")
                     }
                     ToolbarItem(placement: .topBarTrailing) { mapThumbnailButton }
                 } else {
@@ -141,20 +142,12 @@ struct StudioHomeView: View {
         }
     }
 
-    /// A small map-styled thumbnail in the corner that opens the full map (Studio-first mode).
+    /// A plain map glyph in the corner that opens the full map (Studio-first mode).
     private var mapThumbnailButton: some View {
         Button { showMap = true } label: {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(LinearGradient(colors: [Theme.Palette.sage.opacity(0.7), Theme.accent.opacity(0.3)],
-                                         startPoint: .topLeading, endPoint: .bottomTrailing))
-                Image(systemName: "map.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
-            .frame(width: 34, height: 34)
-            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(.white.opacity(0.35), lineWidth: 0.5))
+            Image(systemName: "map.fill")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(Theme.accent)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Open map")
