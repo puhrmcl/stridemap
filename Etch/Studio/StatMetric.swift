@@ -5,7 +5,7 @@ import Foundation
 /// only how to label and format themselves from a run; unavailable ones (no heart rate, etc.)
 /// report nil so the editor can grey them out.
 enum StatMetric: String, CaseIterable, Identifiable {
-    case distance, time, pace, elevationGain, startElevation, avgHeartRate, calories, cadence, place, date, weather
+    case distance, time, pace, speed, elevationGain, startElevation, avgHeartRate, calories, cadence, place, date, weather
 
     var id: String { rawValue }
 
@@ -15,6 +15,7 @@ enum StatMetric: String, CaseIterable, Identifiable {
         case .distance:     return "DISTANCE"
         case .time:         return "TIME"
         case .pace:         return "PACE"
+        case .speed:        return "AVG SPEED"
         case .elevationGain: return "ELEV GAIN"
         case .startElevation: return "START ELEV"
         case .avgHeartRate: return "AVG HR"
@@ -29,10 +30,21 @@ enum StatMetric: String, CaseIterable, Identifiable {
     /// A short name for the picker menu.
     var menuName: String {
         switch self {
+        case .speed:          return "Avg speed"
         case .elevationGain:  return "Elevation gain"
         case .startElevation: return "Start elevation"
         case .avgHeartRate:   return "Avg heart rate"
         default:              return label.capitalized
+        }
+    }
+
+    /// The default hero metric and stat slots for a poster, tuned to the activity type — rides lead
+    /// with speed, hikes with elevation, both dropping the running-only pace. Distance stays the hero.
+    static func defaults(for type: ActivityType) -> (hero: StatMetric, slots: [StatMetric]) {
+        switch type {
+        case .ride: return (.distance, [.time, .speed, .elevationGain])
+        case .hike: return (.distance, [.time, .elevationGain, .startElevation])
+        default:    return (.distance, [.time, .pace, .elevationGain])   // runs & walks
         }
     }
 
@@ -48,6 +60,11 @@ enum StatMetric: String, CaseIterable, Identifiable {
             return Format.duration(run.movingTime)
         case .pace:
             return Format.pace(secondsPerKm: run.paceSecondsPerKm)
+        case .speed:
+            guard run.movingTime > 0, run.distance > 0 else { return nil }
+            let hours = Double(run.movingTime) / 3600
+            let value = Format.distanceValue(run.distance) / hours
+            return "\(value.formatted(.number.precision(.fractionLength(1)))) \(UnitSystem.current.speedSuffix)"
         case .elevationGain:
             return Format.elevationGain(run.elevationGain)
         case .startElevation:

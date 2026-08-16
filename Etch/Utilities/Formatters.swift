@@ -8,6 +8,7 @@ enum UnitSystem: String, CaseIterable, Identifiable {
     var label: String { self == .miles ? "Miles" : "Kilometers" }
     var distanceSuffix: String { self == .miles ? "mi" : "km" }
     var paceSuffix: String { self == .miles ? "/mi" : "/km" }
+    var speedSuffix: String { self == .miles ? "mph" : "km/h" }
 
     static var current: UnitSystem {
         UnitSystem(rawValue: UserDefaults.standard.string(forKey: "unitSystem") ?? "") ?? .miles

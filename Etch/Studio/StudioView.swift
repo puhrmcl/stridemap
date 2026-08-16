@@ -49,7 +49,14 @@ struct StudioView: View {
     init(run: Run, poster: SavedPoster? = nil) {
         self.run = run
         self.existingPoster = poster
-        guard let p = poster else { return }
+        guard let p = poster else {
+            // A fresh poster defaults its metrics to what suits the activity — speed for rides,
+            // elevation for hikes, pace for runs.
+            let defaults = StatMetric.defaults(for: run.activityType)
+            _heroMetric = State(initialValue: defaults.hero)
+            _statSlots = State(initialValue: defaults.slots)
+            return
+        }
         _selection = State(initialValue: p.editionID)
         _includeWeather = State(initialValue: p.includeWeather)
         _routeColor = State(initialValue: Color(hex: p.routeColorHex))
