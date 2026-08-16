@@ -32,6 +32,10 @@ struct MapPrintView: View {
     /// Accumulated pan, as fractions of the current span.
     @State private var panX: Double = 0
     @State private var panY: Double = 0
+    /// States aggregate: clean US choropleth (no base map, so no Canada / Mexico).
+    @State private var statesUSAOnly = false
+    /// Aggregate prints: show the footer (title / stats / caption) or the map alone.
+    @State private var showDetails = true
 
     @State private var rendered: [String: UIImage] = [:]
     @State private var rendering: Set<String> = []
@@ -144,8 +148,13 @@ struct MapPrintView: View {
         )
         req.region = MKCoordinateRegion(center: center,
                                         span: MKCoordinateSpan(latitudeDelta: latSpan, longitudeDelta: lonSpan))
+        req.statesUSAOnly = statesUSAOnly && kind == .states && focusName == nil
+        req.showFooter = showDetails || kind.isArt || isSingleState
         return req
     }
+
+    /// Aggregate map prints (not Wall Art, not a single state) expose the USA-only / details toggles.
+    private var showsAggregateOptions: Bool { !kind.isArt && !isSingleState }
 
     private var isSingleState: Bool { kind == .states && focusName != nil }
 
@@ -155,11 +164,13 @@ struct MapPrintView: View {
 
     private var currentKey: String {
         "\(kind.rawValue)-\(focusName ?? "all")-\(orientation.rawValue)-\(artPalette.rawValue)-\(artStyle.rawValue)-\(artWeight.rawValue)-" +
-        "\(artFilterLabel)-\(stateTitle)|\(stateMetricsKey)-" +
+        "\(artFilterLabel)-\(stateTitle)|\(stateMetricsKey)-\(statesUSAOnly)-\(showDetails)-" +
         String(format: "%.2f-%.2f-%.2f", zoom, panX, panY)
     }
 
     private var previewAspect: CGFloat {
+        // Map-only aggregate prints are the square panel alone.
+        if showsAggregateOptions && !showDetails { return 1 }
         let s: CGSize
         if kind.isArt {
             s = orientation == .landscape ? CGSize(width: 1500, height: 1000) : CGSize(width: 1000, height: 1500)
@@ -192,7 +203,7 @@ struct MapPrintView: View {
             .sheet(isPresented: $showExport) { MapPrintExportSheet(request: request) }
             .sheet(isPresented: $showPrints) { PrintShopView(subjectTitle: request.title) }
             .task(id: currentKey) { await renderIfNeeded(currentKey) }
-            .onChange(of: kind) { focusName = nil; stateTitle = ""; artFilter = .all; resetFrame() }
+            .onChange(of: kind) { focusName = nil; stateTitle = ""; artFilter = .all; statesUSAOnly = false; resetFrame() }
             .onChange(of: focusName) { stateTitle = ""; resetFrame() }
         }
     }
@@ -258,6 +269,8 @@ struct MapPrintView: View {
             }
             if isSingleState { stateControls }
 
+            if showsAggregateOptions { aggregateToggles }
+
             Text(descriptorText)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -276,6 +289,21 @@ struct MapPrintView: View {
         .padding(.horizontal, 24)
         .frame(maxWidth: .infinity)
         .background(.regularMaterial)
+    }
+
+    /// Toggles for the aggregate map prints: a clean USA-only states map, and a map-only mode that
+    /// hides the footer entirely.
+    private var aggregateToggles: some View {
+        VStack(spacing: 6) {
+            if kind == .states && focusName == nil {
+                Toggle("USA only (hide Canada & Mexico)", isOn: $statesUSAOnly)
+            }
+            Toggle("Show details", isOn: $showDetails)
+        }
+        .toggleStyle(.switch)
+        .tint(Theme.accent)
+        .font(.system(.subheadline, design: .rounded))
+        .frame(maxWidth: 320)
     }
 
     private var descriptorText: String {

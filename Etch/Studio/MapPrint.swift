@@ -199,6 +199,11 @@ struct MapPrintRequest {
     var titleOverride: String? = nil
     var routeColor: Color = Theme.Palette.blue
     var ground: Color = Theme.Palette.bone
+    /// States aggregate only: draw a clean US choropleth on a plain ground (no Apple base map), so
+    /// Canada and Mexico don't appear. Off keeps the base-map snapshot with surrounding context.
+    var statesUSAOnly: Bool = false
+    /// When false, the poster is the map panel alone — no footer title / stats / caption.
+    var showFooter: Bool = true
 
     /// The title shown, honouring a user edit.
     var displayTitle: String { (titleOverride?.isEmpty == false ? titleOverride : nil) ?? title }
@@ -233,6 +238,8 @@ struct MapPrintRequest {
                                              : CGSize(width: 1000, height: 1500)
         }
         if isSingleState { return statePosterSize }
+        // Map-only: the square panel is the whole poster.
+        if !showFooter { return CGSize(width: MapPrintComposition.width, height: MapPrintComposition.artHeight) }
         return MapPrintComposition.nominalSize(orientation)
     }
 
@@ -334,8 +341,9 @@ struct MapPrintRequest {
 
     // MARK: Footer data
 
-    /// The footer strings for this print. `visitedStateCount` is only meaningful for `.states`.
-    func footerData(visitedStateCount: Int) -> MapPrintFooterData {
+    /// The footer strings for this print. `visitedStateNames` (the states matched by point-in-polygon)
+    /// is only meaningful for `.states`, where they're listed in place of a hero number.
+    func footerData(visitedStateNames: [String] = []) -> MapPrintFooterData {
         let stats = RunStatistics(runs)
         let miles = Format.distanceValue(stats.totalDistanceMeters).formatted(.number.precision(.fractionLength(0)))
         let milesLabel = UnitSystem.current.label.uppercased()
@@ -344,15 +352,18 @@ struct MapPrintRequest {
         let citiesPair: (label: String, value: String) = ("CITIES", stats.cities.count.formatted())
         let statesPair: (label: String, value: String) = ("STATES", stats.states.count.formatted())
 
-        let heroValue: String
+        var heroValue = ""
+        var heroList: [String]? = nil
         let subStats: [(label: String, value: String)]
         switch kind {
         case .artMap, .allRuns:
             heroValue = miles
             subStats = [runsPair, citiesPair, statesPair]
         case .states:
-            heroValue = visitedStateCount.formatted()
-            subStats = [unitPair, runsPair, citiesPair]
+            // List the state names instead of a single count; the count moves to a fourth stat.
+            heroList = visitedStateNames
+            let statesCount: (label: String, value: String) = ("STATES", visitedStateNames.count.formatted())
+            subStats = [unitPair, runsPair, citiesPair, statesCount]
         case .cities:
             heroValue = stats.cities.count.formatted()
             subStats = [unitPair, runsPair, statesPair]
@@ -365,8 +376,8 @@ struct MapPrintRequest {
         }
 
         return MapPrintFooterData(
-            title: title, heroValue: heroValue, heroLabel: kind.heroLabel, subStats: subStats,
-            ground: ground, ink: Theme.Palette.ink,
+            title: title, heroValue: heroValue, heroLabel: kind.heroLabel, heroList: heroList,
+            subStats: subStats, ground: ground, ink: Theme.Palette.ink,
             subtle: Theme.Palette.ink.opacity(0.55), accent: Theme.Palette.blue
         )
     }
@@ -377,6 +388,8 @@ struct MapPrintFooterData {
     var title: String
     var heroValue: String
     var heroLabel: String
+    /// When set (states print), these names are listed in place of the hero number.
+    var heroList: [String]? = nil
     var subStats: [(label: String, value: String)]
     var ground: Color
     var ink: Color

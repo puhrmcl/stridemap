@@ -16,15 +16,70 @@ enum MapPrintRenderer {
         if request.isSingleState { return await stateImage(for: request, scale: scale) }
         let panelSize = CGSize(width: MapPrintComposition.width, height: MapPrintComposition.artHeight)
         let visited = request.kind == .states ? await visitedStateIntensities(request.runs) : [:]
-        guard let panel = await panel(for: request, size: panelSize, visited: visited) else { return nil }
-
         let boundaries = USStateBoundaries.shared
-        let visitedCount = visited.keys.filter { boundaries.isState($0) }.count
-        let composition = MapPrintComposition(panelImage: panel, orientation: request.orientation,
-                                              footer: request.footerData(visitedStateCount: visitedCount))
+        let visitedNames = visited.keys.filter { boundaries.isState($0) }.sorted()
+
+        // "USA only" draws a clean choropleth with no base map (so no Canada / Mexico); otherwise the
+        // muted Apple base-map snapshot with surrounding context.
+        let panelImage: UIImage?
+        if request.kind == .states && request.statesUSAOnly {
+            panelImage = statesChoroplethPanel(size: panelSize, visited: visited, ground: request.ground)
+        } else {
+            panelImage = await panel(for: request, size: panelSize, visited: visited)
+        }
+        guard let panelImage else { return nil }
+
+        let composition = MapPrintComposition(panelImage: panelImage, orientation: request.orientation,
+                                              footer: request.footerData(visitedStateNames: visitedNames),
+                                              showFooter: request.showFooter)
         let renderer = ImageRenderer(content: composition)
         renderer.scale = scale
         return renderer.uiImage
+    }
+
+    /// A clean US choropleth on a plain ground — visited states filled, the rest outlined, no Apple
+    /// base map. Framed to the lower 48 (Alaska / Hawaii fall outside the frame), so no neighbouring
+    /// countries appear. This is the "USA only" states print.
+    private static func statesChoroplethPanel(size: CGSize, visited: [String: Double], ground: Color) -> UIImage {
+        let region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 37.5, longitude: -96),
+            span: MKCoordinateSpan(latitudeDelta: 28, longitudeDelta: 58)
+        )
+        let project = geoProjector(region: region, size: size, margin: 0.92)
+        let navy = UIColor(Theme.Palette.navy)
+        let outline = UIColor(Theme.Palette.ink).withAlphaComponent(0.28)
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 2
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        return renderer.image { context in
+            UIColor(ground).setFill()
+            context.cgContext.fill(CGRect(origin: .zero, size: size))
+            for boundary in USStateBoundaries.shared.boundaries {
+                let intensity = visited[boundary.name]
+                for polygon in boundary.polygons {
+                    let path = UIBezierPath()
+                    let pts = polygon.points()
+                    for i in 0..<polygon.pointCount {
+                        let p = project(pts[i].coordinate)
+                        if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
+                    }
+                    path.close()
+                    if let intensity {
+                        navy.withAlphaComponent(0.30 + 0.55 * CGFloat(intensity)).setFill()
+                        path.fill()
+                        navy.withAlphaComponent(0.9).setStroke()
+                        path.lineWidth = 1.2
+                        path.stroke()
+                    } else {
+                        outline.setStroke()
+                        path.lineWidth = 0.8
+                        path.stroke()
+                    }
+                }
+            }
+        }
     }
 
     /// Print-resolution image (~18″ at 300 DPI), capped for on-device memory.

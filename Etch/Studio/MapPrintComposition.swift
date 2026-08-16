@@ -7,6 +7,8 @@ struct MapPrintComposition: View {
     var panelImage: UIImage
     var orientation: StudioOrientation = .portrait
     var footer: MapPrintFooterData
+    /// When false, the poster is the map panel alone — no title, stats, or caption.
+    var showFooter: Bool = true
 
     static let width: CGFloat = 1000
     static let artHeight: CGFloat = 1000
@@ -20,7 +22,9 @@ struct MapPrintComposition: View {
 
     var body: some View {
         Group {
-            if orientation == .landscape {
+            if !showFooter {
+                panel   // Map-only: the square panel is the whole poster.
+            } else if orientation == .landscape {
                 HStack(spacing: 0) { panel; footerView }
             } else {
                 VStack(spacing: 0) { panel; footerView }
@@ -47,17 +51,34 @@ struct MapPrintComposition: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
 
-            VStack(spacing: 6) {
-                Text(footer.heroValue)
-                    .font(.system(size: 150, weight: .bold))
-                    .tracking(-2)
-                    .foregroundStyle(footer.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.5)
-                Text(footer.heroLabel)
-                    .font(.system(size: 24, weight: .semibold))
-                    .tracking(8)
-                    .foregroundStyle(footer.accent)
+            if let list = footer.heroList {
+                // A list of state names in place of the big number.
+                VStack(spacing: 12) {
+                    Text(footer.heroLabel)
+                        .font(.system(size: 22, weight: .semibold))
+                        .tracking(8)
+                        .foregroundStyle(footer.accent)
+                    Text(list.isEmpty ? "—" : list.joined(separator: "  ·  "))
+                        .font(.system(size: 40, weight: .bold))
+                        .foregroundStyle(footer.ink)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(6)
+                        .minimumScaleFactor(0.4)
+                        .frame(maxWidth: .infinity)
+                }
+            } else {
+                VStack(spacing: 6) {
+                    Text(footer.heroValue)
+                        .font(.system(size: 150, weight: .bold))
+                        .tracking(-2)
+                        .foregroundStyle(footer.ink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                    Text(footer.heroLabel)
+                        .font(.system(size: 24, weight: .semibold))
+                        .tracking(8)
+                        .foregroundStyle(footer.accent)
+                }
             }
 
             Rectangle().fill(footer.subtle.opacity(0.4)).frame(width: 90, height: 2).padding(.vertical, 6)
