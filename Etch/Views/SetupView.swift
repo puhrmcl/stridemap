@@ -80,18 +80,10 @@ struct SetupView: View {
 
     private var defaultViewCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionLabel("Opens to")
-            Picker("Default view", selection: $studioIsHome) {
-                Text("Map").tag(false)
-                Text("Studio").tag(true)
-            }
-            .pickerStyle(.segmented)
-            Text(studioIsHome
-                 ? "Etch Studio is home; the map is a tap away in the corner."
-                 : "The map is home; Studio lives in the menu.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 2)
+            sectionLabel("App Focus")
+            AppFocusToggle(studioIsHome: $studioIsHome)
+                .padding(18)
+                .background(.regularMaterial, in: .rect(cornerRadius: 18))
         }
     }
 

@@ -38,21 +38,10 @@ struct ProfileView: View {
                 }
 
                 Section {
-                    Toggle(isOn: $studioIsHome.animation(Theme.gentle)) {
-                        HStack(spacing: 14) {
-                            Image(systemName: "photo.artframe")
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundStyle(Theme.accent)
-                                .frame(width: 30)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Studio as Home").font(.body.weight(.semibold))
-                                Text("Make Studio the main screen").font(.caption).foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    .tint(Theme.accent)
-                } footer: {
-                    Text("Opens the app straight into Etch Studio, with the map a tap away in the corner. Timeline and Achievements are tucked away. Turn off to return to the map as home.")
+                    AppFocusToggle(studioIsHome: $studioIsHome)
+                        .padding(.vertical, 10)
+                } header: {
+                    Text("App Focus")
                 }
             }
             .navigationTitle("Profile")
