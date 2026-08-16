@@ -80,6 +80,7 @@ extension Sequence where Element == Run {
         let includeHikes = ActivitySettings.includeHikes
         let includeWalks = ActivitySettings.includeWalks
         return filter { run in
+            if run.isHidden { return false }
             let type = run.activityType
             if type == .hike && !includeHikes { return false }
             if type == .walk && !includeWalks { return false }

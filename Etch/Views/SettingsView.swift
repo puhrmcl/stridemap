@@ -116,6 +116,18 @@ struct SettingsView: View {
             .onChange(of: includeWalks) { _, on in
                 if on { Task { await sync.sync() } }
             }
+            NavigationLink {
+                HiddenRunsView()
+            } label: {
+                HStack {
+                    Label("Hidden Runs", systemImage: "eye.slash")
+                    Spacer()
+                    let count = runs.filter(\.isHidden).count
+                    if count > 0 {
+                        Text(count.formatted()).foregroundStyle(.secondary).font(.caption)
+                    }
+                }
+            }
         } header: {
             Text("Activities")
         } footer: {

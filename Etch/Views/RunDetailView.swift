@@ -48,7 +48,15 @@ struct RunDetailView: View {
                         openInStrava
                     }
 
-                    deleteButton
+                    VStack(spacing: 4) {
+                        hideButton
+                        deleteButton
+                        Text("Hiding keeps a run in Etch but off your map, timeline, and totals — handy for a synced run you don't want counted. Manage hidden runs in Settings.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 4)
+                    }
                 }
                 .padding(20)
             }
@@ -154,6 +162,25 @@ struct RunDetailView: View {
         run.nameIsCustom = true
         run.updatedAt = Date()
         try? context.save()
+    }
+
+    /// Hide keeps the run in the store but out of every browsing surface — reversible, unlike
+    /// delete, and it stops a synced run from simply re-importing. Hiding dismisses the sheet.
+    private var hideButton: some View {
+        Button {
+            run.isHidden.toggle()
+            run.updatedAt = Date()
+            try? context.save()
+            if run.isHidden { dismiss() }
+        } label: {
+            Label(run.isHidden ? "Unhide Run" : "Hide Run",
+                  systemImage: run.isHidden ? "eye" : "eye.slash")
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .foregroundStyle(Theme.accent)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+        }
+        .buttonStyle(.plain)
     }
 
     /// Destructive delete at the foot of the sheet. Removes the run from Etch entirely — it will

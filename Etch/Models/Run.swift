@@ -119,6 +119,12 @@ final class Run {
     /// existing run counts and migrates cleanly.
     var excludedFromTotals: Bool = false
 
+    /// User chose to hide this run from Etch. Unlike deletion, it stays in the store — so a synced
+    /// run isn't re-imported as new on the next sync — but is excluded from every browsing surface
+    /// (map, timeline, achievements, Studio, totals). Reversible from Settings › Hidden Runs.
+    /// Defaulted false so existing runs migrate cleanly.
+    var isHidden: Bool = false
+
     // MARK: User & future-proofing
 
     var gear: String?
