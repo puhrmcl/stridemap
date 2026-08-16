@@ -11,6 +11,7 @@ struct SettingsView: View {
 
     @AppStorage("appearance") private var appearance = Appearance.system.rawValue
     @AppStorage("unitSystem") private var unitSystem = UnitSystem.miles.rawValue
+    @AppStorage("studioIsHome") private var studioIsHome = false
     @AppStorage("includeRuns") private var includeRuns = true
     @AppStorage("includeHikes") private var includeHikes = true
     @AppStorage("includeRides") private var includeRides = true
@@ -28,6 +29,7 @@ struct SettingsView: View {
             Form {
                 sourcesSection
                 activitiesSection
+                appFocusSection
                 syncSection
                 photosSection
                 appearanceSection
@@ -256,6 +258,15 @@ struct SettingsView: View {
             // Surface everything else (not configured / redirect / server) so failures are
             // visible instead of the button silently doing nothing.
             connectError = error.localizedDescription
+        }
+    }
+
+    private var appFocusSection: some View {
+        Section {
+            AppFocusToggle(studioIsHome: $studioIsHome)
+                .padding(.vertical, 10)
+        } header: {
+            Text("App Focus")
         }
     }
 
