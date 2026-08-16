@@ -32,11 +32,19 @@ struct StudioHomeView: View {
         NavigationStack {
             Group {
                 if mapped.isEmpty {
-                    ContentUnavailableView(
-                        "Nothing to etch yet",
-                        systemImage: "photo.artframe",
-                        description: Text("Runs with a map become art here. Sync or import your history to begin.")
-                    )
+                    VStack(spacing: 22) {
+                        ContentUnavailableView(
+                            "Nothing to etch yet",
+                            systemImage: "photo.artframe",
+                            description: Text("Runs with a map become art here. Sync or import your history to begin — or add a race you ran but never tracked.")
+                        )
+                        Button { showAddRace = true } label: {
+                            Label("Add a Race", systemImage: "trophy")
+                                .font(.system(.headline, design: .rounded))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Theme.accent)
+                    }
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 30) {
@@ -59,6 +67,11 @@ struct StudioHomeView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { showAddRace = true } label: {
+                        Label("Add Race", systemImage: "trophy")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
             }
             .sheet(item: $studioRun) { StudioView(run: $0) }
@@ -132,9 +145,13 @@ struct StudioHomeView: View {
                 Label("Add a race from the library", systemImage: "trophy")
                     .font(.system(.subheadline, design: .rounded).weight(.semibold))
                     .foregroundStyle(Theme.accent)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(Theme.accent.opacity(0.10), in: .capsule)
+                    .overlay(Capsule().strokeBorder(Theme.accent.opacity(0.22), lineWidth: 1))
             }
             .buttonStyle(.plain)
-            .padding(.top, 2)
+            .padding(.top, 4)
         }
         .padding(.horizontal, 20)
     }
