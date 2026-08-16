@@ -32,10 +32,11 @@ Rides the existing rails (encoded polyline route, `isRace`, `ImportMethod.manual
 Add History and Studio. New `Run.excludedFromTotals` governs headline totals + achievements only —
 the activity still shows on map/timeline/Studio.
 
-- **Course geometry is approximate/placeholder.** `RaceCatalog` courses are hand-traced representative
-  lines (right place, right rough shape), shared across the three offered years. **Do not sell prints
-  off these until verified.** The model already keys geometry per year (`courses[year]`), so swapping
-  in accurate, year-specific GPX is a data-only change. Realistic sourcing: trace from OpenStreetMap
+- **Course geometry is mostly approximate/placeholder** — except **Mesa, now the real verified 2026
+  course** (official mesamarathon.com GPX, 202 pts). Boston/NYC/Chicago are still hand-traced
+  representative lines (right place, rough shape), shared across the three offered years. **Do not
+  sell prints off the unverified ones.** The model keys geometry per year (`courses[year]`), so
+  swapping in accurate, year-specific GPX is a data-only change — Mesa is the template for the rest. Realistic sourcing: trace from OpenStreetMap
   (ODbL, attribution) or use race-published GPX where terms allow — per-race, hand-curated. No bulk API.
 - **Starter catalog:** Boston, NYC, Chicago, Mesa (local). Grow toward ~15 (World Marathon Majors +
   popular US races). Add distances beyond the marathon (half, 10K) and a per-event elevation profile.
