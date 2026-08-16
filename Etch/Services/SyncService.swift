@@ -160,7 +160,11 @@ final class SyncService {
                 lastDiagnostic += " · Strava not connected"
             }
 
-            // Best-effort: fill in place names for runs that arrived without them
+            // Offline: derive US state + country for the whole library at once (point-in-polygon,
+            // no network), so the states/countries counts reflect every located run immediately
+            // rather than trickling in behind the rate-limited city geocoder below.
+            await enrichStatesOffline()
+            // Best-effort: fill in city names for runs that arrived without them
             // (HealthKit doesn't geocode). Bounded so we never hit CLGeocoder limits.
             await enrichMissingLocations(limit: 40)
 
@@ -186,6 +190,13 @@ final class SyncService {
         }
     }
 
+    /// Fills place names after an import that doesn't go through a full sync (e.g. a file/ZIP
+    /// import): offline state/country for the whole library at once, then a bounded city pass.
+    func enrichLocations() async {
+        await enrichStatesOffline()
+        await enrichMissingLocations(limit: 40)
+    }
+
     /// Reverse-geocodes up to `limit` runs that have a start coordinate but no city.
     private func enrichMissingLocations(limit: Int) async {
         var descriptor = FetchDescriptor<Run>(
@@ -199,11 +210,36 @@ final class SyncService {
             guard let coordinate = run.startCoordinate else { continue }
             if let place = await locationEnricher.place(for: coordinate) {
                 run.city = place.city
-                run.state = place.state
-                run.country = place.country
+                // Don't clobber a state/country the offline pass already set from boundaries.
+                if run.state == nil { run.state = place.state }
+                if run.country == nil { run.country = place.country }
             }
         }
         try? context.save()
+    }
+
+    /// Fills `state` (and `country`) for every located run that lacks them, using the offline US
+    /// state boundaries — instant and unbounded, unlike the CLGeocoder city pass. This is why the
+    /// states/countries counts (which tally `run.state`) can lag a big import: state was previously
+    /// only set by the rate-limited geocoder. Runs outside the US (no boundary match) are left for
+    /// the geocoder to place.
+    private func enrichStatesOffline() async {
+        let descriptor = FetchDescriptor<Run>(
+            predicate: #Predicate { $0.state == nil && $0.startLatitude != nil }
+        )
+        guard let candidates = try? context.fetch(descriptor), !candidates.isEmpty else { return }
+        let boundaries = USStateBoundaries.shared
+        guard !boundaries.boundaries.isEmpty else { return }
+
+        var changed = false
+        for run in candidates {
+            guard let coordinate = run.startCoordinate,
+                  let stateName = boundaries.region(containing: coordinate) else { continue }
+            run.state = stateName
+            if run.country == nil { run.country = "United States" }
+            changed = true
+        }
+        if changed { try? context.save() }
     }
 
     // MARK: Landmark detection

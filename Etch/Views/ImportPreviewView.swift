@@ -8,6 +8,7 @@ struct ImportPreviewView: View {
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(SyncService.self) private var sync
 
     private enum Stage {
         case loading
@@ -230,5 +231,8 @@ struct ImportPreviewView: View {
         }
         result.failedFiles = outcome.failedFiles
         stage = .done(result)
+        // Fill place names now, since a file import doesn't run a full sync: state/country fill
+        // instantly (offline), cities begin filling in via the geocoder.
+        await sync.enrichLocations()
     }
 }

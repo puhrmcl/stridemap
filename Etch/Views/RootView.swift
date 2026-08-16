@@ -52,6 +52,10 @@ struct RootView: View {
             // Strava was just connected but its full history hasn't been backfilled yet, so
             // maps attach to pre-existing runs without a manual "Sync Now".
             if runs.isEmpty || sync.needsStravaBackfill { await sync.sync() }
+            // Backfill place names for located runs still missing them (e.g. a file/ZIP import in a
+            // prior session that never ran a full sync): state/country fill instantly offline, and
+            // cities continue filling via the bounded geocoder.
+            await sync.enrichLocations()
             healthKit.startObserving {
                 Task { @MainActor in await sync.sync() }
             }
