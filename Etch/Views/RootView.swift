@@ -11,6 +11,8 @@ struct RootView: View {
     @Query private var runs: [Run]
 
     @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding = false
+    /// Studio-first mode: Studio is the home page, the map becomes a popup.
+    @AppStorage("studioIsHome") private var studioIsHome = false
 
     /// The brand splash covers the app on launch, then fades away.
     @State private var showSplash = true
@@ -38,14 +40,20 @@ struct RootView: View {
     private var content: some View {
         Group {
             if isReady {
-                HomeView()
-                    .transition(.opacity)
+                if studioIsHome {
+                    StudioHomeView(isHome: true)
+                        .transition(.opacity)
+                } else {
+                    HomeView()
+                        .transition(.opacity)
+                }
             } else {
                 OnboardingView()
                     .transition(.opacity)
             }
         }
         .animation(Theme.gentle, value: isReady)
+        .animation(Theme.gentle, value: studioIsHome)
         .task(id: isReady) {
             guard isReady else { return }
             // Import on first appearance, then keep observing for new workouts. Also run when

@@ -27,8 +27,13 @@ enum LocationOverlay: String, CaseIterable, Identifiable {
 
 /// Full-screen map with floating glass controls. The map is the product; chrome floats.
 struct HomeView: View {
+    /// True when the map is presented as a popup from Studio-first mode: the bottom bar (Timeline /
+    /// Achievements / Studio / Profile) is hidden and a close button returns to Studio.
+    var isMapPopup: Bool = false
+
     @Environment(AppModel.self) private var appModel
     @Environment(SyncService.self) private var sync
+    @Environment(\.dismiss) private var dismiss
     @Query(sort: \Run.startDate, order: .reverse) private var allRuns: [Run]
 
     @AppStorage("mapStyle") private var mapStyleRaw = MapStyleOption.standard.rawValue
@@ -251,7 +256,8 @@ struct HomeView: View {
                             fitShownRuns()
                         }
                     }
-                    bottomBar
+                    // In Studio-first mode the map is a focused popup — no surface navigation.
+                    if !isMapPopup { bottomBar }
                 }
             }
             .padding(.horizontal, 16)
@@ -331,6 +337,12 @@ struct HomeView: View {
                 Spacer()
                 totalsPill
                 Spacer()
+            }
+            // In Studio-first mode, a close button on the leading edge returns to Studio.
+            .overlay(alignment: .leading) {
+                if isMapPopup {
+                    GlassIconButton(systemName: "xmark") { dismiss() }
+                }
             }
             // The sync spinner sits at the trailing edge as an overlay, so it never shifts the
             // centred pill.

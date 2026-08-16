@@ -10,6 +10,7 @@ struct ProfileView: View {
 
     @State private var showSearch = false
     @State private var showSettings = false
+    @AppStorage("studioIsHome") private var studioIsHome = false
 
     /// The scope the totals reflect — the user's app-wide selection, clamped back to All if the
     /// stored scope was hidden in Settings. The filter is always available here on the profile hub.
@@ -34,6 +35,24 @@ struct ProfileView: View {
                         systemName: "magnifyingglass") { showSearch = true }
                     row(title: "Settings", subtitle: "Account, units, sync, and more",
                         systemName: "gearshape") { showSettings = true }
+                }
+
+                Section {
+                    Toggle(isOn: $studioIsHome.animation(Theme.gentle)) {
+                        HStack(spacing: 14) {
+                            Image(systemName: "photo.artframe")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(Theme.accent)
+                                .frame(width: 30)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Studio as Home").font(.body.weight(.semibold))
+                                Text("Make Studio the main screen").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .tint(Theme.accent)
+                } footer: {
+                    Text("Opens the app straight into Etch Studio, with the map a tap away in the corner. Timeline and Achievements are tucked away. Turn off to return to the map as home.")
                 }
             }
             .navigationTitle("Profile")

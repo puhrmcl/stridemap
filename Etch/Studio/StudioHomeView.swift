@@ -6,10 +6,17 @@ import UniformTypeIdentifiers
 /// turning a run, race, or favourite into art, plus the entry point for prints. Not a
 /// configurator or a shop: the artwork leads, commerce stays quiet.
 struct StudioHomeView: View {
+    /// True when Studio is the app's home (Studio-first mode): shows a profile button and a mini-map
+    /// to reach the map, instead of the "Done" button that dismisses the sheet.
+    var isHome: Bool = false
+
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(AppModel.self) private var appModel
     @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
+
+    @State private var showMap = false
+    @State private var showProfile = false
     /// Posters the user kept, newest edit first.
     @Query(sort: \SavedPoster.updatedAt, order: .reverse) private var savedPosters: [SavedPoster]
 
@@ -78,15 +85,30 @@ struct StudioHomeView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Image("StudioLogo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(height: 22)
-                        .accessibilityLabel("Etch Studio")
+                if isHome {
+                    // Studio-first: profile on the left, the map as a mini-thumbnail on the right.
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { showProfile = true } label: {
+                            Image(systemName: "person.crop.circle")
+                                .font(.system(size: 22))
+                                .foregroundStyle(Theme.accent)
+                        }
+                    }
+                    ToolbarItem(placement: .principal) {
+                        Image("StudioLogo").resizable().scaledToFit().frame(height: 20)
+                            .accessibilityLabel("Etch Studio")
+                    }
+                    ToolbarItem(placement: .topBarTrailing) { mapThumbnailButton }
+                } else {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Image("StudioLogo").resizable().scaledToFit().frame(height: 22)
+                            .accessibilityLabel("Etch Studio")
+                    }
+                    ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
                 }
-                ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
             }
+            .fullScreenCover(isPresented: $showMap) { HomeView(isMapPopup: true) }
+            .sheet(isPresented: $showProfile) { ProfileView() }
             .sheet(item: $studioRun) { StudioView(run: $0) }
             .sheet(item: $openedPoster) { poster in
                 if let run = run(for: poster) {
@@ -117,6 +139,25 @@ struct StudioHomeView: View {
                 }
             }
         }
+    }
+
+    /// A small map-styled thumbnail in the corner that opens the full map (Studio-first mode).
+    private var mapThumbnailButton: some View {
+        Button { showMap = true } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(LinearGradient(colors: [Theme.Palette.sage.opacity(0.7), Theme.accent.opacity(0.3)],
+                                         startPoint: .topLeading, endPoint: .bottomTrailing))
+                Image(systemName: "map.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+            .frame(width: 34, height: 34)
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(.white.opacity(0.35), lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open map")
     }
 
     /// Parses the picked run file, then hands the best activity to the import form. Prefers an
