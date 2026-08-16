@@ -15,6 +15,13 @@ struct EtchApp: App {
     @AppStorage("appearance") private var appearance: String = Appearance.system.rawValue
 
     init() {
+        // Migrate installs from before the setup step existed: anyone who already finished the old
+        // onboarding is considered set up, so they aren't sent back through the new setup screen.
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: "didCompleteSetup") == nil {
+            defaults.set(defaults.bool(forKey: "didCompleteOnboarding"), forKey: "didCompleteSetup")
+        }
+
         do {
             let container = try ModelContainer(for: Run.self, SavedPoster.self)
             self.modelContainer = container

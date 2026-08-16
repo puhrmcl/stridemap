@@ -11,6 +11,8 @@ struct RootView: View {
     @Query private var runs: [Run]
 
     @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding = false
+    /// New users pick their activities and default view here before entering the app.
+    @AppStorage("didCompleteSetup") private var didCompleteSetup = false
     /// Studio-first mode: Studio is the home page, the map becomes a popup.
     @AppStorage("studioIsHome") private var studioIsHome = false
     // Observed so the root re-renders when the user toggles activities to/from all-off.
@@ -46,8 +48,8 @@ struct RootView: View {
     private var content: some View {
         Group {
             if isReady {
-                if allActivitiesOff {
-                    NoActivitiesView()
+                if !didCompleteSetup || allActivitiesOff {
+                    SetupView()
                         .transition(.opacity)
                 } else if studioIsHome {
                     StudioHomeView(isHome: true)
@@ -64,6 +66,7 @@ struct RootView: View {
         .animation(Theme.gentle, value: isReady)
         .animation(Theme.gentle, value: studioIsHome)
         .animation(Theme.gentle, value: allActivitiesOff)
+        .animation(Theme.gentle, value: didCompleteSetup)
         .task(id: isReady) {
             guard isReady else { return }
             // Import on first appearance, then keep observing for new workouts. Also run when
