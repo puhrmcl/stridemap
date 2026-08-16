@@ -302,6 +302,7 @@ final class ActivityIngestor {
         let noun: String
         switch activity.activityType {
         case .hike: noun = "Hike"
+        case .ride: noun = "Ride"
         case .walk: noun = "Walk"
         default:    noun = "Run"
         }

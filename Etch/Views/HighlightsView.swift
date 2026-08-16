@@ -13,7 +13,7 @@ struct HighlightsView: View {
     /// Concrete activity types (not "All") that are both enabled in Settings and actually present.
     /// When only one qualifies, there's nothing to switch between.
     private var presentActivityScopes: [ActivityScope] {
-        [.runs, .hikes, .walks].filter { ActivitySettings.isVisible($0) && !runs.scoped(to: $0).isEmpty }
+        [.runs, .hikes, .rides, .walks].filter { ActivitySettings.isVisible($0) && !runs.scoped(to: $0).isEmpty }
     }
     private var isSingleActivity: Bool { presentActivityScopes.count <= 1 }
     private var soleScope: ActivityScope { presentActivityScopes.first ?? .runs }

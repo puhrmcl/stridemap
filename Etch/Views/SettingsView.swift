@@ -13,6 +13,7 @@ struct SettingsView: View {
     @AppStorage("unitSystem") private var unitSystem = UnitSystem.miles.rawValue
     @AppStorage("includeRuns") private var includeRuns = true
     @AppStorage("includeHikes") private var includeHikes = true
+    @AppStorage("includeRides") private var includeRides = true
     @AppStorage("includeWalks") private var includeWalks = false
 
     @State private var exportURL: URL?
@@ -115,6 +116,12 @@ struct SettingsView: View {
                 Label("Hikes", systemImage: "figure.hiking")
             }
             .onChange(of: includeHikes) { _, on in
+                if on { Task { await sync.sync() } }
+            }
+            Toggle(isOn: $includeRides) {
+                Label("Rides", systemImage: "figure.outdoor.cycle")
+            }
+            .onChange(of: includeRides) { _, on in
                 if on { Task { await sync.sync() } }
             }
             Toggle(isOn: $includeWalks) {

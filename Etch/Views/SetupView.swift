@@ -9,12 +9,13 @@ struct SetupView: View {
 
     @AppStorage("includeRuns") private var includeRuns = true
     @AppStorage("includeHikes") private var includeHikes = true
+    @AppStorage("includeRides") private var includeRides = true
     @AppStorage("includeWalks") private var includeWalks = false
     @AppStorage("studioIsHome") private var studioIsHome = false
     @AppStorage("didCompleteSetup") private var didCompleteSetup = false
 
     private var ground: Color { scheme == .dark ? Theme.Palette.ink : Theme.Palette.bone }
-    private var allOff: Bool { !includeRuns && !includeHikes && !includeWalks }
+    private var allOff: Bool { !includeRuns && !includeHikes && !includeRides && !includeWalks }
 
     var body: some View {
         ZStack {
@@ -57,9 +58,9 @@ struct SetupView: View {
                 rowDivider
                 toggleRow("Hikes", "figure.hiking", $includeHikes)
                 rowDivider
-                toggleRow("Walks", "figure.walk", $includeWalks)
+                toggleRow("Rides", "figure.outdoor.cycle", $includeRides)
                 rowDivider
-                comingSoonRow("Cycling", "figure.outdoor.cycle")
+                toggleRow("Walks", "figure.walk", $includeWalks)
             }
             .background(.regularMaterial, in: .rect(cornerRadius: 18))
         }
@@ -71,26 +72,6 @@ struct SetupView: View {
                 .font(.system(.body, design: .rounded).weight(.medium))
         }
         .tint(Theme.accent)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-    }
-
-    private func comingSoonRow(_ title: String, _ icon: String) -> some View {
-        HStack {
-            Label(title, systemImage: icon)
-                .font(.system(.body, design: .rounded).weight(.medium))
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text("Coming soon")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 3)
-                .background(.secondary.opacity(0.15), in: .capsule)
-            Toggle("", isOn: .constant(false))
-                .labelsHidden()
-                .disabled(true)
-        }
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
     }

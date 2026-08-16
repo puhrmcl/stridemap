@@ -72,6 +72,8 @@ final class StravaProvider: ActivityProvider {
         imported.encodedPolyline = polyline
         imported.elevationGain = activity.totalElevationGain
         imported.sportType = activity.sportType ?? activity.type
+        // Normalize Strava's sport label so rides / hikes / walks aren't all filed as runs.
+        imported.activityType = ActivityType.parse(activity.sportType ?? activity.type)
         imported.isRace = activity.resolvedIsRace
         imported.isCommute = activity.commute ?? false
         imported.isTrail = activity.isTrail

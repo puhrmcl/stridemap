@@ -88,7 +88,7 @@ struct HomeView: View {
     /// Concrete activity types (not "All") that are both enabled in Settings and actually present
     /// in the library. When only one qualifies, the app has nothing to switch between.
     private var presentActivityScopes: [ActivityScope] {
-        [.runs, .hikes, .walks].filter { ActivitySettings.isVisible($0) && !allRuns.scoped(to: $0).isEmpty }
+        [.runs, .hikes, .rides, .walks].filter { ActivitySettings.isVisible($0) && !allRuns.scoped(to: $0).isEmpty }
     }
     /// True when there's a single activity type — the activity selector is hidden and the pill
     /// collapses to that one type, with no icon or dropdown to choose between.
@@ -499,6 +499,7 @@ struct HomeView: View {
         case .all:   return "All Activity"
         case .runs:  return "All Runs"
         case .hikes: return "All Hikes"
+        case .rides: return "All Rides"
         case .walks: return "All Walks"
         }
     }

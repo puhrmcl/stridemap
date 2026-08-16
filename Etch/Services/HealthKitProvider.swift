@@ -125,6 +125,7 @@ final class HealthKitProvider: ActivityProvider {
         var types: [HKWorkoutActivityType] = []
         if ActivitySettings.includeRuns { types.append(.running) }
         if ActivitySettings.includeHikes { types.append(.hiking) }
+        if ActivitySettings.includeRides { types.append(.cycling) }
         if ActivitySettings.includeWalks { types.append(.walking) }
         return types
     }
@@ -224,6 +225,7 @@ final class HealthKitProvider: ActivityProvider {
         switch type {
         case .running: return .run
         case .hiking:  return .hike
+        case .cycling: return .ride
         case .walking: return .walk
         default:       return .run
         }
