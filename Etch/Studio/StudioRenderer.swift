@@ -111,27 +111,69 @@ enum StudioRenderer {
         return matted(base, aspect: aspect, ground: request.groundColor ?? request.edition.ground)
     }
 
-    /// Places the finished poster centred on a `ground`-filled canvas of the target aspect — the
-    /// social-share framing. Sized from the poster's *actual* rendered dimensions (not an estimate),
-    /// so it can never clip, whatever the edition/footer height.
+    /// Frames the finished poster as a print on a mat, sized to the target social aspect. The mat is
+    /// a tone that *contrasts* the poster's ground (not the same colour, which made the poster's edges
+    /// vanish and read as badly-centred content), and the print sits as a rounded card with a soft
+    /// drop shadow and hairline — a deliberate, gallery-like social frame. Uniform breathing room on
+    /// all sides, sized from the poster's *actual* rendered dimensions, so it can never clip.
     private static func matted(_ image: UIImage, aspect: CGFloat, ground: Color) -> UIImage {
         let size = image.size
-        let margin: CGFloat = 1.06
-        var width = size.width * margin
-        var height = size.height * margin
+        let longEdge = max(size.width, size.height)
+        let margin = longEdge * 0.10        // generous, uniform breathing room around the print
+
+        var width = size.width + margin * 2
+        var height = size.height + margin * 2
         if width / height < aspect { width = height * aspect } else { height = width / aspect }
         let canvas = CGSize(width: width, height: height)
+
+        let mat = matBackground(for: ground)
+        let corner = longEdge * 0.02
 
         let format = UIGraphicsImageRendererFormat()
         format.scale = image.scale
         format.opaque = true
         let renderer = UIGraphicsImageRenderer(size: canvas, format: format)
         return renderer.image { context in
-            UIColor(ground).setFill()
+            let cg = context.cgContext
+            mat.setFill()
             context.fill(CGRect(origin: .zero, size: canvas))
+
             let origin = CGPoint(x: (canvas.width - size.width) / 2, y: (canvas.height - size.height) / 2)
-            image.draw(in: CGRect(origin: origin, size: size))
+            let rect = CGRect(origin: origin, size: size)
+            let card = UIBezierPath(roundedRect: rect, cornerRadius: corner)
+
+            // Soft drop shadow so the print lifts off the mat.
+            cg.saveGState()
+            cg.setShadow(offset: CGSize(width: 0, height: longEdge * 0.012),
+                         blur: longEdge * 0.03, color: UIColor.black.withAlphaComponent(0.30).cgColor)
+            UIColor.black.setFill()
+            card.fill()
+            cg.restoreGState()
+
+            // The poster, clipped to the rounded card.
+            cg.saveGState()
+            card.addClip()
+            image.draw(in: rect)
+            cg.restoreGState()
+
+            // A whisper of a keyline crisps the edge.
+            UIColor.black.withAlphaComponent(0.06).setStroke()
+            card.lineWidth = max(1, longEdge * 0.0016)
+            card.stroke()
         }
+    }
+
+    /// A mat tone derived from the poster's ground but shifted toward the opposite luminance, so the
+    /// print reads as a distinct card rather than dissolving into the background.
+    private static func matBackground(for ground: Color) -> UIColor {
+        let base = UIColor(ground)
+        let target: UIColor = ground.isDarkGround ? .white : .black
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        var tr: CGFloat = 0, tg: CGFloat = 0, tb: CGFloat = 0, ta: CGFloat = 0
+        base.getRed(&r, green: &g, blue: &b, alpha: &a)
+        target.getRed(&tr, green: &tg, blue: &tb, alpha: &ta)
+        let t: CGFloat = 0.14
+        return UIColor(red: r + (tr - r) * t, green: g + (tg - g) * t, blue: b + (tb - b) * t, alpha: 1)
     }
 
     /// The route's terrain elevation profile, fetched when the strip is enabled or a chosen metric
