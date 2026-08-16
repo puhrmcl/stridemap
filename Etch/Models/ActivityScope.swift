@@ -54,16 +54,21 @@ enum ActivityScope: String, CaseIterable, Identifiable {
 /// off so someone who only cares about running never sees the rest. Hikes are on by default (a
 /// deliberate import); walks are off by default because Apple Watch auto-logs many short walks.
 enum ActivitySettings {
-    /// Defaults to `true` when the key was never written — the positive default for hikes.
+    /// Defaults to `true` when the key was never written — the positive default for runs & hikes.
+    static var includeRuns: Bool { UserDefaults.standard.object(forKey: "includeRuns") as? Bool ?? true }
     static var includeHikes: Bool { UserDefaults.standard.object(forKey: "includeHikes") as? Bool ?? true }
     static var includeWalks: Bool { UserDefaults.standard.bool(forKey: "includeWalks") }
 
-    /// Whether a given scope is currently visible (Runs and All always are).
+    /// True when every activity type is turned off — the app has nothing to show and prompts setup.
+    static var allOff: Bool { !includeRuns && !includeHikes && !includeWalks }
+
+    /// Whether a given scope is currently visible. `all` stays available as long as anything is on.
     static func isVisible(_ scope: ActivityScope) -> Bool {
         switch scope {
-        case .all, .runs: return true
-        case .hikes:      return includeHikes
-        case .walks:      return includeWalks
+        case .all:   return !allOff
+        case .runs:  return includeRuns
+        case .hikes: return includeHikes
+        case .walks: return includeWalks
         }
     }
 
@@ -77,11 +82,13 @@ extension Sequence where Element == Run {
     /// Narrows to the scope. Hidden activity types (hikes/walks the user turned off) are excluded
     /// everywhere, so a stray walk never pollutes the runs view and hikes vanish when hidden.
     func scoped(to scope: ActivityScope) -> [Run] {
+        let includeRuns = ActivitySettings.includeRuns
         let includeHikes = ActivitySettings.includeHikes
         let includeWalks = ActivitySettings.includeWalks
         return filter { run in
             if run.isHidden { return false }
             let type = run.activityType
+            if type == .run && !includeRuns { return false }
             if type == .hike && !includeHikes { return false }
             if type == .walk && !includeWalks { return false }
             switch scope {

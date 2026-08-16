@@ -13,6 +13,12 @@ struct RootView: View {
     @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding = false
     /// Studio-first mode: Studio is the home page, the map becomes a popup.
     @AppStorage("studioIsHome") private var studioIsHome = false
+    // Observed so the root re-renders when the user toggles activities to/from all-off.
+    @AppStorage("includeRuns") private var includeRuns = true
+    @AppStorage("includeHikes") private var includeHikes = true
+    @AppStorage("includeWalks") private var includeWalks = false
+
+    private var allActivitiesOff: Bool { !includeRuns && !includeHikes && !includeWalks }
 
     /// The brand splash covers the app on launch, then fades away.
     @State private var showSplash = true
@@ -40,7 +46,10 @@ struct RootView: View {
     private var content: some View {
         Group {
             if isReady {
-                if studioIsHome {
+                if allActivitiesOff {
+                    NoActivitiesView()
+                        .transition(.opacity)
+                } else if studioIsHome {
                     StudioHomeView(isHome: true)
                         .transition(.opacity)
                 } else {
@@ -54,6 +63,7 @@ struct RootView: View {
         }
         .animation(Theme.gentle, value: isReady)
         .animation(Theme.gentle, value: studioIsHome)
+        .animation(Theme.gentle, value: allActivitiesOff)
         .task(id: isReady) {
             guard isReady else { return }
             // Import on first appearance, then keep observing for new workouts. Also run when

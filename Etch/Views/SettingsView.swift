@@ -11,6 +11,7 @@ struct SettingsView: View {
 
     @AppStorage("appearance") private var appearance = Appearance.system.rawValue
     @AppStorage("unitSystem") private var unitSystem = UnitSystem.miles.rawValue
+    @AppStorage("includeRuns") private var includeRuns = true
     @AppStorage("includeHikes") private var includeHikes = true
     @AppStorage("includeWalks") private var includeWalks = false
 
@@ -104,6 +105,12 @@ struct SettingsView: View {
 
     private var activitiesSection: some View {
         Section {
+            Toggle(isOn: $includeRuns) {
+                Label("Runs", systemImage: "figure.run")
+            }
+            .onChange(of: includeRuns) { _, on in
+                if on { Task { await sync.sync() } }
+            }
             Toggle(isOn: $includeHikes) {
                 Label("Hikes", systemImage: "figure.hiking")
             }
@@ -131,7 +138,7 @@ struct SettingsView: View {
         } header: {
             Text("Activities")
         } footer: {
-            Text("Runs are always shown. Turn a type off to hide it everywhere — the totals, maps, achievements, and studio all scope to what's on. Walks are off by default because Apple Watch logs many short walks. Turning a type on imports it on the next sync; a full Delete & re-sync backfills older ones.")
+            Text("Turn a type off to hide it everywhere — the totals, maps, achievements, and studio all scope to what's on. Walks are off by default because Apple Watch logs many short walks. Turning a type on imports it on the next sync; a full Delete & re-sync backfills older ones. With everything off, Etch prompts you to pick an activity.")
         }
     }
 
