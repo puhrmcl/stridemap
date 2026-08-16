@@ -485,16 +485,18 @@ struct HomeView: View {
             Image(systemName: systemName)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Theme.accentOnGlass)
-            Text(value)
-                .font(.system(.subheadline, design: .rounded).weight(.bold))
-                .contentTransition(.numericText())
-            Text(unit)
-                .font(.system(.caption, design: .rounded).weight(.medium))
-                .foregroundStyle(.secondary)
+            // Value and unit are one concatenated Text so the Menu label's layout can never drop the
+            // unit ("mi" / "runs") the way two separate Texts allowed. fixedSize keeps it un-truncated.
+            (
+                Text(value)
+                    .font(.system(.subheadline, design: .rounded).weight(.bold))
+                + Text(" \(unit)")
+                    .font(.system(.caption, design: .rounded).weight(.medium))
+                    .foregroundColor(.secondary)
+            )
+            .lineLimit(1)
+            .fixedSize()
         }
-        // Inside a Menu label the row can get width-compressed, which silently drops the
-        // secondary unit text ("mi" / "runs"). Pin it to its natural size so the labels stay.
-        .fixedSize()
     }
 
     /// What the map is currently showing: a run-filter mode, the history etch, or a Locations
@@ -539,14 +541,16 @@ struct HomeView: View {
     /// every pill keeps its full label on one line rather than wrapping/hyphenating when the
     /// three don't all fit on a narrow screen.
     private var modeSelector: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        // Centered under the totals pill, mirroring its alignment.
+        HStack {
+            Spacer(minLength: 0)
             HStack(spacing: 10) {
                 overlaySelector
                 placesMenu
             }
             .padding(.vertical, 3)   // room for the pills' soft shadows
+            Spacer(minLength: 0)
         }
-        .scrollClipDisabled()
     }
 
     /// Secondary dropdown: which Locations overlay to show.

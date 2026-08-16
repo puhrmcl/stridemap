@@ -115,9 +115,14 @@ extension View {
     @ViewBuilder
     func glassBackground(cornerRadius: CGFloat) -> some View {
         self
-            .background(.ultraThinMaterial, in: .rect(cornerRadius: cornerRadius))
+            // Fill an explicit continuous-corner shape rather than the `in:` parameter — the latter
+            // can flash square corners for a frame while the material resolves on first appearance.
+            .background {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            }
             .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(.white.opacity(0.08), lineWidth: 0.5)
             )
             .shadow(color: .black.opacity(0.18), radius: 16, y: 6)
