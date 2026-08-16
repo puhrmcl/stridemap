@@ -43,7 +43,22 @@ struct StudioHomeView: View {
     }()
 
     /// Runs limited to the app-wide activity scope (All / Runs / Hikes / Walks).
-    private var scopedRuns: [Run] { runs.scoped(to: appModel.activityScope) }
+    /// Concrete activity types present and enabled — used to decide whether to offer a filter.
+    private var presentActivityScopes: [ActivityScope] {
+        [.runs, .hikes, .rides, .walks].filter { ActivitySettings.isVisible($0) && !runs.scoped(to: $0).isEmpty }
+    }
+    private var isSingleActivity: Bool { presentActivityScopes.count <= 1 }
+    private var soleScope: ActivityScope { presentActivityScopes.first ?? .runs }
+
+    /// The scope Studio shows: the sole present type when there's only one, `.all` if the stored
+    /// scope was hidden in Settings, otherwise the user's selection.
+    private var scope: ActivityScope {
+        if isSingleActivity { return soleScope }
+        if !ActivitySettings.isVisible(appModel.activityScope) { return .all }
+        return appModel.activityScope
+    }
+
+    private var scopedRuns: [Run] { runs.scoped(to: scope) }
     private var stats: RunStatistics { RunStatistics(scopedRuns) }
     /// Only runs with a route make good art.
     private var mapped: [Run] { scopedRuns.filter(\.hasRoute) }
@@ -101,10 +116,7 @@ struct StudioHomeView: View {
                     }
                     ToolbarItem(placement: .topBarTrailing) { mapThumbnailButton }
                 } else {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Image("StudioLogo").resizable().scaledToFit().frame(height: 22)
-                            .accessibilityLabel("Etch Studio")
-                    }
+                    // Sheet mode: the wordmark leads the content (bigger, below), so the bar is just Done.
                     ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
                 }
             }
@@ -215,6 +227,12 @@ struct StudioHomeView: View {
 
     private var intro: some View {
         VStack(alignment: .leading, spacing: 16) {
+            // In sheet mode (map is home) the wordmark leads the content, sized to actually read.
+            if !isHome {
+                Image("StudioLogo")
+                    .resizable().scaledToFit().frame(height: 40)
+                    .accessibilityLabel("Etch Studio")
+            }
             VStack(alignment: .leading, spacing: 6) {
                 Text("Leave your mark.")
                     .font(.system(.title, design: .rounded).weight(.bold))
@@ -227,8 +245,42 @@ struct StudioHomeView: View {
                 actionCapsule("Import a run", "square.and.arrow.down") { showImportPicker = true }
             }
             .padding(.top, 4)
+
+            // Filter Studio by activity — only when there's more than one type to choose from.
+            if !isSingleActivity { scopeFilter }
         }
         .padding(.horizontal, 20)
+    }
+
+    /// A chip that names and switches the activity filter, mirroring Achievements / Profile.
+    private var scopeFilter: some View {
+        Menu {
+            Picker("Activity", selection: scopeBinding) {
+                ForEach(ActivitySettings.visibleScopes) { s in
+                    Label(s.label, systemImage: s.icon).tag(s)
+                }
+            }
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: scope.icon).font(.system(size: 13, weight: .semibold))
+                Text(scope == .all ? "All Activities" : scope.label)
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
+            }
+            .foregroundStyle(Theme.accent)
+            .padding(.vertical, 7)
+            .padding(.horizontal, 14)
+            .background(Theme.accent.opacity(0.10), in: .capsule)
+        }
+        .buttonStyle(.plain)
+        .padding(.top, 2)
+    }
+
+    private var scopeBinding: Binding<ActivityScope> {
+        Binding(
+            get: { scope },
+            set: { newValue in withAnimation(Theme.gentle) { appModel.activityScope = newValue } }
+        )
     }
 
     /// A small bordered pill action, used for the Studio entry points.
@@ -255,11 +307,11 @@ struct StudioHomeView: View {
         if let r = stats.longestRun, r.hasRoute { out.append((r, "Furthest")) }
         if let r = stats.longestDurationRun, r.hasRoute { out.append((r, "Longest")) }
         // Pace-based superlatives only make sense for runs (a hike's "fastest" is meaningless).
-        if appModel.activityScope.usesPace, let r = stats.fastestRun, r.hasRoute { out.append((r, "Fastest")) }
+        if scope.usesPace, let r = stats.fastestRun, r.hasRoute { out.append((r, "Fastest")) }
         if let r = stats.highestClimb, r.hasRoute { out.append((r, "Highest")) }
 
         // Best effort at each marquee race distance — a personal record worth a poster (runs only).
-        if appModel.activityScope.usesPace {
+        if scope.usesPace {
             let prByLabel = Dictionary(uniqueKeysWithValues: stats.personalRecords.map { ($0.label, $0.run) })
             for label in ["Marathon", "Half Marathon", "10K", "5K"] {
                 if let r = prByLabel[label], r.hasRoute { out.append((r, label)) }
