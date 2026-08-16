@@ -306,6 +306,35 @@ struct MapPrintRequest {
                       minLon: pct(lons, 0.05), maxLon: pct(lons, 0.95))
     }
 
+    /// The default frame for the Home Turf art: a zoom onto the runner's densest area — the city /
+    /// neighbourhood where they log the most runs — rather than the whole country, where a spread-out
+    /// history collapses the tangle into specks. Coordinate-based, so it works before cities have
+    /// finished geocoding.
+    static func homeTurfRegion(runs: [Run]) -> MKCoordinateRegion? {
+        let mapped = runs.filter(\.hasRoute)
+        let coords = mapped.compactMap(\.startCoordinate)
+        guard !coords.isEmpty else { return nil }
+
+        // Densest ~1 km cell = the home base.
+        var counts: [String: Int] = [:]
+        var anchor: [String: CLLocationCoordinate2D] = [:]
+        for c in coords {
+            let key = "\(Int((c.latitude * 100).rounded())),\(Int((c.longitude * 100).rounded()))"
+            counts[key, default: 0] += 1
+            anchor[key] = c
+        }
+        guard let bestKey = counts.max(by: { $0.value < $1.value })?.key,
+              let base = anchor[bestKey] else { return nil }
+
+        // Frame the runs clustered around that base (~11 km), so the local tangle fills the poster.
+        let window = 0.1
+        let local = mapped.filter { run in
+            guard let s = run.startCoordinate else { return false }
+            return abs(s.latitude - base.latitude) < window && abs(s.longitude - base.longitude) < window
+        }
+        return boundingRegion(of: local.isEmpty ? mapped : local)
+    }
+
     /// A region framing every run's cached bounding box, with padding.
     private static func boundingRegion(of runs: [Run]) -> MKCoordinateRegion {
         var minLat = 90.0, maxLat = -90.0, minLon = 180.0, maxLon = -180.0

@@ -106,7 +106,13 @@ struct MapPrintView: View {
     /// The base request — a single place drawn as routes, or the aggregate for the kind.
     private var baseRequest: MapPrintRequest {
         if kind.isArt {
-            return MapPrintRequest.make(kind: kind, runs: artFilteredRuns)
+            var req = MapPrintRequest.make(kind: kind, runs: artFilteredRuns)
+            // Home Turf defaults to a zoom on the densest area (the most-run city), not the whole
+            // country — otherwise a spread-out history renders as scattered specks.
+            if artStyle == .homeTurf, let region = MapPrintRequest.homeTurfRegion(runs: artFilteredRuns) {
+                req.region = region
+            }
+            return req
         }
         if let focusName, let place = focusPlaces.first(where: { $0.name == focusName }) {
             var req = MapPrintRequest.make(kind: .allRuns, runs: place.runs)
@@ -205,6 +211,9 @@ struct MapPrintView: View {
             .task(id: currentKey) { await renderIfNeeded(currentKey) }
             .onChange(of: kind) { focusName = nil; stateTitle = ""; artFilter = .all; statesUSAOnly = false; resetFrame() }
             .onChange(of: focusName) { stateTitle = ""; resetFrame() }
+            // Each art style has its own default framing (Home Turf zooms to the home city), so
+            // start fresh when switching rather than carrying over a prior zoom/pan.
+            .onChange(of: artStyle) { resetFrame() }
         }
     }
 
