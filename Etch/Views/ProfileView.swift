@@ -5,12 +5,30 @@ import SwiftData
 /// here rather than crowding the map's bottom bar.
 struct ProfileView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var appModel
     @Query(sort: \Run.startDate, order: .reverse) private var allRuns: [Run]
 
     @State private var showSearch = false
     @State private var showSettings = false
 
-    private var stats: RunStatistics { RunStatistics(allRuns) }
+    /// Concrete activity types (not "All") that are both enabled in Settings and actually present.
+    /// When only one qualifies, there's nothing to filter between.
+    private var presentActivityScopes: [ActivityScope] {
+        [.runs, .hikes, .walks].filter { ActivitySettings.isVisible($0) && !allRuns.scoped(to: $0).isEmpty }
+    }
+    private var isSingleActivity: Bool { presentActivityScopes.count <= 1 }
+    private var soleScope: ActivityScope { presentActivityScopes.first ?? .runs }
+
+    /// The scope the totals reflect: the sole type when there's only one, `.all` if the stored
+    /// scope was hidden in Settings, otherwise the user's selection.
+    private var scope: ActivityScope {
+        if isSingleActivity { return soleScope }
+        if !ActivitySettings.isVisible(appModel.activityScope) { return .all }
+        return appModel.activityScope
+    }
+
+    /// Totals honour the activity filter and drop activities the user kept out of totals.
+    private var stats: RunStatistics { RunStatistics(allRuns.scoped(to: scope).countingTotals) }
 
     var body: some View {
         NavigationStack {
@@ -53,11 +71,43 @@ struct ProfileView: View {
                     label: UnitSystem.current.distanceSuffix
                 )
                 Rectangle().fill(.secondary.opacity(0.3)).frame(width: 1, height: 30)
-                stat(value: stats.totalRuns.formatted(), label: "runs")
+                stat(value: stats.totalRuns.formatted(), label: scope.countNoun)
             }
+            // Filter the totals by activity — only when there's more than one type to choose from.
+            if !isSingleActivity { scopeFilter }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
+    }
+
+    /// A chip that names and switches the activity filter, mirroring the app-wide scope.
+    private var scopeFilter: some View {
+        Menu {
+            Picker("Activity", selection: scopeBinding) {
+                ForEach(ActivitySettings.visibleScopes) { s in
+                    Label(s.label, systemImage: s.icon).tag(s)
+                }
+            }
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: scope.icon).font(.system(size: 13, weight: .semibold))
+                Text(scope == .all ? "All Activities" : scope.label)
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
+            }
+            .foregroundStyle(Theme.accent)
+            .padding(.vertical, 7)
+            .padding(.horizontal, 14)
+            .background(.regularMaterial, in: .capsule)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var scopeBinding: Binding<ActivityScope> {
+        Binding(
+            get: { scope },
+            set: { newValue in withAnimation(Theme.gentle) { appModel.activityScope = newValue } }
+        )
     }
 
     private func stat(value: String, label: String) -> some View {
