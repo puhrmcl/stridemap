@@ -3,6 +3,13 @@ import SwiftData
 import CoreLocation
 import MapKit
 
+/// Carries the measured height of the totals pill's right-hand column up to the pill, so the
+/// leading icon and divider can be sized to match it exactly.
+private struct PillColumnHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
 /// The specific overlay shown under the home map's "Locations" mode.
 enum LocationOverlay: String, CaseIterable, Identifiable {
     case cities, states, countries, landmarks
@@ -53,6 +60,11 @@ struct HomeView: View {
     @State private var locationRecenterToken = 0
     /// The bottom navigation buttons collapse behind a menu; tapping it expands them.
     @State private var menuExpanded = false
+
+    /// Measured height of the pill's totals column, used to size the leading icon and divider to
+    /// exactly that — `maxHeight: .infinity` would instead grab the whole top bar's height. Seeded
+    /// near the real value so the icon's fill is bounded even before the first measurement lands.
+    @State private var pillColumnHeight: CGFloat = 40
 
     /// The full-map print kind that matches the current view.
     private var currentPrintKind: MapPrintKind {
@@ -317,14 +329,13 @@ struct HomeView: View {
     /// folded in: a chevron on the right opens the mode menu (filter modes / History / Locations).
     private var totalsPill: some View {
         HStack(spacing: 10) {
-            // The activity icon stretches the full height of the pill on the left.
+            // The activity icon fills the full height of the totals column on the left.
             activitySelector
-                .frame(maxHeight: .infinity)
+                .frame(height: pillColumnHeight)
             // Full-height rule dividing the icon from the totals column.
             Rectangle()
                 .fill(.secondary.opacity(0.3))
-                .frame(width: 1)
-                .frame(maxHeight: .infinity)
+                .frame(width: 1, height: pillColumnHeight)
             // Right column: the totals row, a rule beneath it, then the current-view caption.
             VStack(spacing: 4) {
                 totalsMenu
@@ -337,7 +348,13 @@ struct HomeView: View {
                     .foregroundStyle(Theme.accentOnGlass)
                     .frame(maxWidth: .infinity)
             }
+            .background(
+                GeometryReader { geo in
+                    Color.clear.preference(key: PillColumnHeightKey.self, value: geo.size.height)
+                }
+            )
         }
+        .onPreferenceChange(PillColumnHeightKey.self) { if $0 > 0 { pillColumnHeight = $0 } }
         .fixedSize(horizontal: true, vertical: false)
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
@@ -401,7 +418,19 @@ struct HomeView: View {
     private var activityBinding: Binding<ActivityScope> {
         Binding(
             get: { appModel.activityScope },
-            set: { newValue in withAnimation(Theme.gentle) { appModel.activityScope = newValue } }
+            set: { newValue in
+                withAnimation(Theme.gentle) {
+                    appModel.activityScope = newValue
+                    // Returning to All Activities also resets the map view back to the unfiltered
+                    // overview — a lingering Races / PRs / Locations mode shouldn't carry over.
+                    if newValue == .all {
+                        showLocations = false
+                        var f = appModel.filter
+                        f.mode = .all
+                        appModel.setFilter(f)
+                    }
+                }
+            }
         )
     }
 
