@@ -18,6 +18,8 @@ struct RunMapView: UIViewRepresentable {
 
     /// The currently visible (already filtered) runs.
     var runs: [Run]
+    /// Runs that are milestones (personal records / superlatives) — their pins show a gold trophy.
+    var milestoneRunIDs: Set<UUID> = []
     /// Selected run's activity id.
     @Binding var selectedRunID: UUID?
     /// When a tight cluster is tapped, the runs stacked there — to show a pick-list.
@@ -125,8 +127,9 @@ struct RunMapView: UIViewRepresentable {
         /// run id → overlay, so we can diff efficiently between updates.
         private var overlaysByID: [UUID: RunPolyline] = [:]
 
-        /// Lightweight start points for the mapped runs, used to place tappable pins.
-        private var runPoints: [(id: UUID, coordinate: CLLocationCoordinate2D)] = []
+        /// Lightweight start points for the mapped runs, used to place tappable pins — with each
+        /// run's pin kind (race / milestone / normal) so single-run pins can style themselves.
+        private var runPoints: [(id: UUID, coordinate: CLLocationCoordinate2D, kind: RunPinKind)] = []
         /// run id → its start coordinate, for framing a cluster's members on drill-in.
         private var coordByID: [UUID: CLLocationCoordinate2D] = [:]
         /// Our own zoom-aware clusters. MapKit's automatic clustering silently drops annotations
@@ -177,8 +180,14 @@ struct RunMapView: UIViewRepresentable {
             }
             heatView?.isHidden = true
 
-            // Snapshot start points for the tappable pins (only mapped runs get one).
-            runPoints = routed.compactMap { run in run.startCoordinate.map { (run.id, $0) } }
+            // Snapshot start points for the tappable pins (only mapped runs get one), each with its
+            // pin kind — milestone (a record/superlative) wins over race, then plain.
+            runPoints = routed.compactMap { run -> (id: UUID, coordinate: CLLocationCoordinate2D, kind: RunPinKind)? in
+                guard let coordinate = run.startCoordinate else { return nil }
+                let kind: RunPinKind = parent.milestoneRunIDs.contains(run.id) ? .milestone
+                    : (run.isRace ? .race : .normal)
+                return (run.id, coordinate, kind)
+            }
             coordByID = Dictionary(runPoints.map { ($0.id, $0.coordinate) }, uniquingKeysWith: { first, _ in first })
 
             let newIDs = Set(routed.map { $0.id })
@@ -300,15 +309,17 @@ struct RunMapView: UIViewRepresentable {
             let represented = clusterAnnotations.reduce(0) { $0 + $1.runIDs.count }
             guard force || cellChanged || represented != runPoints.count else { return }
 
-            var buckets: [String: (ids: [UUID], sumX: Double, sumY: Double)] = [:]
+            var buckets: [String: (ids: [UUID], sumX: Double, sumY: Double, kind: RunPinKind)] = [:]
             for point in runPoints {
                 let mp = MKMapPoint(point.coordinate)
                 let gx = Int(floor(mp.x / cell)), gy = Int(floor(mp.y / cell))
                 let key = "\(gx),\(gy)"
-                var bucket = buckets[key] ?? (ids: [], sumX: 0, sumY: 0)
+                var bucket = buckets[key] ?? (ids: [], sumX: 0, sumY: 0, kind: .normal)
                 bucket.ids.append(point.id)
                 bucket.sumX += mp.x
                 bucket.sumY += mp.y
+                // A single-run cell shows that run's kind; a cell with several is a neutral bubble.
+                bucket.kind = bucket.ids.count == 1 ? point.kind : .normal
                 buckets[key] = bucket
             }
             var newAnnotations: [RunClusterAnnotation] = []
@@ -316,7 +327,7 @@ struct RunMapView: UIViewRepresentable {
             for bucket in buckets.values {
                 let n = Double(bucket.ids.count)
                 let coordinate = MKMapPoint(x: bucket.sumX / n, y: bucket.sumY / n).coordinate
-                newAnnotations.append(RunClusterAnnotation(runIDs: bucket.ids, coordinate: coordinate))
+                newAnnotations.append(RunClusterAnnotation(runIDs: bucket.ids, coordinate: coordinate, kind: bucket.kind))
             }
 
             map.removeAnnotations(clusterAnnotations)
@@ -353,6 +364,7 @@ struct RunMapView: UIViewRepresentable {
             let view = (mapView.dequeueReusableAnnotationView(withIdentifier: id) as? RunPinView)
                 ?? RunPinView(annotation: annotation, reuseIdentifier: id)
             view.annotation = annotation
+            view.configure(cluster.kind)
             view.clusteringIdentifier = nil
             view.displayPriority = .required
             return view
@@ -568,13 +580,22 @@ final class RunStartAnnotation: NSObject, MKAnnotation {
     }
 }
 
+/// How a single-run map pin reads: a plain runner, a checkered flag for a race, or a gold trophy
+/// for a milestone (a personal record or a superlative). Milestone wins when a run is both.
+enum RunPinKind {
+    case normal, race, milestone
+}
+
 /// A home-map cluster: the runs grouped into one screen-grid cell. Carries the member run ids so
-/// a tap can drill in (zoom to their extent) or list them. One run → shown as a runner pin.
+/// a tap can drill in (zoom to their extent) or list them. One run → shown as a runner pin, styled
+/// by its `kind` (race / milestone). Multi-run cells are neutral count bubbles.
 final class RunClusterAnnotation: NSObject, MKAnnotation {
     let runIDs: [UUID]
+    let kind: RunPinKind
     @objc dynamic var coordinate: CLLocationCoordinate2D
-    init(runIDs: [UUID], coordinate: CLLocationCoordinate2D) {
+    init(runIDs: [UUID], coordinate: CLLocationCoordinate2D, kind: RunPinKind = .normal) {
         self.runIDs = runIDs
+        self.kind = kind
         self.coordinate = coordinate
     }
 }
@@ -582,13 +603,13 @@ final class RunClusterAnnotation: NSObject, MKAnnotation {
 /// A circular accent pin with a white runner glyph. Participates in clustering so stacks of
 /// runs starting at the same place collapse into a count bubble until zoomed in.
 final class RunPinView: MKAnnotationView {
+    private let glyph = UIImageView()
+
     override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
         super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
         let diameter: CGFloat = 30
         bounds = CGRect(x: 0, y: 0, width: diameter, height: diameter)
         layer.cornerRadius = diameter / 2
-        // Ink markers keep Etch Blue reserved for the route line itself — the one signal.
-        backgroundColor = UIColor(Theme.Palette.ink).withAlphaComponent(0.95)
         layer.borderColor = UIColor(Theme.Palette.bone).withAlphaComponent(0.9).cgColor
         layer.borderWidth = 1.5
         layer.shadowColor = UIColor.black.cgColor
@@ -596,13 +617,8 @@ final class RunPinView: MKAnnotationView {
         layer.shadowRadius = 3
         layer.shadowOffset = CGSize(width: 0, height: 1)
 
-        let glyph = UIImageView(frame: bounds)
-        glyph.tintColor = .white
+        glyph.frame = bounds
         glyph.contentMode = .center
-        glyph.image = UIImage(
-            systemName: "figure.run",
-            withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .bold)
-        )
         addSubview(glyph)
 
         canShowCallout = false
@@ -611,6 +627,31 @@ final class RunPinView: MKAnnotationView {
         // it `.required` keeps every pin on screen, so close runs pile up as overlapping glyphs
         // instead of collapsing into a single numbered count bubble you can tap to drill into.
         displayPriority = .defaultHigh
+        configure(.normal)
+    }
+
+    /// Styles the pin by run kind: a race reads as a checkered flag, a milestone as a gold trophy,
+    /// everything else as the plain ink runner (Etch Blue stays reserved for the route line).
+    func configure(_ kind: RunPinKind) {
+        let symbol: String
+        let background: UIColor
+        switch kind {
+        case .race:
+            symbol = "flag.checkered"
+            background = UIColor(Theme.Palette.ink).withAlphaComponent(0.95)
+        case .milestone:
+            symbol = "trophy.fill"
+            background = UIColor(Theme.Palette.brass)   // gold
+        case .normal:
+            symbol = "figure.run"
+            background = UIColor(Theme.Palette.ink).withAlphaComponent(0.95)
+        }
+        backgroundColor = background
+        glyph.tintColor = .white
+        glyph.image = UIImage(
+            systemName: symbol,
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: kind == .race ? 13 : 15, weight: .bold)
+        )
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
