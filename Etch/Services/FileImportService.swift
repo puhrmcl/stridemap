@@ -87,10 +87,11 @@ final class FileImportService {
     // MARK: Archives
 
     /// Decompression-bomb guards: skip absurd single files, stop before unbounded total
-    /// inflation, and reject an oversized archive outright.
-    private static let maxEntryBytes = 64 * 1024 * 1024       // 64 MB per activity file
-    private static let maxTotalBytes = 1024 * 1024 * 1024      // 1 GB total inflated
-    private static let maxArchiveBytes = 300 * 1024 * 1024     // 300 MB archive on disk
+    /// inflation, and reject an oversized archive outright. `nonisolated` so the off-main parsing
+    /// helpers can read them without a main-actor hop (they're immutable Sendable constants).
+    nonisolated private static let maxEntryBytes = 64 * 1024 * 1024       // 64 MB per activity file
+    nonisolated private static let maxTotalBytes = 1024 * 1024 * 1024      // 1 GB total inflated
+    nonisolated private static let maxArchiveBytes = 300 * 1024 * 1024     // 300 MB archive on disk
 
     /// Reads a ZIP (Nike / Garmin export), inflates the activity files it contains, and parses
     /// each. Non-activity entries (JSON manifests, images, other formats) are ignored, not
