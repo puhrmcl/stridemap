@@ -725,9 +725,9 @@ struct HomeView: View {
         HStack(spacing: 10) {
             if menuExpanded {
                 Group {
-                    controlButton(icon: "person.crop.circle", surface: .profile)
-                    controlButton(icon: "calendar", surface: .timeline)
-                    controlButton(icon: "trophy.fill", surface: .highlights)
+                    controlButton(icon: "person", surface: .profile)
+                    controlButton(icon: "square.grid.2x2", surface: .timeline)
+                    controlButton(icon: "trophy", surface: .highlights)
                     controlButton(icon: "photo.artframe", surface: .studio)
                 }
                 .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -766,10 +766,10 @@ struct HomeView: View {
             }
         } label: {
             Image(systemName: mapStyle.symbol)
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: 19, weight: .medium))
                 .foregroundStyle(.primary)
-                .frame(width: 46, height: 46)
-                .glassBackground(cornerRadius: 23)
+                .frame(width: 48, height: 48)
+                .glassCircle()
         }
         .buttonStyle(.plain)
     }

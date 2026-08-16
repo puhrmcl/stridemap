@@ -14,19 +14,29 @@ struct GlassContainer<Content: View>: View {
     }
 }
 
-/// A circular glass button for map affordances (locate, layers, etc.).
+/// A circular glass button for map affordances (locate, layers, nav, etc.). Rendered as a piece of
+/// "liquid glass": a frosted disc with a top-lit sheen and a gradient hairline edge that catches the
+/// light, for a more premium, tactile feel than a flat material fill.
 struct GlassIconButton: View {
     let systemName: String
     var isActive: Bool = false
+    /// Lighter than a filled glyph for a refined, modern line — override per-icon if needed.
+    var weight: Font.Weight = .medium
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: 19, weight: weight))
                 .foregroundStyle(isActive ? Theme.accentOnGlass : .primary)
-                .frame(width: 46, height: 46)
-                .glassBackground(cornerRadius: 23)
+                .frame(width: 48, height: 48)
+                .glassCircle()
+                .overlay {
+                    // A whisper of accent glow when active, so selection reads as a lit state.
+                    if isActive {
+                        Circle().stroke(Theme.accentOnGlass.opacity(0.5), lineWidth: 1)
+                    }
+                }
         }
         .buttonStyle(.plain)
     }
@@ -57,6 +67,39 @@ struct GlassPill: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
         .glassBackground(cornerRadius: 18)
+    }
+}
+
+// MARK: - Glass treatments
+
+extension View {
+    /// The premium circular glass used by the floating map controls: a frosted disc with a top-lit
+    /// sheen and a gradient hairline rim that catches the light. Apply to a fixed-size square label.
+    func glassCircle() -> some View {
+        self
+            .background {
+                ZStack {
+                    Circle().fill(.ultraThinMaterial)
+                    // A soft top-down sheen reads as light falling across glass.
+                    Circle().fill(
+                        LinearGradient(
+                            colors: [.white.opacity(0.16), .white.opacity(0.02), .clear],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                    )
+                }
+            }
+            .overlay(
+                // A brighter top edge, fading down — the lit rim of a glass disc.
+                Circle().strokeBorder(
+                    LinearGradient(
+                        colors: [.white.opacity(0.30), .white.opacity(0.05)],
+                        startPoint: .top, endPoint: .bottom
+                    ),
+                    lineWidth: 0.75
+                )
+            )
+            .shadow(color: .black.opacity(0.22), radius: 12, y: 5)
     }
 }
 
