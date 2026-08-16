@@ -55,4 +55,32 @@ enum ActivityType: String {
     }
 
     var isRunning: Bool { self == .run }
+
+    /// A human label for the run-detail activity control.
+    var detailLabel: String {
+        switch self {
+        case .run:   return "Run"
+        case .walk:  return "Walk"
+        case .hike:  return "Hike"
+        case .ride:  return "Ride"
+        case .ski:   return "Ski"
+        case .swim:  return "Swim"
+        case .row:   return "Row"
+        case .other: return "Activity"
+        }
+    }
+
+    /// An SF Symbol for the activity.
+    var detailIcon: String {
+        switch self {
+        case .run:   return "figure.run"
+        case .walk:  return "figure.walk"
+        case .hike:  return "figure.hiking"
+        case .ride:  return "figure.outdoor.cycle"
+        case .ski:   return "figure.skiing.downhill"
+        case .swim:  return "figure.pool.swim"
+        case .row:   return "figure.rower"
+        case .other: return "figure.mixed.cardio"
+        }
+    }
 }

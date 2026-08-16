@@ -132,7 +132,10 @@ struct GPXParser: ActivityFileParser {
             // Only claim an origin app when the file actually named its creator.
             activity.originApp = origin == .unknown ? nil : origin
             activity.importMethod = .gpxFile
-            activity.activityType = ActivityType.parse(type)
+            // AllTrails and many route apps omit <type>, so a hike would default to a run. Fall back
+            // to the activity name ("Afternoon hike at …", "Morning ride …") to infer the type.
+            let typeSignal = (type?.isEmpty == false) ? type : name
+            activity.activityType = ActivityType.parse(typeSignal)
             activity.sportType = type ?? "Run"
             activity.name = name
             activity.elevationGain = RouteMetrics.elevationGain(of: elevations)

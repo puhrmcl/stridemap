@@ -45,6 +45,8 @@ struct RunDetailView: View {
 
                     metrics
 
+                    activityTypeRow
+
                     raceToggle
 
                     if run.hasRoute { studioButton }
@@ -309,6 +311,48 @@ struct RunDetailView: View {
         .padding(.horizontal, 16)
         .frame(height: 52)
         .background(.regularMaterial, in: .rect(cornerRadius: 16))
+    }
+
+    /// Correct the activity type — useful when an import (e.g. an AllTrails GPX without a `<type>`)
+    /// came in as the wrong kind.
+    private var activityTypeRow: some View {
+        Menu {
+            Picker("Activity", selection: activityTypeBinding) {
+                ForEach(activityTypeChoices, id: \.self) { type in
+                    Label(type.detailLabel, systemImage: type.detailIcon).tag(type)
+                }
+            }
+        } label: {
+            HStack {
+                Label("Activity", systemImage: run.activityType.detailIcon)
+                    .font(.system(.subheadline, design: .rounded).weight(.medium))
+                    .foregroundStyle(.primary)
+                Spacer()
+                Text(run.activityType.detailLabel)
+                    .font(.system(.subheadline, design: .rounded))
+                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 52)
+            .background(.regularMaterial, in: .rect(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var activityTypeChoices: [ActivityType] { [.run, .hike, .ride, .walk] }
+
+    private var activityTypeBinding: Binding<ActivityType> {
+        Binding(
+            get: { run.activityType },
+            set: { newValue in
+                run.activityType = newValue
+                run.updatedAt = Date()
+                try? context.save()
+            }
+        )
     }
 
     private var raceBinding: Binding<Bool> {
