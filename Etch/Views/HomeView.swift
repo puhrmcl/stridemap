@@ -80,9 +80,27 @@ struct HomeView: View {
     /// TEMP diagnostic: counts bottom-button taps regardless of whether a sheet opens, so we
     /// can tell "the touch isn't landing" from "the touch lands but the page won't present".
 
+    /// Concrete activity types (not "All") that are both enabled in Settings and actually present
+    /// in the library. When only one qualifies, the app has nothing to switch between.
+    private var presentActivityScopes: [ActivityScope] {
+        [.runs, .hikes, .walks].filter { ActivitySettings.isVisible($0) && !allRuns.scoped(to: $0).isEmpty }
+    }
+    /// True when there's a single activity type — the activity selector is hidden and the pill
+    /// collapses to that one type, with no icon or dropdown to choose between.
+    private var isSingleActivity: Bool { presentActivityScopes.count <= 1 }
+    private var soleScope: ActivityScope { presentActivityScopes.first ?? .runs }
+
+    /// The scope actually used for totals and labels: the sole type when there's only one, `.all`
+    /// if the stored scope was hidden in Settings, otherwise the user's selection.
+    private var effectiveScope: ActivityScope {
+        if isSingleActivity { return soleScope }
+        if !ActivitySettings.isVisible(appModel.activityScope) { return .all }
+        return appModel.activityScope
+    }
+
     /// Runs limited to the active activity scope (All / Runs / Hikes / Walks) — the base for every
     /// map, total, and overview below.
-    private var scopedRuns: [Run] { allRuns.scoped(to: appModel.activityScope) }
+    private var scopedRuns: [Run] { allRuns.scoped(to: effectiveScope) }
 
     private var stats: RunStatistics { RunStatistics(scopedRuns) }
 
@@ -197,6 +215,11 @@ struct HomeView: View {
         // Switching activity type reframes the route map to the newly scoped set.
         .onChange(of: appModel.activityScope) {
             if !isOverviewMode { appModel.fit(visibleRuns) }
+        }
+        .onAppear {
+            // Heal a stored scope that's since been hidden in Settings (e.g. viewing Hikes, then
+            // turning hikes off) so the selector and totals never point at an unavailable type.
+            if !ActivitySettings.isVisible(appModel.activityScope) { appModel.activityScope = .all }
         }
         // Controls float via safe-area insets rather than a ZStack overlay, so SwiftUI owns
         // their hit-testing and they don't compete with the map's UIKit gestures (which made
@@ -330,13 +353,17 @@ struct HomeView: View {
     /// folded in: a chevron on the right opens the mode menu (filter modes / History / Locations).
     private var totalsPill: some View {
         HStack(spacing: 10) {
-            // The activity icon fills the full height of the totals column on the left.
-            activitySelector
-                .frame(height: pillColumnHeight)
-            // Full-height rule dividing the icon from the totals column.
-            Rectangle()
-                .fill(.secondary.opacity(0.3))
-                .frame(width: 1, height: pillColumnHeight)
+            // The activity selector only appears when there's more than one activity type to
+            // choose between; with a single type the pill collapses to just the totals.
+            if !isSingleActivity {
+                // The activity icon fills the full height of the totals column on the left.
+                activitySelector
+                    .frame(height: pillColumnHeight)
+                // Full-height rule dividing the icon from the totals column.
+                Rectangle()
+                    .fill(.secondary.opacity(0.3))
+                    .frame(width: 1, height: pillColumnHeight)
+            }
             // Right column: the totals row, a rule beneath it, then the current-view caption.
             VStack(spacing: 4) {
                 totalsMenu
@@ -404,8 +431,8 @@ struct HomeView: View {
                     .frame(width: 1, height: 16)
                 metric(
                     value: shownStats.totalRuns.formatted(),
-                    unit: appModel.activityScope.countNoun,
-                    systemName: appModel.activityScope.icon
+                    unit: effectiveScope.countNoun,
+                    systemName: effectiveScope.icon
                 )
                 Image(systemName: "chevron.down")
                     .font(.system(size: 10, weight: .bold))
@@ -445,7 +472,7 @@ struct HomeView: View {
     private var currentModeLabel: String {
         if showLocations { return "Locations" }
         if appModel.filter.mode != .all { return appModel.filter.mode.rawValue }
-        switch appModel.activityScope {
+        switch effectiveScope {
         case .all:   return "All Activity"
         case .runs:  return "All Runs"
         case .hikes: return "All Hikes"

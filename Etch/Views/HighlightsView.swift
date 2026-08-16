@@ -10,7 +10,21 @@ struct HighlightsView: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var runs: [Run]
 
-    private var scope: ActivityScope { appModel.activityScope }
+    /// Concrete activity types (not "All") that are both enabled in Settings and actually present.
+    /// When only one qualifies, there's nothing to switch between.
+    private var presentActivityScopes: [ActivityScope] {
+        [.runs, .hikes, .walks].filter { ActivitySettings.isVisible($0) && !runs.scoped(to: $0).isEmpty }
+    }
+    private var isSingleActivity: Bool { presentActivityScopes.count <= 1 }
+    private var soleScope: ActivityScope { presentActivityScopes.first ?? .runs }
+
+    /// The scope actually shown: the sole type when there's only one (no switcher), `.all` if the
+    /// stored scope was hidden in Settings, otherwise the user's selection.
+    private var scope: ActivityScope {
+        if isSingleActivity { return soleScope }
+        if !ActivitySettings.isVisible(appModel.activityScope) { return .all }
+        return appModel.activityScope
+    }
 
     /// Runs limited to the app-wide activity scope (All / Runs / Hikes / Walks).
     private var scopedRuns: [Run] { runs.scoped(to: scope) }
@@ -23,7 +37,9 @@ struct HighlightsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    scopeSwitcher
+                    // With more than one activity type, offer the switcher; a single type just
+                    // shows its own achievements with no chooser.
+                    if !isSingleActivity { scopeSwitcher }
                     if scope == .all {
                         // The bigger story: combined reach, a per-discipline hub, and recaps.
                         reachSection
@@ -47,8 +63,8 @@ struct HighlightsView: View {
                 }
             }
             .onAppear {
-                // A scope hidden in Settings (e.g. hikes turned off) shouldn't linger here.
-                if !ActivitySettings.isVisible(scope) { setScope(.all) }
+                // Heal a stored scope that's since been hidden in Settings so it doesn't linger.
+                if !ActivitySettings.isVisible(appModel.activityScope) { setScope(.all) }
             }
         }
     }
