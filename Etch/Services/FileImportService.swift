@@ -47,6 +47,16 @@ final class FileImportService {
     /// selection doesn't lock the UI. (Phase 2 moves large-archive parsing fully off the main
     /// actor.)
     func parse(urls: [URL]) async -> ParseOutcome {
+        // Parse off the main actor. Reading and inflating a large export (a full Nike zip can be
+        // hundreds of MB) on the main thread blocks it long enough for the watchdog to kill the
+        // app — the reason a big Nike import crashed after the "Reading…" spinner. Parsing is pure
+        // (no ModelContext), so it's safe to run detached and hand the result back.
+        await Task.detached(priority: .userInitiated) {
+            await Self.parseFiles(urls)
+        }.value
+    }
+
+    nonisolated private static func parseFiles(_ urls: [URL]) async -> ParseOutcome {
         var outcome = ParseOutcome()
         for url in urls {
             let scoped = url.startAccessingSecurityScopedResource()
@@ -55,7 +65,7 @@ final class FileImportService {
             do {
                 let data = try Data(contentsOf: url)
                 if ext == "zip" {
-                    guard data.count <= Self.maxArchiveBytes else {
+                    guard data.count <= maxArchiveBytes else {
                         outcome.failedFiles.append(url.lastPathComponent)
                         continue
                     }
@@ -85,7 +95,7 @@ final class FileImportService {
     /// Reads a ZIP (Nike / Garmin export), inflates the activity files it contains, and parses
     /// each. Non-activity entries (JSON manifests, images, other formats) are ignored, not
     /// failed. Yields periodically so a large archive doesn't lock the UI.
-    private func parseArchive(_ data: Data, archiveName: String) async -> ([ImportedActivity], [String]) {
+    nonisolated private static func parseArchive(_ data: Data, archiveName: String) async -> ([ImportedActivity], [String]) {
         guard let reader = try? ZipArchiveReader(data: data) else { return ([], [archiveName]) }
 
         var activities: [ImportedActivity] = []
@@ -123,7 +133,7 @@ final class FileImportService {
 
     /// Parses one extracted file by extension. JSON is routed to the Nike parser (which
     /// self-validates), so unrelated JSON in an export is quietly ignored.
-    private func parseEntry(name: String, data: Data) throws -> [ImportedActivity] {
+    nonisolated private static func parseEntry(name: String, data: Data) throws -> [ImportedActivity] {
         switch (name as NSString).pathExtension.lowercased() {
         case "gpx": return try GPXParser().parse(data: data, fileName: name)
         case "tcx": return try TCXParser().parse(data: data, fileName: name)
