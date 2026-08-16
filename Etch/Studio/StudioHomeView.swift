@@ -19,6 +19,8 @@ struct StudioHomeView: View {
     @State private var showPrints = false
     /// The aggregate map-print kind whose sheet is presented.
     @State private var mapPrintKind: MapPrintKind?
+    /// Presenting the "add a race from the library" flow.
+    @State private var showAddRace = false
 
     /// Runs limited to the app-wide activity scope (All / Runs / Hikes / Walks).
     private var scopedRuns: [Run] { runs.scoped(to: appModel.activityScope) }
@@ -66,6 +68,7 @@ struct StudioHomeView: View {
                 }
             }
             .sheet(item: $mapPrintKind) { MapPrintView(runs: scopedRuns, kind: $0) }
+            .sheet(isPresented: $showAddRace) { NavigationStack { AddRaceView() } }
         }
     }
 
@@ -125,6 +128,13 @@ struct StudioHomeView: View {
                     .font(.system(.body, design: .rounded))
                     .foregroundStyle(.secondary)
             }
+            Button { showAddRace = true } label: {
+                Label("Add a race from the library", systemImage: "trophy")
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 2)
         }
         .padding(.horizontal, 20)
     }

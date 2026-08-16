@@ -112,6 +112,13 @@ final class Run {
     /// Defaulted so existing runs migrate cleanly.
     var isIndoor: Bool = false
 
+    /// When true, this activity is kept out of aggregate totals and records (the home totals,
+    /// achievements, PRs, year sums) while still appearing on the map, in the timeline, and in
+    /// Studio. Set by the user when adding a race from the library — a hand-entered official time
+    /// they may not want inflating their tracked mileage or PR table. Defaulted false so every
+    /// existing run counts and migrates cleanly.
+    var excludedFromTotals: Bool = false
+
     // MARK: User & future-proofing
 
     var gear: String?
@@ -158,6 +165,7 @@ final class Run {
         isCommute: Bool = false,
         isTrail: Bool = false,
         isIndoor: Bool = false,
+        excludedFromTotals: Bool = false,
         gear: String? = nil,
         notes: String? = nil,
         isFavorite: Bool = false,
@@ -194,6 +202,7 @@ final class Run {
         self.isCommute = isCommute
         self.isTrail = isTrail
         self.isIndoor = isIndoor
+        self.excludedFromTotals = excludedFromTotals
         self.gear = gear
         self.notes = notes
         self.isFavorite = isFavorite
@@ -281,6 +290,15 @@ extension Run {
     }
 
     var isStravaLinked: Bool { stravaActivityID != nil }
+}
+
+// MARK: - Collection helpers
+
+extension Sequence where Element == Run {
+    /// Drops activities the user marked as not counting toward aggregate totals and records.
+    /// Applied where headline numbers, achievements, PRs, and year sums are computed — never to
+    /// the map, timeline, or Studio, where the activity still belongs.
+    var countingTotals: [Run] { filter { !$0.excludedFromTotals } }
 }
 
 // MARK: - Derived values

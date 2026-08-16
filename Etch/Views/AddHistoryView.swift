@@ -11,9 +11,23 @@ struct AddHistoryView: View {
     @State private var pickerPresented = false
     @State private var isParsing = false
     @State private var session: PreviewSession?
+    @State private var showAddRace = false
 
     var body: some View {
         List {
+            Section {
+                Button {
+                    showAddRace = true
+                } label: {
+                    Label("Add a Race", systemImage: "trophy")
+                        .foregroundStyle(Theme.accent)
+                }
+            } header: {
+                Text("From the race library")
+            } footer: {
+                Text("Ran a marathon but never tracked it? Pick the race and enter your finish time — Etch adds it with the official course.")
+            }
+
             Section {
                 ForEach(ImportGuide.providers) { guide in
                     ProviderRow(guide: guide) { pickerPresented = true }
@@ -57,6 +71,9 @@ struct AddHistoryView: View {
         )
         .sheet(item: $session) { session in
             ImportPreviewView(outcome: session.outcome)
+        }
+        .sheet(isPresented: $showAddRace) {
+            NavigationStack { AddRaceView() }
         }
         .overlay {
             if isParsing {

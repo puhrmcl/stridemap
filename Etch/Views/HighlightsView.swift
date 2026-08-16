@@ -14,7 +14,10 @@ struct HighlightsView: View {
 
     /// Runs limited to the app-wide activity scope (All / Runs / Hikes / Walks).
     private var scopedRuns: [Run] { runs.scoped(to: scope) }
-    private var stats: RunStatistics { RunStatistics(scopedRuns) }
+    /// Reach and the per-discipline breakdown describe everywhere you've been, so they include
+    /// every activity. Records, personal bests, and year sums use only the counting activities.
+    private var reachStats: RunStatistics { RunStatistics(scopedRuns) }
+    private var stats: RunStatistics { RunStatistics(scopedRuns.countingTotals) }
 
     var body: some View {
         NavigationStack {
@@ -97,18 +100,18 @@ struct HighlightsView: View {
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 NavigationLink {
-                    CitiesListView(places: stats.travelPlaces)
+                    CitiesListView(places: reachStats.travelPlaces)
                 } label: {
-                    StatTile(value: stats.cities.count.formatted(), label: "Cities", systemName: "building.2", accent: true)
+                    StatTile(value: reachStats.cities.count.formatted(), label: "Cities", systemName: "building.2", accent: true)
                 }
                 .buttonStyle(.plain)
                 NavigationLink {
                     StatesView()
                 } label: {
-                    StatTile(value: stats.states.count.formatted(), label: "States", systemName: "map")
+                    StatTile(value: reachStats.states.count.formatted(), label: "States", systemName: "map")
                 }
                 .buttonStyle(.plain)
-                StatTile(value: stats.countries.count.formatted(), label: "Countries", systemName: "globe")
+                StatTile(value: reachStats.countries.count.formatted(), label: "Countries", systemName: "globe")
                 StatTile(
                     value: Format.distanceValue(stats.totalDistanceMeters).formatted(.number.precision(.fractionLength(0))),
                     label: "Total \(UnitSystem.current.distanceSuffix)",

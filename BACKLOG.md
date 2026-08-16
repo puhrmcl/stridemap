@@ -25,6 +25,25 @@ Run videos in galleries and video output in Etch Studio for digital sharing.
 - Map Strava's "trainer" flag → `isIndoor` (currently HealthKit-only).
 - One-time backfill: flag `isIndoor` on already-stored routeless runs (today only newly synced runs get flagged).
 
+## Race library (shipped flow b154 — course data is the follow-up)
+Add a race you ran but never tracked: pick from a curated catalog + year, enter your finish time and
+date, choose whether it counts toward totals, and Etch creates a real `Run` with the official course.
+Rides the existing rails (encoded polyline route, `isRace`, `ImportMethod.manual`); entry points in
+Add History and Studio. New `Run.excludedFromTotals` governs headline totals + achievements only —
+the activity still shows on map/timeline/Studio.
+
+- **Course geometry is approximate/placeholder.** `RaceCatalog` courses are hand-traced representative
+  lines (right place, right rough shape), shared across the three offered years. **Do not sell prints
+  off these until verified.** The model already keys geometry per year (`courses[year]`), so swapping
+  in accurate, year-specific GPX is a data-only change. Realistic sourcing: trace from OpenStreetMap
+  (ODbL, attribution) or use race-published GPX where terms allow — per-race, hand-curated. No bulk API.
+- **Starter catalog:** Boston, NYC, Chicago, Mesa (local). Grow toward ~15 (World Marathon Majors +
+  popular US races). Add distances beyond the marathon (half, 10K) and a per-event elevation profile.
+- **Iconic hikes pack:** same mechanism, a curated OSM-sourced set (Half Dome, Angels Landing, Rim-to-
+  Rim…) — a highlights pack, never an AllTrails-scale library (their 500k-trail catalog has no public API).
+- **Nice-to-haves:** live course map preview in the add-race form; de-dupe on `sourceExternalID`
+  (`race:<id>:<year>`) so the same race+year isn't added twice; a hike variant of the flow.
+
 ## Studio output sizes / aspect ratios
 Two separate problems: **pixels/DPI** (trivial — we already scale to ~5400px @ 300 DPI, PNG) and
 **aspect + layout** (the real work — compositions are authored at fixed aspects: Wall Art portrait

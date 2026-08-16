@@ -103,8 +103,9 @@ struct HomeView: View {
         isOverviewMode ? scopedRuns : visibleRuns
     }
 
-    /// Totals for whatever the map is currently showing.
-    private var shownStats: RunStatistics { RunStatistics(shownRuns) }
+    /// Totals for whatever the map is currently showing. Excludes activities the user opted out
+    /// of totals (e.g. a hand-entered race) — they still appear on the map, just not in the count.
+    private var shownStats: RunStatistics { RunStatistics(shownRuns.countingTotals) }
 
     /// Zoom/recenter the route or history map to the extent of the runs on screen. The cities
     /// and states overviews use their own maps (no camera command) and already frame on entry.
