@@ -71,6 +71,10 @@ struct HomeView: View {
     /// near the real value so the icon's fill is bounded even before the first measurement lands.
     @State private var pillColumnHeight: CGFloat = 40
 
+    /// The map-mode dropdown, rendered as a custom panel that extends from the pill (not a detached
+    /// native Menu), so it reads as part of the pill.
+    @State private var showModeMenu = false
+
     /// The full-map print kind that matches the current view.
     private var currentPrintKind: MapPrintKind {
         guard showLocations else { return .allRuns }
@@ -195,6 +199,15 @@ struct HomeView: View {
             }
         }
         .ignoresSafeArea()
+        // Tap anywhere on the map to dismiss the open mode dropdown (it sits above this layer).
+        .overlay {
+            if showModeMenu {
+                Color.black.opacity(0.0001)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { withAnimation(Theme.spring) { showModeMenu = false } }
+            }
+        }
         // The "View" label reflects the chosen place; reset it (and any selected state) when the
         // overlay or mode changes.
         .onChange(of: locationOverlay) { selectedPlaceLabel = nil; selectedStateName = nil }
@@ -368,6 +381,14 @@ struct HomeView: View {
                 }
             }
 
+            if showModeMenu {
+                HStack {
+                    Spacer(minLength: 0)
+                    modeDropdown
+                    Spacer(minLength: 0)
+                }
+            }
+
             if showLocations { modeSelector }
         }
     }
@@ -432,15 +453,11 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
 
-    /// The distance + count totals, with the map-mode dropdown folded in on the right.
+    /// The distance + count totals, with the map-mode dropdown folded in on the right. Tapping
+    /// toggles a custom panel (`modeDropdown`) that visually extends from the pill.
     private var totalsMenu: some View {
-        Menu {
-            Picker("Map", selection: modeSelection) {
-                ForEach(RunFilter.Mode.allCases) { mode in
-                    Label(mode.rawValue, systemImage: mode.symbol).tag(ModeSelection.mode(mode))
-                }
-                Label("Locations", systemImage: "mappin.and.ellipse").tag(ModeSelection.locations)
-            }
+        Button {
+            withAnimation(Theme.spring) { showModeMenu.toggle() }
         } label: {
             HStack(spacing: 10) {
                 metric(
@@ -460,10 +477,80 @@ struct HomeView: View {
                 Image(systemName: "chevron.down.circle.fill")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Theme.accentOnGlass)
+                    .rotationEffect(.degrees(showModeMenu ? 180 : 0))
                     .padding(.leading, 1)
             }
         }
         .buttonStyle(.plain)
+    }
+
+    /// The map-mode dropdown panel — a glass sheet the same width as the pill that drops down from
+    /// it, so it reads as an extension of the pill rather than a detached menu.
+    private var modeDropdown: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(RunFilter.Mode.allCases.enumerated()), id: \.element) { index, mode in
+                if index > 0 { dropdownDivider }
+                modeRow(label: mode.rawValue, symbol: mode.symbol,
+                        selected: !showLocations && appModel.filter.mode == mode) {
+                    applyMode(.mode(mode))
+                }
+            }
+            dropdownDivider
+            modeRow(label: "Locations", symbol: "mappin.and.ellipse", selected: showLocations) {
+                applyMode(.locations)
+            }
+        }
+        .padding(.vertical, 5)
+        .frame(width: 250)
+        .glassBackground(cornerRadius: 20)
+        .transition(.asymmetric(
+            insertion: .scale(scale: 0.92, anchor: .top).combined(with: .opacity),
+            removal: .scale(scale: 0.96, anchor: .top).combined(with: .opacity)
+        ))
+    }
+
+    private var dropdownDivider: some View {
+        Rectangle().fill(.secondary.opacity(0.12)).frame(height: 1).padding(.horizontal, 14)
+    }
+
+    private func modeRow(label: String, symbol: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: symbol)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.accentOnGlass)
+                    .frame(width: 24)
+                Text(label)
+                    .font(.system(.subheadline, design: .rounded).weight(.medium))
+                    .foregroundStyle(.primary)
+                Spacer(minLength: 8)
+                if selected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Theme.accentOnGlass)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Applies a mode chosen in the custom dropdown, then closes it.
+    private func applyMode(_ newValue: ModeSelection) {
+        withAnimation(Theme.gentle) {
+            showLocations = false
+            switch newValue {
+            case .mode(let mode):
+                var f = appModel.filter
+                f.mode = mode
+                appModel.setFilter(f)
+            case .locations:
+                showLocations = true
+            }
+        }
+        withAnimation(Theme.spring) { showModeMenu = false }
     }
 
     private var activityBinding: Binding<ActivityScope> {
@@ -524,30 +611,10 @@ struct HomeView: View {
     }
 
     /// What the map is currently showing: a run-filter mode, the history etch, or a Locations
-    /// overlay (whose specific overlay is chosen by a secondary dropdown).
+    /// overlay (whose specific overlay is chosen by a secondary dropdown). Set via `applyMode`.
     private enum ModeSelection: Hashable {
         case mode(RunFilter.Mode)
         case locations
-    }
-
-    private var modeSelection: Binding<ModeSelection> {
-        Binding(
-            get: {
-                if showLocations { return .locations }
-                return .mode(appModel.filter.mode)
-            },
-            set: { newValue in
-                showLocations = false
-                switch newValue {
-                case .mode(let mode):
-                    var f = appModel.filter
-                    f.mode = mode
-                    appModel.setFilter(f)
-                case .locations:
-                    showLocations = true
-                }
-            }
-        )
     }
 
     /// The pins for the active pin-based overlay (cities / landmarks). States and countries are
