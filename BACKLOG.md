@@ -45,6 +45,30 @@ the activity still shows on map/timeline/Studio.
 - **Nice-to-haves:** live course map preview in the add-race form; de-dupe on `sourceExternalID`
   (`race:<id>:<year>`) so the same race+year isn't added twice; a hike variant of the flow.
 
+## Commerce / accounts (Prodigi drop-shipping phase)
+Do we need user sign-in once prints ship? Separating the three things that get conflated:
+
+- **Backend — required (the real forcing function, not accounts).** Prodigi's API is server-to-server
+  with *our* merchant key, which can never ship in the app. A thin backend holds the key, takes a
+  payment confirmation, and places the order. Can't be done client-side, account or not.
+- **Payment — no account needed. Use Apple Pay, not StoreKit.** Apple Pay returns shipping address +
+  payment in one sheet → frictionless guest checkout. **Physical goods are exempt from IAP** (and the
+  30% cut) — Apple *requires* a real payment method (Apple Pay / card via Stripe) for shipped prints.
+- **Identity — optional but wanted.** Full guest checkout works, but a print is real money + a
+  shipping address + a physical object that can go wrong. Durable order records (receipts, tracking,
+  reprints/refunds, reorders) need an identity, or history dies with the device.
+
+**Recommendation: guest-first, Sign in with Apple as the optional identity.** Keep the *app*
+account-free (local-first stays the pitch); at checkout, Apple Pay covers address + payment; attach
+**Sign in with Apple** (one tap, private-relay email, no passwords) at *first purchase* so orders
+persist server-side and survive a device swap.
+
+- **Privacy copy must change.** Today: "everything stays on device." Still true for *run data* — but
+  an order sends the chosen image + shipping/payment off-device. Say so explicitly on the privacy
+  screen when this lands: run data stays local; only the poster image + order details leave, only on purchase.
+- **Print files** ride on the aspect-adaptive `OutputTarget` work below (exact SKU dims/bleed from the
+  Prodigi catalog).
+
 ## Studio output sizes / aspect ratios
 Two separate problems: **pixels/DPI** (trivial — we already scale to ~5400px @ 300 DPI, PNG) and
 **aspect + layout** (the real work — compositions are authored at fixed aspects: Wall Art portrait
