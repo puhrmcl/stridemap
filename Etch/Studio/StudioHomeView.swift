@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 /// Etch Studio's home inside the app — the "Make Lasting" surface. A calm, editorial hub for
 /// turning a run, race, or favourite into art, plus the entry point for prints. Not a
@@ -21,6 +22,18 @@ struct StudioHomeView: View {
     @State private var mapPrintKind: MapPrintKind?
     /// Presenting the "add a race from the library" flow.
     @State private var showAddRace = false
+    /// Importing a single run file with custom title / race / totals choices.
+    @State private var showImportPicker = false
+    @State private var importDraft: ImportedRunDraft?
+    @State private var isParsingImport = false
+    @State private var importError: String?
+
+    /// Single-run file types the Studio importer accepts (GPX / TCX / FIT, plus generic XML).
+    private static let importTypes: [UTType] = {
+        var types = ["gpx", "tcx", "fit"].compactMap { UTType(filenameExtension: $0) }
+        types.append(.xml)
+        return types
+    }()
 
     /// Runs limited to the app-wide activity scope (All / Runs / Hikes / Walks).
     private var scopedRuns: [Run] { runs.scoped(to: appModel.activityScope) }
@@ -38,12 +51,10 @@ struct StudioHomeView: View {
                             systemImage: "photo.artframe",
                             description: Text("Runs with a map become art here. Sync or import your history to begin — or add a race you ran but never tracked.")
                         )
-                        Button { showAddRace = true } label: {
-                            Label("Add a Race", systemImage: "trophy")
-                                .font(.system(.headline, design: .rounded))
+                        HStack(spacing: 12) {
+                            actionCapsule("Add a race", "trophy") { showAddRace = true }
+                            actionCapsule("Import a run", "square.and.arrow.down") { showImportPicker = true }
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(Theme.accent)
                     }
                 } else {
                     ScrollView {
@@ -67,11 +78,6 @@ struct StudioHomeView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { showAddRace = true } label: {
-                        Label("Add Race", systemImage: "trophy")
-                    }
-                }
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
             }
             .sheet(item: $studioRun) { StudioView(run: $0) }
@@ -82,6 +88,45 @@ struct StudioHomeView: View {
             }
             .sheet(item: $mapPrintKind) { MapPrintView(runs: scopedRuns, kind: $0) }
             .sheet(isPresented: $showAddRace) { NavigationStack { AddRaceView() } }
+            .sheet(item: $importDraft) { draft in
+                NavigationStack { ImportRunView(activity: draft.activity) }
+            }
+            .fileImporter(
+                isPresented: $showImportPicker,
+                allowedContentTypes: Self.importTypes,
+                allowsMultipleSelection: false,
+                onCompletion: handleImportPick
+            )
+            .alert("Import", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
+                Button("OK", role: .cancel) { importError = nil }
+            } message: {
+                Text(importError ?? "")
+            }
+            .overlay {
+                if isParsingImport {
+                    ProgressView("Reading file…")
+                        .padding(24)
+                        .background(.regularMaterial, in: .rect(cornerRadius: 16))
+                }
+            }
+        }
+    }
+
+    /// Parses the picked run file, then hands the best activity to the import form. Prefers an
+    /// activity that carries a route (some files bundle several); falls back to the first.
+    private func handleImportPick(_ result: Result<[URL], Error>) {
+        guard case .success(let urls) = result, let url = urls.first else { return }
+        isParsingImport = true
+        Task {
+            let service = FileImportService(context: modelContext)
+            let outcome = await service.parse(urls: [url])
+            isParsingImport = false
+            if outcome.activities.isEmpty {
+                importError = "Couldn't read a run from that file. Etch supports GPX, TCX, and FIT."
+            } else {
+                let best = outcome.activities.max { $0.coordinates.count < $1.coordinates.count }
+                importDraft = ImportedRunDraft(activity: best ?? outcome.activities[0])
+            }
         }
     }
 
@@ -141,19 +186,27 @@ struct StudioHomeView: View {
                     .font(.system(.body, design: .rounded))
                     .foregroundStyle(.secondary)
             }
-            Button { showAddRace = true } label: {
-                Label("Add a race from the library", systemImage: "trophy")
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                    .foregroundStyle(Theme.accent)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(Theme.accent.opacity(0.10), in: .capsule)
-                    .overlay(Capsule().strokeBorder(Theme.accent.opacity(0.22), lineWidth: 1))
+            HStack(spacing: 10) {
+                actionCapsule("Add a race", "trophy") { showAddRace = true }
+                actionCapsule("Import a run", "square.and.arrow.down") { showImportPicker = true }
             }
-            .buttonStyle(.plain)
             .padding(.top, 4)
         }
         .padding(.horizontal, 20)
+    }
+
+    /// A small bordered pill action, used for the Studio entry points.
+    private func actionCapsule(_ title: String, _ symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .foregroundStyle(Theme.accent)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(Theme.accent.opacity(0.10), in: .capsule)
+                .overlay(Capsule().strokeBorder(Theme.accent.opacity(0.22), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: Subject rows
