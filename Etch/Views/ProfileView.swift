@@ -33,6 +33,7 @@ struct ProfileView: View {
                 Section {
                     row(title: "Search", subtitle: "Find a run by name, place, or date",
                         systemName: "magnifyingglass") { showSearch = true }
+                    activityFilterRow
                     row(title: "Settings", subtitle: "Account, units, sync, and more",
                         systemName: "gearshape") { showSettings = true }
                 }
@@ -71,15 +72,14 @@ struct ProfileView: View {
                 Rectangle().fill(.secondary.opacity(0.3)).frame(width: 1, height: 30)
                 stat(value: stats.totalRuns.formatted(), label: scope.countNoun)
             }
-            // The activity filter always lives on the profile hub.
-            scopeFilter
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
     }
 
-    /// A chip that names and switches the activity filter, mirroring the app-wide scope.
-    private var scopeFilter: some View {
+    /// The activity filter as a list row between Search and Settings — styled like the other rows,
+    /// but a Menu that names the current scope on the right and switches it in place.
+    private var activityFilterRow: some View {
         Menu {
             Picker("Activity", selection: scopeBinding) {
                 ForEach(ActivitySettings.visibleScopes) { s in
@@ -87,16 +87,25 @@ struct ProfileView: View {
                 }
             }
         } label: {
-            HStack(spacing: 7) {
-                Image(systemName: scope.icon).font(.system(size: 13, weight: .semibold))
+            HStack(spacing: 14) {
+                Image(systemName: scope.icon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 30)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Activity Filter").font(.body.weight(.semibold)).foregroundStyle(.primary)
+                    Text("What totals and maps show").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
                 Text(scope == .all ? "All Activities" : scope.label)
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.tertiary)
             }
-            .foregroundStyle(Theme.accent)
-            .padding(.vertical, 7)
-            .padding(.horizontal, 14)
-            .background(.regularMaterial, in: .capsule)
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
