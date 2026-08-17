@@ -198,6 +198,45 @@ struct StudioView: View {
 
     // MARK: Controls
 
+    /// Format pickers — extracted so the customize VStack stays within the type-checker's budget.
+    @ViewBuilder private var formatControls: some View {
+        if current.isPhoto, run.photoReferences.count > 1 {
+            Picker("Photos", selection: $photoLayout) {
+                ForEach(StudioPhotoLayout.allCases) { Text($0.name).tag($0) }
+            }
+            .pickerStyle(.segmented).frame(maxWidth: 320)
+        }
+        Picker("Orientation", selection: $orientation) {
+            ForEach(StudioOrientation.allCases) { Text($0.name).tag($0) }
+        }
+        .pickerStyle(.segmented).frame(maxWidth: 320)
+        Picker("Output", selection: $outputSize) {
+            ForEach(StudioOutputSize.allCases) { size in
+                Label(size.name, systemImage: size.symbol).tag(size)
+            }
+        }
+        .pickerStyle(.segmented).frame(maxWidth: 320)
+        if orientation == .landscape {
+            Picker("Data", selection: $dataPlacement) {
+                ForEach(StudioDataPlacement.allCases) { Text($0.name).tag($0) }
+            }
+            .pickerStyle(.segmented).frame(maxWidth: 320)
+        }
+        Picker("Layout", selection: $layout) {
+            ForEach(StudioLayout.allCases) { Text($0.name).tag($0) }
+        }
+        .pickerStyle(.segmented).frame(maxWidth: 320)
+    }
+
+    /// Title / date / colour rows — extracted for the same reason.
+    @ViewBuilder private var fieldControls: some View {
+        textFieldRow("Title", text: $customTitle, placeholder: run.name)
+        textFieldRow("Date", text: $customDate, placeholder: Format.date(run.startDate))
+        colorRow("Path", selection: $routeColor, swatches: pathSwatches, fallback: current.route)
+        colorRow("Text", selection: $textColor, swatches: textSwatches, fallback: current.ink)
+        colorRow("Panel", selection: $groundColor, swatches: groundSwatches, fallback: current.ground)
+    }
+
     /// The option toggles for the customize sheet — extracted so the customize VStack stays within
     /// the Swift type-checker's budget.
     @ViewBuilder private var optionToggles: some View {
@@ -281,49 +320,8 @@ struct StudioView: View {
             if showCustomize {
                 ScrollView {
                     VStack(spacing: 12) {
-                    if current.isPhoto, run.photoReferences.count > 1 {
-                        Picker("Photos", selection: $photoLayout) {
-                            ForEach(StudioPhotoLayout.allCases) { Text($0.name).tag($0) }
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(maxWidth: 320)
-                    }
-
-                    Picker("Orientation", selection: $orientation) {
-                        ForEach(StudioOrientation.allCases) { Text($0.name).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 320)
-
-                    // Output canvas — Poster (print proportions) or a social aspect for sharing.
-                    Picker("Output", selection: $outputSize) {
-                        ForEach(StudioOutputSize.allCases) { size in
-                            Label(size.name, systemImage: size.symbol).tag(size)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 320)
-
-                    if orientation == .landscape {
-                        Picker("Data", selection: $dataPlacement) {
-                            ForEach(StudioDataPlacement.allCases) { Text($0.name).tag($0) }
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(maxWidth: 320)
-                    }
-
-                    Picker("Layout", selection: $layout) {
-                        ForEach(StudioLayout.allCases) { Text($0.name).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 320)
-
-                    textFieldRow("Title", text: $customTitle, placeholder: run.name)
-                    textFieldRow("Date", text: $customDate, placeholder: Format.date(run.startDate))
-
-                    colorRow("Path", selection: $routeColor, swatches: pathSwatches, fallback: current.route)
-                    colorRow("Text", selection: $textColor, swatches: textSwatches, fallback: current.ink)
-                    colorRow("Panel", selection: $groundColor, swatches: groundSwatches, fallback: current.ground)
+                    formatControls
+                    fieldControls
 
                     headlineEditor
 
