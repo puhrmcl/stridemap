@@ -257,7 +257,7 @@ private struct YearCard: View {
         .background {
             ZStack {
                 if let hero {
-                    RunTileImage(run: hero)
+                    RunTileImage(run: hero, mapFallback: true)
                 } else {
                     Color(white: 0.1)
                 }

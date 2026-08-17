@@ -55,8 +55,13 @@ struct RouteThumbnail: View {
 
 /// The image for a run's Timeline tile: the run's top photo when it has one, otherwise the
 /// route drawing. Falls back to the route if the photo can't load (e.g. deleted from library).
+///
+/// `mapFallback` upgrades the no-photo state from the flat route line to a brand-tinted MapKit
+/// snapshot of the route — used by the year hero, where the larger tile earns a real map. It's
+/// left off for dense grids (the "All" 4-up), where dozens of live snapshots would be wasteful.
 struct RunTileImage: View {
     let run: Run
+    var mapFallback: Bool = false
     @State private var photo: UIImage?
     @State private var triedPhoto = false
 
@@ -68,6 +73,8 @@ struct RunTileImage: View {
                 Image(uiImage: photo).resizable().scaledToFill()
             } else if photoID != nil && !triedPhoto {
                 Color(white: 0.12)   // brief loading state before the photo resolves
+            } else if mapFallback {
+                RouteMapTile(run: run)
             } else {
                 RouteThumbnail(run: run)
             }
@@ -79,6 +86,37 @@ struct RunTileImage: View {
             triedPhoto = true
         }
     }
+}
+
+/// A brand-tinted MapKit snapshot of the run's route, sized to fill its tile. Shows the flat
+/// route drawing while the snapshot renders — and permanently for runs with no route to map
+/// (e.g. indoor), where the drawing supplies the indoor glyph. Snapshots are cached per
+/// run + size by `PosterMap.tileImage`, so re-rendering the tile is cheap.
+struct RouteMapTile: View {
+    let run: Run
+    @State private var image: UIImage?
+
+    var body: some View {
+        GeometryReader { geo in
+            Group {
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .clipped()
+                } else {
+                    RouteThumbnail(run: run)
+                }
+            }
+            .task(id: sizeKey(geo.size)) {
+                guard geo.size.width > 1, geo.size.height > 1 else { return }
+                image = await PosterMap.tileImage(for: run, size: geo.size)
+            }
+        }
+    }
+
+    private func sizeKey(_ size: CGSize) -> String { "\(Int(size.width))x\(Int(size.height))" }
 }
 
 /// Normalises a run's coordinates into the given rect, preserving aspect (longitude scaled by
