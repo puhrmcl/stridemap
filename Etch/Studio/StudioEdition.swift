@@ -10,7 +10,7 @@ import SwiftUI
 struct StudioEdition: Identifiable, Equatable {
 
     enum ID: String, CaseIterable, Identifiable {
-        case gallery, atlas, atlasDark, satellite, terrain, minimal, night, memory
+        case gallery, atlas, atlasDark, satellite, terrain, trailJournal, midnightAtlas, minimal, night, memory
         var id: String { rawValue }
     }
 
@@ -53,6 +53,9 @@ struct StudioEdition: Identifiable, Equatable {
     let ink: Color          // primary type
     let subtle: Color       // metadata type
     let accent: Color       // hairlines, the "Etched." mark, small signals
+    /// Overrides the contour-line colour on `.contour` editions (e.g. gold on Midnight Atlas).
+    /// Nil derives it from the ground — ink on a light ground, bone on a dark one.
+    var contourTint: Color? = nil
 
     /// The art panel is a pre-rendered image (map snapshot, photo, or contour field), not a plain
     /// vector ground.
@@ -69,7 +72,7 @@ struct StudioEdition: Identifiable, Equatable {
 
     // MARK: The collection
 
-    static let all: [StudioEdition] = [.gallery, .atlas, .atlasDark, .satellite, .terrain, .minimal, .night, .memory]
+    static let all: [StudioEdition] = [.gallery, .atlas, .atlasDark, .satellite, .terrain, .trailJournal, .midnightAtlas, .minimal, .night, .memory]
 
     static func edition(_ id: ID) -> StudioEdition { all.first { $0.id == id }! }
 
@@ -131,6 +134,29 @@ struct StudioEdition: Identifiable, Equatable {
         ground: Theme.Palette.bone, mapWash: Theme.Palette.sage, mapWashAlpha: 0.30,
         route: Theme.Palette.ink, casing: Theme.Palette.bone, routeWidth: 10, glow: false,
         ink: Theme.Palette.ink, subtle: Theme.Palette.ink.opacity(0.55), accent: Theme.Palette.brass
+    )
+
+    /// Trail Journal — hand-drawn terrain contour lines on aged paper, the route inked over. The
+    /// classic "great trails" hiking print: quiet, editorial, decor-worthy.
+    static let trailJournal = StudioEdition(
+        id: .trailJournal, name: "Trail Journal",
+        descriptor: "Terrain contour lines on aged paper, the route inked over.",
+        surface: .contour,
+        ground: Theme.Palette.bone, mapWash: .clear, mapWashAlpha: 0,
+        route: Theme.Palette.ink, casing: nil, routeWidth: 8, glow: false,
+        ink: Theme.Palette.ink, subtle: Theme.Palette.ink.opacity(0.55), accent: Theme.Palette.brass
+    )
+
+    /// Midnight Atlas — gold contour lines across deep ink, the route aglow. The premium,
+    /// gift-worthy hiking print.
+    static let midnightAtlas = StudioEdition(
+        id: .midnightAtlas, name: "Midnight Atlas",
+        descriptor: "Gold contour lines across deep ink, the route aglow.",
+        surface: .contour,
+        ground: Theme.Palette.ink, mapWash: .clear, mapWashAlpha: 0,
+        route: Theme.Palette.brass, casing: nil, routeWidth: 9, glow: true,
+        ink: Theme.Palette.bone, subtle: Theme.Palette.bone.opacity(0.6), accent: Theme.Palette.brass,
+        contourTint: Theme.Palette.brass
     )
 
     /// Minimal — gallery typography and a single fine line. No map. The most restrained.

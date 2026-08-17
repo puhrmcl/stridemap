@@ -195,7 +195,7 @@ enum PosterMap {
         let renderer = UIGraphicsImageRenderer(size: size, format: format)
 
         let groundColor = UIColor(ground)
-        let lineColor = UIColor(ground.isDarkGround ? Theme.Palette.bone : Theme.Palette.ink)
+        let lineColor = UIColor(edition.contourTint ?? (ground.isDarkGround ? Theme.Palette.bone : Theme.Palette.ink))
         let route = UIColor(routeOverride ?? edition.route)
 
         func pixel(_ coordinate: CLLocationCoordinate2D) -> CGPoint {
