@@ -74,8 +74,10 @@ struct StudioHomeView: View {
                             description: Text("Runs with a map become art here. Sync or import your history to begin — or add a race you ran but never tracked.")
                         )
                         HStack(spacing: 12) {
-                            actionCapsule("Add a race", "trophy") { showAddRace = true }
-                            actionCapsule("Import a run", "square.and.arrow.down") { showImportPicker = true }
+                            if showsAddRace {
+                                actionCapsule("Add a race", "trophy") { showAddRace = true }
+                            }
+                            actionCapsule("Import an activity", "square.and.arrow.down") { showImportPicker = true }
                         }
                     }
                 } else {
@@ -116,7 +118,11 @@ struct StudioHomeView: View {
                     }
                     ToolbarItem(placement: .topBarTrailing) { mapThumbnailButton }
                 } else {
-                    // Sheet mode: the wordmark leads the content (bigger, below), so the bar is just Done.
+                    // Sheet mode: the wordmark leads at the very top of the page, Done on the right.
+                    ToolbarItem(placement: .topBarLeading) {
+                        Image("StudioLogo").resizable().scaledToFit().frame(height: 26)
+                            .accessibilityLabel("Etch Studio")
+                    }
                     ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
                 }
             }
@@ -227,12 +233,6 @@ struct StudioHomeView: View {
 
     private var intro: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // In sheet mode (map is home) the wordmark leads the content, sized to actually read.
-            if !isHome {
-                Image("StudioLogo")
-                    .resizable().scaledToFit().frame(height: 40)
-                    .accessibilityLabel("Etch Studio")
-            }
             VStack(alignment: .leading, spacing: 6) {
                 Text("Leave your mark.")
                     .font(.system(.title, design: .rounded).weight(.bold))
@@ -240,17 +240,25 @@ struct StudioHomeView: View {
                     .font(.system(.body, design: .rounded))
                     .foregroundStyle(.secondary)
             }
+
+            // Filter Studio by activity — only when there's more than one type — sits above the
+            // entry points so the choice frames what "Add"/"Import" act on.
+            if !isSingleActivity { scopeFilter }
+
             HStack(spacing: 10) {
-                actionCapsule("Add a race", "trophy") { showAddRace = true }
-                actionCapsule("Import a run", "square.and.arrow.down") { showImportPicker = true }
+                // "Add a race" is a running concept — only for Runs or All Activities.
+                if showsAddRace {
+                    actionCapsule("Add a race", "trophy") { showAddRace = true }
+                }
+                actionCapsule("Import an activity", "square.and.arrow.down") { showImportPicker = true }
             }
             .padding(.top, 4)
-
-            // Filter Studio by activity — only when there's more than one type to choose from.
-            if !isSingleActivity { scopeFilter }
         }
         .padding(.horizontal, 20)
     }
+
+    /// "Add a race" is a running concept, so it's offered only for Runs or All Activities.
+    private var showsAddRace: Bool { scope == .runs || scope == .all }
 
     /// A chip that names and switches the activity filter, mirroring Achievements / Profile.
     private var scopeFilter: some View {

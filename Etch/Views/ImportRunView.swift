@@ -85,7 +85,7 @@ struct ImportRunView: View {
                 Text("Off keeps this run out of your distance, activity count, and records while it still appears on the map, in your timeline, and in Studio.")
             }
         }
-        .navigationTitle("Import a Run")
+        .navigationTitle("Import an Activity")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
