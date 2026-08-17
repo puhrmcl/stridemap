@@ -184,8 +184,11 @@ struct RunMapView: UIViewRepresentable {
             // pin kind — milestone (a record/superlative) wins over race, then plain.
             runPoints = routed.compactMap { run -> (id: UUID, coordinate: CLLocationCoordinate2D, kind: RunPinKind)? in
                 guard let coordinate = run.startCoordinate else { return nil }
-                let kind: RunPinKind = parent.milestoneRunIDs.contains(run.id) ? .milestone
-                    : (run.isRace ? .race : .normal)
+                let isMilestone = parent.milestoneRunIDs.contains(run.id)
+                let kind: RunPinKind = run.isRace && isMilestone ? .raceMilestone
+                    : isMilestone ? .milestone
+                    : run.isRace ? .race
+                    : .normal
                 return (run.id, coordinate, kind)
             }
             coordByID = Dictionary(runPoints.map { ($0.id, $0.coordinate) }, uniquingKeysWith: { first, _ in first })
@@ -580,10 +583,11 @@ final class RunStartAnnotation: NSObject, MKAnnotation {
     }
 }
 
-/// How a single-run map pin reads: a plain runner, a checkered flag for a race, or a gold trophy
-/// for a milestone (a personal record or a superlative). Milestone wins when a run is both.
+/// How a single-run map pin reads: a plain runner, a blue checkered flag for a race, a gold trophy
+/// for a milestone (a record / superlative), or — when a run is both — a gold checkered flag that
+/// keeps the race identity while marking it a record.
 enum RunPinKind {
-    case normal, race, milestone
+    case normal, race, milestone, raceMilestone
 }
 
 /// A home-map cluster: the runs grouped into one screen-grid cell. Carries the member run ids so
@@ -630,27 +634,32 @@ final class RunPinView: MKAnnotationView {
         configure(.normal)
     }
 
-    /// Styles the pin by run kind: a race reads as a checkered flag, a milestone as a gold trophy,
-    /// everything else as the plain ink runner (Etch Blue stays reserved for the route line).
+    /// Styles the pin by run kind: a race reads as a blue checkered flag so it stands out, a
+    /// milestone as a gold trophy; a run that's both keeps the checkered flag but on gold. Plain
+    /// runs are the ink runner.
     func configure(_ kind: RunPinKind) {
         let symbol: String
         let background: UIColor
         switch kind {
         case .race:
             symbol = "flag.checkered"
-            background = UIColor(Theme.Palette.ink).withAlphaComponent(0.95)
+            background = UIColor(Theme.accent)          // Etch Blue — races stand out
         case .milestone:
             symbol = "trophy.fill"
             background = UIColor(Theme.Palette.brass)   // gold
+        case .raceMilestone:
+            symbol = "flag.checkered"                   // still a race…
+            background = UIColor(Theme.Palette.brass)   // …but gold, because it's also a record
         case .normal:
             symbol = "figure.run"
             background = UIColor(Theme.Palette.ink).withAlphaComponent(0.95)
         }
+        let isFlag = kind == .race || kind == .raceMilestone
         backgroundColor = background
         glyph.tintColor = .white
         glyph.image = UIImage(
             systemName: symbol,
-            withConfiguration: UIImage.SymbolConfiguration(pointSize: kind == .race ? 13 : 15, weight: .bold)
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: isFlag ? 13 : 15, weight: .bold)
         )
     }
 
