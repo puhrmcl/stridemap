@@ -25,6 +25,8 @@ struct StudioHomeView: View {
     /// A kept poster being reopened (restores its saved recipe).
     @State private var openedPoster: SavedPoster?
     @State private var showPrints = false
+    /// Presenting the photo-wall poster (cover photos of every run that has one).
+    @State private var showPhotoWall = false
     /// The aggregate map-print kind whose sheet is presented.
     @State private var mapPrintKind: MapPrintKind?
     /// Presenting the "add a race from the library" flow.
@@ -92,6 +94,7 @@ struct StudioHomeView: View {
                             if !favorites.isEmpty { subjectRow("Favorites", favorites.map { ($0, nil) }) }
                             subjectRow("Recent", Array(mapped.prefix(12)).map { ($0, nil) })
                             mapPrintsSection
+                            if hasPhotos { photoWallBand }
                             printsBand
                         }
                         .padding(.vertical, 14)
@@ -135,6 +138,7 @@ struct StudioHomeView: View {
                 }
             }
             .sheet(item: $mapPrintKind) { MapPrintView(runs: scopedRuns, kind: $0) }
+            .sheet(isPresented: $showPhotoWall) { PhotoWallView(runs: scopedRuns) }
             .sheet(isPresented: $showAddRace) { NavigationStack { AddRaceView() } }
             .sheet(item: $importDraft) { draft in
                 NavigationStack { ImportRunView(activity: draft.activity) }
@@ -366,6 +370,45 @@ struct StudioHomeView: View {
                         .padding(10)
                 }
             }
+    }
+
+    // MARK: Photo wall
+
+    /// Whether any scoped run carries a cover photo — gates the photo-wall entry point.
+    private var hasPhotos: Bool { scopedRuns.contains { !$0.photoReferences.isEmpty } }
+
+    /// Entry to the photo-wall poster: a contact sheet of every run's cover photo, filterable.
+    private var photoWallBand: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Photo Wall")
+                .font(.system(.title3, design: .rounded).weight(.bold))
+            Button { showPhotoWall = true } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("A wall of your run photos")
+                            .font(.system(.headline, design: .rounded))
+                            .foregroundStyle(Theme.accent)
+                        Text("Every run's cover photo as one poster — sort and filter by year or place.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right").font(.footnote.weight(.bold)).foregroundStyle(.tertiary)
+                }
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 18))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18).strokeBorder(Theme.accent.opacity(0.18), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 20)
     }
 
     // MARK: Full-map prints (the whole history as one poster)
