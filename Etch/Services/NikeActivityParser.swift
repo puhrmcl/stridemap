@@ -63,6 +63,7 @@ struct NikeActivityParser: ActivityFileParser {
         activity.sportType = (root["type"] as? String)?.capitalized ?? "Run"
         activity.name = activityName(root)
         activity.elevationGain = RouteMetrics.elevationGain(of: elevation)
+        activity.elevationSeries = elevation
         if let calories = summaryValue(root, metric: "calories"), calories > 0 {
             activity.activeEnergy = calories
         }

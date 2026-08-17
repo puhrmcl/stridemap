@@ -100,6 +100,15 @@ struct ElevationProfileView: View {
     }
 
     private func load() async {
+        // Prefer the source-recorded altitude profile — the exact curve the device logged, and
+        // instant (no network). Fall back to terrain sampled along the route (cached) only when
+        // the source carried no elevation stream.
+        let recorded = run.elevationSeries
+        if recorded.count > 1 {
+            samples = recorded
+            phase = .loaded
+            return
+        }
         phase = .loading
         let coords = run.coordinates
         guard coords.count > 1 else { phase = .failed; return }

@@ -36,6 +36,10 @@ struct ImportedActivity {
     /// Pre-encoded polyline, if the provider already has one (Strava). When nil the
     /// import service encodes `coordinates`.
     var encodedPolyline: String? = nil
+    /// The source's recorded per-point altitude stream (metres), when it carried one (GPX `<ele>`,
+    /// TCX `AltitudeMeters`, FIT altitude, HealthKit route altitude). Stored on the `Run` so its
+    /// detail can draw the exact recorded profile instead of terrain-sampled data.
+    var elevationSeries: [Double] = []
 
     // Rich metrics (HealthKit / device sources).
     var averageHeartRate: Double? = nil

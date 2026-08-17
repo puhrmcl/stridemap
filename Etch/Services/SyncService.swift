@@ -369,8 +369,8 @@ final class SyncService {
                 run.routeCheckedAt = Date()
                 run.routeCheckCount += 1
                 switch item.outcome {
-                case .coordinates(let coordinates):
-                    ingestor.applyRoute(coordinates, source: .healthKit, to: run)
+                case .coordinates(let coordinates, let elevations):
+                    ingestor.applyRoute(coordinates, source: .healthKit, to: run, elevations: elevations)
                     recovered += 1
                 case .noRoute:
                     // The source wrote no route. Retry recent runs a few times, then mark

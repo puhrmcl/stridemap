@@ -163,7 +163,9 @@ struct TCXParser: ActivityFileParser {
             activity.importMethod = .tcxFile
             activity.activityType = ActivityType.parse(sport)
             activity.sportType = sport ?? "Run"
-            activity.elevationGain = RouteMetrics.elevationGain(of: points.compactMap(\.elevation))
+            let elevations = points.compactMap(\.elevation)
+            activity.elevationGain = RouteMetrics.elevationGain(of: elevations)
+            activity.elevationSeries = elevations
             if calories > 0 { activity.activeEnergy = calories }
             if !lapAvgHR.isEmpty {
                 activity.averageHeartRate = lapAvgHR.reduce(0, +) / Double(lapAvgHR.count)

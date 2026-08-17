@@ -55,7 +55,7 @@ final class HealthKitProvider: ActivityProvider {
     /// The result of trying to fetch a workout's GPS route — kept distinct so callers (and
     /// logs) can tell "the source wrote no route" from "the query failed".
     enum RouteOutcome: Sendable {
-        case coordinates([CLLocationCoordinate2D]) // route present
+        case coordinates([CLLocationCoordinate2D], elevations: [Double]) // route present
         case noRoute                                // 0 HKWorkoutRoute objects (Scenario B)
         case failed                                 // query errored (Scenario C)
     }
@@ -98,14 +98,14 @@ final class HealthKitProvider: ActivityProvider {
                 HealthKitLog.route("\(base) routes=0 gps=0 status=NO_ROUTE_IN_HEALTHKIT")
                 return .noRoute
             }
-            let coordinates = try await coordinates(from: samples)
+            let (coordinates, elevations) = try await route(from: samples)
             guard !coordinates.isEmpty else {
                 HealthKitLog.route("\(base) routes=\(samples.count) gps=0 status=ROUTE_OBJECT_EMPTY")
                 return .noRoute
             }
             HealthKitLog.route("\(base) routes=\(samples.count) gps=\(coordinates.count)"
-                + " first=\(format(coordinates.first)) last=\(format(coordinates.last)) status=SUCCESS")
-            return .coordinates(coordinates)
+                + " ele=\(elevations.count) first=\(format(coordinates.first)) last=\(format(coordinates.last)) status=SUCCESS")
+            return .coordinates(coordinates, elevations: elevations)
         } catch {
             HealthKitLog.route("\(base) routes=? gps=0 status=QUERY_FAILURE error=\(error.localizedDescription)")
             return .failed
@@ -179,11 +179,15 @@ final class HealthKitProvider: ActivityProvider {
         }
     }
 
-    /// Enumerates the `CLLocation`s of one or more route samples into a clean coordinate
-    /// list: chronological across samples, adjacent duplicates dropped, order preserved.
-    private func coordinates(from routes: [HKWorkoutRoute]) async throws -> [CLLocationCoordinate2D] {
+    /// Enumerates the `CLLocation`s of one or more route samples into a clean coordinate list —
+    /// chronological across samples, adjacent duplicates dropped, order preserved — plus the
+    /// recorded altitude (metres) aligned to each kept point, so the run stores the exact
+    /// elevation profile the device recorded rather than terrain data.
+    private func route(from routes: [HKWorkoutRoute]) async throws
+        -> (coordinates: [CLLocationCoordinate2D], elevations: [Double]) {
         let orderedRoutes = routes.sorted { $0.startDate < $1.startDate }
         var coordinates: [CLLocationCoordinate2D] = []
+        var altitudes: [Double?] = []
         for route in orderedRoutes {
             let locations = try await locations(for: route)
             for location in locations {
@@ -193,9 +197,28 @@ final class HealthKitProvider: ActivityProvider {
                     continue
                 }
                 coordinates.append(coordinate)
+                // `verticalAccuracy < 0` marks an invalid altitude — keep it as a gap to fill.
+                altitudes.append(location.verticalAccuracy >= 0 ? location.altitude : nil)
             }
         }
-        return coordinates
+        return (coordinates, Self.cleanAltitudes(altitudes))
+    }
+
+    /// Turns per-point optional altitudes into a usable series: empty when too sparse to trust,
+    /// otherwise metres with missing samples carried from their nearest neighbours.
+    private static func cleanAltitudes(_ altitudes: [Double?]) -> [Double] {
+        let validCount = altitudes.reduce(0) { $0 + ($1 == nil ? 0 : 1) }
+        guard altitudes.count > 1, validCount * 2 >= altitudes.count else { return [] }
+        var filled = altitudes
+        var last: Double? = nil
+        for i in filled.indices {
+            if let v = filled[i] { last = v } else { filled[i] = last }
+        }
+        var next: Double? = nil
+        for i in filled.indices.reversed() {
+            if let v = filled[i] { next = v } else { filled[i] = next }
+        }
+        return filled.map { $0 ?? 0 }
     }
 
     private func locations(for route: HKWorkoutRoute) async throws -> [CLLocation] {

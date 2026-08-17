@@ -135,6 +135,7 @@ struct ImportRunView: View {
         )
         run.importMethod = activity.importMethod ?? .manual
         run.activityType = resolvedType
+        if !activity.elevationSeries.isEmpty { run.elevationSeries = activity.elevationSeries }
         run.weatherTemperatureC = activity.weatherTemperatureC
         run.weatherConditionRaw = activity.weatherCondition
         run.nameIsCustom = true

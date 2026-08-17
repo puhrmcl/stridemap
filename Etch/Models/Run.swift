@@ -51,6 +51,12 @@ final class Run {
     /// Encoded (Google-format) polyline of the route.
     var summaryPolyline: String
 
+    /// The source's recorded altitude profile (metres) sampled along the route, stored compactly
+    /// via `ElevationSeries` (downsampled, comma-separated). Empty when the source carried no
+    /// per-point elevation stream — the elevation chart then falls back to terrain data. Defaulted
+    /// so existing runs migrate cleanly.
+    var elevationSeriesRaw: String = ""
+
     // MARK: Route synchronisation state
 
     /// Tracks the route independently of the workout. A HealthKit workout can exist in Etch
@@ -287,6 +293,16 @@ extension Run {
         get { ActivityType(rawValue: activityTypeRaw) ?? .run }
         set { activityTypeRaw = newValue.rawValue }
     }
+
+    /// The recorded altitude profile (metres) along the route, decoded from storage. Assigning
+    /// re-encodes and downsamples it. Empty when the source recorded no elevation stream.
+    var elevationSeries: [Double] {
+        get { ElevationSeries.decode(elevationSeriesRaw) }
+        set { elevationSeriesRaw = ElevationSeries.encode(newValue) }
+    }
+
+    /// Whether this run carries a source-recorded elevation profile (vs. needing terrain data).
+    var hasElevationSeries: Bool { !elevationSeriesRaw.isEmpty }
 
     /// The source shown to the user: the true origin app when known, otherwise the
     /// importing provider. If the run has been enriched by Strava we still surface the

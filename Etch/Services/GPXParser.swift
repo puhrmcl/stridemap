@@ -139,6 +139,7 @@ struct GPXParser: ActivityFileParser {
             activity.sportType = type ?? "Run"
             activity.name = name
             activity.elevationGain = RouteMetrics.elevationGain(of: elevations)
+            activity.elevationSeries = elevations
             if !heartRates.isEmpty {
                 activity.averageHeartRate = heartRates.reduce(0, +) / Double(heartRates.count)
                 activity.maxHeartRate = heartRates.max()

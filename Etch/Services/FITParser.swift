@@ -147,7 +147,9 @@ struct FITParser: ActivityFileParser {
         activity.importMethod = .fitFile
         activity.activityType = Self.activityType(forSport: session.sport)
         activity.sportType = activity.activityType.rawValue.capitalized
-        activity.elevationGain = session.ascent ?? RouteMetrics.elevationGain(of: records.compactMap(\.elevation))
+        let elevations = records.compactMap(\.elevation)
+        activity.elevationGain = session.ascent ?? RouteMetrics.elevationGain(of: elevations)
+        activity.elevationSeries = elevations
         if let calories = session.calories, calories > 0 { activity.activeEnergy = calories }
         let recHR = records.compactMap(\.heartRate)
         activity.averageHeartRate = session.avgHeartRate
