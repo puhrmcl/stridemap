@@ -134,8 +134,33 @@ struct HighlightsView: View {
                     systemName: scope.icon,
                     accent: true
                 )
+                // For climbing disciplines (hikes, rides) elevation is a headline metric, not an
+                // afterthought — surface total ascent and the average per outing.
+                if scopeClimbs {
+                    StatTile(value: climbValue(stats.totalElevationMeters), label: "Total climb",
+                             systemName: "mountain.2", accent: true)
+                    StatTile(value: climbValue(averageClimb), label: "Avg climb",
+                             systemName: "arrow.up.forward")
+                }
             }
         }
+    }
+
+    /// Whether the current scope is a climbing-forward discipline that should lead with elevation.
+    private var scopeClimbs: Bool { scope == .hikes || scope == .rides }
+
+    /// Mean ascent per activity, for the "Avg climb" tile.
+    private var averageClimb: Double {
+        stats.totalRuns > 0 ? stats.totalElevationMeters / Double(stats.totalRuns) : 0
+    }
+
+    /// Elevation in the user's unit with grouping, e.g. "12,480 ft" — a tile-friendly headline
+    /// number (unlike `Format.elevation`, which isn't grouped).
+    private func climbValue(_ meters: Double) -> String {
+        let unit = UnitSystem.current
+        let value = unit == .miles ? meters * 3.28084 : meters
+        let suffix = unit == .miles ? "ft" : "m"
+        return "\(Int(value).formatted()) \(suffix)"
     }
 
     // MARK: All-Activities — the per-discipline hub ("bigger story")

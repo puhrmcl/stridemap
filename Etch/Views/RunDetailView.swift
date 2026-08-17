@@ -24,6 +24,12 @@ struct RunDetailView: View {
     /// What, specifically, makes this run a milestone — shown on the badge.
     private var milestoneDescriptors: [String] { peerStats.milestoneLabels(for: run) }
 
+    /// Elevation is the headline metric for hikes and rides, so their detail leads with a route
+    /// elevation profile. Runs/walks keep the elevation-gain figure in the metric grid.
+    private var showsElevationProfile: Bool {
+        run.hasRoute && !run.isIndoor && (run.activityType == .hike || run.activityType == .ride)
+    }
+
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var photoSelection: PhotoSelection?
     @State private var draggingPhoto: String?
@@ -46,6 +52,10 @@ struct RunDetailView: View {
                         RunPreviewMap(run: run, interactive: true)
                             .frame(height: 240)
                             .clipShape(.rect(cornerRadius: Theme.cardRadius))
+                    }
+
+                    if showsElevationProfile {
+                        ElevationProfileView(run: run)
                     }
 
                     metrics
