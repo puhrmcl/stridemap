@@ -11,20 +11,25 @@ struct RunDetailView: View {
     @Environment(\.modelContext) private var context
     @Query private var allRuns: [Run]
 
+    /// Statistics across peers of the same activity type, so records are compared like-for-like
+    /// (a hike isn't a milestone because it beats a run).
+    private var peerStats: RunStatistics {
+        RunStatistics(allRuns.filter { $0.activityType == run.activityType })
+    }
+
     /// Whether this run is a milestone — a record or superlative among activities of its type, so it
     /// gets the same gold-trophy treatment as its map pin.
-    private var isMilestone: Bool {
-        let peers = allRuns.filter { $0.activityType == run.activityType }
-        return RunStatistics(peers).milestoneRunIDs.contains(run.id)
-    }
+    private var isMilestone: Bool { peerStats.milestoneRunIDs.contains(run.id) }
+
+    /// What, specifically, makes this run a milestone — shown on the badge.
+    private var milestoneDescriptors: [String] { peerStats.milestoneLabels(for: run) }
 
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var photoSelection: PhotoSelection?
     @State private var draggingPhoto: String?
     @State private var isFindingPhotos = false
     @State private var showStudio = false
-    @State private var showRename = false
-    @State private var draftName = ""
+    @State private var showEdit = false
     @State private var showDeleteConfirm = false
 
     private struct PhotoSelection: Identifiable { let id: String }
@@ -44,8 +49,6 @@ struct RunDetailView: View {
                     }
 
                     metrics
-
-                    activityTypeRow
 
                     raceToggle
 
@@ -78,12 +81,8 @@ struct RunDetailView: View {
             .sheet(isPresented: $showStudio) {
                 StudioView(run: run)
             }
-            .alert("Rename Run", isPresented: $showRename) {
-                TextField("Run name", text: $draftName)
-                Button("Save") { rename() }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Give this run your own title.")
+            .sheet(isPresented: $showEdit) {
+                EditRunSheet(run: run)
             }
             .task { await autoMatchPhotosIfNeeded() }
             .onChange(of: pickerItems) { _, items in addPicked(items) }
@@ -96,6 +95,9 @@ struct RunDetailView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Edit") { showEdit = true }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 14) {
                         Button {
@@ -141,23 +143,12 @@ struct RunDetailView: View {
     /// nav bar) so the run name and place have room to be read instead of truncating to
     /// "Ni…/Brec…" in the cramped leading toolbar slot.
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             if isMilestone { milestoneBadge }
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(run.name)
-                    .font(.system(.title2, design: .rounded).weight(.bold))
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button {
-                    draftName = run.name
-                    showRename = true
-                } label: {
-                    Image(systemName: "pencil")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.accent)
-                }
-                .buttonStyle(.plain)
-            }
+            Text(run.name)
+                .font(.system(.title2, design: .rounded).weight(.bold))
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             if !run.placeLabel.isEmpty {
                 Text(run.placeLabel)
                     .font(.subheadline)
@@ -167,28 +158,29 @@ struct RunDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// A gold badge mirroring the map's trophy pin — this run is a record / superlative.
+    /// A gold badge mirroring the map's trophy pin, naming *which* records this run holds —
+    /// "Furthest run", "Fastest pace", "5K best" — so the milestone means something concrete.
     private var milestoneBadge: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "trophy.fill")
-                .font(.system(size: 12, weight: .bold))
-            Text("MILESTONE")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .tracking(1)
-        }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(Theme.Palette.brass, in: .capsule)
-    }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "trophy.fill")
+                    .font(.system(size: 12, weight: .bold))
+                Text("MILESTONE")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .tracking(1)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Theme.Palette.brass, in: .capsule)
 
-    private func rename() {
-        let trimmed = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed != run.name else { return }
-        run.name = trimmed
-        run.nameIsCustom = true
-        run.updatedAt = Date()
-        try? context.save()
+            if !milestoneDescriptors.isEmpty {
+                Text(milestoneDescriptors.joined(separator: " · "))
+                    .font(.system(.footnote, design: .rounded).weight(.semibold))
+                    .foregroundStyle(Theme.Palette.brass)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     /// Hide keeps the run in the store but out of every browsing surface — reversible, unlike
@@ -311,48 +303,6 @@ struct RunDetailView: View {
         .padding(.horizontal, 16)
         .frame(height: 52)
         .background(.regularMaterial, in: .rect(cornerRadius: 16))
-    }
-
-    /// Correct the activity type — useful when an import (e.g. an AllTrails GPX without a `<type>`)
-    /// came in as the wrong kind.
-    private var activityTypeRow: some View {
-        Menu {
-            Picker("Activity", selection: activityTypeBinding) {
-                ForEach(activityTypeChoices, id: \.self) { type in
-                    Label(type.detailLabel, systemImage: type.detailIcon).tag(type)
-                }
-            }
-        } label: {
-            HStack {
-                Label("Activity", systemImage: run.activityType.detailIcon)
-                    .font(.system(.subheadline, design: .rounded).weight(.medium))
-                    .foregroundStyle(.primary)
-                Spacer()
-                Text(run.activityType.detailLabel)
-                    .font(.system(.subheadline, design: .rounded))
-                    .foregroundStyle(.secondary)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 16)
-            .frame(height: 52)
-            .background(.regularMaterial, in: .rect(cornerRadius: 16))
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var activityTypeChoices: [ActivityType] { [.run, .hike, .ride, .walk] }
-
-    private var activityTypeBinding: Binding<ActivityType> {
-        Binding(
-            get: { run.activityType },
-            set: { newValue in
-                run.activityType = newValue
-                run.updatedAt = Date()
-                try? context.save()
-            }
-        )
     }
 
     private var raceBinding: Binding<Bool> {
@@ -566,6 +516,86 @@ struct RunDetailView: View {
                 .background(Theme.accent, in: .rect(cornerRadius: 16))
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Edit the core facts of an activity — its title, when it happened, and what kind it is.
+/// Presented from the run-detail "Edit" button. Changes are staged locally and only committed
+/// on Save, so Cancel discards. Correcting the type is handy when an import (e.g. an AllTrails
+/// GPX with no `<type>`) came in as the wrong kind.
+private struct EditRunSheet: View {
+    @Bindable var run: Run
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+
+    @State private var title: String
+    @State private var date: Date
+    @State private var type: ActivityType
+
+    init(run: Run) {
+        self.run = run
+        _title = State(initialValue: run.name)
+        _date = State(initialValue: run.startDate)
+        _type = State(initialValue: run.activityType)
+    }
+
+    /// Run/Hike/Ride/Walk, plus the current type if it's something else (Ski, Swim, …) so the
+    /// picker always shows a valid selection.
+    private var typeChoices: [ActivityType] {
+        var base: [ActivityType] = [.run, .hike, .ride, .walk]
+        if !base.contains(type) { base.append(type) }
+        return base
+    }
+
+    private var trimmedTitle: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Title") {
+                    TextField("Title", text: $title)
+                }
+                Section("Date") {
+                    DatePicker("Date & time", selection: $date,
+                               displayedComponents: [.date, .hourAndMinute])
+                }
+                Section {
+                    Picker(selection: $type) {
+                        ForEach(typeChoices, id: \.self) { t in
+                            Label(t.detailLabel, systemImage: t.detailIcon).tag(t)
+                        }
+                    } label: {
+                        Label("Activity", systemImage: type.detailIcon)
+                    }
+                } header: {
+                    Text("Activity type")
+                }
+            }
+            .navigationTitle("Edit Activity")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Save") { save() }
+                        .fontWeight(.semibold)
+                        .disabled(trimmedTitle.isEmpty)
+                }
+            }
+        }
+    }
+
+    private func save() {
+        if trimmedTitle != run.name {
+            run.name = trimmedTitle
+            run.nameIsCustom = true
+        }
+        run.startDate = date
+        run.activityType = type
+        run.updatedAt = Date()
+        try? context.save()
+        dismiss()
     }
 }
 

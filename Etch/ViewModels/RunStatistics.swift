@@ -113,6 +113,27 @@ struct RunStatistics {
         return ids
     }
 
+    /// Human labels for the specific milestones a run holds within this set — e.g.
+    /// ["Furthest run", "Fastest pace", "5K best"]. Empty when the run holds none. Covers every
+    /// reason `milestoneRunIDs` would include the run, plus benchmark distance bests as a bonus,
+    /// so run detail can say *what* the milestone is rather than just that there is one.
+    func milestoneLabels(for run: Run) -> [String] {
+        let noun = run.activityType.detailLabel.lowercased()
+        var labels: [String] = []
+        if longestRun?.id == run.id {
+            labels.append("Furthest \(noun)")
+        } else if prRunIDs.contains(run.id) {
+            labels.append("Distance record")
+        }
+        if longestDurationRun?.id == run.id { labels.append("Longest time") }
+        if fastestRun?.id == run.id { labels.append("Fastest pace") }
+        if highestClimb?.id == run.id, run.elevationGain > 0 { labels.append("Most climbing") }
+        for pr in personalRecords where pr.run.id == run.id {
+            labels.append("\(pr.label) best")
+        }
+        return labels
+    }
+
     // MARK: Personal records (PRs)
 
     /// Activity ids that set a new all-time longest-distance record when they happened.
