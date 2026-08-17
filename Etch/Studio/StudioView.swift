@@ -31,6 +31,7 @@ struct StudioView: View {
     @State private var heroMetric: StatMetric = .distance
     @State private var statSlots: [StatMetric] = [.time, .pace, .elevationGain]
     @State private var showElevationProfile = false
+    @State private var galleryShowMapTile = false
     @State private var showPrints = false
     @State private var showCustomize = false
     @State private var showExport = false
@@ -308,6 +309,15 @@ struct StudioView: View {
                     .tint(Theme.accent)
                     .frame(maxWidth: 280)
 
+                    if layout == .gallery && run.hasRoute {
+                        Toggle(isOn: $galleryShowMapTile) {
+                            Label("Map as a tile", systemImage: "map")
+                                .font(.system(.subheadline, design: .rounded))
+                        }
+                        .tint(Theme.accent)
+                        .frame(maxWidth: 280)
+                    }
+
                     if run.hasWeather {
                         Toggle(isOn: $includeWeather) {
                             Label("Include weather", systemImage: "cloud.sun")
@@ -343,6 +353,7 @@ struct StudioView: View {
         .onChange(of: heroMetric) { bump() }
         .onChange(of: statSlots) { bump() }
         .onChange(of: showElevationProfile) { bump() }
+        .onChange(of: galleryShowMapTile) { bump() }
         .onChange(of: outputSize) { bump() }
     }
 
@@ -604,6 +615,7 @@ struct StudioView: View {
             showEditorialPhoto: showEditorialPhoto,
             showMemoryRoute: showMemoryRoute,
             heroMetric: heroMetric, statSlots: statSlots, showElevationProfile: showElevationProfile,
+            galleryShowMapTile: galleryShowMapTile,
             includeWeather: includeWeather, routeColor: routeColor, textColor: textColor,
             groundColor: groundColor, outputSize: outputSize
         )

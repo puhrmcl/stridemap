@@ -2,7 +2,7 @@ import SwiftUI
 
 /// How the run's data is arranged beneath the art — chosen independently of the edition.
 enum StudioLayout: String, CaseIterable, Identifiable {
-    case classic, minimal, editorial, grid
+    case classic, minimal, editorial, grid, gallery
     var id: String { rawValue }
     var name: String {
         switch self {
@@ -10,6 +10,7 @@ enum StudioLayout: String, CaseIterable, Identifiable {
         case .minimal: return "Minimal"
         case .editorial: return "Editorial"
         case .grid: return "4-Up"
+        case .gallery: return "Gallery"
         }
     }
 }
@@ -114,6 +115,9 @@ struct StudioComposition: View {
     /// Terrain elevations along the route (metres) for the profile silhouette; empty = no strip.
     var elevationSamples: [Double] = []
     var showElevationProfile: Bool = false
+    /// Gallery layout only: use the route map as one of the tiles (with map background on a map
+    /// edition, or the bare route line on a paper edition).
+    var galleryShowMapTile: Bool = false
     /// User overrides; nil falls back to the edition's palette.
     var routeOverride: Color? = nil
     var textOverride: Color? = nil
@@ -170,7 +174,9 @@ struct StudioComposition: View {
 
     var body: some View {
         Group {
-            if isSideLayout {
+            if layout == .gallery {
+                galleryComposition
+            } else if isSideLayout {
                 HStack(spacing: 0) {
                     art
                     footer
@@ -184,6 +190,80 @@ struct StudioComposition: View {
             }
         }
         .background(groundColor)
+    }
+
+    // MARK: Gallery layout — a curated row of photo / map tiles under a serif masthead.
+
+    private enum GalleryTile { case photo(Int), map }
+
+    /// The tiles shown: an optional map tile, then the run's photos, capped so each stays large.
+    private var galleryTiles: [GalleryTile] {
+        var tiles: [GalleryTile] = []
+        if galleryShowMapTile { tiles.append(.map) }
+        let maxPhotos = galleryShowMapTile ? 2 : 3
+        for i in 0..<min(photoImages.count, maxPhotos) { tiles.append(.photo(i)) }
+        if tiles.isEmpty { tiles = [.map] }   // no photos and no map toggle → show the route tile
+        return tiles
+    }
+
+    private var galleryComposition: some View {
+        VStack(spacing: 44) {
+            HStack(spacing: 16) {
+                ForEach(Array(galleryTiles.enumerated()), id: \.offset) { _, tile in
+                    galleryTileView(tile)
+                }
+            }
+            .frame(height: 440)
+
+            VStack(spacing: 14) {
+                Text(titleText.uppercased())
+                    .font(.system(size: 44, weight: .regular, design: .serif))
+                    .tracking(10)
+                    .foregroundStyle(inkColor)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.5)
+                    .multilineTextAlignment(.center)
+                if !placeLine.isEmpty {
+                    Text(placeLine.uppercased())
+                        .font(.system(size: 18, weight: .regular, design: .serif))
+                        .tracking(5)
+                        .foregroundStyle(subtleColor)
+                }
+            }
+            .frame(maxWidth: .infinity)
+
+            if showElevationProfile && elevationSamples.count > 1 {
+                elevationProfileContent
+            }
+        }
+        .padding(80)
+        .frame(width: Self.width)
+        .background(groundColor)
+    }
+
+    @ViewBuilder private func galleryTileView(_ tile: GalleryTile) -> some View {
+        Group {
+            switch tile {
+            case .photo(let i):
+                if i < photoImages.count {
+                    Image(uiImage: photoImages[i]).resizable().scaledToFill()
+                } else {
+                    groundColor
+                }
+            case .map:
+                if edition.usesImagePanel, let panelImage {
+                    Image(uiImage: panelImage).resizable().scaledToFill()
+                } else {
+                    ZStack {
+                        groundColor
+                        if run.coordinates.count > 1 { routeArt.padding(24) }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+        .clipShape(.rect(cornerRadius: 6))
     }
 
     /// Whole distance units (miles/km) for the profile's markers.
