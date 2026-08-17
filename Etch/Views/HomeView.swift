@@ -418,6 +418,13 @@ struct HomeView: View {
                     Color.clear.preference(key: PillColumnHeightKey.self, value: geo.size.height)
                 }
             )
+            // Mirror the left: a full-height rule, then the dropdown carrot centered on the right
+            // exactly like the activity icon on the left.
+            Rectangle()
+                .fill(.secondary.opacity(0.3))
+                .frame(width: 1, height: pillColumnHeight)
+            dropdownCarret
+                .frame(height: pillColumnHeight)
         }
         .onPreferenceChange(PillColumnHeightKey.self) { if $0 > 0 { pillColumnHeight = $0 } }
         .fixedSize(horizontal: true, vertical: false)
@@ -467,12 +474,24 @@ struct HomeView: View {
                     unit: effectiveScope.countNoun,
                     systemName: effectiveScope.icon
                 )
-                Image(systemName: "chevron.down.circle.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Theme.accentOnGlass)
-                    .rotationEffect(.degrees(showModeMenu ? 180 : 0))
-                    .padding(.leading, 1)
             }
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// The dropdown carrot on the right of the pill — a full-height, centered mirror of the
+    /// activity icon on the left. Tapping it opens the map-mode panel.
+    private var dropdownCarret: some View {
+        Button {
+            withAnimation(Theme.spring) { showModeMenu.toggle() }
+        } label: {
+            Image(systemName: "chevron.down.circle.fill")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Theme.accentOnGlass)
+                .rotationEffect(.degrees(showModeMenu ? 180 : 0))
+                .frame(width: 26)
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
