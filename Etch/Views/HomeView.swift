@@ -451,22 +451,22 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
 
-    /// The totals — distance and activity count — separated by a dot. The count has no leading
-    /// icon (it would just duplicate the activity-type icon on the pill's left).
+    /// The totals — activity count then distance, separated by a dot. Count has no leading icon
+    /// (it would just duplicate the activity-type icon on the pill's left).
     private var metricsRow: some View {
         HStack(spacing: 8) {
             metric(
-                value: Format.distanceValue(shownStats.totalDistanceMeters)
-                    .formatted(.number.precision(.fractionLength(0))),
-                unit: UnitSystem.current.distanceSuffix,
-                systemName: "point.topleft.down.to.point.bottomright.curvepath"
+                value: shownStats.totalRuns.formatted(),
+                unit: effectiveScope.countNoun
             )
             Text("·")
                 .font(.system(.subheadline, design: .rounded).weight(.bold))
                 .foregroundStyle(.secondary)
             metric(
-                value: shownStats.totalRuns.formatted(),
-                unit: effectiveScope.countNoun
+                value: Format.distanceValue(shownStats.totalDistanceMeters)
+                    .formatted(.number.precision(.fractionLength(0))),
+                unit: UnitSystem.current.distanceSuffix,
+                systemName: "point.topleft.down.to.point.bottomright.curvepath"
             )
         }
     }
