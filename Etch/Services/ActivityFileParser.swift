@@ -88,7 +88,31 @@ enum ActivityDate {
 
     static func parse(_ string: String?) -> Date? {
         guard let s = string?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else { return nil }
-        return withFraction.date(from: s) ?? plain.date(from: s)
+        if let date = withFraction.date(from: s) ?? plain.date(from: s) { return date }
+        // Some exporters (e.g. MapMyRide) write microsecond precision — six+ fractional digits
+        // like `.743530`. ISO8601DateFormatter accepts only milliseconds (three digits) and
+        // rejects the rest outright, which would silently drop every timestamp in the file — and,
+        // when the activity's own <Id>/lap start carries that precision, drop the whole activity.
+        // Normalize the fraction to three digits and retry, then fall back to no fraction.
+        if let normalized = normalizingFractionalSeconds(s), let date = withFraction.date(from: normalized) {
+            return date
+        }
+        return plain.date(from: strippingFractionalSeconds(s))
+    }
+
+    /// Rewrites the sub-second fraction to exactly three digits (milliseconds), the most precision
+    /// `ISO8601DateFormatter` accepts. `nil` when there's no fraction to change.
+    private static func normalizingFractionalSeconds(_ s: String) -> String? {
+        guard let range = s.range(of: #"\.[0-9]+"#, options: .regularExpression) else { return nil }
+        let digits = s[range].dropFirst()
+        guard digits.count != 3 else { return nil }   // already 3 — `withFraction` already tried it
+        let millis = digits.prefix(3).padding(toLength: 3, withPad: "0", startingAt: 0)
+        return s.replacingCharacters(in: range, with: ".\(millis)")
+    }
+
+    /// Removes the sub-second fraction entirely, e.g. `12:00:04.743530` → `12:00:04`.
+    private static func strippingFractionalSeconds(_ s: String) -> String {
+        s.replacingOccurrences(of: #"\.[0-9]+"#, with: "", options: .regularExpression)
     }
 }
 
