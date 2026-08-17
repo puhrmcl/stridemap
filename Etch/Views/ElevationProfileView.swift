@@ -69,7 +69,7 @@ struct ElevationProfileView: View {
                 p.move(to: first)
                 for pt in pts.dropFirst() { p.addLine(to: pt) }
             }
-            .stroke(Theme.accent, style: StrokeStyle(lineWidth: 2, lineJoin: .round, lineCap: .round))
+            .stroke(Theme.accent, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
         }
     }
 
