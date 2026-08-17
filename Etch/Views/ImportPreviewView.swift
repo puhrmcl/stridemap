@@ -185,7 +185,7 @@ struct ImportPreviewView: View {
 
     /// The noun for the import counts. When there's a single activity it uses that activity's type
     /// (Hike/Ride/…) so importing a hike doesn't read "Run"; batches use the generic "activity".
-    private func newActivityNoun(_ summary: Summary, capitalized: Bool) -> String {
+    private func newActivityNoun(_ summary: FileImportService.Summary, capitalized: Bool) -> String {
         let word: String
         if activities.count == 1 {
             word = activities[0].activityType.detailLabel
