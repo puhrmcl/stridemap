@@ -10,6 +10,19 @@ struct ImportPreviewView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(SyncService.self) private var sync
 
+    /// A mutable copy of the parsed activities so the user can correct each one's type before
+    /// importing — auto-detection is the default, and edits here flow straight into the commit.
+    @State private var activities: [ImportedActivity]
+
+    /// Above this many activities we don't show the per-activity type editor (a full Nike/Garmin
+    /// export can be hundreds) — those import on auto-detection and can be re-typed in run detail.
+    private let typeEditorLimit = 25
+
+    init(outcome: FileImportService.ParseOutcome) {
+        self.outcome = outcome
+        _activities = State(initialValue: outcome.activities)
+    }
+
     private enum Stage {
         case loading
         case preview(FileImportService.Summary)
@@ -60,7 +73,7 @@ struct ImportPreviewView: View {
                         .font(.system(size: 60, weight: .bold, design: .rounded))
                         .foregroundStyle(Theme.accent)
                         .contentTransition(.numericText())
-                    Text(summary.newRuns == 1 ? "new run ready to import" : "new runs ready to import")
+                    Text("new \(newActivityNoun(summary, capitalized: false)) ready to import")
                         .font(.system(.headline, design: .rounded))
                         .foregroundStyle(.secondary)
                     if let range = dateRange(summary) {
@@ -90,10 +103,96 @@ struct ImportPreviewView: View {
                 }
                 .background(.regularMaterial, in: .rect(cornerRadius: 16))
 
+                if summary.newRuns > 0 { typeEditor }
+
                 importButton(summary)
             }
             .padding(20)
         }
+    }
+
+    /// Per-activity type control shown before importing: each activity is pre-set to Etch's
+    /// auto-detected type and can be overridden. Hidden for very large imports (a full export),
+    /// which come in on auto-detection and can be re-typed later in run detail.
+    @ViewBuilder
+    private var typeEditor: some View {
+        if !activities.isEmpty && activities.count <= typeEditorLimit {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Activity type")
+                    .font(.system(.headline, design: .rounded))
+                Text("Etch auto-detects each activity. Tap to override.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                VStack(spacing: 0) {
+                    ForEach(activities.indices, id: \.self) { i in
+                        if i > 0 { divider }
+                        typeRow(i)
+                    }
+                }
+                .background(.regularMaterial, in: .rect(cornerRadius: 16))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func typeRow(_ i: Int) -> some View {
+        Menu {
+            Picker("Activity", selection: $activities[i].activityType) {
+                ForEach(typeChoices(including: activities[i].activityType), id: \.self) { t in
+                    Label(t.detailLabel, systemImage: t.detailIcon).tag(t)
+                }
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: activities[i].activityType.detailIcon)
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(displayName(activities[i]))
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Text(activities[i].startDate.formatted(date: .abbreviated, time: .omitted))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text(activities[i].activityType.detailLabel)
+                    .font(.system(.subheadline, design: .rounded))
+                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 16)
+            .frame(minHeight: 56)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Run/Hike/Ride/Walk, plus the current type if it's something else, so the menu always shows
+    /// a valid selection.
+    private func typeChoices(including current: ActivityType) -> [ActivityType] {
+        var base: [ActivityType] = [.run, .hike, .ride, .walk]
+        if !base.contains(current) { base.append(current) }
+        return base
+    }
+
+    private func displayName(_ a: ImportedActivity) -> String {
+        if let n = a.name, !n.isEmpty { return n }
+        return "Imported \(a.activityType.detailLabel)"
+    }
+
+    /// The noun for the import counts. When there's a single activity it uses that activity's type
+    /// (Hike/Ride/…) so importing a hike doesn't read "Run"; batches use the generic "activity".
+    private func newActivityNoun(_ summary: Summary, capitalized: Bool) -> String {
+        let word: String
+        if activities.count == 1 {
+            word = activities[0].activityType.detailLabel
+        } else {
+            word = summary.newRuns == 1 ? "activity" : "activities"
+        }
+        return capitalized ? word.prefix(1).uppercased() + word.dropFirst() : word.lowercased()
     }
 
     @ViewBuilder
@@ -102,7 +201,7 @@ struct ImportPreviewView: View {
             Button {
                 Task { await runImport(summary) }
             } label: {
-                Text("Import \(summary.newRuns) \(summary.newRuns == 1 ? "Run" : "Runs")")
+                Text("Import \(summary.newRuns) \(newActivityNoun(summary, capitalized: true))")
                     .font(.system(.headline, design: .rounded))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
@@ -151,7 +250,7 @@ struct ImportPreviewView: View {
                     .font(.system(.title2, design: .rounded).weight(.bold))
 
                 VStack(spacing: 0) {
-                    detailRow("Runs added", "\(summary.newRuns)", "figure.run")
+                    detailRow("Activities added", "\(summary.newRuns)", "figure.run")
                     if summary.duplicates > 0 {
                         divider
                         detailRow("Already in Etch", "\(summary.duplicates)", "checkmark.circle")
@@ -218,7 +317,7 @@ struct ImportPreviewView: View {
     private func computePreview() async {
         guard case .loading = stage else { return }
         let service = FileImportService(context: context)
-        var summary = service.preview(outcome.activities)
+        var summary = service.preview(activities)
         summary.failedFiles = outcome.failedFiles
         stage = .preview(summary)
     }
@@ -226,7 +325,7 @@ struct ImportPreviewView: View {
     private func runImport(_ summary: FileImportService.Summary) async {
         stage = .importing(done: 0, total: summary.newRuns + summary.duplicates)
         let service = FileImportService(context: context)
-        var result = await service.commit(outcome.activities) { done, total in
+        var result = await service.commit(activities) { done, total in
             stage = .importing(done: done, total: total)
         }
         result.failedFiles = outcome.failedFiles
