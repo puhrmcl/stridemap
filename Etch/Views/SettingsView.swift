@@ -27,9 +27,9 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                sourcesSection
-                activitiesSection
                 appFocusSection
+                activitiesSection
+                sourcesSection
                 syncSection
                 photosSection
                 appearanceSection
@@ -56,6 +56,12 @@ struct SettingsView: View {
 
     private var sourcesSection: some View {
         Section {
+            NavigationLink {
+                ConnectAppsView()
+            } label: {
+                Label("Connect Your Apps", systemImage: "link")
+            }
+
             // Apple Health — the primary source.
             HStack {
                 Label("Apple Health", systemImage: "heart.fill")
@@ -94,11 +100,6 @@ struct SettingsView: View {
                 AddHistoryView()
             } label: {
                 Label("Add Your History", systemImage: "square.and.arrow.down")
-            }
-            NavigationLink {
-                ConnectAppsView()
-            } label: {
-                Label("Connect Your Apps", systemImage: "link")
             }
         } header: {
             Text("Sources")
