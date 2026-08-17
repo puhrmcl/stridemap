@@ -432,22 +432,27 @@ struct HomeView: View {
     }
 
     /// The activity-type selector on the left of the pill — All Types / Runs / Hikes / Rides /
-    /// Walks. Tapping opens the type dropdown, which drops from its icon.
+    /// Walks. The small chevron beside the icon signals it's a dropdown; it drops from the icon.
     private var typeSelector: some View {
         Button {
             withAnimation(Theme.spring) { showTypeMenu.toggle(); showModeMenu = false }
         } label: {
-            Image(systemName: appModel.activityScope.icon)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(Theme.accentOnGlass)
-                .frame(width: 26)
-                .frame(maxHeight: .infinity)
-                .contentShape(Rectangle())
+            HStack(spacing: 3) {
+                Image(systemName: appModel.activityScope.icon)
+                    .font(.system(size: 17, weight: .semibold))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                    .rotationEffect(.degrees(showTypeMenu ? 180 : 0))
+            }
+            .foregroundStyle(Theme.accentOnGlass)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 
-    /// The totals — distance and activity count — separated by a dot.
+    /// The totals — distance and activity count — separated by a dot. The count has no leading
+    /// icon (it would just duplicate the activity-type icon on the pill's left).
     private var metricsRow: some View {
         HStack(spacing: 8) {
             metric(
@@ -461,8 +466,7 @@ struct HomeView: View {
                 .foregroundStyle(.secondary)
             metric(
                 value: shownStats.totalRuns.formatted(),
-                unit: effectiveScope.countNoun,
-                systemName: effectiveScope.icon
+                unit: effectiveScope.countNoun
             )
         }
     }
@@ -473,12 +477,12 @@ struct HomeView: View {
         Button {
             withAnimation(Theme.spring) { showModeMenu.toggle(); showTypeMenu = false }
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 5) {
                 Text(currentModeLabel.uppercased())
-                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .tracking(1.2)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
                     .rotationEffect(.degrees(showModeMenu ? 180 : 0))
             }
             .foregroundStyle(Theme.accentOnGlass)
@@ -631,11 +635,13 @@ struct HomeView: View {
         }
     }
 
-    private func metric(value: String, unit: String, systemName: String) -> some View {
+    private func metric(value: String, unit: String, systemName: String? = nil) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: systemName)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Theme.accentOnGlass)
+            if let systemName {
+                Image(systemName: systemName)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.accentOnGlass)
+            }
             // Value and unit are one concatenated Text so the Menu label's layout can never drop the
             // unit ("mi" / "runs") the way two separate Texts allowed. fixedSize keeps it un-truncated.
             (
