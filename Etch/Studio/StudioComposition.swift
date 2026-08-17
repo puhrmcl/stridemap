@@ -401,7 +401,7 @@ struct StudioComposition: View {
                 heroBlock(leading: true)
                 HStack(spacing: 28) {
                     ForEach(Array(resolvedStats.enumerated()), id: \.offset) { _, item in
-                        editorialStat(item.label, item.value)
+                        editorialStat(item.metric, item.value)
                     }
                 }
                 if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: true) }
@@ -437,7 +437,7 @@ struct StudioComposition: View {
             HStack(alignment: .top, spacing: 0) {
                 ForEach(Array(fourStats.enumerated()), id: \.offset) { index, item in
                     if index > 0 { statDivider }
-                    gridStat(item.label, item.value)
+                    gridStat(item.metric, item.value)
                 }
             }
             if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: false) }
@@ -455,7 +455,7 @@ struct StudioComposition: View {
             HStack(alignment: .top, spacing: 0) {
                 ForEach(Array(fourStats.enumerated()), id: \.offset) { index, item in
                     if index > 0 { statDivider }
-                    gridStat(item.label, item.value)
+                    gridStat(item.metric, item.value)
                 }
             }
             if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: false) }
@@ -464,8 +464,8 @@ struct StudioComposition: View {
     }
 
     /// The Headline metric plus the three slot metrics, for the 4-Up layout.
-    private var fourStats: [(label: String, value: String)] {
-        [(label: heroMetric.label, value: metricValue(heroMetric) ?? "—")] + resolvedStats
+    private var fourStats: [(metric: StatMetric, value: String)] {
+        [(metric: heroMetric, value: metricValue(heroMetric) ?? "—")] + resolvedStats
     }
 
     /// Resolves a metric's value, sourcing start elevation from the fetched terrain profile.
@@ -477,14 +477,17 @@ struct StudioComposition: View {
         return metric.value(for: run)
     }
 
-    private func gridStat(_ label: String, _ value: String) -> some View {
+    private func gridStat(_ metric: StatMetric, _ value: String) -> some View {
         VStack(spacing: 6) {
+            Image(systemName: metric.icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(edition.accent)
             Text(value)
                 .font(.system(size: 26, weight: .bold))
                 .foregroundStyle(inkColor)
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)
-            Text(label)
+            Text(metric.label)
                 .font(.system(size: 13, weight: .semibold))
                 .tracking(1.5)
                 .foregroundStyle(subtleColor)
@@ -543,16 +546,17 @@ struct StudioComposition: View {
         heroMetric == .distance ? UnitSystem.current.label.uppercased() : heroMetric.label
     }
 
-    /// The slot metrics resolved to (label, value) for this run, unavailable ones showing "—".
-    private var resolvedStats: [(label: String, value: String)] {
-        statSlots.map { (label: $0.label, value: metricValue($0) ?? "—") }
+    /// The slot metrics resolved to (metric, value) for this run, unavailable ones showing "—".
+    /// Carrying the metric lets the data-rich layouts pin its icon beside the value.
+    private var resolvedStats: [(metric: StatMetric, value: String)] {
+        statSlots.map { (metric: $0, value: metricValue($0) ?? "—") }
     }
 
     private var statRow: some View {
         HStack(alignment: .top, spacing: 0) {
             ForEach(Array(resolvedStats.enumerated()), id: \.offset) { index, item in
                 if index > 0 { statDivider }
-                stat(item.label, item.value)
+                stat(item.metric.label, item.value)
             }
         }
     }
@@ -572,14 +576,19 @@ struct StudioComposition: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func editorialStat(_ label: String, _ value: String) -> some View {
+    private func editorialStat(_ metric: StatMetric, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(value)
-                .font(.system(size: 30, weight: .bold))
-                .foregroundStyle(inkColor)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-            Text(label)
+            HStack(spacing: 6) {
+                Image(systemName: metric.icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(edition.accent)
+                Text(value)
+                    .font(.system(size: 30, weight: .bold))
+                    .foregroundStyle(inkColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+            Text(metric.label)
                 .font(.system(size: 14, weight: .semibold))
                 .tracking(2)
                 .foregroundStyle(subtleColor)

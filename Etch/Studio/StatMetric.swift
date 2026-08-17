@@ -27,6 +27,25 @@ enum StatMetric: String, CaseIterable, Identifiable {
         }
     }
 
+    /// An SF Symbol paired with the metric on editorial layouts, the way keepsake prints pin an
+    /// icon to each data point.
+    var icon: String {
+        switch self {
+        case .distance:      return "point.topleft.down.to.point.bottomright.curvepath"
+        case .time:          return "stopwatch"
+        case .pace:          return "speedometer"
+        case .speed:         return "gauge.with.dots.needle.67percent"
+        case .elevationGain: return "arrow.up.forward"
+        case .startElevation: return "mountain.2"
+        case .avgHeartRate:  return "heart.fill"
+        case .calories:      return "flame.fill"
+        case .cadence:       return "metronome"
+        case .place:         return "mappin.and.ellipse"
+        case .date:          return "calendar"
+        case .weather:       return "cloud.sun.fill"
+        }
+    }
+
     /// A short name for the picker menu.
     var menuName: String {
         switch self {
