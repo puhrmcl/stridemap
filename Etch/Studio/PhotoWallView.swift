@@ -17,6 +17,8 @@ struct PhotoWallView: View {
     @State private var randomOrder: [UUID] = []
     @State private var images: [UUID: UIImage] = [:]
     @State private var posterImage: UIImage?
+    /// Runs whose cover photo is a screenshot — kept out of the wall so it reads as photography.
+    @State private var screenshotRunIDs: Set<UUID> = []
 
     /// Hard ceiling on one wall, so the grid stays legible and the render stays light.
     private let maxPhotos = 60
@@ -38,8 +40,11 @@ struct PhotoWallView: View {
 
     // MARK: Data
 
-    /// Every scoped run that has a cover photo.
-    private var photoRuns: [Run] { runs.filter { !$0.photoReferences.isEmpty } }
+    /// Every scoped run that has a cover photo — excluding screenshots, so the wall stays to real
+    /// photography rather than app captures.
+    private var photoRuns: [Run] {
+        runs.filter { !$0.photoReferences.isEmpty && !screenshotRunIDs.contains($0.id) }
+    }
 
     /// Photo runs after the active filter.
     private var filtered: [Run] {
@@ -144,6 +149,7 @@ struct PhotoWallView: View {
             }
             .onChange(of: filter) { excludedIDs = []; clampCount() }
             .onAppear { clampCount() }
+            .task { detectScreenshots() }
             .task(id: renderKey) { await loadAndRender() }
         }
     }
@@ -153,30 +159,43 @@ struct PhotoWallView: View {
     private var preview: some View {
         ScrollView {
             LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: columnCount),
-                spacing: 6
+                columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: columnCount),
+                spacing: 4
             ) {
                 ForEach(shown, id: \.id) { run in
                     cell(run)
                         .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { remove(run) } }
                 }
             }
-            .padding(20)
+            .padding(16)
         }
     }
 
+    /// A strictly square tile: a placeholder rectangle sets the 1:1 shape from the grid-cell width,
+    /// and the photo fills it as an overlay that's clipped to the square — so images can never
+    /// overflow and overlap their neighbours (the source of the "chaos").
     private func cell(_ run: Run) -> some View {
-        Group {
-            if let image = images[run.id] {
-                Image(uiImage: image).resizable().scaledToFill()
-            } else {
-                Rectangle().fill(Theme.Palette.stone)
-                    .overlay { ProgressView().controlSize(.small) }
+        Rectangle()
+            .fill(Theme.Palette.stone)
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                if let image = images[run.id] {
+                    Image(uiImage: image).resizable().scaledToFill()
+                } else {
+                    ProgressView().controlSize(.small)
+                }
             }
-        }
-        .aspectRatio(1, contentMode: .fill)
-        .clipped()
-        .clipShape(.rect(cornerRadius: 6))
+            .clipShape(.rect(cornerRadius: 3))
+            .contentShape(.rect)
+    }
+
+    @MainActor
+    private func detectScreenshots() {
+        let candidates = runs.filter { !$0.photoReferences.isEmpty }
+        let coverByRun = candidates.compactMap { run in run.photoReferences.first.map { (run.id, $0) } }
+        let shots = PhotoLibrary.screenshotIdentifiers(among: coverByRun.map(\.1))
+        guard !shots.isEmpty else { return }
+        screenshotRunIDs = Set(coverByRun.filter { shots.contains($0.1) }.map(\.0))
     }
 
     // MARK: Controls
@@ -300,8 +319,8 @@ struct PhotoWallView: View {
     // MARK: Poster (text-free grid) + rendering
 
     private let posterWidth: CGFloat = 1000
-    private let posterPadding: CGFloat = 24
-    private let posterSpacing: CGFloat = 6
+    private let posterPadding: CGFloat = 28
+    private let posterSpacing: CGFloat = 4
 
     private var posterCell: CGFloat {
         let cols = CGFloat(columnCount)
@@ -346,7 +365,7 @@ struct PhotoWallView: View {
         }
         .frame(width: posterCell, height: posterCell)
         .clipped()
-        .clipShape(.rect(cornerRadius: 4))
+        .clipShape(.rect(cornerRadius: 3))
     }
 
     @MainActor

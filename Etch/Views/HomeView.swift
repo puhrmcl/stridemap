@@ -74,6 +74,7 @@ struct HomeView: View {
     /// The map-mode dropdown, rendered as a custom panel that extends from the pill (not a detached
     /// native Menu), so it reads as part of the pill.
     @State private var showModeMenu = false
+    @State private var showTypeMenu = false
 
     /// The full-map print kind that matches the current view.
     private var currentPrintKind: MapPrintKind {
@@ -194,11 +195,11 @@ struct HomeView: View {
         .ignoresSafeArea()
         // Tap anywhere on the map to dismiss the open mode dropdown (it sits above this layer).
         .overlay {
-            if showModeMenu {
+            if showModeMenu || showTypeMenu {
                 Color.black.opacity(0.0001)
                     .ignoresSafeArea()
                     .contentShape(Rectangle())
-                    .onTapGesture { withAnimation(Theme.spring) { showModeMenu = false } }
+                    .onTapGesture { withAnimation(Theme.spring) { showModeMenu = false; showTypeMenu = false } }
             }
         }
         // The "View" label reflects the chosen place; reset it (and any selected state) when the
@@ -350,15 +351,19 @@ struct HomeView: View {
 
     private var topBar: some View {
         VStack(spacing: 10) {
-            HStack {
-                Spacer()
-                totalsPill
-                Spacer()
-            }
-            // In Studio-first mode, a close button on the leading edge returns to Studio.
-            .overlay(alignment: .leading) {
+            // In Studio-first mode a close button leads the bar; it's laid out in-flow (not an
+            // overlay) so the totals pill can't slide underneath it. An invisible twin on the
+            // trailing edge keeps the pill visually centred.
+            HStack(spacing: 8) {
                 if isMapPopup {
                     GlassIconButton(systemName: "xmark") { dismiss() }
+                }
+                Spacer(minLength: 8)
+                totalsPill
+                Spacer(minLength: 8)
+                if isMapPopup {
+                    GlassIconButton(systemName: "xmark") { }
+                        .hidden()
                 }
             }
             // The sync spinner sits at the trailing edge as an overlay, so it never shifts the
@@ -374,6 +379,14 @@ struct HomeView: View {
                 }
             }
 
+            if showTypeMenu {
+                // Leading-aligned so it reads as an extension of the type icon on the pill's left.
+                HStack {
+                    typeDropdown
+                    Spacer(minLength: 0)
+                }
+            }
+
             if showModeMenu {
                 HStack {
                     Spacer(minLength: 0)
@@ -386,45 +399,30 @@ struct HomeView: View {
         }
     }
 
-    /// One glass pill showing both totals — distance and run count — with the map-mode dropdown
-    /// folded in: a chevron on the right opens the mode menu (filter modes / History / Locations).
+    /// One glass pill showing both totals — distance and activity count. The activity-type selector
+    /// on the left opens a dropdown that extends from its icon; below the totals, the caption names
+    /// the current map view and its chevron opens the view (mode) dropdown.
     private var totalsPill: some View {
         HStack(spacing: 10) {
-            // The activity selector only appears when there's more than one activity type to
-            // choose between; with a single type the pill collapses to just the totals.
+            // The activity-type selector only appears when there's more than one type to choose
+            // between; with a single type the pill collapses to just the totals.
             if !isSingleActivity {
-                // The activity icon fills the full height of the totals column on the left.
-                activitySelector
+                typeSelector
                     .frame(height: pillColumnHeight)
-                // Full-height rule dividing the icon from the totals column.
                 Rectangle()
                     .fill(.secondary.opacity(0.3))
                     .frame(width: 1, height: pillColumnHeight)
             }
-            // Right column: the totals row, a rule beneath it, then the current-view caption.
-            VStack(spacing: 4) {
-                totalsMenu
-                Rectangle()
-                    .fill(.secondary.opacity(0.25))
-                    .frame(height: 1)
-                Text(currentModeLabel.uppercased())
-                    .font(.system(size: 9, weight: .semibold, design: .rounded))
-                    .tracking(1.2)
-                    .foregroundStyle(Theme.accentOnGlass)
-                    .frame(maxWidth: .infinity)
+            // Totals, then the current-view caption with the view-dropdown chevron beside it.
+            VStack(spacing: 3) {
+                metricsRow
+                captionRow
             }
             .background(
                 GeometryReader { geo in
                     Color.clear.preference(key: PillColumnHeightKey.self, value: geo.size.height)
                 }
             )
-            // Mirror the left: a full-height rule, then the dropdown carrot centered on the right
-            // exactly like the activity icon on the left.
-            Rectangle()
-                .fill(.secondary.opacity(0.3))
-                .frame(width: 1, height: pillColumnHeight)
-            dropdownCarret
-                .frame(height: pillColumnHeight)
         }
         .onPreferenceChange(PillColumnHeightKey.self) { if $0 > 0 { pillColumnHeight = $0 } }
         .fixedSize(horizontal: true, vertical: false)
@@ -433,15 +431,11 @@ struct HomeView: View {
         .glassBackground(cornerRadius: 16)
     }
 
-    /// The activity-type selector on the left of the pill — All / Runs / Hikes (Walks when the
-    /// user opts in). Changing it re-scopes the whole app.
-    private var activitySelector: some View {
-        Menu {
-            Picker("Activity", selection: activityBinding) {
-                ForEach(activityScopeOptions) { scope in
-                    Label(scope.label, systemImage: scope.icon).tag(scope)
-                }
-            }
+    /// The activity-type selector on the left of the pill — All Types / Runs / Hikes / Rides /
+    /// Walks. Tapping opens the type dropdown, which drops from its icon.
+    private var typeSelector: some View {
+        Button {
+            withAnimation(Theme.spring) { showTypeMenu.toggle(); showModeMenu = false }
         } label: {
             Image(systemName: appModel.activityScope.icon)
                 .font(.system(size: 17, weight: .semibold))
@@ -453,47 +447,82 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
 
-    /// The distance + count totals, with the map-mode dropdown folded in on the right. Tapping
-    /// toggles a custom panel (`modeDropdown`) that visually extends from the pill.
-    private var totalsMenu: some View {
+    /// The totals — distance and activity count — separated by a dot.
+    private var metricsRow: some View {
+        HStack(spacing: 8) {
+            metric(
+                value: Format.distanceValue(shownStats.totalDistanceMeters)
+                    .formatted(.number.precision(.fractionLength(0))),
+                unit: UnitSystem.current.distanceSuffix,
+                systemName: "point.topleft.down.to.point.bottomright.curvepath"
+            )
+            Text("·")
+                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                .foregroundStyle(.secondary)
+            metric(
+                value: shownStats.totalRuns.formatted(),
+                unit: effectiveScope.countNoun,
+                systemName: effectiveScope.icon
+            )
+        }
+    }
+
+    /// The caption naming the current map view, with a chevron beside it that opens the view
+    /// (mode) dropdown.
+    private var captionRow: some View {
         Button {
-            withAnimation(Theme.spring) { showModeMenu.toggle() }
+            withAnimation(Theme.spring) { showModeMenu.toggle(); showTypeMenu = false }
         } label: {
-            HStack(spacing: 10) {
-                metric(
-                    value: Format.distanceValue(shownStats.totalDistanceMeters)
-                        .formatted(.number.precision(.fractionLength(0))),
-                    unit: UnitSystem.current.distanceSuffix,
-                    systemName: "point.topleft.down.to.point.bottomright.curvepath"
-                )
-                Rectangle()
-                    .fill(.secondary.opacity(0.3))
-                    .frame(width: 1, height: 16)
-                metric(
-                    value: shownStats.totalRuns.formatted(),
-                    unit: effectiveScope.countNoun,
-                    systemName: effectiveScope.icon
-                )
+            HStack(spacing: 4) {
+                Text(currentModeLabel.uppercased())
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .tracking(1.2)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+                    .rotationEffect(.degrees(showModeMenu ? 180 : 0))
             }
+            .foregroundStyle(Theme.accentOnGlass)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 
-    /// The dropdown carrot on the right of the pill — a full-height, centered mirror of the
-    /// activity icon on the left. Tapping it opens the map-mode panel.
-    private var dropdownCarret: some View {
-        Button {
-            withAnimation(Theme.spring) { showModeMenu.toggle() }
-        } label: {
-            Image(systemName: "chevron.down.circle.fill")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(Theme.accentOnGlass)
-                .rotationEffect(.degrees(showModeMenu ? 180 : 0))
-                .frame(width: 26)
-                .frame(maxHeight: .infinity)
-                .contentShape(Rectangle())
+    /// The activity-type dropdown — the same glass panel as the view dropdown, listing the activity
+    /// types. Anchored to extend from the type icon on the left.
+    private var typeDropdown: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(activityScopeOptions.enumerated()), id: \.element) { index, scope in
+                if index > 0 { dropdownDivider }
+                modeRow(label: scope == .all ? "All Types" : scope.label,
+                        symbol: scope.icon,
+                        selected: appModel.activityScope == scope) {
+                    applyScope(scope)
+                }
+            }
         }
-        .buttonStyle(.plain)
+        .padding(.vertical, 5)
+        .frame(width: 250)
+        .glassBackground(cornerRadius: 20)
+        .transition(.asymmetric(
+            insertion: .scale(scale: 0.92, anchor: .topLeading).combined(with: .opacity),
+            removal: .scale(scale: 0.96, anchor: .topLeading).combined(with: .opacity)
+        ))
+    }
+
+    /// Applies an activity-type choice from the type dropdown, then closes it.
+    private func applyScope(_ scope: ActivityScope) {
+        withAnimation(Theme.gentle) {
+            appModel.activityScope = scope
+            // Returning to All also drops any lingering Races / PRs / Locations view.
+            if scope == .all {
+                showLocations = false
+                var f = appModel.filter
+                f.mode = .all
+                appModel.setFilter(f)
+            }
+        }
+        withAnimation(Theme.spring) { showTypeMenu = false }
     }
 
     /// The map-mode dropdown panel — a glass sheet the same width as the pill that drops down from
@@ -563,25 +592,6 @@ struct HomeView: View {
             }
         }
         withAnimation(Theme.spring) { showModeMenu = false }
-    }
-
-    private var activityBinding: Binding<ActivityScope> {
-        Binding(
-            get: { appModel.activityScope },
-            set: { newValue in
-                withAnimation(Theme.gentle) {
-                    appModel.activityScope = newValue
-                    // Returning to All Activities also resets the map view back to the unfiltered
-                    // overview — a lingering Races / PRs / Locations mode shouldn't carry over.
-                    if newValue == .all {
-                        showLocations = false
-                        var f = appModel.filter
-                        f.mode = .all
-                        appModel.setFilter(f)
-                    }
-                }
-            }
-        )
     }
 
     /// The scopes offered — hikes/walks appear only when their visibility is on.

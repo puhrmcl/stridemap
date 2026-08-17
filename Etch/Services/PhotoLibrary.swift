@@ -96,6 +96,18 @@ enum PhotoLibrary {
         return result
     }
 
+    /// Of the given asset identifiers, which are screenshots (UI captures) — so a photo wall or
+    /// print can skip them and stay to real photography. One batched metadata fetch.
+    static func screenshotIdentifiers(among identifiers: [String]) -> Set<String> {
+        guard !identifiers.isEmpty else { return [] }
+        let assets = PHAsset.fetchAssets(withLocalIdentifiers: identifiers, options: nil)
+        var out: Set<String> = []
+        assets.enumerateObjects { asset, _, _ in
+            if asset.mediaSubtypes.contains(.photoScreenshot) { out.insert(asset.localIdentifier) }
+        }
+        return out
+    }
+
     /// Matches one run against a pre-sorted asset snapshot via binary search on the time
     /// window, then the same location/time rules as the single-run match.
     static func match(run: Run, in assets: [AssetInfo]) -> [String] {
