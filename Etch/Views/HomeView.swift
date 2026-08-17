@@ -483,7 +483,7 @@ struct HomeView: View {
         VStack(spacing: 0) {
             ForEach(Array(RunFilter.Mode.allCases.enumerated()), id: \.element) { index, mode in
                 if index > 0 { dropdownDivider }
-                modeRow(label: mode.rawValue, symbol: mode.symbol,
+                modeRow(label: modeLabel(mode), symbol: mode.symbol,
                         selected: !showLocations && appModel.filter.mode == mode) {
                     applyMode(.mode(mode))
                 }
@@ -571,16 +571,34 @@ struct HomeView: View {
     }
 
     /// The pill's caption line. A specific map-mode filter (Races, PRs…) or Locations names itself;
-    /// otherwise it reads "All Activity" / "All Runs" / "All Hikes" per the selected activity.
+    /// otherwise it reads "All Activities" / "All Runs" / "All Hikes" per the selected activity.
     private var currentModeLabel: String {
         if showLocations { return "Locations" }
-        if appModel.filter.mode != .all { return appModel.filter.mode.rawValue }
+        return modeLabel(appModel.filter.mode)
+    }
+
+    /// The plural activity noun for the active scope — "Runs", "Hikes", "Activities" — so map-mode
+    /// labels match the selected activity ("Long Hikes", never "Long Runs" under Hikes).
+    private var scopeNounPlural: String {
         switch effectiveScope {
-        case .all:   return "All Activity"
-        case .runs:  return "All Runs"
-        case .hikes: return "All Hikes"
-        case .rides: return "All Rides"
-        case .walks: return "All Walks"
+        case .all:   return "Activities"
+        case .runs:  return "Runs"
+        case .hikes: return "Hikes"
+        case .rides: return "Rides"
+        case .walks: return "Walks"
+        }
+    }
+
+    /// A map-mode's label phrased for the active activity scope, so "runs" never shows under Hikes.
+    /// Recent / PRs / Races / Favorites are activity-neutral and read the same everywhere.
+    private func modeLabel(_ mode: RunFilter.Mode) -> String {
+        switch mode {
+        case .all:       return effectiveScope == .all ? "All Activities" : "All \(scopeNounPlural)"
+        case .recent:    return "Recent"
+        case .long:      return effectiveScope == .all ? "Long Distance" : "Long \(scopeNounPlural)"
+        case .prs:       return "PRs"
+        case .races:     return "Races"
+        case .favorites: return "Favorites"
         }
     }
 
