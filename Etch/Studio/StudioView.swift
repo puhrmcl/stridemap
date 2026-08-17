@@ -317,48 +317,46 @@ struct StudioView: View {
             }
             .buttonStyle(.plain)
 
-            if showCustomize {
-                ScrollView {
-                    VStack(spacing: 12) {
-                    formatControls
-                    fieldControls
-
-                    headlineEditor
-
-                    if layout != .minimal {
-                        statSlotEditor
-                    }
-
-                    optionToggles
-                    }
-                    .padding(.bottom, 6)
-                }
-                .frame(maxHeight: 300)
-                .scrollBounceBehavior(.basedOnSize)
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
-            }
+            customizeSheet
         }
         .padding(.vertical, 18)
         .padding(.horizontal, 24)
         .frame(maxWidth: .infinity)
         .background(.regularMaterial)
-        .onChange(of: includeWeather) { bump() }
-        .onChange(of: routeColor) { bump() }
-        .onChange(of: textColor) { bump() }
-        .onChange(of: groundColor) { bump() }
-        .onChange(of: layout) { bump() }
-        .onChange(of: orientation) { bump() }
-        .onChange(of: dataPlacement) { bump() }
-        .onChange(of: photoLayout) { bump() }
-        .onChange(of: customTitle) { bump() }
-        .onChange(of: customDate) { bump() }
-        .onChange(of: showEditorialPhoto) { bump() }
-        .onChange(of: showMemoryRoute) { bump() }
-        .onChange(of: heroMetric) { bump() }
-        .onChange(of: statSlots) { bump() }
-        .onChange(of: showElevationProfile) { bump() }
-        .onChange(of: galleryShowMapTile) { bump() }
-        .onChange(of: outputSize) { bump() }
+        .onChange(of: renderSignature) { bump() }
+    }
+
+    /// The expandable customize panel, extracted so `controls` stays within the type-checker's
+    /// budget.
+    @ViewBuilder private var customizeSheet: some View {
+        if showCustomize {
+            ScrollView {
+                VStack(spacing: 12) {
+                    formatControls
+                    fieldControls
+                    headlineEditor
+                    if layout != .minimal { statSlotEditor }
+                    optionToggles
+                }
+                .padding(.bottom, 6)
+            }
+            .frame(maxHeight: 300)
+            .scrollBounceBehavior(.basedOnSize)
+            .transition(.opacity.combined(with: .move(edge: .bottom)))
+        }
+    }
+
+    /// One string that changes whenever any render-affecting option changes — a single onChange
+    /// re-renders the preview, replacing a long chain of per-property onChange modifiers (which
+    /// blew the Swift type-checker's budget).
+    private var renderSignature: String {
+        [layout.rawValue, orientation.rawValue, dataPlacement.rawValue, photoLayout.rawValue,
+         outputSize.rawValue, customTitle, customDate,
+         "\(showEditorialPhoto)", "\(showMemoryRoute)", "\(showElevationProfile)",
+         "\(galleryShowMapTile)", "\(includeWeather)",
+         heroMetric.rawValue, statSlots.map(\.rawValue).joined(separator: ","),
+         String(describing: routeColor), String(describing: textColor), String(describing: groundColor)
+        ].joined(separator: "|")
     }
 
     private func textFieldRow(_ title: String, text: Binding<String>, placeholder: String) -> some View {
