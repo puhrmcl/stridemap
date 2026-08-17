@@ -84,10 +84,15 @@ struct AddHistoryView: View {
         }
     }
 
-    /// GPX/TCX are XML under the hood; include their extension-derived types plus `.xml` so
-    /// the picker surfaces them even though iOS declares no system UTI for either.
+    /// GPX/TCX are XML under the hood; mint their extension types *conforming to* XML (and FIT to
+    /// raw data) so the picker surfaces them even though iOS declares no system UTI. Plain
+    /// `UTType(filenameExtension:)` returns nil for these, which greyed .tcx files out of the picker.
     private static let allowedTypes: [UTType] = {
-        var types: [UTType] = ["gpx", "tcx", "fit"].compactMap { UTType(filenameExtension: $0) }
+        var types = [
+            UTType(filenameExtension: "gpx", conformingTo: .xml),
+            UTType(filenameExtension: "tcx", conformingTo: .xml),
+            UTType(filenameExtension: "fit", conformingTo: .data)
+        ].compactMap { $0 }
         types.append(.xml)
         types.append(.zip)
         return types

@@ -38,8 +38,15 @@ struct StudioHomeView: View {
     @State private var importError: String?
 
     /// Single-run file types the Studio importer accepts (GPX / TCX / FIT, plus generic XML).
+    /// iOS declares no system UTI for these extensions, so we mint types *conforming to* XML (GPX/
+    /// TCX are XML) or raw data (FIT). Without `conformingTo:` the plain `UTType(filenameExtension:)`
+    /// returns nil and the picker greys the files out — the reason .tcx couldn't be selected.
     private static let importTypes: [UTType] = {
-        var types = ["gpx", "tcx", "fit"].compactMap { UTType(filenameExtension: $0) }
+        var types = [
+            UTType(filenameExtension: "gpx", conformingTo: .xml),
+            UTType(filenameExtension: "tcx", conformingTo: .xml),
+            UTType(filenameExtension: "fit", conformingTo: .data)
+        ].compactMap { $0 }
         types.append(.xml)
         return types
     }()
