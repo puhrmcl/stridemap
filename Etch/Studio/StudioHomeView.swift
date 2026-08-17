@@ -121,11 +121,7 @@ struct StudioHomeView: View {
                     }
                     ToolbarItem(placement: .topBarTrailing) { mapThumbnailButton }
                 } else {
-                    // Sheet mode: the wordmark leads at the very top of the page, Done on the right.
-                    ToolbarItem(placement: .topBarLeading) {
-                        Image("StudioLogo").resizable().scaledToFit().frame(height: 26)
-                            .accessibilityLabel("Etch Studio")
-                    }
+                    // Sheet mode: the wordmark leads the content (below), so the bar is just Done.
                     ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
                 }
             }
@@ -237,6 +233,13 @@ struct StudioHomeView: View {
 
     private var intro: some View {
         VStack(alignment: .leading, spacing: 16) {
+            // Sheet mode: the wordmark leads the page, large enough to read and free of any button
+            // chrome (a toolbar item would wrap it in a glass circle).
+            if !isHome {
+                Image("StudioLogo")
+                    .resizable().scaledToFit().frame(height: 44)
+                    .accessibilityLabel("Etch Studio")
+            }
             VStack(alignment: .leading, spacing: 6) {
                 Text("Leave your mark.")
                     .font(.system(.title, design: .rounded).weight(.bold))
