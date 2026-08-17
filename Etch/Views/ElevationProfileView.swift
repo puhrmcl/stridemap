@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// A filled elevation-over-distance chart for a route, drawn from terrain data sampled along the
-/// path (Open-Meteo, cached). Elevation is the story of a hike, so hike/ride detail leads with it —
-/// the climb, and the low and high points, the way AllTrails does. Fails quietly to a short note
-/// when offline (the profile needs one network fetch, then it's cached forever).
+/// A filled elevation-over-distance chart for a route. Prefers the source's recorded altitude
+/// stream (exact and instant); falls back to terrain sampled along the path (Open-Meteo, cached)
+/// only when the run carries none. Elevation is the story of a hike, so hike/ride detail leads with
+/// it — the climb, and the low and high points, the way AllTrails does. The terrain fallback needs
+/// one network fetch (then cached), so it fails quietly to a short note when offline.
 struct ElevationProfileView: View {
     let run: Run
 
@@ -43,36 +44,46 @@ struct ElevationProfileView: View {
 
     private var chart: some View {
         GeometryReader { geo in
-            let w = geo.size.width, h = geo.size.height
-            let lo = samples.min() ?? 0
-            let hi = samples.max() ?? 1
-            let range = max(hi - lo, 1)
-            func point(_ i: Int) -> CGPoint {
-                let x = samples.count > 1 ? CGFloat(i) / CGFloat(samples.count - 1) * w : 0
-                let y = h - CGFloat((samples[i] - lo) / range) * h
-                return CGPoint(x: x, y: max(1, min(h - 1, y)))
-            }
-            ZStack {
-                // Filled area under the trace.
-                Path { p in
-                    p.move(to: CGPoint(x: 0, y: h))
-                    for i in samples.indices { p.addLine(to: point(i)) }
-                    p.addLine(to: CGPoint(x: w, y: h))
-                    p.closeSubpath()
-                }
-                .fill(LinearGradient(colors: [Theme.accent.opacity(0.35), Theme.accent.opacity(0.04)],
-                                     startPoint: .top, endPoint: .bottom))
-                // The elevation line itself.
-                Path { p in
-                    for (n, i) in samples.indices.enumerated() {
-                        let pt = point(i)
-                        if n == 0 { p.move(to: pt) } else { p.addLine(to: pt) }
-                    }
-                }
-                .stroke(Theme.accent, style: StrokeStyle(lineWidth: 2, lineJoin: .round, lineCap: .round))
-            }
+            chartBody(in: geo.size)
         }
         .frame(height: 130)
+    }
+
+    private func chartBody(in size: CGSize) -> some View {
+        let pts = points(in: size)
+        return ZStack {
+            // Filled area under the trace.
+            Path { p in
+                guard let first = pts.first, let last = pts.last else { return }
+                p.move(to: CGPoint(x: first.x, y: size.height))
+                p.addLine(to: first)
+                for pt in pts.dropFirst() { p.addLine(to: pt) }
+                p.addLine(to: CGPoint(x: last.x, y: size.height))
+                p.closeSubpath()
+            }
+            .fill(LinearGradient(colors: [Theme.accent.opacity(0.35), Theme.accent.opacity(0.04)],
+                                 startPoint: .top, endPoint: .bottom))
+            // The elevation line itself.
+            Path { p in
+                guard let first = pts.first else { return }
+                p.move(to: first)
+                for pt in pts.dropFirst() { p.addLine(to: pt) }
+            }
+            .stroke(Theme.accent, style: StrokeStyle(lineWidth: 2, lineJoin: .round, lineCap: .round))
+        }
+    }
+
+    /// Maps the elevation samples to points inside `size` — x by index, y by the min–max range.
+    private func points(in size: CGSize) -> [CGPoint] {
+        guard samples.count > 1 else { return [] }
+        let lo = samples.min() ?? 0
+        let hi = samples.max() ?? 1
+        let range = max(hi - lo, 1)
+        return samples.indices.map { i in
+            let x = CGFloat(i) / CGFloat(samples.count - 1) * size.width
+            let y = size.height - CGFloat((samples[i] - lo) / range) * size.height
+            return CGPoint(x: x, y: max(1, min(size.height - 1, y)))
+        }
     }
 
     private var stats: some View {
