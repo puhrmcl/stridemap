@@ -103,6 +103,15 @@ struct ImportPreviewView: View {
                 }
                 .background(.regularMaterial, in: .rect(cornerRadius: 16))
 
+                if !outcome.failedFiles.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(outcome.failedFiles, id: \.self) { name in
+                            Text(name).font(.caption).foregroundStyle(.tertiary).lineLimit(3)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
                 if summary.newRuns > 0 { typeEditor }
 
                 importButton(summary)
@@ -263,9 +272,9 @@ struct ImportPreviewView: View {
                 .background(.regularMaterial, in: .rect(cornerRadius: 16))
 
                 if !summary.failedFiles.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 6) {
                         ForEach(summary.failedFiles, id: \.self) { name in
-                            Text(name).font(.caption).foregroundStyle(.tertiary).lineLimit(1)
+                            Text(name).font(.caption).foregroundStyle(.tertiary).lineLimit(3)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)

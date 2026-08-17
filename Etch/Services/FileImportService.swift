@@ -66,7 +66,7 @@ final class FileImportService {
                 let data = try Data(contentsOf: url)
                 if ext == "zip" {
                     guard data.count <= maxArchiveBytes else {
-                        outcome.failedFiles.append(url.lastPathComponent)
+                        outcome.failedFiles.append("\(url.lastPathComponent) — file too large")
                         continue
                     }
                     let (activities, failed) = await parseArchive(data, archiveName: url.lastPathComponent)
@@ -77,7 +77,10 @@ final class FileImportService {
                     outcome.activities.append(contentsOf: parsed)
                 }
             } catch {
-                outcome.failedFiles.append(url.lastPathComponent)
+                // Keep the reason so the results screen can say *why* a file failed, not just that
+                // it did — the difference between "unsupported type" and "corrupt XML at line N".
+                let reason = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                outcome.failedFiles.append("\(url.lastPathComponent) — \(reason)")
             }
             await Task.yield()
         }

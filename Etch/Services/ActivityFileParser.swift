@@ -46,10 +46,28 @@ enum ActivityFileParsing {
 
     static func parse(data: Data, fileName: String) throws -> [ImportedActivity] {
         let ext = (fileName as NSString).pathExtension.lowercased()
-        guard let parser = parser(forExtension: ext) else {
+        // Detect the real format from the file's contents first — the extension can be missing or
+        // wrong. This matters since the picker accepts generic `.data` (so unknown-UTI files like
+        // .tcx come through), and some exporters/share sheets deliver a file whose name no longer
+        // carries its true extension, or a GPX saved with a .tcx name. Fall back to the extension
+        // only when the bytes are inconclusive.
+        guard let parser = sniff(data) ?? parser(forExtension: ext) else {
             throw ActivityFileError.unsupportedFormat(ext.isEmpty ? "unknown" : ext)
         }
         return try parser.parse(data: data, fileName: fileName)
+    }
+
+    /// Best-effort format detection from a file's leading bytes, independent of its name.
+    static func sniff(_ data: Data) -> ActivityFileParser? {
+        // FIT is binary with a ".FIT" signature at bytes 8...11 of the header.
+        let head = Array(data.prefix(12))
+        if head.count >= 12, Array(head[8...11]) == Array(".FIT".utf8) { return FITParser() }
+        // XML formats: scan a decoded prefix for the root element. Skip a UTF-8 BOM / leading
+        // whitespace so a stray byte before `<?xml` doesn't hide the marker.
+        let text = String(decoding: data.prefix(4096), as: UTF8.self)
+        if text.contains("<TrainingCenterDatabase") { return TCXParser() }
+        if text.contains("<gpx") { return GPXParser() }
+        return nil
     }
 }
 
