@@ -149,6 +149,18 @@ struct SettingsView: View {
                     }
                 }
             }
+            NavigationLink {
+                UnmappedRunsView()
+            } label: {
+                HStack {
+                    Label("Unmapped Runs", systemImage: "mappin.slash")
+                    Spacer()
+                    let count = runs.filter { $0.needsLocation && !$0.isHidden }.count
+                    if count > 0 {
+                        Text(count.formatted()).foregroundStyle(.secondary).font(.caption)
+                    }
+                }
+            }
         } header: {
             Text("Activities")
         } footer: {

@@ -131,6 +131,11 @@ final class Run {
     /// Defaulted false so existing runs migrate cleanly.
     var isHidden: Bool = false
 
+    /// True when the user hand-placed this run's location on the map — an indoor/treadmill run (or
+    /// a GPS-less import) that no source gave coordinates for. Defaulted so existing runs migrate
+    /// cleanly. Drives the treadmill map pin and lets the run count toward geographic reach.
+    var locationIsManual: Bool = false
+
     // MARK: User & future-proofing
 
     var gear: String?
@@ -344,6 +349,27 @@ extension Run {
     }
 
     var hasRoute: Bool { !summaryPolyline.isEmpty }
+
+    /// A route-less run with no location at all — an indoor/treadmill run, or an import without
+    /// GPS — that the user could place on the map by hand.
+    var needsLocation: Bool { !hasRoute && startCoordinate == nil }
+
+    /// Hand-place this run at a coordinate: set the start point and a tiny bounding box so the map
+    /// and offline place-name backfill treat it like any located run, and clear stale place names
+    /// so they re-derive from the new spot.
+    func setManualLocation(_ coordinate: CLLocationCoordinate2D) {
+        startLatitude = coordinate.latitude
+        startLongitude = coordinate.longitude
+        let d = 0.0009   // ~100 m box
+        minLatitude = coordinate.latitude - d
+        maxLatitude = coordinate.latitude + d
+        minLongitude = coordinate.longitude - d
+        maxLongitude = coordinate.longitude + d
+        locationIsManual = true
+        city = nil; state = nil; country = nil
+        landmarkChecked = false
+        updatedAt = Date()
+    }
 
     var placeLabel: String {
         [city, state].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")

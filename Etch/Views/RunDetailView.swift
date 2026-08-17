@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 import UniformTypeIdentifiers
+import MapKit
 
 /// Details for a single run, shown as a sheet when a route is tapped.
 struct RunDetailView: View {
@@ -37,6 +38,7 @@ struct RunDetailView: View {
     @State private var showStudio = false
     @State private var showEdit = false
     @State private var showDeleteConfirm = false
+    @State private var showLocationPicker = false
 
     private struct PhotoSelection: Identifiable { let id: String }
 
@@ -46,12 +48,14 @@ struct RunDetailView: View {
                 VStack(spacing: 20) {
                     header
 
-                    if run.isIndoor {
-                        indoorPreview
-                    } else {
+                    if run.hasRoute {
                         RunPreviewMap(run: run, interactive: true)
                             .frame(height: 240)
                             .clipShape(.rect(cornerRadius: Theme.cardRadius))
+                    } else if run.startCoordinate != nil {
+                        placedLocationMap
+                    } else {
+                        unmappedCard
                     }
 
                     if showsElevationProfile {
@@ -94,6 +98,12 @@ struct RunDetailView: View {
             .sheet(isPresented: $showEdit) {
                 EditRunSheet(run: run)
             }
+            .sheet(isPresented: $showLocationPicker) {
+                LocationPickerView(title: run.name, start: run.startCoordinate ?? suggestedLocation) { coordinate in
+                    run.setManualLocation(coordinate)
+                    try? context.save()
+                }
+            }
             .task { await autoMatchPhotosIfNeeded() }
             .onChange(of: pickerItems) { _, items in addPicked(items) }
             .fullScreenCover(item: $photoSelection) { selection in
@@ -126,27 +136,79 @@ struct RunDetailView: View {
         }
     }
 
-    /// Stands in for the map on treadmill / indoor runs, which have no route to show — a clean
-    /// indoor card instead of a blank ocean map.
-    private var indoorPreview: some View {
-        ZStack {
-            LinearGradient(colors: [Theme.Palette.stone, Theme.Palette.mist],
-                           startPoint: .top, endPoint: .bottom)
-            VStack(spacing: 10) {
-                Image(systemName: IndoorGlyph.symbol)
-                    .font(.system(size: 52, weight: .semibold))
-                    .foregroundStyle(Theme.Palette.ink.opacity(0.55))
-                Text("Indoor Run")
-                    .font(.system(.headline, design: .rounded))
-                    .foregroundStyle(Theme.Palette.ink.opacity(0.7))
-                Text("No route recorded")
-                    .font(.system(.caption, design: .rounded))
-                    .foregroundStyle(Theme.Palette.ink.opacity(0.45))
+    /// Stands in for the map on a route-less run (indoor/treadmill, or a GPS-less import) that
+    /// hasn't been placed yet — a clean card the user can tap to drop it onto the map by hand.
+    private var unmappedCard: some View {
+        Button { showLocationPicker = true } label: {
+            ZStack {
+                LinearGradient(colors: [Theme.Palette.stone, Theme.Palette.mist],
+                               startPoint: .top, endPoint: .bottom)
+                VStack(spacing: 10) {
+                    Image(systemName: run.isIndoor ? IndoorGlyph.symbol : "mappin.slash")
+                        .font(.system(size: 46, weight: .semibold))
+                        .foregroundStyle(Theme.Palette.ink.opacity(0.55))
+                    Text(run.isIndoor ? "Indoor Run" : "No map data")
+                        .font(.system(.headline, design: .rounded))
+                        .foregroundStyle(Theme.Palette.ink.opacity(0.7))
+                    Label("Add location on map", systemImage: "mappin.and.ellipse")
+                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(.regularMaterial, in: .capsule)
+                        .padding(.top, 4)
+                }
             }
+            .frame(height: 240)
+            .frame(maxWidth: .infinity)
+            .clipShape(.rect(cornerRadius: Theme.cardRadius))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// A hand-placed run's location: a small map with a treadmill pin, tappable to move it.
+    private var placedLocationMap: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Map(initialPosition: .region(MKCoordinateRegion(
+                center: run.startCoordinate ?? .init(),
+                span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+            )), interactionModes: []) {
+                if let coordinate = run.startCoordinate {
+                    Annotation("", coordinate: coordinate) {
+                        Image(systemName: run.isIndoor ? IndoorGlyph.symbol : "mappin")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 30, height: 30)
+                            .background(Theme.accent, in: .circle)
+                            .overlay(Circle().stroke(.white, lineWidth: 2))
+                            .shadow(radius: 3, y: 1)
+                    }
+                }
+            }
+            .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
+            .allowsHitTesting(false)
+
+            Label("Move", systemImage: "mappin.and.ellipse")
+                .font(.system(.caption, design: .rounded).weight(.semibold))
+                .foregroundStyle(Theme.accent)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.regularMaterial, in: .capsule)
+                .padding(10)
         }
         .frame(height: 240)
         .frame(maxWidth: .infinity)
         .clipShape(.rect(cornerRadius: Theme.cardRadius))
+        .contentShape(.rect)
+        .onTapGesture { showLocationPicker = true }
+    }
+
+    /// The most recent located run to seed the pin near — the user's likely gym/home.
+    private var suggestedLocation: CLLocationCoordinate2D? {
+        allRuns
+            .filter { $0.id != run.id && $0.startCoordinate != nil }
+            .min { abs($0.startDate.timeIntervalSince(run.startDate)) < abs($1.startDate.timeIntervalSince(run.startDate)) }?
+            .startCoordinate
     }
 
     /// Full-width title block at the top of the sheet. Lives in the scroll content (not the

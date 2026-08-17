@@ -182,8 +182,10 @@ struct RunMapView: UIViewRepresentable {
 
             // Snapshot start points for the tappable pins (only mapped runs get one), each with its
             // pin kind — milestone (a record/superlative) wins over race, then plain.
-            runPoints = routed.compactMap { run -> (id: UUID, coordinate: CLLocationCoordinate2D, kind: RunPinKind)? in
+            runPoints = runs.compactMap { run -> (id: UUID, coordinate: CLLocationCoordinate2D, kind: RunPinKind)? in
                 guard let coordinate = run.startCoordinate else { return nil }
+                // A route-less run the user hand-placed (indoor/treadmill) reads as a treadmill pin.
+                guard run.hasRoute else { return (run.id, coordinate, .indoor) }
                 let isMilestone = parent.milestoneRunIDs.contains(run.id)
                 let kind: RunPinKind = run.isRace && isMilestone ? .raceMilestone
                     : isMilestone ? .milestone
@@ -587,7 +589,7 @@ final class RunStartAnnotation: NSObject, MKAnnotation {
 /// for a milestone (a record / superlative), or — when a run is both — a gold checkered flag that
 /// keeps the race identity while marking it a record.
 enum RunPinKind {
-    case normal, race, milestone, raceMilestone
+    case normal, race, milestone, raceMilestone, indoor
 }
 
 /// A home-map cluster: the runs grouped into one screen-grid cell. Carries the member run ids so
@@ -650,16 +652,19 @@ final class RunPinView: MKAnnotationView {
         case .raceMilestone:
             symbol = "flag.checkered"                   // still a race…
             background = UIColor(Theme.Palette.brass)   // …but gold, because it's also a record
+        case .indoor:
+            symbol = IndoorGlyph.symbol                 // treadmill — a hand-placed route-less run
+            background = UIColor(Theme.Palette.ink).withAlphaComponent(0.9)
         case .normal:
             symbol = "figure.run"
             background = UIColor(Theme.Palette.ink).withAlphaComponent(0.95)
         }
-        let isFlag = kind == .race || kind == .raceMilestone
+        let compact = kind == .race || kind == .raceMilestone || kind == .indoor
         backgroundColor = background
         glyph.tintColor = .white
         glyph.image = UIImage(
             systemName: symbol,
-            withConfiguration: UIImage.SymbolConfiguration(pointSize: isFlag ? 13 : 15, weight: .bold)
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: compact ? 13 : 15, weight: .bold)
         )
     }
 
