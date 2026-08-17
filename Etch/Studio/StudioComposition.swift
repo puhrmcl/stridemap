@@ -16,6 +16,29 @@ enum StudioLayout: String, CaseIterable, Identifiable {
     }
 }
 
+/// What a single Gallery tile shows. "photo" tiles draw the run's photos in order; the others draw
+/// the route as a map, the bare route line, or the elevation profile.
+enum GalleryTileKind: String, CaseIterable, Identifiable {
+    case photo, map, route, elevation
+    var id: String { rawValue }
+    var name: String {
+        switch self {
+        case .photo: return "Photo"
+        case .map: return "Map"
+        case .route: return "Route"
+        case .elevation: return "Elevation"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .photo: return "photo"
+        case .map: return "map"
+        case .route: return "point.topleft.down.to.point.bottomright.curvepath"
+        case .elevation: return "mountain.2"
+        }
+    }
+}
+
 /// Poster orientation. Portrait stacks the art over the footer; landscape can set the art beside
 /// the data (side) or above it (bottom), per `StudioDataPlacement`.
 enum StudioOrientation: String, CaseIterable, Identifiable {
@@ -119,6 +142,9 @@ struct StudioComposition: View {
     /// Gallery layout only: use the route map as one of the tiles (with map background on a map
     /// edition, or the bare route line on a paper edition).
     var galleryShowMapTile: Bool = false
+    /// Gallery layout only: the tile plan, in order. Empty falls back to the map-toggle default.
+    /// Each raw value is a `GalleryTileKind`; "photo" tiles draw the run's photos in order.
+    var galleryCellsRaw: [String] = []
     /// User overrides; nil falls back to the edition's palette.
     var routeOverride: Color? = nil
     var textOverride: Color? = nil
@@ -197,15 +223,30 @@ struct StudioComposition: View {
 
     // MARK: Gallery layout — a curated row of photo / map tiles under a serif masthead.
 
-    private enum GalleryTile { case photo(Int), map }
+    private enum GalleryTile { case photo(Int), map, route, elevation }
 
-    /// The tiles shown: an optional map tile, then the run's photos, capped so each stays large.
+    /// The tiles shown. A user-set cell plan (`galleryCellsRaw`) wins — photo tiles draw the run's
+    /// photos in order. With no plan, fall back to the old default: an optional map tile then photos.
     private var galleryTiles: [GalleryTile] {
+        if !galleryCellsRaw.isEmpty {
+            var photoIndex = 0
+            var tiles: [GalleryTile] = []
+            for raw in galleryCellsRaw {
+                switch GalleryTileKind(rawValue: raw) {
+                case .photo: tiles.append(.photo(photoIndex)); photoIndex += 1
+                case .map: tiles.append(.map)
+                case .route: tiles.append(.route)
+                case .elevation: tiles.append(.elevation)
+                case .none: break
+                }
+            }
+            return tiles.isEmpty ? [.map] : tiles
+        }
         var tiles: [GalleryTile] = []
         if galleryShowMapTile { tiles.append(.map) }
         let maxPhotos = galleryShowMapTile ? 2 : 3
         for i in 0..<min(photoImages.count, maxPhotos) { tiles.append(.photo(i)) }
-        if tiles.isEmpty { tiles = [.map] }   // no photos and no map toggle → show the route tile
+        if tiles.isEmpty { tiles = [.map] }
         return tiles
     }
 
@@ -260,6 +301,21 @@ struct StudioComposition: View {
                     ZStack {
                         groundColor
                         if run.coordinates.count > 1 { routeArt.padding(24) }
+                    }
+                }
+            case .route:
+                ZStack {
+                    groundColor
+                    if run.coordinates.count > 1 { routeArt.padding(24) }
+                }
+            case .elevation:
+                ZStack {
+                    groundColor
+                    if elevationSamples.count > 1 {
+                        ElevationLineShape(samples: elevationSamples)
+                            .stroke(subtleColor,
+                                    style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                            .padding(24)
                     }
                 }
             }

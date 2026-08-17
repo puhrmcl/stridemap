@@ -27,6 +27,7 @@ enum StudioRenderer {
         var statSlots: [StatMetric] = [.time, .pace, .elevationGain]
         var showElevationProfile: Bool = false
         var galleryShowMapTile: Bool = false
+        var galleryCellsRaw: [String] = []
         var includeWeather: Bool = false
         var routeColor: Color? = nil
         var textColor: Color? = nil
@@ -63,7 +64,7 @@ enum StudioRenderer {
         if request.edition.isPhoto {
             ids = Array(request.run.photoReferences.prefix(request.photoLayout.maxPhotos))
         } else if request.layout == .gallery {
-            ids = Array(request.run.photoReferences.prefix(3))
+            ids = Array(request.run.photoReferences.prefix(4))
         } else if request.layout == .keepsake {
             ids = Array(request.run.photoReferences.prefix(1))
         } else if request.showEditorialPhoto {
@@ -107,6 +108,7 @@ enum StudioRenderer {
             elevationSamples: profile,
             showElevationProfile: request.showElevationProfile,
             galleryShowMapTile: request.galleryShowMapTile,
+            galleryCellsRaw: request.galleryCellsRaw,
             routeOverride: request.routeColor, textOverride: request.textColor,
             groundOverride: request.groundColor
         )

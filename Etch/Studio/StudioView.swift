@@ -32,6 +32,7 @@ struct StudioView: View {
     @State private var statSlots: [StatMetric] = [.time, .pace, .elevationGain]
     @State private var showElevationProfile = false
     @State private var galleryShowMapTile = false
+    @State private var galleryCellsRaw: [String] = ["photo", "photo", "photo"]
     @State private var showPrints = false
     @State private var showCustomize = false
     @State private var showExport = false
@@ -237,6 +238,62 @@ struct StudioView: View {
         colorRow("Panel", selection: $groundColor, swatches: groundSwatches, fallback: current.ground)
     }
 
+    /// Per-tile editor for the Gallery layout — set each tile to a Photo, the Map, the Route line,
+    /// or the Elevation profile, and choose how many tiles (2–4).
+    @ViewBuilder private var galleryCellEditor: some View {
+        if layout == .gallery {
+            VStack(spacing: 8) {
+                Stepper("Tiles: \(galleryCellsRaw.count)", value: galleryCellCount, in: 2...4)
+                    .font(.system(.subheadline, design: .rounded))
+                    .frame(maxWidth: 280)
+                HStack(spacing: 8) {
+                    ForEach(galleryCellsRaw.indices, id: \.self) { i in
+                        Menu {
+                            Picker("Tile", selection: galleryCellBinding(i)) {
+                                ForEach(GalleryTileKind.allCases) { kind in
+                                    Label(kind.name, systemImage: kind.icon).tag(kind.rawValue)
+                                }
+                            }
+                        } label: {
+                            let kind = GalleryTileKind(rawValue: galleryCellsRaw[i]) ?? .photo
+                            VStack(spacing: 3) {
+                                Image(systemName: kind.icon).font(.system(size: 15, weight: .semibold))
+                                Text(kind.name).font(.system(size: 10, weight: .semibold))
+                            }
+                            .foregroundStyle(Theme.accent)
+                            .frame(width: 60, height: 46)
+                            .background(Theme.accent.opacity(0.1), in: .rect(cornerRadius: 8))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .frame(maxWidth: 320)
+        }
+    }
+
+    private var galleryCellCount: Binding<Int> {
+        Binding(
+            get: { galleryCellsRaw.count },
+            set: { newCount in
+                var cells = galleryCellsRaw
+                while cells.count < newCount { cells.append("photo") }
+                while cells.count > newCount { cells.removeLast() }
+                galleryCellsRaw = cells
+            }
+        )
+    }
+
+    private func galleryCellBinding(_ i: Int) -> Binding<String> {
+        Binding(
+            get: { galleryCellsRaw.indices.contains(i) ? galleryCellsRaw[i] : "photo" },
+            set: { newValue in
+                guard galleryCellsRaw.indices.contains(i) else { return }
+                galleryCellsRaw[i] = newValue
+            }
+        )
+    }
+
     /// The option toggles for the customize sheet — extracted so the customize VStack stays within
     /// the Swift type-checker's budget.
     @ViewBuilder private var optionToggles: some View {
@@ -265,14 +322,7 @@ struct StudioView: View {
         .tint(Theme.accent)
         .frame(maxWidth: 280)
 
-        if layout == .gallery && run.hasRoute {
-            Toggle(isOn: $galleryShowMapTile) {
-                Label("Map as a tile", systemImage: "map")
-                    .font(.system(.subheadline, design: .rounded))
-            }
-            .tint(Theme.accent)
-            .frame(maxWidth: 280)
-        }
+        galleryCellEditor
 
         if run.hasWeather {
             Toggle(isOn: $includeWeather) {
@@ -353,7 +403,7 @@ struct StudioView: View {
         [layout.rawValue, orientation.rawValue, dataPlacement.rawValue, photoLayout.rawValue,
          outputSize.rawValue, customTitle, customDate,
          "\(showEditorialPhoto)", "\(showMemoryRoute)", "\(showElevationProfile)",
-         "\(galleryShowMapTile)", "\(includeWeather)",
+         "\(galleryShowMapTile)", galleryCellsRaw.joined(separator: ","), "\(includeWeather)",
          heroMetric.rawValue, statSlots.map(\.rawValue).joined(separator: ","),
          String(describing: routeColor), String(describing: textColor), String(describing: groundColor)
         ].joined(separator: "|")
@@ -617,7 +667,7 @@ struct StudioView: View {
             showEditorialPhoto: showEditorialPhoto,
             showMemoryRoute: showMemoryRoute,
             heroMetric: heroMetric, statSlots: statSlots, showElevationProfile: showElevationProfile,
-            galleryShowMapTile: galleryShowMapTile,
+            galleryShowMapTile: galleryShowMapTile, galleryCellsRaw: galleryCellsRaw,
             includeWeather: includeWeather, routeColor: routeColor, textColor: textColor,
             groundColor: groundColor, outputSize: outputSize
         )
