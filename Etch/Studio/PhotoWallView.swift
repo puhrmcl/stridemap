@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// A gallery poster of every run's cover photo — a contact-sheet "photo wall" of your history,
-/// for the runs that have a picture. Filterable by year, state, or location and sortable, then
-/// rendered to a shareable poster image. Only runs with at least one photo take part.
+/// A gallery poster of your run cover photos — a contact-sheet "photo wall" for the runs that have
+/// a picture. Filter by year/state/location, sort or shuffle, tap a photo to swap it out, dial the
+/// count up or down, and share the text-free grid as an image.
 struct PhotoWallView: View {
     /// The activity-scoped runs to draw from (Studio passes its current scope).
     let runs: [Run]
@@ -10,11 +10,16 @@ struct PhotoWallView: View {
 
     @State private var filter: Filter = .all
     @State private var sort: SortOrder = .newest
+    @State private var count = 24
+    /// Photos the user tapped away — the next unused photo fills their slot.
+    @State private var excludedIDs: Set<UUID> = []
+    /// A shuffled ordering of run ids, regenerated each time Shuffle is tapped.
+    @State private var randomOrder: [UUID] = []
     @State private var images: [UUID: UIImage] = [:]
     @State private var posterImage: UIImage?
 
-    /// At most this many photos on one wall — a full-bleed poster, newest kept when there are more.
-    private let maxPhotos = 48
+    /// Hard ceiling on one wall, so the grid stays legible and the render stays light.
+    private let maxPhotos = 60
 
     enum Filter: Hashable {
         case all
@@ -27,6 +32,7 @@ struct PhotoWallView: View {
         case newest = "Newest"
         case oldest = "Oldest"
         case location = "By Location"
+        case random = "Shuffled"
         var id: String { rawValue }
     }
 
@@ -53,21 +59,31 @@ struct PhotoWallView: View {
         }
     }
 
-    /// The runs shown, sorted then capped to the wall size.
-    private var displayRuns: [Run] {
-        let sorted: [Run]
+    /// Filtered runs in the chosen order (or the current shuffle).
+    private var ordered: [Run] {
         switch sort {
-        case .newest: sorted = filtered.sorted { $0.startDate > $1.startDate }
-        case .oldest: sorted = filtered.sorted { $0.startDate < $1.startDate }
+        case .newest: return filtered.sorted { $0.startDate > $1.startDate }
+        case .oldest: return filtered.sorted { $0.startDate < $1.startDate }
         case .location:
-            sorted = filtered.sorted {
+            return filtered.sorted {
                 let a = $0.placeLabel.isEmpty ? "~" : $0.placeLabel
                 let b = $1.placeLabel.isEmpty ? "~" : $1.placeLabel
                 return a == b ? $0.startDate > $1.startDate : a < b
             }
+        case .random:
+            let rank = Dictionary(uniqueKeysWithValues: randomOrder.enumerated().map { ($1, $0) })
+            return filtered.sorted { (rank[$0.id] ?? .max) < (rank[$1.id] ?? .max) }
         }
-        return Array(sorted.prefix(maxPhotos))
     }
+
+    /// The pool available to show — ordered, minus the ones tapped away.
+    private var pool: [Run] { ordered.filter { !excludedIDs.contains($0.id) } }
+
+    /// The runs actually on the wall.
+    private var shown: [Run] { Array(pool.prefix(count)) }
+
+    /// Upper bound for the count stepper.
+    private var maxCount: Int { max(1, min(pool.count, maxPhotos)) }
 
     private func cityLabel(_ place: RunStatistics.TravelPlace) -> String {
         let parts = place.label.components(separatedBy: ", ")
@@ -76,16 +92,22 @@ struct PhotoWallView: View {
 
     private var filterLabel: String {
         switch filter {
-        case .all:            return "All Photos"
-        case .year(let y):    return String(y)
-        case .state(let s):   return s
+        case .all:             return "All Photos"
+        case .year(let y):     return String(y)
+        case .state(let s):    return s
         case .place(let name): return name
         }
     }
 
-    /// Cache key so images/poster re-render when the shown set or order changes.
+    /// Near-square column count for the current wall size, capped so cells never get too small.
+    private var columnCount: Int {
+        let n = max(shown.count, 1)
+        return min(6, max(1, Int(ceil(Double(n).squareRoot()))))
+    }
+
+    /// Signature that changes whenever the shown set changes — drives image loading + re-render.
     private var renderKey: String {
-        "\(filterLabel)-\(sort.rawValue)-\(displayRuns.map { $0.id.uuidString }.joined())"
+        "\(shown.map { $0.id.uuidString }.joined())-\(columnCount)"
     }
 
     // MARK: Body
@@ -120,38 +142,41 @@ struct PhotoWallView: View {
                     }
                 }
             }
+            .onChange(of: filter) { excludedIDs = []; clampCount() }
+            .onAppear { clampCount() }
             .task(id: renderKey) { await loadAndRender() }
         }
     }
 
-    // MARK: Preview
+    // MARK: Preview (interactive — tap a photo to swap it out)
 
     private var preview: some View {
         ScrollView {
-            Group {
-                if let posterImage {
-                    Image(uiImage: posterImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .clipShape(.rect(cornerRadius: 10))
-                        .shadow(color: .black.opacity(0.22), radius: 20, y: 10)
-                } else {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Theme.Palette.bone)
-                        .aspectRatio(posterAspect, contentMode: .fit)
-                        .overlay {
-                            VStack(spacing: 10) {
-                                ProgressView().tint(Theme.accent)
-                                Text("Composing your wall…")
-                                    .font(.system(.footnote, design: .rounded))
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: columnCount),
+                spacing: 6
+            ) {
+                ForEach(shown, id: \.id) { run in
+                    cell(run)
+                        .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { remove(run) } }
                 }
             }
-            .padding(.horizontal, 28)
-            .padding(.vertical, 20)
+            .padding(20)
         }
+    }
+
+    private func cell(_ run: Run) -> some View {
+        Group {
+            if let image = images[run.id] {
+                Image(uiImage: image).resizable().scaledToFill()
+            } else {
+                Rectangle().fill(Theme.Palette.stone)
+                    .overlay { ProgressView().controlSize(.small) }
+            }
+        }
+        .aspectRatio(1, contentMode: .fill)
+        .clipped()
+        .clipShape(.rect(cornerRadius: 6))
     }
 
     // MARK: Controls
@@ -161,10 +186,25 @@ struct PhotoWallView: View {
             HStack(spacing: 10) {
                 filterMenu
                 sortMenu
+                shuffleButton
             }
-            Text("\(displayRuns.count) \(displayRuns.count == 1 ? "photo" : "photos")"
-                 + (filtered.count > maxPhotos ? " · newest \(maxPhotos) of \(filtered.count)" : ""))
-                .font(.subheadline)
+            HStack(spacing: 16) {
+                Stepper("Photos: \(shown.count)", value: $count, in: 1...maxCount)
+                    .font(.system(.subheadline, design: .rounded).weight(.medium))
+            }
+            .frame(maxWidth: 340)
+            if !excludedIDs.isEmpty {
+                Button {
+                    withAnimation { excludedIDs.removeAll() }
+                } label: {
+                    Label("Restore removed (\(excludedIDs.count))", systemImage: "arrow.uturn.backward")
+                        .font(.system(.footnote, design: .rounded).weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.accent)
+            }
+            Text("Tap a photo to swap it out.")
+                .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .padding(.vertical, 16)
@@ -214,19 +254,26 @@ struct PhotoWallView: View {
 
     private var sortMenu: some View {
         Menu {
-            Picker("Sort", selection: $sort) {
-                ForEach(SortOrder.allCases) { Text($0.rawValue).tag($0) }
+            // Shuffle is its own button; the menu covers the ordered choices.
+            ForEach([SortOrder.newest, .oldest, .location]) { option in
+                Button(option.rawValue) { sort = option }
             }
         } label: {
-            menuChip(icon: "arrow.up.arrow.down", text: sort.rawValue)
+            menuChip(icon: "arrow.up.arrow.down", text: sort == .random ? "Shuffled" : sort.rawValue)
         }
+    }
+
+    private var shuffleButton: some View {
+        Button { shuffle() } label: {
+            menuChip(icon: "shuffle", text: "Shuffle")
+        }
+        .buttonStyle(.plain)
     }
 
     private func menuChip(icon: String, text: String) -> some View {
         HStack(spacing: 6) {
             Image(systemName: icon).font(.caption)
             Text(text).font(.system(.subheadline, design: .rounded).weight(.semibold)).lineLimit(1)
-            Image(systemName: "chevron.down").font(.caption2.weight(.bold))
         }
         .foregroundStyle(Theme.accent)
         .padding(.horizontal, 12)
@@ -234,99 +281,83 @@ struct PhotoWallView: View {
         .background(Theme.accent.opacity(0.1), in: .capsule)
     }
 
-    // MARK: Poster composition
+    // MARK: Actions
 
-    private let posterSize = CGSize(width: 1000, height: 1400)
-    private var posterAspect: CGFloat { posterSize.width / posterSize.height }
-
-    /// Near-square column count that caps at 4, so few photos still read as a tidy wall.
-    private var columnCount: Int {
-        let n = displayRuns.count
-        return max(1, min(4, Int(ceil(Double(n).squareRoot()))))
+    private func remove(_ run: Run) {
+        excludedIDs.insert(run.id)
     }
 
-    private var dateRangeText: String {
-        let dates = displayRuns.map(\.startDate)
-        guard let first = dates.min(), let last = dates.max() else { return "" }
-        let cal = Calendar.current
-        let y0 = cal.component(.year, from: first), y1 = cal.component(.year, from: last)
-        return y0 == y1 ? String(y0) : "\(y0)–\(y1)"
+    private func shuffle() {
+        randomOrder = filtered.map(\.id).shuffled()
+        sort = .random
     }
 
-    /// The fixed-size poster used both for on-screen preview (rendered) and export.
+    private func clampCount() {
+        count = min(count, maxCount)
+        if count < 1 { count = 1 }
+    }
+
+    // MARK: Poster (text-free grid) + rendering
+
+    private let posterWidth: CGFloat = 1000
+    private let posterPadding: CGFloat = 24
+    private let posterSpacing: CGFloat = 6
+
+    private var posterCell: CGFloat {
+        let cols = CGFloat(columnCount)
+        return (posterWidth - posterPadding * 2 - posterSpacing * (cols - 1)) / cols
+    }
+
+    private var posterHeight: CGFloat {
+        let rows = Int(ceil(Double(shown.count) / Double(columnCount)))
+        return posterPadding * 2 + CGFloat(rows) * posterCell + CGFloat(max(0, rows - 1)) * posterSpacing
+    }
+
+    /// The exported wall: just the photos, no title or footer text.
     private var posterContent: some View {
-        let spacing: CGFloat = 8
-        let padding: CGFloat = 56
         let cols = columnCount
-        let contentWidth = posterSize.width - padding * 2
-        let cellSize = (contentWidth - spacing * CGFloat(cols - 1)) / CGFloat(cols)
-        let rows = displayRuns.chunked(into: cols)
-
-        return VStack(spacing: 26) {
-            VStack(spacing: 6) {
-                Text("PHOTO WALL")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .tracking(5)
-                    .foregroundStyle(Theme.accent)
-                Text(filterLabel)
-                    .font(.system(size: 44, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.Palette.ink)
-            }
-
-            VStack(spacing: spacing) {
-                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                    HStack(spacing: spacing) {
-                        ForEach(row, id: \.id) { run in
-                            cell(run, size: cellSize)
-                        }
-                        if row.count < cols {
-                            ForEach(0..<(cols - row.count), id: \.self) { _ in
-                                Color.clear.frame(width: cellSize, height: cellSize)
-                            }
+        let rows = shown.chunked(into: cols)
+        return VStack(spacing: posterSpacing) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                HStack(spacing: posterSpacing) {
+                    ForEach(row, id: \.id) { run in
+                        exportCell(run)
+                    }
+                    if row.count < cols {
+                        ForEach(0..<(cols - row.count), id: \.self) { _ in
+                            Color.clear.frame(width: posterCell, height: posterCell)
                         }
                     }
                 }
             }
-            .frame(maxHeight: .infinity, alignment: .top)
-
-            HStack {
-                Text("\(displayRuns.count) \(displayRuns.count == 1 ? "photo" : "photos")")
-                Spacer()
-                Text(dateRangeText)
-            }
-            .font(.system(size: 20, weight: .semibold, design: .rounded))
-            .foregroundStyle(Theme.Palette.ink.opacity(0.6))
         }
-        .padding(padding)
-        .frame(width: posterSize.width, height: posterSize.height, alignment: .top)
+        .padding(posterPadding)
+        .frame(width: posterWidth, height: posterHeight)
         .background(Theme.Palette.bone)
     }
 
-    private func cell(_ run: Run, size: CGFloat) -> some View {
+    private func exportCell(_ run: Run) -> some View {
         Group {
             if let image = images[run.id] {
                 Image(uiImage: image).resizable().scaledToFill()
             } else {
                 Rectangle().fill(Theme.Palette.stone)
-                    .overlay { Image(systemName: "photo").foregroundStyle(Theme.Palette.ink.opacity(0.3)) }
             }
         }
-        .frame(width: size, height: size)
+        .frame(width: posterCell, height: posterCell)
         .clipped()
-        .clipShape(.rect(cornerRadius: 6))
+        .clipShape(.rect(cornerRadius: 4))
     }
 
-    // MARK: Loading & rendering
-
-    /// Loads any missing cover images, then renders the poster to a UIImage for preview & export.
     @MainActor
     private func loadAndRender() async {
-        for run in displayRuns {
+        for run in shown {
             guard images[run.id] == nil, let id = run.photoReferences.first else { continue }
             if let img = await PhotoLibrary.image(for: id, targetSize: CGSize(width: 600, height: 600)) {
                 images[run.id] = img
             }
         }
+        guard !shown.isEmpty else { posterImage = nil; return }
         let renderer = ImageRenderer(content: posterContent)
         renderer.scale = 3
         posterImage = renderer.uiImage
