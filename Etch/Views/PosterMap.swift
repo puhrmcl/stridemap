@@ -241,6 +241,48 @@ enum PosterMap {
 
             if let first = coordinates.first { dot(cg, at: pixel(first), fill: UIColor(edition.accent), radius: edition.routeWidth) }
             if let last = coordinates.last { dot(cg, at: pixel(last), fill: route, radius: edition.routeWidth) }
+
+            // Waypoint labels — START / FINISH, and the high point over the terrain (its
+            // elevation), the way trail prints call out the key points along a route.
+            func drawLabel(_ text: String, at point: CGPoint, dy: CGFloat) {
+                let attrs: [NSAttributedString.Key: Any] = [
+                    .font: UIFont.systemFont(ofSize: 20, weight: .bold),
+                    .foregroundColor: lineColor,
+                    .kern: 2
+                ]
+                let s = NSAttributedString(string: text, attributes: attrs)
+                let sz = s.size()
+                var o = CGPoint(x: point.x - sz.width / 2, y: point.y + dy)
+                o.x = min(max(8, o.x), size.width - sz.width - 8)
+                o.y = min(max(8, o.y), size.height - sz.height - 8)
+                s.draw(at: o)
+            }
+            if let first = coordinates.first { drawLabel("START", at: pixel(first), dy: -36) }
+            if coordinates.count > 2, let last = coordinates.last { drawLabel("FINISH", at: pixel(last), dy: 18) }
+
+            // Highest point over the terrain, marked with an upward triangle + its elevation.
+            var maxElev = -Double.greatestFiniteMagnitude
+            var highCoord: CLLocationCoordinate2D?
+            for c in coordinates {
+                let u = (c.longitude - lonMin) / (lonMax - lonMin)
+                let v = (latMax - c.latitude) / (latMax - latMin)
+                let col = min(field.cols - 1, max(0, Int(u * Double(field.cols - 1))))
+                let row = min(field.rows - 1, max(0, Int(v * Double(field.rows - 1))))
+                let e = field.value(row: row, col: col)
+                if e > maxElev { maxElev = e; highCoord = c }
+            }
+            if let hc = highCoord, maxElev > 0 {
+                let p = pixel(hc)
+                let r = edition.routeWidth * 0.9
+                let tri = UIBezierPath()
+                tri.move(to: CGPoint(x: p.x, y: p.y - r))
+                tri.addLine(to: CGPoint(x: p.x - r, y: p.y + r))
+                tri.addLine(to: CGPoint(x: p.x + r, y: p.y + r))
+                tri.close()
+                UIColor(edition.accent).setFill(); tri.fill()
+                UIColor.white.withAlphaComponent(0.9).setStroke(); tri.lineWidth = 2; tri.stroke()
+                drawLabel(Format.elevation(maxElev), at: p, dy: -36)
+            }
         }
     }
 
