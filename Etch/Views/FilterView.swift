@@ -8,16 +8,30 @@ struct FilterView: View {
     @Query private var allRuns: [Run]
 
     @State private var draft = RunFilter()
+    @State private var scopeDraft: ActivityScope = .all
     @State private var customStart = Calendar.current.date(byAdding: .month, value: -1, to: Date())!
     @State private var customEnd = Date()
     @State private var useCustom = false
+    // Distance (metres) and moving-time (seconds) range, held as sliders; the extremes map to
+    // "no bound" on apply.
+    @State private var distLo: Double = 0
+    @State private var distHi: Double = 0
+    @State private var durLo: Double = 0
+    @State private var durHi: Double = 0
 
     private var stats: RunStatistics { RunStatistics(allRuns) }
+
+    /// Upper bounds for the range sliders, taken from the data (with sane floors).
+    private var maxDistance: Double { max(stats.longestRun?.distance ?? 1609, 1609) }
+    private var maxDuration: Double { Double(max(stats.longestDurationRun?.movingTime ?? 3600, 600)) }
 
     var body: some View {
         NavigationStack {
             Form {
+                activitySection
                 dateSection
+                distanceSection
+                timeSection
                 surfaceSection
                 locationSection
                 resetSection
@@ -35,9 +49,47 @@ struct FilterView: View {
                     Button("Apply") { apply() }.fontWeight(.semibold)
                 }
             }
-            .onAppear { draft = appModel.filter }
+            .onAppear { seed() }
         }
         .presentationDetents([.large])
+    }
+
+    private func seed() {
+        draft = appModel.filter
+        scopeDraft = ActivitySettings.isVisible(appModel.activityScope) ? appModel.activityScope : .all
+        distLo = draft.minDistance ?? 0
+        distHi = draft.maxDistance ?? maxDistance
+        durLo = Double(draft.minDuration ?? 0)
+        durHi = Double(draft.maxDuration ?? Int(maxDuration))
+        if case .custom = draft.dateRange { useCustom = true }
+    }
+
+    private var activitySection: some View {
+        Section("Activity") {
+            Picker("Activity", selection: $scopeDraft) {
+                ForEach(ActivitySettings.visibleScopes) { s in
+                    Label(s.label, systemImage: s.icon).tag(s)
+                }
+            }
+        }
+    }
+
+    private var distanceSection: some View {
+        Section("Distance") {
+            LabeledContent("Minimum", value: distLo <= 0 ? "Any" : Format.distance(distLo, decimals: 1))
+            Slider(value: $distLo, in: 0...maxDistance).tint(Theme.accent)
+            LabeledContent("Maximum", value: distHi >= maxDistance ? "No limit" : Format.distance(distHi, decimals: 1))
+            Slider(value: $distHi, in: 0...maxDistance).tint(Theme.accent)
+        }
+    }
+
+    private var timeSection: some View {
+        Section("Time") {
+            LabeledContent("Minimum", value: durLo <= 0 ? "Any" : Format.duration(Int(durLo)))
+            Slider(value: $durLo, in: 0...maxDuration).tint(Theme.accent)
+            LabeledContent("Maximum", value: durHi >= maxDuration ? "No limit" : Format.duration(Int(durHi)))
+            Slider(value: $durHi, in: 0...maxDuration).tint(Theme.accent)
+        }
     }
 
     private var dateSection: some View {
@@ -93,7 +145,10 @@ struct FilterView: View {
         Section {
             Button("Reset Filters", role: .destructive) {
                 draft = RunFilter()
+                scopeDraft = .all
                 useCustom = false
+                distLo = 0; distHi = maxDistance
+                durLo = 0; durHi = maxDuration
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
@@ -161,6 +216,14 @@ struct FilterView: View {
 
     private func apply() {
         if useCustom { draft.dateRange = .custom(start: customStart, end: customEnd) }
+        // Sliders → optional bounds; the extremes mean "no bound".
+        let lo = min(distLo, distHi), hi = max(distLo, distHi)
+        draft.minDistance = lo <= 0 ? nil : lo
+        draft.maxDistance = hi >= maxDistance ? nil : hi
+        let dlo = min(durLo, durHi), dhi = max(durLo, durHi)
+        draft.minDuration = dlo <= 0 ? nil : Int(dlo)
+        draft.maxDuration = dhi >= maxDuration ? nil : Int(dhi)
+        appModel.activityScope = scopeDraft
         appModel.setFilter(draft)
         dismiss()
     }

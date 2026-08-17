@@ -10,6 +10,7 @@ struct ProfileView: View {
 
     @State private var showSearch = false
     @State private var showSettings = false
+    @State private var showFilters = false
     @AppStorage("studioIsHome") private var studioIsHome = false
 
     /// The scope the totals reflect — the user's app-wide selection, clamped back to All if the
@@ -51,6 +52,7 @@ struct ProfileView: View {
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
             }
             .sheet(isPresented: $showSearch) { SearchView() }
+            .sheet(isPresented: $showFilters) { FilterView() }
             .sheet(isPresented: $showSettings) { SettingsView() }
         }
     }
@@ -77,44 +79,34 @@ struct ProfileView: View {
         .padding(.vertical, 24)
     }
 
-    /// The activity filter as a list row between Search and Settings — styled like the other rows,
-    /// but a Menu that names the current scope on the right and switches it in place.
+    /// The filter row between Search and Settings — opens the full Filters sheet (activity, date,
+    /// distance, time, location, surface, race). The subtitle summarises what's currently applied.
     private var activityFilterRow: some View {
-        Menu {
-            Picker("Activity", selection: scopeBinding) {
-                ForEach(ActivitySettings.visibleScopes) { s in
-                    Label(s.label, systemImage: s.icon).tag(s)
-                }
-            }
-        } label: {
+        Button { showFilters = true } label: {
             HStack(spacing: 14) {
-                Image(systemName: scope.icon)
+                Image(systemName: "line.3.horizontal.decrease.circle")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(Theme.accent)
                     .frame(width: 30)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Activity Filter").font(.body.weight(.semibold)).foregroundStyle(.primary)
-                    Text("What totals and maps show").font(.caption).foregroundStyle(.secondary)
+                    Text("Filters").font(.body.weight(.semibold)).foregroundStyle(.primary)
+                    Text(filterSummary).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer()
-                Text(scope == .all ? "All Activities" : scope.label)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Image(systemName: "chevron.up.chevron.down")
+                Image(systemName: "chevron.right")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.tertiary)
             }
             .padding(.vertical, 4)
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 
-    private var scopeBinding: Binding<ActivityScope> {
-        Binding(
-            get: { scope },
-            set: { newValue in withAnimation(Theme.gentle) { appModel.activityScope = newValue } }
-        )
+    /// A short line naming what the filter is currently doing — the activity plus whether any
+    /// further filter (date, distance, location, …) is narrowing the set.
+    private var filterSummary: String {
+        let scopeLabel = scope == .all ? "All activities" : scope.label
+        return appModel.filter.isActive ? "\(scopeLabel) · filtered" : "\(scopeLabel) · all time"
     }
 
     private func stat(value: String, label: String) -> some View {

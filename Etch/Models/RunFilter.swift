@@ -53,12 +53,21 @@ struct RunFilter: Equatable {
     var state: String?
     var country: String?
 
+    /// Distance bounds (metres); nil means no bound on that end.
+    var minDistance: Double?
+    var maxDistance: Double?
+    /// Moving-time bounds (seconds); nil means no bound on that end.
+    var minDuration: Int?
+    var maxDuration: Int?
+
     /// Threshold (metres) that qualifies as a "long run" for `.long` mode.
     var longRunThreshold: Double = 16_000 // ~10 miles
 
     var isActive: Bool {
         dateRange != .all || mode != .all || surface != .any
             || city != nil || state != nil || country != nil
+            || minDistance != nil || maxDistance != nil
+            || minDuration != nil || maxDuration != nil
     }
 
     /// Evaluates a run against this filter. `isPR` is supplied by the caller because
@@ -84,6 +93,11 @@ struct RunFilter: Equatable {
         if let city, run.city != city { return false }
         if let state, run.state != state { return false }
         if let country, run.country != country { return false }
+
+        if let minDistance, run.distance < minDistance { return false }
+        if let maxDistance, run.distance > maxDistance { return false }
+        if let minDuration, run.movingTime < minDuration { return false }
+        if let maxDuration, run.movingTime > maxDuration { return false }
         return true
     }
 
