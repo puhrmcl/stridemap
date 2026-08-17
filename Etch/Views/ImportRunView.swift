@@ -20,12 +20,18 @@ struct ImportRunView: View {
     @State private var title: String
     @State private var makeRace: Bool
     @State private var countsInTotals = true
+    /// nil = Auto (use Etch's detection); a value overrides it.
+    @State private var activityOverride: ActivityType?
 
     init(activity: ImportedActivity) {
         self.activity = activity
         _title = State(initialValue: activity.name?.isEmpty == false ? activity.name! : "Imported Run")
         _makeRace = State(initialValue: activity.isRace ?? false)
     }
+
+    /// The type that will be used — the override, or Etch's auto-detection.
+    private var resolvedType: ActivityType { activityOverride ?? activity.activityType }
+    private var typeChoices: [ActivityType] { [.run, .hike, .ride, .walk] }
 
     private var hasRoute: Bool { !activity.coordinates.isEmpty }
     private var trimmedTitle: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -49,6 +55,23 @@ struct ImportRunView: View {
                 }
             } header: {
                 Text("From the file")
+            }
+
+            Section {
+                Picker(selection: $activityOverride) {
+                    Text("Auto — \(activity.activityType.detailLabel)")
+                        .tag(ActivityType?.none)
+                    ForEach(typeChoices, id: \.self) { type in
+                        Label(type.detailLabel, systemImage: type.detailIcon)
+                            .tag(ActivityType?.some(type))
+                    }
+                } label: {
+                    Label("Activity", systemImage: resolvedType.detailIcon)
+                }
+            } header: {
+                Text("Activity type")
+            } footer: {
+                Text("Auto lets Etch detect the type from the file. Choose a type to override it.")
             }
 
             Section {
@@ -111,7 +134,7 @@ struct ImportRunView: View {
             maxLongitude: box.maxLon
         )
         run.importMethod = activity.importMethod ?? .manual
-        run.activityType = activity.activityType
+        run.activityType = resolvedType
         run.weatherTemperatureC = activity.weatherTemperatureC
         run.weatherConditionRaw = activity.weatherCondition
         run.nameIsCustom = true
