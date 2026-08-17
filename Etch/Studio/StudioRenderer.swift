@@ -64,6 +64,8 @@ enum StudioRenderer {
             ids = Array(request.run.photoReferences.prefix(request.photoLayout.maxPhotos))
         } else if request.layout == .gallery {
             ids = Array(request.run.photoReferences.prefix(3))
+        } else if request.layout == .keepsake {
+            ids = Array(request.run.photoReferences.prefix(1))
         } else if request.showEditorialPhoto {
             ids = Array(request.run.photoReferences.prefix(1))
         } else {

@@ -198,6 +198,53 @@ struct StudioView: View {
 
     // MARK: Controls
 
+    /// The option toggles for the customize sheet — extracted so the customize VStack stays within
+    /// the Swift type-checker's budget.
+    @ViewBuilder private var optionToggles: some View {
+        if layout == .editorial, !run.photoReferences.isEmpty {
+            Toggle(isOn: $showEditorialPhoto) {
+                Label("Photo beside text", systemImage: "photo")
+                    .font(.system(.subheadline, design: .rounded))
+            }
+            .tint(Theme.accent)
+            .frame(maxWidth: 280)
+        }
+
+        if current.isPhoto {
+            Toggle(isOn: $showMemoryRoute) {
+                Label("Show route in layout", systemImage: "scribble.variable")
+                    .font(.system(.subheadline, design: .rounded))
+            }
+            .tint(Theme.accent)
+            .frame(maxWidth: 280)
+        }
+
+        Toggle(isOn: $showElevationProfile) {
+            Label("Elevation profile", systemImage: "mountain.2")
+                .font(.system(.subheadline, design: .rounded))
+        }
+        .tint(Theme.accent)
+        .frame(maxWidth: 280)
+
+        if layout == .gallery && run.hasRoute {
+            Toggle(isOn: $galleryShowMapTile) {
+                Label("Map as a tile", systemImage: "map")
+                    .font(.system(.subheadline, design: .rounded))
+            }
+            .tint(Theme.accent)
+            .frame(maxWidth: 280)
+        }
+
+        if run.hasWeather {
+            Toggle(isOn: $includeWeather) {
+                Label("Include weather", systemImage: "cloud.sun")
+                    .font(.system(.subheadline, design: .rounded))
+            }
+            .tint(Theme.accent)
+            .frame(maxWidth: 280)
+        }
+    }
+
     private var controls: some View {
         VStack(spacing: 14) {
             HStack(spacing: 8) {
@@ -284,48 +331,7 @@ struct StudioView: View {
                         statSlotEditor
                     }
 
-                    if layout == .editorial, !run.photoReferences.isEmpty {
-                        Toggle(isOn: $showEditorialPhoto) {
-                            Label("Photo beside text", systemImage: "photo")
-                                .font(.system(.subheadline, design: .rounded))
-                        }
-                        .tint(Theme.accent)
-                        .frame(maxWidth: 280)
-                    }
-
-                    if current.isPhoto {
-                        Toggle(isOn: $showMemoryRoute) {
-                            Label("Show route in layout", systemImage: "scribble.variable")
-                                .font(.system(.subheadline, design: .rounded))
-                        }
-                        .tint(Theme.accent)
-                        .frame(maxWidth: 280)
-                    }
-
-                    Toggle(isOn: $showElevationProfile) {
-                        Label("Elevation profile", systemImage: "mountain.2")
-                            .font(.system(.subheadline, design: .rounded))
-                    }
-                    .tint(Theme.accent)
-                    .frame(maxWidth: 280)
-
-                    if layout == .gallery && run.hasRoute {
-                        Toggle(isOn: $galleryShowMapTile) {
-                            Label("Map as a tile", systemImage: "map")
-                                .font(.system(.subheadline, design: .rounded))
-                        }
-                        .tint(Theme.accent)
-                        .frame(maxWidth: 280)
-                    }
-
-                    if run.hasWeather {
-                        Toggle(isOn: $includeWeather) {
-                            Label("Include weather", systemImage: "cloud.sun")
-                                .font(.system(.subheadline, design: .rounded))
-                        }
-                        .tint(Theme.accent)
-                        .frame(maxWidth: 280)
-                    }
+                    optionToggles
                     }
                     .padding(.bottom, 6)
                 }

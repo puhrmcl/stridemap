@@ -2,7 +2,7 @@ import SwiftUI
 
 /// How the run's data is arranged beneath the art — chosen independently of the edition.
 enum StudioLayout: String, CaseIterable, Identifiable {
-    case classic, minimal, editorial, grid, gallery
+    case classic, minimal, editorial, grid, gallery, keepsake
     var id: String { rawValue }
     var name: String {
         switch self {
@@ -11,6 +11,7 @@ enum StudioLayout: String, CaseIterable, Identifiable {
         case .editorial: return "Editorial"
         case .grid: return "4-Up"
         case .gallery: return "Gallery"
+        case .keepsake: return "Keepsake"
         }
     }
 }
@@ -176,6 +177,8 @@ struct StudioComposition: View {
         Group {
             if layout == .gallery {
                 galleryComposition
+            } else if layout == .keepsake {
+                keepsakeComposition
             } else if isSideLayout {
                 HStack(spacing: 0) {
                     art
@@ -264,6 +267,83 @@ struct StudioComposition: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
         .clipShape(.rect(cornerRadius: 6))
+    }
+
+    // MARK: Keepsake layout — a full-bleed photo with the data overlaid in white, thin frame.
+
+    private var coordsText: String {
+        guard let lat = run.startLatitude, let lon = run.startLongitude else { return "" }
+        return String(format: "%.4f° %@ · %.4f° %@",
+                      abs(lat), lat >= 0 ? "N" : "S", abs(lon), lon >= 0 ? "E" : "W")
+    }
+
+    private var keepsakeComposition: some View {
+        ZStack {
+            if let photo = photoImages.first {
+                Image(uiImage: photo).resizable().scaledToFill()
+            } else {
+                groundColor
+            }
+            LinearGradient(colors: [.black.opacity(0.4), .black.opacity(0.06), .black.opacity(0.52)],
+                           startPoint: .top, endPoint: .bottom)
+
+            VStack(spacing: 0) {
+                HStack(alignment: .top) {
+                    Text(dateText.uppercased())
+                        .font(.system(size: 15, weight: .semibold)).tracking(3)
+                    Spacer()
+                    if !coordsText.isEmpty {
+                        Text(coordsText).font(.system(size: 15, weight: .semibold)).tracking(2)
+                    }
+                }
+                .foregroundStyle(.white.opacity(0.9))
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(titleText.uppercased())
+                            .font(.system(size: 60, weight: .heavy))
+                            .foregroundStyle(.white)
+                            .lineLimit(2).minimumScaleFactor(0.5)
+                        if !placeLine.isEmpty {
+                            Text(placeLine.uppercased())
+                                .font(.system(size: 16, weight: .semibold)).tracking(4)
+                                .foregroundStyle(.white.opacity(0.85))
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.top, 28)
+
+                Spacer(minLength: 0)
+
+                VStack(spacing: 18) {
+                    Rectangle().fill(.white.opacity(0.6)).frame(height: 1)
+                    HStack(alignment: .top, spacing: 0) {
+                        ForEach(Array(fourStats.enumerated()), id: \.offset) { index, item in
+                            if index > 0 {
+                                Rectangle().fill(.white.opacity(0.4)).frame(width: 1, height: 40)
+                            }
+                            keepsakeStat(item.metric, item.value)
+                        }
+                    }
+                }
+            }
+            .padding(64)
+
+            Rectangle().stroke(.white.opacity(0.85), lineWidth: 2).padding(44)
+        }
+        .frame(width: Self.width, height: Self.width * 1.25)
+        .clipped()
+    }
+
+    private func keepsakeStat(_ metric: StatMetric, _ value: String) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: metric.icon).font(.system(size: 15, weight: .semibold))
+            Text(value).font(.system(size: 26, weight: .bold)).minimumScaleFactor(0.5).lineLimit(1)
+            Text(metric.label).font(.system(size: 12, weight: .semibold)).tracking(1.5)
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity)
     }
 
     /// Whole distance units (miles/km) for the profile's markers.
@@ -439,6 +519,8 @@ struct StudioComposition: View {
                     case .minimal: minimalFooter
                     case .editorial: editorialFooter
                     case .grid: gridFooter
+                    // Gallery & Keepsake render their own full compositions (never this footer).
+                    case .gallery, .keepsake: classicFooter
                     }
                 }
             }
