@@ -73,6 +73,7 @@ final class ActivityIngestor {
         if run.maxHeartRate == nil { run.maxHeartRate = activity.maxHeartRate }
         if run.activeEnergy == nil { run.activeEnergy = activity.activeEnergy }
         if run.averageCadence == nil { run.averageCadence = activity.averageCadence }
+        if run.maxSpeed == nil { run.maxSpeed = activity.maxSpeed }
         if run.weatherTemperatureC == nil { run.weatherTemperatureC = activity.weatherTemperatureC }
         if run.weatherConditionRaw == nil { run.weatherConditionRaw = activity.weatherCondition }
         if !run.hasRoute, !activity.coordinates.isEmpty {
@@ -209,6 +210,7 @@ final class ActivityIngestor {
         if run.maxHeartRate == nil { run.maxHeartRate = activity.maxHeartRate }
         if run.activeEnergy == nil { run.activeEnergy = activity.activeEnergy }
         if run.averageCadence == nil { run.averageCadence = activity.averageCadence }
+        if run.maxSpeed == nil { run.maxSpeed = activity.maxSpeed }
         if run.weatherTemperatureC == nil { run.weatherTemperatureC = activity.weatherTemperatureC }
         if run.weatherConditionRaw == nil { run.weatherConditionRaw = activity.weatherCondition }
         if run.elevationGain == 0, let gain = activity.elevationGain { run.elevationGain = gain }
@@ -266,6 +268,7 @@ final class ActivityIngestor {
         run.activityType = activity.activityType
         run.weatherTemperatureC = activity.weatherTemperatureC
         run.weatherConditionRaw = activity.weatherCondition
+        run.maxSpeed = activity.maxSpeed
         if !activity.elevationSeries.isEmpty { run.elevationSeries = activity.elevationSeries }
         applyGeometry(activity.coordinates, to: run)
         return run

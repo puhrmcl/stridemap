@@ -181,9 +181,13 @@ struct HighlightsView: View {
                     StatTile(value: climbValue(averageClimb), label: "Avg climb",
                              systemName: "arrow.up.forward")
                 }
-                // Speed is a headline metric for rides (pace suits runs) — surface average speed.
+                // Speed is a headline metric for rides (pace suits runs) — surface average and,
+                // when a source recorded it, top speed.
                 if scope == .rides {
                     StatTile(value: averageSpeedValue, label: "Avg speed", systemName: "speedometer", accent: true)
+                    if let top = topSpeedValue {
+                        StatTile(value: top, label: "Top speed", systemName: "gauge.high")
+                    }
                 }
             }
         }
@@ -209,7 +213,17 @@ struct HighlightsView: View {
     /// Distance-weighted average speed in the user's unit (mph / km/h) — the ride headline metric.
     private var averageSpeedValue: String {
         guard stats.totalMovingTime > 0 else { return "—" }
-        let metersPerSecond = stats.totalDistanceMeters / Double(stats.totalMovingTime)
+        return speedString(stats.totalDistanceMeters / Double(stats.totalMovingTime))
+    }
+
+    /// The fastest recorded top speed, when a source provided one for any ride in scope.
+    private var topSpeedValue: String? {
+        guard let metersPerSecond = stats.topSpeed, metersPerSecond > 0 else { return nil }
+        return speedString(metersPerSecond)
+    }
+
+    /// Formats a speed in metres/second to the user's unit, e.g. "14.2 mph" / "22.8 km/h".
+    private func speedString(_ metersPerSecond: Double) -> String {
         let unit = UnitSystem.current
         let value = unit == .miles ? metersPerSecond * 2.2369363 : metersPerSecond * 3.6
         let suffix = unit == .miles ? "mph" : "km/h"

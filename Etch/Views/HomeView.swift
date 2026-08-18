@@ -410,7 +410,7 @@ struct HomeView: View {
                 HStack(spacing: 7) {
                     metricsRow
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(Theme.accentOnGlass)
                         .rotationEffect(.degrees(showModeMenu ? 180 : 0))
                 }
@@ -429,9 +429,9 @@ struct HomeView: View {
         }
         .onPreferenceChange(PillColumnHeightKey.self) { if $0 > 0 { pillColumnHeight = $0 } }
         .fixedSize(horizontal: true, vertical: false)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .glassBackground(cornerRadius: 18)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 14)
+        .glassBackground(cornerRadius: 24)
     }
 
     /// A hairline separator sized to the pill's row height.
@@ -448,7 +448,7 @@ struct HomeView: View {
             appModel.presentedSurface = .filters
         } label: {
             Image(systemName: "line.3.horizontal.decrease")
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(appModel.filter.isActive ? Theme.accentOnGlass : .primary)
                 .frame(maxHeight: .infinity)
                 .padding(.horizontal, 2)
@@ -467,9 +467,9 @@ struct HomeView: View {
         } label: {
             HStack(spacing: 3) {
                 Image(systemName: appModel.activityScope.icon)
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(size: 21, weight: .semibold))
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: 11, weight: .bold))
                     .rotationEffect(.degrees(showTypeMenu ? 180 : 0))
             }
             .foregroundStyle(Theme.accentOnGlass)
@@ -488,7 +488,7 @@ struct HomeView: View {
                 unit: effectiveScope.countNoun
             )
             Text("·")
-                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                .font(.system(.title3, design: .rounded).weight(.bold))
                 .foregroundStyle(.secondary)
             metric(
                 value: Format.distanceValue(shownStats.totalDistanceMeters)
@@ -645,9 +645,9 @@ struct HomeView: View {
             // unit ("mi" / "runs") the way two separate Texts allowed. fixedSize keeps it un-truncated.
             (
                 Text(value)
-                    .font(.system(.subheadline, design: .rounded).weight(.bold))
+                    .font(.system(.title3, design: .rounded).weight(.bold))
                 + Text(" \(unit)")
-                    .font(.system(.caption, design: .rounded).weight(.medium))
+                    .font(.system(.subheadline, design: .rounded).weight(.medium))
                     .foregroundColor(.secondary)
             )
             .lineLimit(1)

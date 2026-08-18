@@ -46,6 +46,9 @@ struct ImportedActivity {
     var maxHeartRate: Double? = nil
     var activeEnergy: Double? = nil       // kcal
     var averageCadence: Double? = nil     // steps per minute
+    /// Top speed in metres per second, when the source recorded it (Strava `max_speed`, TCX
+    /// `MaximumSpeed`).
+    var maxSpeed: Double? = nil
 
     // Weather at run time, when the source recorded it.
     var weatherTemperatureC: Double? = nil     // Celsius

@@ -81,6 +81,11 @@ struct TCXParser: ActivityFileParser {
                 if parentName == "Lap", let v = Double(value) { current?.totalDistance += v }
             case "Calories":
                 if parentName == "Lap", let v = Double(value) { current?.calories += v }
+            case "MaximumSpeed":
+                // Lap-level top speed (m/s). Keep the fastest across the activity's laps.
+                if parentName == "Lap", let v = Double(value) {
+                    current?.maxSpeed = max(current?.maxSpeed ?? 0, v)
+                }
             case "Value":
                 guard let v = Double(value) else { break }
                 switch parentName {
@@ -132,6 +137,7 @@ struct TCXParser: ActivityFileParser {
         var totalTime = 0.0
         var totalDistance = 0.0
         var calories = 0.0
+        var maxSpeed = 0.0
         var lapAvgHR: [Double] = []
         var lapMaxHR: [Double] = []
         var points: [Point] = []
@@ -167,6 +173,7 @@ struct TCXParser: ActivityFileParser {
             activity.elevationGain = RouteMetrics.elevationGain(of: elevations)
             activity.elevationSeries = elevations
             if calories > 0 { activity.activeEnergy = calories }
+            if maxSpeed > 0 { activity.maxSpeed = maxSpeed }
             if !lapAvgHR.isEmpty {
                 activity.averageHeartRate = lapAvgHR.reduce(0, +) / Double(lapAvgHR.count)
             } else {

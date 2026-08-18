@@ -79,6 +79,9 @@ final class Run {
     var maxHeartRate: Double?
     var activeEnergy: Double?       // kcal
     var averageCadence: Double?     // steps/min
+    /// Top speed in metres per second, when the source recorded it (Strava `max_speed`, TCX
+    /// `MaximumSpeed`). Nil when unknown. Defaulted for clean migration.
+    var maxSpeed: Double? = nil
 
     // MARK: Weather (when the source recorded it)
 

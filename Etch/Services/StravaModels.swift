@@ -49,6 +49,7 @@ struct StravaActivity: Decodable {
     var commute: Bool?
     var startLatlng: [Double]?
     var averageTemp: Double?   // Celsius, when the device recorded it
+    var maxSpeed: Double?      // metres per second, when the device recorded it
 
     enum CodingKeys: String, CodingKey {
         case id, name, distance, type, commute, map
@@ -60,6 +61,7 @@ struct StravaActivity: Decodable {
         case workoutType = "workout_type"
         case startLatlng = "start_latlng"
         case averageTemp = "average_temp"
+        case maxSpeed = "max_speed"
         case isRace
     }
 

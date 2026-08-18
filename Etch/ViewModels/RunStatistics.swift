@@ -19,6 +19,10 @@ struct RunStatistics {
     var totalElevationMeters: Double { runs.reduce(0) { $0 + $1.elevationGain } }
     var totalMovingTime: Int { runs.reduce(0) { $0 + $1.movingTime } }
 
+    /// The fastest recorded top speed across these runs (metres/second), when any source supplied
+    /// one (Strava `max_speed`, TCX `MaximumSpeed`). Nil when none of the runs carry it.
+    var topSpeed: Double? { runs.compactMap(\.maxSpeed).max() }
+
     // MARK: Geography
 
     var cities: [String] { unique(runs.compactMap(\.city)) }
@@ -71,7 +75,11 @@ struct RunStatistics {
         Self.prBenchmarks.compactMap { name, meters in
             let lo = meters * 0.98, hi = meters * 1.10
             let best = runs.filter {
-                $0.movingTime > 0 && $0.distance >= lo && $0.distance <= hi && isPlausibleSpeed($0)
+                // Distance-time benchmarks (5K / 10K / Marathon…) are foot-running events, so a
+                // ride at ~26 mi never sets the "Marathon" PR (cycling speeds can slip past the
+                // plausibility cap otherwise).
+                $0.activityType == .run
+                    && $0.movingTime > 0 && $0.distance >= lo && $0.distance <= hi && isPlausibleSpeed($0)
             }.min { $0.movingTime < $1.movingTime }
             return best.map { DistancePR(label: name, meters: meters, run: $0) }
         }
