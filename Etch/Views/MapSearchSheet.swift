@@ -100,6 +100,11 @@ struct MapSearchSheet: View {
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
             .gesture(dragGesture)
+            // Tap the grabber to peek the explore page (no keyboard); tap again to collapse.
+            .onTapGesture {
+                searchFocused = false
+                snap(to: height <= collapsed + 1 ? mid : collapsed)
+            }
     }
 
     /// A single Apple Maps-style search pill: magnifier + field, with the profile avatar tucked in
