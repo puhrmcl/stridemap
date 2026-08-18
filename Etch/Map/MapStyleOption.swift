@@ -50,17 +50,23 @@ enum MapStyleOption: String, CaseIterable, Identifiable {
     /// map stays calm and the routes are the focus.
     func configuration() -> MKMapConfiguration {
         switch self {
-        case .standard, .night:
+        case .standard:
             // Muted emphasis desaturates the base map so geography recedes and the Etch route /
             // markers are the only high-contrast thing on screen — archival, not navigational.
-            // Night uses the same config but is forced to a dark appearance (see forcedInterfaceStyle).
             let config = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .muted)
             config.pointOfInterestFilter = .excludingAll
             return config
+        case .night:
+            // Full (default) emphasis, forced dark: a high-contrast dark map that reads clearly
+            // apart from the washed-out muted Standard — even when the system is already dark.
+            let config = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .default)
+            config.pointOfInterestFilter = .excludingAll
+            return config
         case .terrain:
-            // Realistic elevation adds hillshaded relief — the hills and mountains a run or hike
-            // climbed read on the map itself. Still muted and POI-free to stay on-brand.
-            let config = MKStandardMapConfiguration(elevationStyle: .realistic, emphasisStyle: .muted)
+            // Natural (default) emphasis + realistic elevation, so terrain colouring and
+            // hillshaded relief actually show — distinct from the desaturated Standard. Relief
+            // reads best tilted into 3D or over hilly ground.
+            let config = MKStandardMapConfiguration(elevationStyle: .realistic, emphasisStyle: .default)
             config.pointOfInterestFilter = .excludingAll
             return config
         case .satellite:
