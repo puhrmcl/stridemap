@@ -3,6 +3,8 @@ import SwiftData
 
 /// Search across run names, cities, states, races, and dates. Tap a result to zoom.
 struct SearchView: View {
+    /// True when pushed inside the Explore hub's navigation stack (no own NavigationStack).
+    var embedded: Bool = false
     @Environment(AppModel.self) private var appModel
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
@@ -24,7 +26,7 @@ struct SearchView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavRoot(embedded) {
             List {
                 if query.isEmpty {
                     Section("Recent") { rows }

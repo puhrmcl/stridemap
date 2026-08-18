@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// The map's "explore" hub — an Apple Maps-style sheet opened from the bottom bar, giving access
-/// to every Etch surface grouped in sections. Selecting an item swaps this sheet for that surface
-/// (both ride the map's single sheet, keyed by `presentedSurface`). Profile is reachable from the
-/// bottom bar's always-visible avatar, and also here.
+/// to every Etch surface grouped in sections. Selecting an item *pushes* that surface within this
+/// same sheet (a smooth navigation), rather than dismissing and re-presenting a new sheet from the
+/// bottom. Profile is reachable from the bottom bar's always-visible avatar, and from here.
 struct HubView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(\.dismiss) private var dismiss
@@ -53,9 +53,26 @@ struct HubView: View {
                     .accessibilityLabel("Profile")
                 }
             }
+            // Pushed pages render embedded (no own NavigationStack), so they slide in/out within
+            // this sheet rather than re-presenting from the bottom.
+            .navigationDestination(for: AppModel.Surface.self) { surface in
+                destination(for: surface)
+            }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+
+    @ViewBuilder
+    private func destination(for surface: AppModel.Surface) -> some View {
+        switch surface {
+        case .search:     SearchView(embedded: true)
+        case .filters:    FilterView(embedded: true)
+        case .timeline:   TimelineView(embedded: true)
+        case .highlights: HighlightsView(embedded: true)
+        case .studio:     StudioHomeView(embedded: true)
+        default:          EmptyView()
+        }
     }
 
     private func section(_ title: String, _ items: [Item]) -> some View {
@@ -65,7 +82,8 @@ struct HubView: View {
             VStack(spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     if index > 0 { Divider().padding(.leading, 60) }
-                    row(item)
+                    NavigationLink(value: item.surface) { row(item) }
+                        .buttonStyle(.plain)
                 }
             }
             .background(.regularMaterial, in: .rect(cornerRadius: 18))
@@ -73,33 +91,27 @@ struct HubView: View {
     }
 
     private func row(_ item: Item) -> some View {
-        Button {
-            // Swap this sheet for the chosen surface by re-pointing the single presented surface.
-            appModel.presentedSurface = item.surface
-        } label: {
-            HStack(spacing: 14) {
-                Image(systemName: item.icon)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(Theme.accentOnGlass)
-                    .frame(width: 32)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.title)
-                        .font(.system(.headline, design: .rounded).weight(.semibold))
-                        .foregroundStyle(.primary)
-                    Text(item.subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.tertiary)
+        HStack(spacing: 14) {
+            Image(systemName: item.icon)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(Theme.accentOnGlass)
+                .frame(width: 32)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                    .font(.system(.headline, design: .rounded).weight(.semibold))
+                    .foregroundStyle(.primary)
+                Text(item.subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            .padding(.horizontal, 16)
-            .frame(minHeight: 60)
-            .contentShape(Rectangle())
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.tertiary)
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .frame(minHeight: 60)
+        .contentShape(Rectangle())
     }
 }

@@ -3,6 +3,8 @@ import SwiftData
 
 /// Filter the map by date range, surface, and location.
 struct FilterView: View {
+    /// True when pushed inside the Explore hub's navigation stack (no own NavigationStack).
+    var embedded: Bool = false
     @Environment(AppModel.self) private var appModel
     @Environment(\.dismiss) private var dismiss
     @Query private var allRuns: [Run]
@@ -26,7 +28,7 @@ struct FilterView: View {
     private var maxDuration: Double { Double(max(stats.longestDurationRun?.movingTime ?? 3600, 600)) }
 
     var body: some View {
-        NavigationStack {
+        NavRoot(embedded) {
             Form {
                 activitySection
                 dateSection

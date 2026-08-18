@@ -6,6 +6,8 @@ import SwiftData
 /// breakdown you can tap to dive in — while a **specific activity** (Runs / Hikes / Walks) shows
 /// that discipline's own records, personal bests, and recaps.
 struct HighlightsView: View {
+    /// True when pushed inside the Explore hub's navigation stack (no own NavigationStack).
+    var embedded: Bool = false
     @Environment(AppModel.self) private var appModel
     @Environment(\.dismiss) private var dismiss
     @Query private var runs: [Run]
@@ -40,7 +42,7 @@ struct HighlightsView: View {
     private var stats: RunStatistics { RunStatistics(scopedRuns.countingTotals) }
 
     var body: some View {
-        NavigationStack {
+        NavRoot(embedded) {
             ScrollView {
                 VStack(spacing: 24) {
                     // With more than one activity type, offer the switcher; a single type just

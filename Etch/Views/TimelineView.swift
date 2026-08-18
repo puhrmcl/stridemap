@@ -4,6 +4,8 @@ import SwiftData
 /// Running history browsed like Apple Photos: a Years / Months / All segmented control, with
 /// route thumbnails standing in for photos. Tap any run to zoom the map to it.
 struct TimelineView: View {
+    /// True when pushed inside the Explore hub's navigation stack (no own NavigationStack).
+    var embedded: Bool = false
     @Environment(AppModel.self) private var appModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
@@ -24,7 +26,7 @@ struct TimelineView: View {
     private var years: [Int] { stats.years }
 
     var body: some View {
-        NavigationStack {
+        NavRoot(embedded) {
             Group {
                 if scopedRuns.isEmpty {
                     ContentUnavailableView(

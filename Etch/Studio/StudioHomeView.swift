@@ -9,6 +9,8 @@ struct StudioHomeView: View {
     /// True when Studio is the app's home (Studio-first mode): shows a profile button and a mini-map
     /// to reach the map, instead of the "Done" button that dismisses the sheet.
     var isHome: Bool = false
+    /// True when pushed inside the Explore hub's navigation stack (no own NavigationStack).
+    var embedded: Bool = false
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -74,7 +76,7 @@ struct StudioHomeView: View {
     private var mapped: [Run] { scopedRuns.filter(\.hasRoute) }
 
     var body: some View {
-        NavigationStack {
+        NavRoot(embedded) {
             Group {
                 if mapped.isEmpty {
                     VStack(spacing: 22) {
