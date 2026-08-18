@@ -38,6 +38,8 @@ struct HomeView: View {
 
     @AppStorage("mapStyle") private var mapStyleRaw = MapStyleOption.standard.rawValue
     private var mapStyle: MapStyleOption { MapStyleOption(rawValue: mapStyleRaw) ?? .standard }
+    /// When off, the route map hides the start pins and shows only the mapped lines.
+    @AppStorage("showMapPins") private var showPins = true
 
     /// When true, the map shows a Locations overlay (cities / states / countries / landmarks).
     @State private var showLocations = false
@@ -191,7 +193,8 @@ struct HomeView: View {
                     selectedRunID: $appModel.selectedRunID,
                     stackedRunIDs: $appModel.stackedRunIDs,
                     command: $appModel.command,
-                    mapStyle: mapStyle
+                    mapStyle: mapStyle,
+                    showPins: showPins
                 )
             }
         }
@@ -890,6 +893,13 @@ struct HomeView: View {
     /// trailing edge. The enclosing bottom VStack lays them out vertically.
     private var mapControls: some View {
         Group {
+            // Show/hide the start pins — hiding leaves just the mapped route lines. Only meaningful
+            // on the route map (the Locations overlays use their own place pins).
+            if !showLocations {
+                GlassIconButton(systemName: showPins ? "mappin" : "mappin.slash", isActive: !showPins) {
+                    withAnimation(Theme.spring) { showPins.toggle() }
+                }
+            }
             mapStyleButton
             if showLocations {
                 // Re-frame the overlay to fit all its pins / regions (and drop any single

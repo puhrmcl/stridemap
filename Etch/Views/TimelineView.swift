@@ -87,7 +87,8 @@ struct TimelineView: View {
                     YearCard(
                         year: year,
                         hero: hero(in: yearRuns),
-                        runCount: yearRuns.count,
+                        count: yearRuns.count,
+                        countNoun: appModel.activityScope.countNoun,
                         distanceMeters: yearRuns.reduce(0) { $0 + $1.distance }
                     )
                 }
@@ -233,7 +234,10 @@ struct TimelineView: View {
 private struct YearCard: View {
     let year: Int
     let hero: Run?
-    let runCount: Int
+    let count: Int
+    /// The plural noun for the count — "activities" for the All scope, else "runs" / "hikes" /
+    /// "rides" / "walks" — so a year of mixed activity never reads "398 runs".
+    let countNoun: String
     let distanceMeters: Double
 
     var body: some View {
@@ -246,7 +250,7 @@ private struct YearCard: View {
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.4), radius: 4, y: 1)
             Spacer()
-            Text("\(runCount) runs · \(Format.distance(distanceMeters, decimals: 0))")
+            Text("\(count) \(countNoun) · \(Format.distance(distanceMeters, decimals: 0))")
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
                 .foregroundStyle(.white.opacity(0.95))
                 .shadow(color: .black.opacity(0.4), radius: 4, y: 1)

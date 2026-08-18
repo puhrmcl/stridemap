@@ -32,6 +32,8 @@ struct RunMapView: UIViewRepresentable {
     var mapStyle: MapStyleOption = .standard
     /// Per-run detail vs. the accumulative "etch" history view.
     var renderStyle: RouteRenderStyle = .routes
+    /// When false, the tappable start pins are hidden and only the route lines are drawn.
+    var showPins: Bool = true
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -302,7 +304,7 @@ struct RunMapView: UIViewRepresentable {
         /// zoom changes the cell size or the run set changes; panning doesn't churn (the grid is
         /// anchored in map space). History mode shows none.
         func rebuildClusters(force: Bool) {
-            guard let map, parent.renderStyle == .routes, !runPoints.isEmpty else {
+            guard let map, parent.renderStyle == .routes, parent.showPins, !runPoints.isEmpty else {
                 removeAllClusters()
                 return
             }
