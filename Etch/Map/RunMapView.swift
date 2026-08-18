@@ -363,10 +363,6 @@ struct RunMapView: UIViewRepresentable {
             clusterCellSize = 0
         }
 
-        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
-            parent.centerBox?.coordinate = mapView.centerCoordinate
-        }
-
         func mapView(_ mapView: MKMapView, viewFor annotation: any MKAnnotation) -> MKAnnotationView? {
             if annotation is MKUserLocation { return nil }
             guard let cluster = annotation as? RunClusterAnnotation else { return nil }
@@ -493,6 +489,7 @@ struct RunMapView: UIViewRepresentable {
         /// Redraw the heatmap whenever the viewport changes so the glow stays registered to
         /// the map as the user pans and zooms.
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+            parent.centerBox?.coordinate = mapView.centerCoordinate
             if parent.renderStyle == .history { updateHeatmap() }
             else { rebuildClusters(force: false) }
         }
