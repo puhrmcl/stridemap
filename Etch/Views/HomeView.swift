@@ -271,7 +271,8 @@ struct HomeView: View {
                     controlsBar
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.trailing, 20)
+            .padding(.leading, 16)
             .padding(.bottom, 12)
         }
         .overlay {
