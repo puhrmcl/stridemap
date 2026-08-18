@@ -61,8 +61,14 @@ struct LookAroundButton: View {
     }
 }
 
+/// An identifiable box so a fetched scene can drive a `.fullScreenCover(item:)`.
+struct LookAroundScenePresentation: Identifiable {
+    let id = UUID()
+    let scene: MKLookAroundScene
+}
+
 /// Full-screen interactive Look Around with a close button.
-private struct LookAroundScreen: View {
+struct LookAroundScreen: View {
     let scene: MKLookAroundScene
     @Environment(\.dismiss) private var dismiss
 

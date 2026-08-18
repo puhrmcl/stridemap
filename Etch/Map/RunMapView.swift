@@ -11,6 +11,12 @@ enum RouteRenderStyle: Equatable {
     case history
 }
 
+/// A plain reference holder for the map's live center. A class (not `@State` value) so the map
+/// can update it on every pan without invalidating SwiftUI views; readers pull the latest on demand.
+final class MapCenterBox {
+    var coordinate: CLLocationCoordinate2D?
+}
+
 /// High-performance route map. Wraps `MKMapView` so thousands of polylines render
 /// smoothly with per-route colour, age fading, and a recency glow — something SwiftUI's
 /// `Map` struggles with at scale.
@@ -34,6 +40,9 @@ struct RunMapView: UIViewRepresentable {
     var renderStyle: RouteRenderStyle = .routes
     /// When false, the tappable start pins are hidden and only the route lines are drawn.
     var showPins: Bool = true
+    /// Receives the map's current center as it pans, so callers (e.g. the Look Around binoculars)
+    /// can act on it without the churn of a `@State` update on every frame.
+    var centerBox: MapCenterBox? = nil
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -352,6 +361,10 @@ struct RunMapView: UIViewRepresentable {
             map.removeAnnotations(clusterAnnotations)
             clusterAnnotations.removeAll()
             clusterCellSize = 0
+        }
+
+        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+            parent.centerBox?.coordinate = mapView.centerCoordinate
         }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: any MKAnnotation) -> MKAnnotationView? {

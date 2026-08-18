@@ -41,6 +41,12 @@ struct HomeView: View {
     /// When off, the route map hides the start pins and shows only the mapped lines.
     @AppStorage("showMapPins") private var showPins = true
 
+    /// The route map's live center, for opening Look Around at whatever is on screen.
+    @State private var centerBox = MapCenterBox()
+    /// A fetched Look Around scene to present, and whether the last request found no coverage.
+    @State private var lookAround: LookAroundScenePresentation?
+    @State private var lookAroundUnavailable = false
+
     /// When true, the map shows a Locations overlay (cities / states / countries / landmarks).
     @State private var showLocations = false
     /// Which Locations overlay is active.
@@ -192,7 +198,8 @@ struct HomeView: View {
                     stackedRunIDs: $appModel.stackedRunIDs,
                     command: $appModel.command,
                     mapStyle: mapStyle,
-                    showPins: showPins
+                    showPins: showPins,
+                    centerBox: centerBox
                 )
             }
         }
@@ -297,6 +304,12 @@ struct HomeView: View {
                     .presentationDetents([.medium, .large])
                     .presentationBackground(.regularMaterial)
             }
+        }
+        .fullScreenCover(item: $lookAround) { LookAroundScreen(scene: $0.scene) }
+        .alert("Look Around Unavailable", isPresented: $lookAroundUnavailable) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Apple doesn't have street-level imagery for this spot yet. Try panning to a more built-up area.")
         }
     }
 
@@ -839,6 +852,11 @@ struct HomeView: View {
     /// pins toggle is dropped and recenter reframes the overlay.
     private var actionCapsule: some View {
         VStack(spacing: 0) {
+            // Apple Look Around (street view) at the map's current center — route map only.
+            if !showLocations {
+                capsuleButton(systemName: "binoculars.fill") { openLookAround() }
+                capsuleDivider
+            }
             capsuleButton(systemName: mapStyle.symbol, isActive: showMapStyleMenu) {
                 withAnimation(Theme.spring) { showMapStyleMenu.toggle() }
             }
@@ -883,6 +901,19 @@ struct HomeView: View {
     /// full screen width (an unconstrained Rectangle expands to infinity).
     private var capsuleDivider: some View {
         Rectangle().fill(.primary.opacity(0.12)).frame(width: 34, height: 0.75)
+    }
+
+    /// Fetches the Look Around scene at the map's current center and presents it, or notes that
+    /// there's no coverage there.
+    private func openLookAround() {
+        guard let coordinate = centerBox.coordinate else { return }
+        Task {
+            if let scene = try? await MKLookAroundSceneRequest(coordinate: coordinate).scene {
+                lookAround = LookAroundScenePresentation(scene: scene)
+            } else {
+                lookAroundUnavailable = true
+            }
+        }
     }
 
     /// The bottom bar — an Apple Maps-style search/explore field that opens the hub, with the
