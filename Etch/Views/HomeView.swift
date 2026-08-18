@@ -47,6 +47,11 @@ struct HomeView: View {
     @State private var lookAround: LookAroundScenePresentation?
     @State private var lookAroundUnavailable = false
 
+    /// Current height of the docked search sheet, so the floating map controls track its top edge.
+    @State private var sheetHeight: CGFloat = 132
+    /// Measured map height, for sizing the sheet's detents.
+    @State private var screenHeight: CGFloat = 800
+
     /// When true, the map shows a Locations overlay (cities / states / countries / landmarks).
     @State private var showLocations = false
     /// Which Locations overlay is active.
@@ -263,29 +268,39 @@ struct HomeView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 12) {
-                // Floating controls above the search bar, Apple Maps style: the Look Around
-                // binoculars on the left, the map-action capsule on the right, both near the
-                // screen edges (so they read slightly wider than the inset search bar below).
-                HStack(alignment: .bottom, spacing: 0) {
-                    if !showLocations { binocularsButton }
-                    Spacer(minLength: 0)
-                    VStack(alignment: .trailing, spacing: 8) {
-                        if showMapStyleMenu { mapStyleDropdown }
-                        actionCapsule
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 16)
-
-                // Studio-first popup keeps a focused map (its close button returns to Studio), so
-                // the explore bar is hidden there. The search bar is inset more than the buttons.
-                if !isMapPopup {
-                    hubBar.padding(.horizontal, 26)
-                }
+        // The docked Apple Maps-style search sheet plus the floating map controls that track its
+        // top edge. A plain overlay (not a system sheet), so the map stays interactive above it and
+        // run detail / surfaces keep presenting through the map's own sheet with no conflict. The
+        // Studio-first popup keeps a focused map (close button returns to Studio) — no dock there.
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { screenHeight = geo.size.height }
+                    .onChange(of: geo.size.height) { _, h in screenHeight = h }
             }
-            .padding(.bottom, 12)
+        )
+        .overlay(alignment: .bottom) {
+            let maxH = screenHeight * 0.90
+            let mid = max(260, maxH * 0.5)
+            let t = max(0, min(1, (sheetHeight - 132) / (mid - 132)))
+            if !isMapPopup {
+                // Content-sized (not full-screen) so the map above the sheet stays interactive.
+                ZStack(alignment: .bottom) {
+                    floatingControls
+                        .padding(.bottom, sheetHeight + 12)   // sit just above the sheet's top edge
+                        .opacity(1 - t)                        // fade out as the sheet expands
+                        .allowsHitTesting(t < 0.5)
+
+                    MapSearchSheet(maxHeight: maxH, height: $sheetHeight)
+                }
+                .frame(height: sheetHeight + 90, alignment: .bottom)
+                .frame(maxWidth: .infinity, alignment: .bottom)
+                .ignoresSafeArea(.container, edges: .bottom)
+                .ignoresSafeArea(.keyboard, edges: .bottom)
+            } else {
+                // Popup: just the floating controls, above the safe-area bottom.
+                floatingControls.padding(.bottom, 20)
+            }
         }
         .overlay {
             if allRuns.isEmpty {
@@ -832,6 +847,21 @@ struct HomeView: View {
     /// The map's action buttons, grouped in a single vertical capsule (Apple Maps style): base-map
     /// style, show/hide pins, recenter-to-fit, and current location. In the Locations overview the
     /// pins toggle is dropped and recenter reframes the overlay.
+    /// The map's floating controls: the Look Around binoculars on the left, the action capsule on
+    /// the right (with its map-style dropdown rising above it).
+    private var floatingControls: some View {
+        HStack(alignment: .bottom, spacing: 0) {
+            if !showLocations { binocularsButton }
+            Spacer(minLength: 0)
+            VStack(alignment: .trailing, spacing: 8) {
+                if showMapStyleMenu { mapStyleDropdown }
+                actionCapsule
+            }
+        }
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity)
+    }
+
     private var actionCapsule: some View {
         VStack(spacing: 0) {
             capsuleButton(systemName: mapStyle.symbol, isActive: showMapStyleMenu) {
@@ -904,42 +934,6 @@ struct HomeView: View {
                 lookAroundUnavailable = true
             }
         }
-    }
-
-    /// The bottom bar — an Apple Maps-style search/explore field that opens the hub, with the
-    /// profile avatar pinned to the right so Profile is always one tap away.
-    private var hubBar: some View {
-        HStack(spacing: 10) {
-            Button {
-                appModel.presentedSurface = .hub
-            } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    Text("Search & explore")
-                        .font(.system(.body, design: .rounded).weight(.medium))
-                        .foregroundStyle(.secondary)
-                    Spacer(minLength: 0)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            Button {
-                appModel.presentedSurface = .profile
-            } label: {
-                Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundStyle(Theme.accent)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Profile")
-        }
-        .padding(.leading, 18)
-        .padding(.trailing, 10)
-        .padding(.vertical, 9)
-        .glassBackground(cornerRadius: 30)
     }
 
     /// The base-map-style dropdown — the same glass panel and rows as the pill's mode/type menus,
