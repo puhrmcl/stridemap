@@ -75,6 +75,9 @@ struct HomeView: View {
     /// native Menu), so it reads as part of the pill.
     @State private var showModeMenu = false
     @State private var showTypeMenu = false
+    /// The base-map-style dropdown, rendered as a custom glass panel extending from the map-style
+    /// button, so it matches the pill's dropdowns rather than using a detached native Menu.
+    @State private var showMapStyleMenu = false
 
     /// The full-map print kind that matches the current view.
     private var currentPrintKind: MapPrintKind {
@@ -195,11 +198,11 @@ struct HomeView: View {
         .ignoresSafeArea()
         // Tap anywhere on the map to dismiss the open mode dropdown (it sits above this layer).
         .overlay {
-            if showModeMenu || showTypeMenu {
+            if showModeMenu || showTypeMenu || showMapStyleMenu {
                 Color.black.opacity(0.0001)
                     .ignoresSafeArea()
                     .contentShape(Rectangle())
-                    .onTapGesture { withAnimation(Theme.spring) { showModeMenu = false; showTypeMenu = false } }
+                    .onTapGesture { withAnimation(Theme.spring) { showModeMenu = false; showTypeMenu = false; showMapStyleMenu = false } }
             }
         }
         // The "View" label reflects the chosen place; reset it (and any selected state) when the
@@ -256,6 +259,7 @@ struct HomeView: View {
             HStack {
                 Spacer()
                 VStack(alignment: .trailing, spacing: 10) {
+                    if showMapStyleMenu { mapStyleDropdown }
                     mapStyleButton
                     if showLocations {
                         // Re-frame the overlay to fit all its pins / regions (and drop any single
@@ -266,12 +270,12 @@ struct HomeView: View {
                             locationRecenterToken += 1
                         }
                     } else {
-                        GlassIconButton(systemName: "location.fill") {
-                            appModel.recenterOnUser()
-                        }
                         // Recenter/zoom the map to frame all the runs currently shown.
                         GlassIconButton(systemName: "arrow.up.left.and.arrow.down.right") {
                             fitShownRuns()
+                        }
+                        GlassIconButton(systemName: "location.fill") {
+                            appModel.recenterOnUser()
                         }
                     }
                     // In Studio-first mode the map is a focused popup — no surface navigation.
@@ -438,8 +442,8 @@ struct HomeView: View {
         .onPreferenceChange(PillColumnHeightKey.self) { if $0 > 0 { pillColumnHeight = $0 } }
         .fixedSize(horizontal: true, vertical: false)
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .glassBackground(cornerRadius: 16)
+        .padding(.vertical, 10)
+        .glassBackground(cornerRadius: 18)
     }
 
     /// A hairline separator sized to the pill's row height.
@@ -501,8 +505,7 @@ struct HomeView: View {
             metric(
                 value: Format.distanceValue(shownStats.totalDistanceMeters)
                     .formatted(.number.precision(.fractionLength(0))),
-                unit: UnitSystem.current.distanceSuffix,
-                systemName: "point.topleft.down.to.point.bottomright.curvepath"
+                unit: UnitSystem.current.distanceSuffix
             )
         }
     }
@@ -894,14 +897,11 @@ struct HomeView: View {
         }
     }
 
-    /// Switches the base map between standard, satellite, and hybrid.
+    /// Switches the base map between standard, satellite, and hybrid — opens the custom glass
+    /// dropdown (matching the pill's menus) that extends up from this button.
     private var mapStyleButton: some View {
-        Menu {
-            Picker("Map Style", selection: $mapStyleRaw) {
-                ForEach(MapStyleOption.allCases) { style in
-                    Label(style.label, systemImage: style.symbol).tag(style.rawValue)
-                }
-            }
+        Button {
+            withAnimation(Theme.spring) { showMapStyleMenu.toggle() }
         } label: {
             Image(systemName: mapStyle.symbol)
                 .font(.system(size: 19, weight: .medium))
@@ -910,6 +910,27 @@ struct HomeView: View {
                 .glassCircle()
         }
         .buttonStyle(.plain)
+    }
+
+    /// The base-map-style dropdown — the same glass panel and rows as the pill's mode/type menus,
+    /// anchored to rise from the map-style button in the bottom-right.
+    private var mapStyleDropdown: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(MapStyleOption.allCases.enumerated()), id: \.element) { index, style in
+                if index > 0 { dropdownDivider }
+                modeRow(label: style.label, symbol: style.symbol, selected: mapStyle == style) {
+                    withAnimation(Theme.gentle) { mapStyleRaw = style.rawValue }
+                    withAnimation(Theme.spring) { showMapStyleMenu = false }
+                }
+            }
+        }
+        .padding(.vertical, 5)
+        .frame(width: 230)
+        .glassBackground(cornerRadius: 20)
+        .transition(.asymmetric(
+            insertion: .scale(scale: 0.92, anchor: .bottomTrailing).combined(with: .opacity),
+            removal: .scale(scale: 0.96, anchor: .bottomTrailing).combined(with: .opacity)
+        ))
     }
 
     // MARK: Empty / syncing state
