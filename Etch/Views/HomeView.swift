@@ -264,7 +264,6 @@ struct HomeView: View {
                     // so the map stays clean; the same menu also reveals the surface navigation.
                     if menuExpanded {
                         mapControls
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                     controlsBar
                 }
@@ -885,9 +884,12 @@ struct HomeView: View {
     }
 
     /// The map view controls revealed by the three-dot menu: base-map style, plus recenter and
-    /// current-location (or reframe, in the Locations overview).
+    /// current-location (or reframe, in the Locations overview). Structured as a `Group` with a
+    /// per-button transition — the same pattern as the surface-navigation buttons — so they
+    /// animate identically, only rising up (from the bottom edge) instead of sliding in from the
+    /// trailing edge. The enclosing bottom VStack lays them out vertically.
     private var mapControls: some View {
-        VStack(alignment: .trailing, spacing: 10) {
+        Group {
             mapStyleButton
             if showLocations {
                 // Re-frame the overlay to fit all its pins / regions (and drop any single
@@ -907,6 +909,7 @@ struct HomeView: View {
                 }
             }
         }
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
     private func controlButton(icon: String, surface: AppModel.Surface, active: Bool = false) -> some View {
