@@ -51,7 +51,8 @@ struct FilterView: View {
             }
             .onAppear { seed() }
         }
-        .presentationDetents([.large])
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 
     private func seed() {

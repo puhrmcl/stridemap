@@ -399,36 +399,72 @@ struct HomeView: View {
         }
     }
 
-    /// One glass pill showing both totals — distance and activity count. The activity-type selector
-    /// on the left opens a dropdown that extends from its icon; below the totals, the caption names
-    /// the current map view and its chevron opens the view (mode) dropdown.
+    /// One glass pill, a single row: the activity-type selector on the left, the totals in the
+    /// middle (tap to open the map-view dropdown), and the filter button on the right (opens the
+    /// full Filters as a bottom sheet). Each side element is sized to the totals' height.
     private var totalsPill: some View {
         HStack(spacing: 10) {
             // The activity-type selector only appears when there's more than one type to choose
-            // between; with a single type the pill collapses to just the totals.
+            // between; with a single type the pill leads with the totals.
             if !isSingleActivity {
                 typeSelector
                     .frame(height: pillColumnHeight)
-                Rectangle()
-                    .fill(.secondary.opacity(0.3))
-                    .frame(width: 1, height: pillColumnHeight)
+                pillDivider
             }
-            // Totals, then the current-view caption with the view-dropdown chevron beside it.
-            VStack(spacing: 3) {
-                metricsRow
-                captionRow
+            // Middle: the totals, tappable to open the map-view (mode) dropdown.
+            Button {
+                withAnimation(Theme.spring) { showModeMenu.toggle(); showTypeMenu = false }
+            } label: {
+                HStack(spacing: 7) {
+                    metricsRow
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Theme.accentOnGlass)
+                        .rotationEffect(.degrees(showModeMenu ? 180 : 0))
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .background(
                 GeometryReader { geo in
                     Color.clear.preference(key: PillColumnHeightKey.self, value: geo.size.height)
                 }
             )
+
+            pillDivider
+            pillFilterButton
+                .frame(height: pillColumnHeight)
         }
         .onPreferenceChange(PillColumnHeightKey.self) { if $0 > 0 { pillColumnHeight = $0 } }
         .fixedSize(horizontal: true, vertical: false)
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .glassBackground(cornerRadius: 16)
+    }
+
+    /// A hairline separator sized to the pill's row height.
+    private var pillDivider: some View {
+        Rectangle()
+            .fill(.secondary.opacity(0.3))
+            .frame(width: 1, height: pillColumnHeight)
+    }
+
+    /// The filter entry on the right of the pill. Opens the full Filters as an Apple-style bottom
+    /// sheet. Dimmed and disabled in the overview (Locations) modes, which show everything.
+    private var pillFilterButton: some View {
+        Button {
+            appModel.presentedSurface = .filters
+        } label: {
+            Image(systemName: "line.3.horizontal.decrease")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(appModel.filter.isActive ? Theme.accentOnGlass : .primary)
+                .frame(maxHeight: .infinity)
+                .padding(.horizontal, 2)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isOverviewMode)
+        .opacity(isOverviewMode ? 0.4 : 1)
     }
 
     /// The activity-type selector on the left of the pill — All Types / Runs / Hikes / Rides /
@@ -469,27 +505,6 @@ struct HomeView: View {
                 systemName: "point.topleft.down.to.point.bottomright.curvepath"
             )
         }
-    }
-
-    /// The caption naming the current map view, with a chevron beside it that opens the view
-    /// (mode) dropdown.
-    private var captionRow: some View {
-        Button {
-            withAnimation(Theme.spring) { showModeMenu.toggle(); showTypeMenu = false }
-        } label: {
-            HStack(spacing: 5) {
-                Text(currentModeLabel.uppercased())
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .tracking(1.2)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .bold))
-                    .rotationEffect(.degrees(showModeMenu ? 180 : 0))
-            }
-            .foregroundStyle(Theme.accentOnGlass)
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 
     /// The activity-type dropdown — the same glass panel as the view dropdown, listing the activity
@@ -601,13 +616,6 @@ struct HomeView: View {
     /// The scopes offered — hikes/walks appear only when their visibility is on.
     private var activityScopeOptions: [ActivityScope] {
         ActivitySettings.visibleScopes
-    }
-
-    /// The pill's caption line. A specific map-mode filter (Races, PRs…) or Locations names itself;
-    /// otherwise it reads "All Activities" / "All Runs" / "All Hikes" per the selected activity.
-    private var currentModeLabel: String {
-        if showLocations { return "Locations" }
-        return modeLabel(appModel.filter.mode)
     }
 
     /// The plural activity noun for the active scope — "Runs", "Hikes", "Activities" — so map-mode
@@ -877,17 +885,6 @@ struct HomeView: View {
                 withAnimation(Theme.spring) { menuExpanded.toggle() }
             }
         }
-    }
-
-    /// Filter control, pinned to the top-right of the map. Filtering only applies to the route
-    /// map; the overview modes (history, locations) deliberately show everything, so it's
-    /// disabled there.
-    private var filterButton: some View {
-        GlassIconButton(systemName: "line.3.horizontal.decrease", isActive: appModel.filter.isActive) {
-            appModel.presentedSurface = .filters
-        }
-        .disabled(isOverviewMode)
-        .opacity(isOverviewMode ? 0.35 : 1)
     }
 
     private func controlButton(icon: String, surface: AppModel.Surface, active: Bool = false) -> some View {
