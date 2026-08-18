@@ -892,14 +892,15 @@ struct HomeView: View {
     /// trailing edge. The enclosing bottom VStack lays them out vertically.
     private var mapControls: some View {
         Group {
+            mapStyleButton
             // Show/hide the start pins — hiding leaves just the mapped route lines. Only meaningful
-            // on the route map (the Locations overlays use their own place pins).
+            // on the route map (the Locations overlays use their own place pins). Styled as a plain
+            // map control (grounded pin glyph, no lit state) to match its neighbours.
             if !showLocations {
-                GlassIconButton(systemName: showPins ? "mappin" : "mappin.slash", isActive: !showPins) {
+                GlassIconButton(systemName: showPins ? "mappin.and.ellipse" : "mappin.slash") {
                     withAnimation(Theme.spring) { showPins.toggle() }
                 }
             }
-            mapStyleButton
             if showLocations {
                 // Re-frame the overlay to fit all its pins / regions (and drop any single
                 // state selection so the full choropleth returns).
