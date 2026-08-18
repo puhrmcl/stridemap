@@ -10,6 +10,12 @@ struct HighlightsView: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var runs: [Run]
 
+    /// GPS-attributed reach, computed off-main so the counts match exactly what the States and
+    /// Countries maps shade (point-in-polygon), rather than the looser geocoded label sets — which
+    /// over-count DC/territories, foreign regions, spelling variants, and GPS-less imported runs.
+    private struct ReachGeo { var states = 0; var countries = 0; var ready = false }
+    @State private var reachGeo = ReachGeo()
+
     /// Concrete activity types (not "All") that are both enabled in Settings and actually present.
     /// When only one qualifies, there's nothing to switch between.
     private var presentActivityScopes: [ActivityScope] {
@@ -66,7 +72,38 @@ struct HighlightsView: View {
                 // Heal a stored scope that's since been hidden in Settings so it doesn't linger.
                 if !ActivitySettings.isVisible(appModel.activityScope) { setScope(.all) }
             }
+            // Recompute the GPS-attributed reach whenever the scope or the located-run set changes.
+            .task(id: reachKey) { await computeReachGeo() }
         }
+    }
+
+    /// Keys the reach computation to the scope and the number of located runs, so it re-runs when
+    /// the user switches activity or new routes give older runs coordinates.
+    private var reachKey: String {
+        "\(scope.rawValue)-\(scopedRuns.reduce(0) { $0 + ($1.startLatitude != nil ? 1 : 0) })"
+    }
+
+    /// Attributes each located run to a US state and a country by point-in-polygon — off the main
+    /// actor — so the reach tiles read exactly what the maps shade. Coordinates are snapshotted on
+    /// the main actor first (Run isn't Sendable); the polygon tests run detached.
+    private func computeReachGeo() async {
+        let coordinates = scopedRuns.compactMap(\.startCoordinate)
+        let result = await Task.detached(priority: .userInitiated) { () -> (states: Int, countries: Int) in
+            let stateBoundaries = USStateBoundaries.shared
+            let countryBoundaries = WorldCountryBoundaries.shared
+            var states = Set<String>()
+            var countries = Set<String>()
+            for coordinate in coordinates {
+                if let name = stateBoundaries.region(containing: coordinate), stateBoundaries.isState(name) {
+                    states.insert(name)
+                }
+                if let name = countryBoundaries.region(containing: coordinate) {
+                    countries.insert(name)
+                }
+            }
+            return (states.count, countries.count)
+        }.value
+        reachGeo = ReachGeo(states: result.states, countries: result.countries, ready: true)
     }
 
     // MARK: Scope switcher / indicator
@@ -118,16 +155,18 @@ struct HighlightsView: View {
                 NavigationLink {
                     CitiesListView(places: reachStats.travelPlaces)
                 } label: {
-                    StatTile(value: reachStats.cities.count.formatted(), label: "Cities", systemName: "building.2", accent: true)
+                    // Match the Cities map / list, which cluster by place (travelPlaces), not the
+                    // raw distinct-city-name set.
+                    StatTile(value: reachStats.travelPlaces.count.formatted(), label: "Cities", systemName: "building.2", accent: true)
                 }
                 .buttonStyle(.plain)
                 NavigationLink {
                     StatesView()
                 } label: {
-                    StatTile(value: reachStats.states.count.formatted(), label: "States", systemName: "map")
+                    StatTile(value: reachStateValue, label: "States", systemName: "map")
                 }
                 .buttonStyle(.plain)
-                StatTile(value: reachStats.countries.count.formatted(), label: "Countries", systemName: "globe")
+                StatTile(value: reachCountryValue, label: "Countries", systemName: "globe")
                 StatTile(
                     value: Format.distanceValue(stats.totalDistanceMeters).formatted(.number.precision(.fractionLength(0))),
                     label: "Total \(UnitSystem.current.distanceSuffix)",
@@ -144,6 +183,15 @@ struct HighlightsView: View {
                 }
             }
         }
+    }
+
+    /// The States / Countries tile values: the GPS-attributed count once computed, falling back to
+    /// the geocoded estimate for the brief moment before the polygon pass finishes.
+    private var reachStateValue: String {
+        (reachGeo.ready ? reachGeo.states : reachStats.states.count).formatted()
+    }
+    private var reachCountryValue: String {
+        (reachGeo.ready ? reachGeo.countries : reachStats.countries.count).formatted()
     }
 
     /// Whether the current scope is a climbing-forward discipline that should lead with elevation.
