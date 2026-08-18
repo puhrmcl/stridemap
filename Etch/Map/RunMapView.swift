@@ -129,7 +129,7 @@ struct RunMapView: UIViewRepresentable {
 
         /// Lightweight start points for the mapped runs, used to place tappable pins — with each
         /// run's pin kind (race / milestone / normal) so single-run pins can style themselves.
-        private var runPoints: [(id: UUID, coordinate: CLLocationCoordinate2D, kind: RunPinKind)] = []
+        private var runPoints: [(id: UUID, coordinate: CLLocationCoordinate2D, kind: RunPinKind, type: ActivityType)] = []
         /// run id → its start coordinate, for framing a cluster's members on drill-in.
         private var coordByID: [UUID: CLLocationCoordinate2D] = [:]
         /// Our own zoom-aware clusters. MapKit's automatic clustering silently drops annotations
@@ -182,16 +182,16 @@ struct RunMapView: UIViewRepresentable {
 
             // Snapshot start points for the tappable pins (only mapped runs get one), each with its
             // pin kind — milestone (a record/superlative) wins over race, then plain.
-            runPoints = runs.compactMap { run -> (id: UUID, coordinate: CLLocationCoordinate2D, kind: RunPinKind)? in
+            runPoints = runs.compactMap { run -> (id: UUID, coordinate: CLLocationCoordinate2D, kind: RunPinKind, type: ActivityType)? in
                 guard let coordinate = run.startCoordinate else { return nil }
                 // A route-less run the user hand-placed (indoor/treadmill) reads as a treadmill pin.
-                guard run.hasRoute else { return (run.id, coordinate, .indoor) }
+                guard run.hasRoute else { return (run.id, coordinate, .indoor, run.activityType) }
                 let isMilestone = parent.milestoneRunIDs.contains(run.id)
                 let kind: RunPinKind = run.isRace && isMilestone ? .raceMilestone
                     : isMilestone ? .milestone
                     : run.isRace ? .race
                     : .normal
-                return (run.id, coordinate, kind)
+                return (run.id, coordinate, kind, run.activityType)
             }
             coordByID = Dictionary(runPoints.map { ($0.id, $0.coordinate) }, uniquingKeysWith: { first, _ in first })
 
@@ -314,17 +314,19 @@ struct RunMapView: UIViewRepresentable {
             let represented = clusterAnnotations.reduce(0) { $0 + $1.runIDs.count }
             guard force || cellChanged || represented != runPoints.count else { return }
 
-            var buckets: [String: (ids: [UUID], sumX: Double, sumY: Double, kind: RunPinKind)] = [:]
+            var buckets: [String: (ids: [UUID], sumX: Double, sumY: Double, kind: RunPinKind, type: ActivityType)] = [:]
             for point in runPoints {
                 let mp = MKMapPoint(point.coordinate)
                 let gx = Int(floor(mp.x / cell)), gy = Int(floor(mp.y / cell))
                 let key = "\(gx),\(gy)"
-                var bucket = buckets[key] ?? (ids: [], sumX: 0, sumY: 0, kind: .normal)
+                var bucket = buckets[key] ?? (ids: [], sumX: 0, sumY: 0, kind: .normal, type: .run)
                 bucket.ids.append(point.id)
                 bucket.sumX += mp.x
                 bucket.sumY += mp.y
-                // A single-run cell shows that run's kind; a cell with several is a neutral bubble.
+                // A single-run cell shows that run's kind + activity glyph; a cell with several is
+                // a neutral count bubble (the type is unused there).
                 bucket.kind = bucket.ids.count == 1 ? point.kind : .normal
+                bucket.type = point.type
                 buckets[key] = bucket
             }
             var newAnnotations: [RunClusterAnnotation] = []
@@ -332,7 +334,7 @@ struct RunMapView: UIViewRepresentable {
             for bucket in buckets.values {
                 let n = Double(bucket.ids.count)
                 let coordinate = MKMapPoint(x: bucket.sumX / n, y: bucket.sumY / n).coordinate
-                newAnnotations.append(RunClusterAnnotation(runIDs: bucket.ids, coordinate: coordinate, kind: bucket.kind))
+                newAnnotations.append(RunClusterAnnotation(runIDs: bucket.ids, coordinate: coordinate, kind: bucket.kind, activityType: bucket.type))
             }
 
             map.removeAnnotations(clusterAnnotations)
@@ -369,7 +371,7 @@ struct RunMapView: UIViewRepresentable {
             let view = (mapView.dequeueReusableAnnotationView(withIdentifier: id) as? RunPinView)
                 ?? RunPinView(annotation: annotation, reuseIdentifier: id)
             view.annotation = annotation
-            view.configure(cluster.kind)
+            view.configure(cluster.kind, activityType: cluster.activityType)
             view.clusteringIdentifier = nil
             view.displayPriority = .required
             return view
@@ -598,10 +600,14 @@ enum RunPinKind {
 final class RunClusterAnnotation: NSObject, MKAnnotation {
     let runIDs: [UUID]
     let kind: RunPinKind
+    /// The run's activity type — drives the pin glyph for a plain (`.normal`) single-run pin so a
+    /// ride reads as a bike, a hike as a hiker, etc. Unused for count bubbles and styled kinds.
+    let activityType: ActivityType
     @objc dynamic var coordinate: CLLocationCoordinate2D
-    init(runIDs: [UUID], coordinate: CLLocationCoordinate2D, kind: RunPinKind = .normal) {
+    init(runIDs: [UUID], coordinate: CLLocationCoordinate2D, kind: RunPinKind = .normal, activityType: ActivityType = .run) {
         self.runIDs = runIDs
         self.kind = kind
+        self.activityType = activityType
         self.coordinate = coordinate
     }
 }
@@ -637,9 +643,9 @@ final class RunPinView: MKAnnotationView {
     }
 
     /// Styles the pin by run kind: a race reads as a blue checkered flag so it stands out, a
-    /// milestone as a gold trophy; a run that's both keeps the checkered flag but on gold. Plain
-    /// runs are the ink runner.
-    func configure(_ kind: RunPinKind) {
+    /// milestone as a gold trophy; a run that's both keeps the checkered flag but on gold. A plain
+    /// run shows its activity glyph — a runner, cyclist, hiker, or walker per `activityType`.
+    func configure(_ kind: RunPinKind, activityType: ActivityType = .run) {
         let symbol: String
         let background: UIColor
         switch kind {
@@ -656,7 +662,7 @@ final class RunPinView: MKAnnotationView {
             symbol = IndoorGlyph.symbol                 // treadmill — a hand-placed route-less run
             background = UIColor(Theme.Palette.ink).withAlphaComponent(0.9)
         case .normal:
-            symbol = "figure.run"
+            symbol = activityType.detailIcon            // runner / cyclist / hiker / walker
             background = UIColor(Theme.Palette.ink).withAlphaComponent(0.95)
         }
         let compact = kind == .race || kind == .raceMilestone || kind == .indoor
