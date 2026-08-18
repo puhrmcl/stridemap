@@ -181,6 +181,10 @@ struct HighlightsView: View {
                     StatTile(value: climbValue(averageClimb), label: "Avg climb",
                              systemName: "arrow.up.forward")
                 }
+                // Speed is a headline metric for rides (pace suits runs) — surface average speed.
+                if scope == .rides {
+                    StatTile(value: averageSpeedValue, label: "Avg speed", systemName: "speedometer", accent: true)
+                }
             }
         }
     }
@@ -200,6 +204,16 @@ struct HighlightsView: View {
     /// Mean ascent per activity, for the "Avg climb" tile.
     private var averageClimb: Double {
         stats.totalRuns > 0 ? stats.totalElevationMeters / Double(stats.totalRuns) : 0
+    }
+
+    /// Distance-weighted average speed in the user's unit (mph / km/h) — the ride headline metric.
+    private var averageSpeedValue: String {
+        guard stats.totalMovingTime > 0 else { return "—" }
+        let metersPerSecond = stats.totalDistanceMeters / Double(stats.totalMovingTime)
+        let unit = UnitSystem.current
+        let value = unit == .miles ? metersPerSecond * 2.2369363 : metersPerSecond * 3.6
+        let suffix = unit == .miles ? "mph" : "km/h"
+        return String(format: "%.1f %@", value, suffix)
     }
 
     /// Elevation in the user's unit with grouping, e.g. "12,480 ft" — a tile-friendly headline
