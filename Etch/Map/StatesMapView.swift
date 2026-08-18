@@ -35,6 +35,7 @@ struct StatesMapView: UIViewRepresentable {
         map.showsScale = false
 
         map.preferredConfiguration = mapStyle.configuration()
+        map.overrideUserInterfaceStyle = mapStyle.forcedInterfaceStyle
         context.coordinator.appliedStyle = mapStyle
 
         // Continental US to start; Alaska/Hawaii are a pan away.
@@ -55,6 +56,7 @@ struct StatesMapView: UIViewRepresentable {
         if context.coordinator.appliedStyle != mapStyle {
             context.coordinator.appliedStyle = mapStyle
             map.preferredConfiguration = mapStyle.configuration()
+            map.overrideUserInterfaceStyle = mapStyle.forcedInterfaceStyle
         }
         // Intensities and the selected state are set/changed after the map appears, so restyle
         // and force a redraw of any already-drawn renderers; not-yet-drawn ones pick up the

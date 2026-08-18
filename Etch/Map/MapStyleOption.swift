@@ -1,8 +1,11 @@
 import MapKit
+import UIKit
 
 /// The base map style the route map renders on. Persisted in `AppStorage`.
 enum MapStyleOption: String, CaseIterable, Identifiable {
     case standard
+    case night
+    case terrain
     case satellite
     case hybrid
 
@@ -10,37 +13,54 @@ enum MapStyleOption: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .standard: return "Standard"
+        case .standard:  return "Standard"
+        case .night:     return "Night"
+        case .terrain:   return "Terrain"
         case .satellite: return "Satellite"
-        case .hybrid: return "Hybrid"
+        case .hybrid:    return "Hybrid"
         }
     }
 
     var symbol: String {
         switch self {
-        case .standard: return "map"
+        case .standard:  return "map"
+        case .night:     return "moon.stars.fill"
+        case .terrain:   return "mountain.2.fill"
         case .satellite: return "globe.americas"
-        case .hybrid: return "globe.americas.fill"
+        case .hybrid:    return "globe.americas.fill"
         }
     }
 
-    /// True when the base map is dark imagery, so overlays need light (rather than dark) ink to
-    /// stay legible.
+    /// True when the base map is dark imagery (or the forced-dark Night style), so overlays need
+    /// light (rather than dark) ink to stay legible.
     var isDarkBase: Bool {
         switch self {
-        case .standard: return false
-        case .satellite, .hybrid: return true
+        case .standard, .terrain: return false
+        case .night, .satellite, .hybrid: return true
         }
+    }
+
+    /// Forces the map's appearance for styles that should look the same in light and dark mode.
+    /// Night is always dark (a consistent archival canvas); the rest follow the system.
+    var forcedInterfaceStyle: UIUserInterfaceStyle {
+        self == .night ? .dark : .unspecified
     }
 
     /// A fresh MapKit configuration for this style. Points of interest are excluded so the
     /// map stays calm and the routes are the focus.
     func configuration() -> MKMapConfiguration {
         switch self {
-        case .standard:
+        case .standard, .night:
             // Muted emphasis desaturates the base map so geography recedes and the Etch route /
             // markers are the only high-contrast thing on screen — archival, not navigational.
+            // Night uses the same config but is forced to a dark appearance (see forcedInterfaceStyle).
             let config = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .muted)
+            config.pointOfInterestFilter = .excludingAll
+            return config
+        case .terrain:
+            // Realistic elevation adds hillshaded relief — the hills and mountains a run or hike
+            // climbed read on the map itself. Still muted and POI-free to stay on-brand.
+            let config = MKStandardMapConfiguration(elevationStyle: .realistic, emphasisStyle: .muted)
             config.pointOfInterestFilter = .excludingAll
             return config
         case .satellite:

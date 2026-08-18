@@ -32,6 +32,7 @@ struct CitiesMapView: UIViewRepresentable {
         map.showsCompass = false
         map.showsScale = false
         map.preferredConfiguration = mapStyle.configuration()
+        map.overrideUserInterfaceStyle = mapStyle.forcedInterfaceStyle
         context.coordinator.appliedStyle = mapStyle
         // Tonal wash so geography recedes; the Etch chips (annotations) stay above it.
         map.addOverlay(MapWash.makeOverlay(), level: .aboveLabels)
@@ -45,6 +46,7 @@ struct CitiesMapView: UIViewRepresentable {
         if context.coordinator.appliedStyle != mapStyle {
             context.coordinator.appliedStyle = mapStyle
             map.preferredConfiguration = mapStyle.configuration()
+            map.overrideUserInterfaceStyle = mapStyle.forcedInterfaceStyle
         }
         if context.coordinator.installedCount != cities.count {
             context.coordinator.rebuild(on: map, cities: cities)

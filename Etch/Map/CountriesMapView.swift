@@ -24,6 +24,7 @@ struct CountriesMapView: UIViewRepresentable {
         map.showsScale = false
 
         map.preferredConfiguration = mapStyle.configuration()
+        map.overrideUserInterfaceStyle = mapStyle.forcedInterfaceStyle
         context.coordinator.appliedStyle = mapStyle
 
         // A broad world view to start; the map re-frames to your visited countries once the
@@ -44,6 +45,7 @@ struct CountriesMapView: UIViewRepresentable {
         if context.coordinator.appliedStyle != mapStyle {
             context.coordinator.appliedStyle = mapStyle
             map.preferredConfiguration = mapStyle.configuration()
+            map.overrideUserInterfaceStyle = mapStyle.forcedInterfaceStyle
         }
         // Intensities are computed asynchronously after the map appears, so restyle and force a
         // redraw of already-drawn renderers; not-yet-drawn ones pick up the update when first

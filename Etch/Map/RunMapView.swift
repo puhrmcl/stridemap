@@ -46,6 +46,7 @@ struct RunMapView: UIViewRepresentable {
         map.showsScale = false
 
         map.preferredConfiguration = mapStyle.configuration()
+        map.overrideUserInterfaceStyle = mapStyle.forcedInterfaceStyle
         context.coordinator.appliedStyle = mapStyle
 
         // Tap a route line to open its run. The recognizer never cancels touches and only acts
@@ -81,6 +82,7 @@ struct RunMapView: UIViewRepresentable {
         if context.coordinator.appliedStyle != mapStyle {
             context.coordinator.appliedStyle = mapStyle
             map.preferredConfiguration = mapStyle.configuration()
+            map.overrideUserInterfaceStyle = mapStyle.forcedInterfaceStyle
         }
 
         // Switching between per-run and history rendering changes both geometry (history uses
