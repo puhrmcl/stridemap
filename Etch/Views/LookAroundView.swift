@@ -96,10 +96,13 @@ private struct LookAroundContainer: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> MKLookAroundViewController {
         let controller = MKLookAroundViewController(scene: scene)
         controller.pointOfInterestFilter = .excludingAll
+        controller.isNavigationEnabled = true   // allow moving between adjacent locations
         return controller
     }
 
     func updateUIViewController(_ controller: MKLookAroundViewController, context: Context) {
-        controller.scene = scene
+        // Deliberately do NOT reassign `scene` here: setting it on every SwiftUI update resets the
+        // camera, which snaps the view back and makes it feel like panning does nothing. The scene
+        // is set once in `makeUIViewController` and never changes for a given presentation.
     }
 }
