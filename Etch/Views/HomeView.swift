@@ -259,18 +259,19 @@ struct HomeView: View {
                 .padding(.top, 8)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            HStack {
-                Spacer()
-                VStack(alignment: .trailing, spacing: 10) {
-                    if showMapStyleMenu { mapStyleDropdown }
-                    // The map controls (style, recenter, location) tuck behind the three-dot menu
-                    // so the map stays clean; the same menu also reveals the surface navigation.
-                    if menuExpanded {
-                        mapControls
-                    }
-                    controlsBar
+            // Trailing alignment is forced via a full-width frame rather than an HStack + Spacer:
+            // inside a bottom safe-area inset the Spacer could collapse (ideal-width proposal),
+            // letting the controls drift past the padded edge and clip off-screen.
+            VStack(alignment: .trailing, spacing: 10) {
+                if showMapStyleMenu { mapStyleDropdown }
+                // The map controls (style, recenter, location) tuck behind the three-dot menu
+                // so the map stays clean; the same menu also reveals the surface navigation.
+                if menuExpanded {
+                    mapControls
                 }
+                controlsBar
             }
+            .frame(maxWidth: .infinity, alignment: .trailing)
             .padding(.trailing, 20)
             .padding(.leading, 16)
             .padding(.bottom, 12)
