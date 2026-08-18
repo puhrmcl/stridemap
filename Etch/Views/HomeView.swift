@@ -65,8 +65,6 @@ struct HomeView: View {
     /// Bumped by the Locations recenter button; folded into the overlay map's id so the map is
     /// rebuilt and re-framed to fit all its pins/regions.
     @State private var locationRecenterToken = 0
-    /// The bottom navigation buttons collapse behind a menu; tapping it expands them.
-    @State private var menuExpanded = false
 
     /// Measured height of the pill's totals column, used to size the leading icon and divider to
     /// exactly that — `maxHeight: .infinity` would instead grab the whole top bar's height. Seeded
@@ -259,21 +257,21 @@ struct HomeView: View {
                 .padding(.top, 8)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            // Trailing alignment is forced via a full-width frame rather than an HStack + Spacer:
-            // inside a bottom safe-area inset the Spacer could collapse (ideal-width proposal),
-            // letting the controls drift past the padded edge and clip off-screen.
-            VStack(alignment: .trailing, spacing: 10) {
-                if showMapStyleMenu { mapStyleDropdown }
-                // The map controls (style, recenter, location) tuck behind the three-dot menu
-                // so the map stays clean; the same menu also reveals the surface navigation.
-                if menuExpanded {
-                    mapControls
+            VStack(spacing: 12) {
+                // The action capsule (and its map-style dropdown) hug the trailing edge — forced
+                // via a full-width frame, not a Spacer, which can collapse inside a bottom inset
+                // and let the controls drift off-screen.
+                VStack(alignment: .trailing, spacing: 8) {
+                    if showMapStyleMenu { mapStyleDropdown }
+                    actionCapsule
                 }
-                controlsBar
+                .frame(maxWidth: .infinity, alignment: .trailing)
+
+                // Studio-first popup keeps a focused map (its close button returns to Studio), so
+                // the explore bar is hidden there.
+                if !isMapPopup { hubBar }
             }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.trailing, 20)
-            .padding(.leading, 16)
+            .padding(.horizontal, 16)
             .padding(.bottom, 12)
         }
         .overlay {
@@ -424,10 +422,6 @@ struct HomeView: View {
                     Color.clear.preference(key: PillColumnHeightKey.self, value: geo.size.height)
                 }
             )
-
-            pillDivider
-            pillFilterButton
-                .frame(height: pillColumnHeight)
         }
         .onPreferenceChange(PillColumnHeightKey.self) { if $0 > 0 { pillColumnHeight = $0 } }
         .fixedSize(horizontal: true, vertical: false)
@@ -441,24 +435,6 @@ struct HomeView: View {
         Rectangle()
             .fill(.secondary.opacity(0.3))
             .frame(width: 1, height: pillColumnHeight)
-    }
-
-    /// The filter entry on the right of the pill. Opens the full Filters as an Apple-style bottom
-    /// sheet. Dimmed and disabled in the overview (Locations) modes, which show everything.
-    private var pillFilterButton: some View {
-        Button {
-            appModel.presentedSurface = .filters
-        } label: {
-            Image(systemName: "line.3.horizontal.decrease")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(appModel.filter.isActive ? Theme.accentOnGlass : .primary)
-                .frame(maxHeight: .infinity)
-                .padding(.horizontal, 2)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(isOverviewMode)
-        .opacity(isOverviewMode ? 0.4 : 1)
     }
 
     /// The activity-type selector on the left of the pill — All Types / Runs / Hikes / Rides /
@@ -857,87 +833,90 @@ struct HomeView: View {
 
     // MARK: Bottom — navigation controls
 
-    /// The three-dot control bar: its ellipsis toggles the whole controls menu open/closed. When
-    /// open it reveals the surface navigation (Profile / Timeline / Achievements / Studio) as a
-    /// row here, and the map controls stacked above (see `mapControls`). Studio-first popup mode
-    /// hides the surface navigation but keeps the menu for the map controls.
-    private var controlsBar: some View {
-        HStack(spacing: 10) {
-            if menuExpanded && !isMapPopup {
-                Group {
-                    controlButton(icon: "person", surface: .profile)
-                    controlButton(icon: "square.grid.2x2", surface: .timeline)
-                    controlButton(icon: "trophy", surface: .highlights)
-                    controlButton(icon: "photo.artframe", surface: .studio)
-                }
-                .transition(.move(edge: .trailing).combined(with: .opacity))
+    /// The map's action buttons, grouped in a single vertical capsule (Apple Maps style): base-map
+    /// style, show/hide pins, recenter-to-fit, and current location. In the Locations overview the
+    /// pins toggle is dropped and recenter reframes the overlay.
+    private var actionCapsule: some View {
+        VStack(spacing: 0) {
+            capsuleButton(systemName: mapStyle.symbol, isActive: showMapStyleMenu) {
+                withAnimation(Theme.spring) { showMapStyleMenu.toggle() }
             }
-            GlassIconButton(systemName: menuExpanded ? "xmark" : "ellipsis", isActive: menuExpanded) {
-                withAnimation(Theme.spring) {
-                    menuExpanded.toggle()
-                    if !menuExpanded { showMapStyleMenu = false }
-                }
-            }
-        }
-    }
-
-    /// The map view controls revealed by the three-dot menu: base-map style, plus recenter and
-    /// current-location (or reframe, in the Locations overview). Structured as a `Group` with a
-    /// per-button transition — the same pattern as the surface-navigation buttons — so they
-    /// animate identically, only rising up (from the bottom edge) instead of sliding in from the
-    /// trailing edge. The enclosing bottom VStack lays them out vertically.
-    private var mapControls: some View {
-        Group {
-            mapStyleButton
-            // Show/hide the start pins — hiding leaves just the mapped route lines. Only meaningful
-            // on the route map (the Locations overlays use their own place pins). Styled as a plain
-            // map control (grounded pin glyph, no lit state) to match its neighbours.
             if !showLocations {
-                GlassIconButton(systemName: showPins ? "mappin.and.ellipse" : "mappin.slash") {
+                capsuleDivider
+                // Show/hide the start pins — hiding leaves just the mapped route lines.
+                capsuleButton(systemName: showPins ? "mappin.and.ellipse" : "mappin.slash") {
                     withAnimation(Theme.spring) { showPins.toggle() }
                 }
             }
+            capsuleDivider
             if showLocations {
-                // Re-frame the overlay to fit all its pins / regions (and drop any single
-                // state selection so the full choropleth returns).
-                GlassIconButton(systemName: "arrow.up.left.and.arrow.down.right") {
+                // Re-frame the overlay to fit all its pins / regions (and drop any single state
+                // selection so the full choropleth returns).
+                capsuleButton(systemName: "arrow.up.left.and.arrow.down.right") {
                     selectedStateName = nil
                     selectedPlaceLabel = nil
                     locationRecenterToken += 1
                 }
             } else {
-                // Recenter/zoom the map to frame all the runs currently shown.
-                GlassIconButton(systemName: "arrow.up.left.and.arrow.down.right") {
-                    fitShownRuns()
-                }
-                GlassIconButton(systemName: "location.fill") {
-                    appModel.recenterOnUser()
-                }
+                capsuleButton(systemName: "arrow.up.left.and.arrow.down.right") { fitShownRuns() }
+                capsuleDivider
+                capsuleButton(systemName: "location.fill") { appModel.recenterOnUser() }
             }
         }
-        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .glassBackground(cornerRadius: 26)
     }
 
-    private func controlButton(icon: String, surface: AppModel.Surface, active: Bool = false) -> some View {
-        GlassIconButton(systemName: icon, isActive: active) {
-            menuExpanded = false
-            appModel.presentedSurface = surface
-        }
-    }
-
-    /// Switches the base map between standard, satellite, and hybrid — opens the custom glass
-    /// dropdown (matching the pill's menus) that extends up from this button.
-    private var mapStyleButton: some View {
-        Button {
-            withAnimation(Theme.spring) { showMapStyleMenu.toggle() }
-        } label: {
-            Image(systemName: mapStyle.symbol)
+    /// One flat icon button inside the action capsule (the capsule itself carries the glass).
+    private func capsuleButton(systemName: String, isActive: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
                 .font(.system(size: 19, weight: .medium))
-                .foregroundStyle(.primary)
-                .frame(width: 48, height: 48)
-                .glassCircle()
+                .foregroundStyle(isActive ? Theme.accentOnGlass : .primary)
+                .frame(width: 52, height: 50)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    /// A hairline between capsule buttons.
+    private var capsuleDivider: some View {
+        Rectangle().fill(.primary.opacity(0.12)).frame(height: 0.75).padding(.horizontal, 10)
+    }
+
+    /// The bottom bar — an Apple Maps-style search/explore field that opens the hub, with the
+    /// profile avatar pinned to the right so Profile is always one tap away.
+    private var hubBar: some View {
+        HStack(spacing: 10) {
+            Button {
+                appModel.presentedSurface = .hub
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Text("Search & explore")
+                        .font(.system(.body, design: .rounded).weight(.medium))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                appModel.presentedSurface = .profile
+            } label: {
+                Image(systemName: "person.crop.circle.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Profile")
+        }
+        .padding(.leading, 18)
+        .padding(.trailing, 10)
+        .padding(.vertical, 9)
+        .glassBackground(cornerRadius: 30)
     }
 
     /// The base-map-style dropdown — the same glass panel and rows as the pill's mode/type menus,
@@ -1009,6 +988,7 @@ struct HomeView: View {
     @ViewBuilder
     private func surfaceView(for surface: AppModel.Surface) -> some View {
         switch surface {
+        case .hub: HubView()
         case .filters: FilterView()
         case .timeline: TimelineView()
         case .highlights: HighlightsView()
