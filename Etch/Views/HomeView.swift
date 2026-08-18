@@ -260,26 +260,13 @@ struct HomeView: View {
                 Spacer()
                 VStack(alignment: .trailing, spacing: 10) {
                     if showMapStyleMenu { mapStyleDropdown }
-                    mapStyleButton
-                    if showLocations {
-                        // Re-frame the overlay to fit all its pins / regions (and drop any single
-                        // state selection so the full choropleth returns).
-                        GlassIconButton(systemName: "arrow.up.left.and.arrow.down.right") {
-                            selectedStateName = nil
-                            selectedPlaceLabel = nil
-                            locationRecenterToken += 1
-                        }
-                    } else {
-                        // Recenter/zoom the map to frame all the runs currently shown.
-                        GlassIconButton(systemName: "arrow.up.left.and.arrow.down.right") {
-                            fitShownRuns()
-                        }
-                        GlassIconButton(systemName: "location.fill") {
-                            appModel.recenterOnUser()
-                        }
+                    // The map controls (style, recenter, location) tuck behind the three-dot menu
+                    // so the map stays clean; the same menu also reveals the surface navigation.
+                    if menuExpanded {
+                        mapControls
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
-                    // In Studio-first mode the map is a focused popup — no surface navigation.
-                    if !isMapPopup { bottomBar }
+                    controlsBar
                 }
             }
             .padding(.horizontal, 16)
@@ -873,9 +860,13 @@ struct HomeView: View {
 
     // MARK: Bottom — navigation controls
 
-    private var bottomBar: some View {
+    /// The three-dot control bar: its ellipsis toggles the whole controls menu open/closed. When
+    /// open it reveals the surface navigation (Profile / Timeline / Achievements / Studio) as a
+    /// row here, and the map controls stacked above (see `mapControls`). Studio-first popup mode
+    /// hides the surface navigation but keeps the menu for the map controls.
+    private var controlsBar: some View {
         HStack(spacing: 10) {
-            if menuExpanded {
+            if menuExpanded && !isMapPopup {
                 Group {
                     controlButton(icon: "person", surface: .profile)
                     controlButton(icon: "square.grid.2x2", surface: .timeline)
@@ -885,7 +876,35 @@ struct HomeView: View {
                 .transition(.move(edge: .trailing).combined(with: .opacity))
             }
             GlassIconButton(systemName: menuExpanded ? "xmark" : "ellipsis", isActive: menuExpanded) {
-                withAnimation(Theme.spring) { menuExpanded.toggle() }
+                withAnimation(Theme.spring) {
+                    menuExpanded.toggle()
+                    if !menuExpanded { showMapStyleMenu = false }
+                }
+            }
+        }
+    }
+
+    /// The map view controls revealed by the three-dot menu: base-map style, plus recenter and
+    /// current-location (or reframe, in the Locations overview).
+    private var mapControls: some View {
+        VStack(alignment: .trailing, spacing: 10) {
+            mapStyleButton
+            if showLocations {
+                // Re-frame the overlay to fit all its pins / regions (and drop any single
+                // state selection so the full choropleth returns).
+                GlassIconButton(systemName: "arrow.up.left.and.arrow.down.right") {
+                    selectedStateName = nil
+                    selectedPlaceLabel = nil
+                    locationRecenterToken += 1
+                }
+            } else {
+                // Recenter/zoom the map to frame all the runs currently shown.
+                GlassIconButton(systemName: "arrow.up.left.and.arrow.down.right") {
+                    fitShownRuns()
+                }
+                GlassIconButton(systemName: "location.fill") {
+                    appModel.recenterOnUser()
+                }
             }
         }
     }
