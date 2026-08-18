@@ -58,6 +58,11 @@ struct RunDetailView: View {
                         unmappedCard
                     }
 
+                    // Apple Look Around (street-level imagery) at the run's start, where covered.
+                    if let coordinate = run.startCoordinate {
+                        LookAroundButton(coordinate: coordinate)
+                    }
+
                     if showsElevationProfile {
                         ElevationProfileView(run: run)
                     }
