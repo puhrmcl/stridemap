@@ -265,20 +265,26 @@ struct HomeView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 12) {
-                // The action capsule (and its map-style dropdown) hug the trailing edge — forced
-                // via a full-width frame, not a Spacer, which can collapse inside a bottom inset
-                // and let the controls drift off-screen.
-                VStack(alignment: .trailing, spacing: 8) {
-                    if showMapStyleMenu { mapStyleDropdown }
-                    actionCapsule
+                // Floating controls above the search bar, Apple Maps style: the Look Around
+                // binoculars on the left, the map-action capsule on the right, both near the
+                // screen edges (so they read slightly wider than the inset search bar below).
+                HStack(alignment: .bottom, spacing: 0) {
+                    if !showLocations { binocularsButton }
+                    Spacer(minLength: 0)
+                    VStack(alignment: .trailing, spacing: 8) {
+                        if showMapStyleMenu { mapStyleDropdown }
+                        actionCapsule
+                    }
                 }
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 16)
 
                 // Studio-first popup keeps a focused map (its close button returns to Studio), so
-                // the explore bar is hidden there.
-                if !isMapPopup { hubBar }
+                // the explore bar is hidden there. The search bar is inset more than the buttons.
+                if !isMapPopup {
+                    hubBar.padding(.horizontal, 26)
+                }
             }
-            .padding(.horizontal, 16)
             .padding(.bottom, 12)
         }
         .overlay {
@@ -356,24 +362,15 @@ struct HomeView: View {
     // MARK: Top — totals + mode toggles
 
     private var topBar: some View {
-        VStack(spacing: 10) {
-            // The pill is centred across the full width; the Studio-first close button and the
-            // sync spinner are overlays pinned to the edges, so neither adds to the row's width.
-            // (In-flow, the close + an invisible twin + a wide pill overflowed the screen and
-            // pushed the close off the leading edge.)
+        // Leading-aligned (Apple Maps style): the pill sits top-left, its dropdowns drop straight
+        // beneath it, and the Studio-first close button leads the row in-flow.
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                Spacer(minLength: 8)
-                totalsPill
-                Spacer(minLength: 8)
-            }
-            .overlay(alignment: .leading) {
                 if isMapPopup {
                     GlassIconButton(systemName: "xmark") { dismiss() }
                 }
-            }
-            // The sync spinner sits at the trailing edge as an overlay, so it never shifts the
-            // centred pill.
-            .overlay(alignment: .trailing) {
+                totalsPill
+                Spacer(minLength: 8)
                 if sync.isSyncing {
                     GlassContainer(padding: 10, cornerRadius: 18) {
                         HStack(spacing: 6) {
@@ -384,23 +381,8 @@ struct HomeView: View {
                 }
             }
 
-            if showTypeMenu {
-                // Centered under the pill, mirroring the view (mode) dropdown.
-                HStack {
-                    Spacer(minLength: 0)
-                    typeDropdown
-                    Spacer(minLength: 0)
-                }
-            }
-
-            if showModeMenu {
-                HStack {
-                    Spacer(minLength: 0)
-                    modeDropdown
-                    Spacer(minLength: 0)
-                }
-            }
-
+            if showTypeMenu { typeDropdown }
+            if showModeMenu { modeDropdown }
             if showLocations { modeSelector }
         }
     }
@@ -508,8 +490,8 @@ struct HomeView: View {
         .frame(width: 250)
         .glassBackground(cornerRadius: 20)
         .transition(.asymmetric(
-            insertion: .scale(scale: 0.92, anchor: .top).combined(with: .opacity),
-            removal: .scale(scale: 0.96, anchor: .top).combined(with: .opacity)
+            insertion: .scale(scale: 0.92, anchor: .topLeading).combined(with: .opacity),
+            removal: .scale(scale: 0.96, anchor: .topLeading).combined(with: .opacity)
         ))
     }
 
@@ -548,8 +530,8 @@ struct HomeView: View {
         .frame(width: 250)
         .glassBackground(cornerRadius: 20)
         .transition(.asymmetric(
-            insertion: .scale(scale: 0.92, anchor: .top).combined(with: .opacity),
-            removal: .scale(scale: 0.96, anchor: .top).combined(with: .opacity)
+            insertion: .scale(scale: 0.92, anchor: .topLeading).combined(with: .opacity),
+            removal: .scale(scale: 0.96, anchor: .topLeading).combined(with: .opacity)
         ))
     }
 
@@ -852,11 +834,6 @@ struct HomeView: View {
     /// pins toggle is dropped and recenter reframes the overlay.
     private var actionCapsule: some View {
         VStack(spacing: 0) {
-            // Apple Look Around (street view) at the map's current center — route map only.
-            if !showLocations {
-                capsuleButton(systemName: "binoculars.fill") { openLookAround() }
-                capsuleDivider
-            }
             capsuleButton(systemName: mapStyle.symbol, isActive: showMapStyleMenu) {
                 withAnimation(Theme.spring) { showMapStyleMenu.toggle() }
             }
@@ -885,13 +862,26 @@ struct HomeView: View {
         .glassBackground(cornerRadius: 26)
     }
 
+    /// The Look Around binoculars — a standalone round button on the left (Apple Maps placement),
+    /// opening Look Around at the map's current center. Route map only.
+    private var binocularsButton: some View {
+        Button { openLookAround() } label: {
+            Image(systemName: "binoculars.fill")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(.primary)
+                .frame(width: 54, height: 54)
+                .glassCircle()
+        }
+        .buttonStyle(.plain)
+    }
+
     /// One flat icon button inside the action capsule (the capsule itself carries the glass).
     private func capsuleButton(systemName: String, isActive: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 19, weight: .medium))
                 .foregroundStyle(isActive ? Theme.accentOnGlass : .primary)
-                .frame(width: 52, height: 50)
+                .frame(width: 54, height: 52)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
