@@ -344,19 +344,18 @@ struct HomeView: View {
 
     private var topBar: some View {
         VStack(spacing: 10) {
-            // In Studio-first mode a close button leads the bar; it's laid out in-flow (not an
-            // overlay) so the totals pill can't slide underneath it. An invisible twin on the
-            // trailing edge keeps the pill visually centred.
+            // The pill is centred across the full width; the Studio-first close button and the
+            // sync spinner are overlays pinned to the edges, so neither adds to the row's width.
+            // (In-flow, the close + an invisible twin + a wide pill overflowed the screen and
+            // pushed the close off the leading edge.)
             HStack(spacing: 8) {
-                if isMapPopup {
-                    GlassIconButton(systemName: "xmark") { dismiss() }
-                }
                 Spacer(minLength: 8)
                 totalsPill
                 Spacer(minLength: 8)
+            }
+            .overlay(alignment: .leading) {
                 if isMapPopup {
-                    GlassIconButton(systemName: "xmark") { }
-                        .hidden()
+                    GlassIconButton(systemName: "xmark") { dismiss() }
                 }
             }
             // The sync spinner sits at the trailing edge as an overlay, so it never shifts the

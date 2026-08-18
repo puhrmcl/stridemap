@@ -101,7 +101,8 @@ struct TimelineView: View {
     // MARK: Months
 
     private var monthsContent: some View {
-        LazyVStack(alignment: .leading, spacing: 24, pinnedViews: [.sectionHeaders]) {
+        // Headers scroll with the content (not pinned) for an Apple Photos-style feel.
+        LazyVStack(alignment: .leading, spacing: 28) {
             ForEach(monthGroups) { group in
                 Section {
                     monthGrid(group.runs)
@@ -186,19 +187,20 @@ struct TimelineView: View {
         try? context.save()
     }
 
+    /// An Apple Photos-style month header: a large bold title with the count · distance on a quiet
+    /// second line, left-aligned with no background bar (it scrolls with the grid).
     private func sectionHeader(title: String, detail: String) -> some View {
-        HStack {
+        VStack(alignment: .leading, spacing: 2) {
             Text(title)
-                .font(.system(.title3, design: .rounded).weight(.bold))
-            Spacer()
+                .font(.system(.title, design: .rounded).weight(.bold))
             Text(detail)
-                .font(.system(.subheadline, design: .rounded))
+                .font(.system(.subheadline, design: .rounded).weight(.medium))
                 .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 4)
-        .frame(maxWidth: .infinity)
-        .background(.bar)
+        .padding(.top, 8)
+        .padding(.bottom, 2)
     }
 
     // MARK: Data helpers
