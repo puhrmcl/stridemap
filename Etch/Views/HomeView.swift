@@ -483,7 +483,8 @@ struct HomeView: View {
     /// The totals — activity count then distance, separated by a dot. Count has no leading icon
     /// (it would just duplicate the activity-type icon on the pill's left).
     private var metricsRow: some View {
-        HStack(spacing: 8) {
+        // Align the two numbers on one baseline; each unit label stacks beneath its own number.
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
             metric(
                 value: shownStats.totalRuns.formatted(),
                 unit: effectiveScope.countNoun
@@ -635,25 +636,18 @@ struct HomeView: View {
         }
     }
 
-    private func metric(value: String, unit: String, systemName: String? = nil) -> some View {
-        HStack(spacing: 6) {
-            if let systemName {
-                Image(systemName: systemName)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.accentOnGlass)
-            }
-            // Value and unit are one concatenated Text so the Menu label's layout can never drop the
-            // unit ("mi" / "runs") the way two separate Texts allowed. fixedSize keeps it un-truncated.
-            (
-                Text(value)
-                    .font(.system(.title3, design: .rounded).weight(.bold))
-                + Text(" \(unit)")
-                    .font(.system(.subheadline, design: .rounded).weight(.medium))
-                    .foregroundColor(.secondary)
-            )
-            .lineLimit(1)
-            .fixedSize()
+    /// One metric with the unit label stacked *under* the number, so the column is only as wide as
+    /// the number (or the short label) — condensing the pill versus laying value + unit side by side.
+    private func metric(value: String, unit: String) -> some View {
+        VStack(spacing: 0) {
+            Text(value)
+                .font(.system(.title3, design: .rounded).weight(.bold))
+            Text(unit)
+                .font(.system(.caption, design: .rounded).weight(.medium))
+                .foregroundStyle(.secondary)
         }
+        .lineLimit(1)
+        .fixedSize()
     }
 
     /// What the map is currently showing: a run-filter mode, the history etch, or a Locations
