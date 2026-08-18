@@ -19,7 +19,7 @@ struct MapSearchSheet: View {
     @FocusState private var searchFocused: Bool
     @State private var dragStart: CGFloat?
 
-    private var collapsed: CGFloat { 132 }
+    private var collapsed: CGFloat { 96 }
     private var mid: CGFloat { max(260, maxHeight * 0.5) }
     private var full: CGFloat { maxHeight }
     private var detents: [CGFloat] { [collapsed, mid, full] }
@@ -74,12 +74,15 @@ struct MapSearchSheet: View {
         }
         .frame(height: height, alignment: .top)
         .frame(maxWidth: .infinity)
-        .background(
-            .regularMaterial,
-            in: UnevenRoundedRectangle(topLeadingRadius: 22, topTrailingRadius: 22)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .strokeBorder(.separator.opacity(0.35), lineWidth: 0.5)
         )
-        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 22, topTrailingRadius: 22))
-        .shadow(color: .black.opacity(0.14), radius: 16, y: -3)
+        .shadow(color: .black.opacity(0.12), radius: 18, y: 3)
+        .padding(.horizontal, 8)
+        .padding(.bottom, 8)
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .onChange(of: searchFocused) { _, focused in
             if focused { snap(to: full) }
@@ -91,48 +94,46 @@ struct MapSearchSheet: View {
     private var grabber: some View {
         Capsule()
             .fill(.secondary.opacity(0.4))
-            .frame(width: 40, height: 5)
-            .padding(.top, 8)
-            .padding(.bottom, 8)
+            .frame(width: 38, height: 5)
+            .padding(.top, 7)
+            .padding(.bottom, 6)
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
             .gesture(dragGesture)
     }
 
+    /// A single Apple Maps-style search pill: magnifier + field, with the profile avatar tucked in
+    /// at the trailing edge.
     private var searchField: some View {
-        HStack(spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                TextField("Search runs, places, dates…", text: $query)
-                    .focused($searchFocused)
-                    .submitLabel(.search)
-                    .autocorrectionDisabled()
-                if !query.isEmpty {
-                    Button { query = "" } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
-                    }
-                    .buttonStyle(.plain)
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(.secondary)
+            TextField("Search runs, places, dates…", text: $query)
+                .focused($searchFocused)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+            if !query.isEmpty {
+                Button { query = "" } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
                 }
+                .buttonStyle(.plain)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 11)
-            .background(.regularMaterial, in: .capsule)
-            .overlay(Capsule().strokeBorder(.separator.opacity(0.6), lineWidth: 0.5))
-
             Button { appModel.presentedSurface = .profile } label: {
                 Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 34))
+                    .font(.system(size: 30))
                     .foregroundStyle(Theme.accent)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Profile")
         }
-        .padding(.horizontal, 16)
+        .padding(.leading, 14)
+        .padding(.trailing, 6)
+        .padding(.vertical, 6)
+        .background(.regularMaterial, in: .capsule)
+        .overlay(Capsule().strokeBorder(.separator.opacity(0.5), lineWidth: 0.5))
+        .padding(.horizontal, 14)
         .padding(.bottom, 10)
-        // Tapping the field (even the collapsed bar) focuses and expands the sheet.
-        .contentShape(Rectangle())
     }
 
     // MARK: Idle content

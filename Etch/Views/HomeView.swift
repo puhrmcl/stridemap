@@ -287,7 +287,7 @@ struct HomeView: View {
                 // Content-sized (not full-screen) so the map above the sheet stays interactive.
                 ZStack(alignment: .bottom) {
                     floatingControls
-                        .padding(.bottom, sheetHeight + 12)   // sit just above the sheet's top edge
+                        .padding(.bottom, sheetHeight + 20)   // sit just above the floating sheet
                         .opacity(1 - t)                        // fade out as the sheet expands
                         .allowsHitTesting(t < 0.5)
 
@@ -418,10 +418,10 @@ struct HomeView: View {
             Button {
                 withAnimation(Theme.spring) { showModeMenu.toggle(); showTypeMenu = false }
             } label: {
-                HStack(spacing: 7) {
+                HStack(spacing: 6) {
                     metricsRow
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(Theme.accentOnGlass)
                         .rotationEffect(.degrees(showModeMenu ? 180 : 0))
                 }
@@ -436,9 +436,9 @@ struct HomeView: View {
         }
         .onPreferenceChange(PillColumnHeightKey.self) { if $0 > 0 { pillColumnHeight = $0 } }
         .fixedSize(horizontal: true, vertical: false)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 14)
-        .glassBackground(cornerRadius: 24)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 8)
+        .glassBackground(cornerRadius: 17)
     }
 
     /// A hairline separator sized to the pill's row height.
@@ -456,9 +456,9 @@ struct HomeView: View {
         } label: {
             HStack(spacing: 3) {
                 Image(systemName: appModel.activityScope.icon)
-                    .font(.system(size: 21, weight: .semibold))
+                    .font(.system(size: 17, weight: .semibold))
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 9, weight: .bold))
                     .rotationEffect(.degrees(showTypeMenu ? 180 : 0))
             }
             .foregroundStyle(Theme.accentOnGlass)
@@ -478,7 +478,7 @@ struct HomeView: View {
                 unit: effectiveScope.countNoun
             )
             Text("·")
-                .font(.system(.title3, design: .rounded).weight(.bold))
+                .font(.system(.subheadline, design: .rounded).weight(.bold))
                 .foregroundStyle(.secondary)
             metric(
                 value: Format.distanceValue(shownStats.totalDistanceMeters)
@@ -629,9 +629,9 @@ struct HomeView: View {
     private func metric(value: String, unit: String) -> some View {
         VStack(spacing: 0) {
             Text(value)
-                .font(.system(.title3, design: .rounded).weight(.bold))
+                .font(.system(.subheadline, design: .rounded).weight(.bold))
             Text(unit)
-                .font(.system(.caption, design: .rounded).weight(.medium))
+                .font(.system(.caption2, design: .rounded).weight(.medium))
                 .foregroundStyle(.secondary)
         }
         .lineLimit(1)
