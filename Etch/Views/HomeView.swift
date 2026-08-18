@@ -372,8 +372,9 @@ struct HomeView: View {
             }
 
             if showTypeMenu {
-                // Leading-aligned so it reads as an extension of the type icon on the pill's left.
+                // Centered under the pill, mirroring the view (mode) dropdown.
                 HStack {
+                    Spacer(minLength: 0)
                     typeDropdown
                     Spacer(minLength: 0)
                 }
@@ -494,8 +495,8 @@ struct HomeView: View {
         .frame(width: 250)
         .glassBackground(cornerRadius: 20)
         .transition(.asymmetric(
-            insertion: .scale(scale: 0.92, anchor: .topLeading).combined(with: .opacity),
-            removal: .scale(scale: 0.96, anchor: .topLeading).combined(with: .opacity)
+            insertion: .scale(scale: 0.92, anchor: .top).combined(with: .opacity),
+            removal: .scale(scale: 0.96, anchor: .top).combined(with: .opacity)
         ))
     }
 
@@ -878,9 +879,10 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
 
-    /// A hairline between capsule buttons.
+    /// A hairline between capsule buttons. A *fixed* width keeps it from stretching the capsule to
+    /// full screen width (an unconstrained Rectangle expands to infinity).
     private var capsuleDivider: some View {
-        Rectangle().fill(.primary.opacity(0.12)).frame(height: 0.75).padding(.horizontal, 10)
+        Rectangle().fill(.primary.opacity(0.12)).frame(width: 34, height: 0.75)
     }
 
     /// The bottom bar — an Apple Maps-style search/explore field that opens the hub, with the
