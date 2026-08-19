@@ -215,11 +215,11 @@ struct HomeView: View {
         .ignoresSafeArea()
         // Tap anywhere on the map to dismiss the open mode dropdown (it sits above this layer).
         .overlay {
-            if showModeMenu || showTypeMenu || showMapStyleMenu {
+            if showModeMenu || showTypeMenu {
                 Color.black.opacity(0.0001)
                     .ignoresSafeArea()
                     .contentShape(Rectangle())
-                    .onTapGesture { withAnimation(Theme.spring) { showModeMenu = false; showTypeMenu = false; showMapStyleMenu = false } }
+                    .onTapGesture { withAnimation(Theme.spring) { showModeMenu = false; showTypeMenu = false } }
             }
         }
         // The "View" label reflects the chosen place; reset it (and any selected state) when the
@@ -310,6 +310,11 @@ struct HomeView: View {
             if allRuns.isEmpty {
                 emptyOrSyncing
             }
+        }
+        // The Apple Maps-style "Map Type" picker: a rounded-top card that rises from the bottom
+        // with a thumbnail tile per base map, over a dimmed backdrop.
+        .overlay {
+            if showMapStyleMenu { mapModesSheet }
         }
         // A single sheet for both surfaces and the run detail. Two `.sheet` modifiers — even
         // on different views — can leave one flaky; one sheet driven by one binding is
@@ -860,10 +865,7 @@ struct HomeView: View {
         HStack(alignment: .bottom, spacing: 0) {
             if !showLocations { binocularsButton }
             Spacer(minLength: 0)
-            VStack(alignment: .trailing, spacing: 8) {
-                if showMapStyleMenu { mapStyleDropdown }
-                actionCapsule
-            }
+            actionCapsule
         }
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity)
@@ -954,25 +956,111 @@ struct HomeView: View {
         }
     }
 
-    /// The base-map-style dropdown — the same glass panel and rows as the pill's mode/type menus,
-    /// anchored to rise from the map-style button in the bottom-right.
-    private var mapStyleDropdown: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(MapStyleOption.allCases.enumerated()), id: \.element) { index, style in
-                if index > 0 { dropdownDivider }
-                modeRow(label: style.label, symbol: style.symbol, selected: mapStyle == style) {
-                    withAnimation(Theme.gentle) { mapStyleRaw = style.rawValue }
-                    withAnimation(Theme.spring) { showMapStyleMenu = false }
+    /// The Apple Maps-style "Map Type" picker: a dimmed backdrop with a rounded-top card rising
+    /// from the bottom edge, holding a thumbnail tile per base map.
+    private var mapModesSheet: some View {
+        ZStack(alignment: .bottom) {
+            Color.black.opacity(0.18)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { withAnimation(Theme.spring) { showMapStyleMenu = false } }
+            mapModesCard
+                .transition(.move(edge: .bottom))
+        }
+        .ignoresSafeArea(.container, edges: .bottom)
+    }
+
+    private var mapModesCard: some View {
+        VStack(spacing: 18) {
+            ZStack {
+                Text("Map Type")
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .frame(maxWidth: .infinity)
+                HStack {
+                    Spacer()
+                    Button { withAnimation(Theme.spring) { showMapStyleMenu = false } } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 30, height: 30)
+                            .background(.ultraThinMaterial, in: .circle)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Close")
                 }
             }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 14) {
+                    ForEach(MapStyleOption.allCases) { style in
+                        mapModeTile(style)
+                    }
+                }
+                .padding(.horizontal, 2)
+                .padding(.bottom, 2)
+            }
         }
-        .padding(.vertical, 5)
-        .frame(width: 230)
-        .glassBackground(cornerRadius: 20)
-        .transition(.asymmetric(
-            insertion: .scale(scale: 0.92, anchor: .bottomTrailing).combined(with: .opacity),
-            removal: .scale(scale: 0.96, anchor: .bottomTrailing).combined(with: .opacity)
-        ))
+        .padding(.horizontal, 20)
+        .padding(.top, 18)
+        .padding(.bottom, 36)
+        .frame(maxWidth: .infinity)
+        .background(
+            .regularMaterial,
+            in: UnevenRoundedRectangle(topLeadingRadius: 38, topTrailingRadius: 38, style: .continuous)
+        )
+        .overlay(
+            UnevenRoundedRectangle(topLeadingRadius: 38, topTrailingRadius: 38, style: .continuous)
+                .strokeBorder(.separator.opacity(0.3), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.18), radius: 20, y: -2)
+    }
+
+    private func mapModeTile(_ style: MapStyleOption) -> some View {
+        let selected = mapStyle == style
+        return Button {
+            withAnimation(Theme.gentle) { mapStyleRaw = style.rawValue }
+        } label: {
+            VStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(mapModeGradient(style))
+                    .frame(width: 92, height: 92)
+                    .overlay(
+                        Image(systemName: style.symbol)
+                            .font(.system(size: 26, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.95))
+                            .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .strokeBorder(.white.opacity(0.12), lineWidth: 0.5)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .strokeBorder(selected ? Theme.accent : .clear, lineWidth: 3)
+                    )
+                Text(style.label)
+                    .font(.system(.subheadline, design: .rounded).weight(selected ? .semibold : .regular))
+                    .foregroundStyle(selected ? .primary : .secondary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// A representative swatch gradient for each base map, evoking its look in the picker tiles.
+    private func mapModeGradient(_ style: MapStyleOption) -> LinearGradient {
+        let colors: [Color]
+        switch style {
+        case .standard:
+            colors = [Color(red: 0.83, green: 0.86, blue: 0.83), Color(red: 0.70, green: 0.77, blue: 0.72)]
+        case .night:
+            colors = [Color(red: 0.12, green: 0.14, blue: 0.22), Color(red: 0.05, green: 0.06, blue: 0.12)]
+        case .terrain:
+            colors = [Color(red: 0.47, green: 0.56, blue: 0.36), Color(red: 0.33, green: 0.40, blue: 0.26)]
+        case .satellite:
+            colors = [Color(red: 0.20, green: 0.30, blue: 0.28), Color(red: 0.36, green: 0.40, blue: 0.24)]
+        case .hybrid:
+            colors = [Color(red: 0.15, green: 0.17, blue: 0.22), Color(red: 0.24, green: 0.28, blue: 0.26)]
+        }
+        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
     }
 
     // MARK: Empty / syncing state

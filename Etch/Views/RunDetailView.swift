@@ -71,6 +71,8 @@ struct RunDetailView: View {
 
                     raceToggle
 
+                    if run.isRace { shareRaceButton }
+
                     if run.hasRoute { studioButton }
 
                     photosSection
@@ -392,6 +394,38 @@ struct RunDetailView: View {
                 try? context.save()
             }
         )
+    }
+
+    /// Share a race's key details as a tidy text summary (times, pace, place) via the system share
+    /// sheet — offered on runs marked as a race.
+    private var shareRaceButton: some View {
+        ShareLink(item: raceShareText) {
+            Label("Share Race Details", systemImage: "square.and.arrow.up")
+                .font(.system(.headline, design: .rounded))
+                .foregroundStyle(Theme.accent)
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(Theme.accent.opacity(0.12), in: .rect(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var raceShareText: String {
+        var lines: [String] = ["🏁 \(run.name)", Format.dateTime(run.startDate)]
+        if !run.placeLabel.isEmpty { lines.append(run.placeLabel) }
+        lines.append("")
+        lines.append("Distance  \(Format.distance(run.distance, decimals: 2))")
+        lines.append("Time  \(Format.duration(run.movingTime))")
+        if run.distance > 0 {
+            let secondsPerKm = Double(run.movingTime) / (run.distance / 1000)
+            lines.append("Pace  \(Format.pace(secondsPerKm: secondsPerKm))")
+        }
+        if run.elevationGain > 0 {
+            lines.append("Elevation  \(Format.elevationGain(run.elevationGain))")
+        }
+        lines.append("")
+        lines.append("Tracked with Etch")
+        return lines.joined(separator: "\n")
     }
 
     private var studioButton: some View {
