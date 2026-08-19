@@ -51,6 +51,7 @@ final class StravaProvider: ActivityProvider {
         activity.city = detail.locationCity
         activity.state = detail.locationState
         activity.country = detail.locationCountry
+        activity.notes = detail.notes
     }
 
     private func makeActivity(from activity: StravaActivity) -> ImportedActivity {

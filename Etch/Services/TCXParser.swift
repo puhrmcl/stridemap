@@ -104,6 +104,9 @@ struct TCXParser: ActivityFileParser {
                 if point != nil { point?.time = ActivityDate.parse(value) }
             case "Name":
                 if parentName == "Creator" || parentName == "Author" { current?.creatorName = value }
+            case "Notes":
+                // TCX carries a free-text note per activity (Garmin and others export it here).
+                if parentName == "Activity", !value.isEmpty { current?.notes = value }
             case "Trackpoint":
                 if let point { current?.points.append(point) }
                 point = nil
@@ -133,6 +136,7 @@ struct TCXParser: ActivityFileParser {
         var sport: String?
         var id: String?
         var creatorName: String?
+        var notes: String?
         var startFromLap: Date?
         var totalTime = 0.0
         var totalDistance = 0.0
@@ -169,6 +173,7 @@ struct TCXParser: ActivityFileParser {
             activity.importMethod = .tcxFile
             activity.activityType = ActivityType.parse(sport)
             activity.sportType = sport ?? "Run"
+            activity.notes = notes
             let elevations = points.compactMap(\.elevation)
             activity.elevationGain = RouteMetrics.elevationGain(of: elevations)
             activity.elevationSeries = elevations

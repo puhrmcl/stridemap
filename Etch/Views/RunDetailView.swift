@@ -39,6 +39,8 @@ struct RunDetailView: View {
     @State private var showEdit = false
     @State private var showDeleteConfirm = false
     @State private var showLocationPicker = false
+    /// Notes start folded; expand to read or edit them.
+    @State private var notesExpanded = false
 
     private struct PhotoSelection: Identifiable { let id: String }
 
@@ -70,6 +72,8 @@ struct RunDetailView: View {
                     metrics
 
                     raceToggle
+
+                    notesSection
 
                     if run.isRace { shareRaceButton }
 
@@ -390,6 +394,46 @@ struct RunDetailView: View {
             set: { newValue in
                 run.isRace = newValue
                 run.raceIsCustom = true
+                run.updatedAt = Date()
+                try? context.save()
+            }
+        )
+    }
+
+    /// A foldable Notes section: collapsed it shows a one-line preview (or a prompt to add one);
+    /// expanded it reveals an editable field. Notes come from Strava/TCX imports or your own edits.
+    private var notesSection: some View {
+        DisclosureGroup(isExpanded: $notesExpanded) {
+            TextField("Add a note…", text: notesBinding, axis: .vertical)
+                .lineLimit(3...10)
+                .font(.system(.subheadline, design: .rounded))
+                .textFieldStyle(.plain)
+                .padding(.top, 8)
+        } label: {
+            HStack(spacing: 8) {
+                Label("Notes", systemImage: "note.text")
+                    .font(.system(.subheadline, design: .rounded).weight(.medium))
+                Spacer(minLength: 8)
+                if !notesExpanded {
+                    Text((run.notes?.isEmpty == false) ? run.notes! : "Add")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .tint(Theme.accent)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(.regularMaterial, in: .rect(cornerRadius: 16))
+    }
+
+    private var notesBinding: Binding<String> {
+        Binding(
+            get: { run.notes ?? "" },
+            set: { newValue in
+                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                run.notes = trimmed.isEmpty ? nil : newValue
                 run.updatedAt = Date()
                 try? context.save()
             }

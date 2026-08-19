@@ -62,6 +62,7 @@ struct NikeActivityParser: ActivityFileParser {
         activity.activityType = ActivityType.parse(root["type"] as? String)
         activity.sportType = (root["type"] as? String)?.capitalized ?? "Run"
         activity.name = activityName(root)
+        activity.notes = activityNotes(root)
         activity.elevationGain = RouteMetrics.elevationGain(of: elevation)
         activity.elevationSeries = elevation
         if let calories = summaryValue(root, metric: "calories"), calories > 0 {
@@ -129,6 +130,26 @@ struct NikeActivityParser: ActivityFileParser {
             return name
         }
         return (root["name"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// A run's free-text note, if the NRC export carries one. Nike stores per-run metadata as
+    /// `com.nike.*` tags (that's where the name lives); the note key isn't documented, so this
+    /// checks the most plausible tag keys and a couple of top-level fields. A no-op when absent —
+    /// confirm the real key against an actual export to be certain.
+    private func activityNotes(_ root: [String: Any]) -> String? {
+        func nonEmpty(_ any: Any?) -> String? {
+            guard let s = any as? String, !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            return s
+        }
+        if let tags = root["tags"] as? [String: Any] {
+            for key in ["com.nike.note", "com.nike.notes", "com.nike.running.note", "note", "notes"] {
+                if let s = nonEmpty(tags[key]) { return s }
+            }
+        }
+        for key in ["note", "notes", "description"] {
+            if let s = nonEmpty(root[key]) { return s }
+        }
+        return nil
     }
 
     /// JSON numbers decode as `NSNumber`; also accept numeric strings just in case.

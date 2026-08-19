@@ -105,6 +105,7 @@ struct MapSearchSheet: View {
         let q = trimmed.lowercased()
         return runs.filter { run in
             run.name.lowercased().contains(q)
+                || (run.notes?.lowercased().contains(q) ?? false)
                 || (run.city?.lowercased().contains(q) ?? false)
                 || (run.state?.lowercased().contains(q) ?? false)
                 || (run.country?.lowercased().contains(q) ?? false)

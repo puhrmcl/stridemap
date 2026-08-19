@@ -96,18 +96,32 @@ struct StravaMap: Decodable {
     }
 }
 
-/// Detail payload (`/activities/{id}`) — used to enrich location metadata.
+/// Detail payload (`/activities/{id}`) — used to enrich location metadata and notes.
 struct StravaActivityDetail: Decodable {
     var id: Int64
     var locationCity: String?
     var locationState: String?
     var locationCountry: String?
     var map: StravaMap?
+    /// The public activity description.
+    var activityDescription: String?
+    /// The athlete's private note (owner-only, needs the `activity:read` scope).
+    var privateNote: String?
 
     enum CodingKeys: String, CodingKey {
         case id, map
         case locationCity = "location_city"
         case locationState = "location_state"
         case locationCountry = "location_country"
+        case activityDescription = "description"
+        case privateNote = "private_note"
+    }
+
+    /// The description and private note combined into one notes blob (either may be absent).
+    var notes: String? {
+        let parts = [activityDescription, privateNote]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
     }
 }
