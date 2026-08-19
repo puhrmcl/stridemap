@@ -297,13 +297,17 @@ struct MapSearchSheet: View {
                 Text("\(results.count) result\(results.count == 1 ? "" : "s")")
                     .font(.system(.subheadline, design: .rounded).weight(.semibold))
                     .foregroundStyle(.secondary)
-                runList(results)
+                // Cap the rendered rows: each row hosts a live map, so a broad match must not
+                // spin up hundreds at once (that exhausts MapKit and crashes the app).
+                runList(Array(results.prefix(50)))
             }
         }
     }
 
     private func runList(_ list: [Run]) -> some View {
-        VStack(spacing: 0) {
+        // LazyVStack so each row's live map is only built as it scrolls into view — a plain
+        // VStack builds them all up front, which overwhelms MapKit and crashes on a big match.
+        LazyVStack(spacing: 0) {
             ForEach(Array(list.enumerated()), id: \.element.id) { index, run in
                 if index > 0 { Divider().padding(.leading, 16) }
                 Button { open(run) } label: {
