@@ -44,12 +44,27 @@ struct MapSearchSheet: View {
     /// 0 while collapsed → 1 once lifted to the mid rest — drives the pill-to-sheet morph.
     private var lift: CGFloat { min(1, max(0, (height - collapsed) / max(1, mid - collapsed))) }
 
-    /// A true capsule (radius ≈ half the compact height) while collapsed, easing to the sheet's
-    /// rounded-rectangle corners as it rises — so the resting control reads as a floating pill.
-    private var containerRadius: CGFloat { (collapsed / 2) * (1 - lift) + 22 * lift }
+    /// Top corners: a true capsule radius (≈ half the compact height) while collapsed, easing to
+    /// the sheet's rounded top as it rises.
+    private var topRadius: CGFloat { (collapsed / 2) * (1 - lift) + 22 * lift }
 
-    /// Float clear of the home indicator while collapsed; sit near the bottom edge once expanded.
-    private var bottomInset: CGFloat { 16 * (1 - lift) + 8 * lift }
+    /// Bottom corners: rounded to a capsule while collapsed, squaring off as it expands so the full
+    /// page runs edge-to-edge into the bottom of the screen (like Apple Maps).
+    private var bottomRadius: CGFloat { (collapsed / 2) * (1 - lift) }
+
+    /// The morphing container outline — a floating capsule collapsed, a bottom-anchored page expanded.
+    private func containerShape() -> UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: topRadius,
+            bottomLeadingRadius: bottomRadius,
+            bottomTrailingRadius: bottomRadius,
+            topTrailingRadius: topRadius,
+            style: .continuous
+        )
+    }
+
+    /// Float clear of the home indicator while collapsed; run to the very bottom edge once expanded.
+    private var bottomInset: CGFloat { 16 * (1 - lift) }
 
     /// The sheet widens as it rises: inset while it's the floating pill, a little wider at the
     /// mid rest, and edge-to-edge (full screen width) when fully extended — matching Apple Maps.
@@ -99,19 +114,21 @@ struct MapSearchSheet: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 6)
-                    .padding(.bottom, 24)
+                    // Clear the home indicator when the page runs to the bottom edge.
+                    .padding(.bottom, 44)
                 }
-                .scrollDismissesKeyboard(.interactively)
+                // Scrolling the page dismisses the keyboard so the tiles behind it are visible.
+                .scrollDismissesKeyboard(.immediately)
             }
         }
         // Top-aligned once expanded (field pinned above the scroll); centred while collapsed so the
         // search pill and avatar sit in the middle of the floating container.
         .frame(height: height, alignment: isExpanded ? .top : .center)
         .frame(maxWidth: .infinity)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: containerRadius, style: .continuous))
-        .clipShape(RoundedRectangle(cornerRadius: containerRadius, style: .continuous))
+        .background(.regularMaterial, in: containerShape())
+        .clipShape(containerShape())
         .overlay(
-            RoundedRectangle(cornerRadius: containerRadius, style: .continuous)
+            containerShape()
                 .strokeBorder(.separator.opacity(0.4), lineWidth: 0.75)
         )
         .shadow(color: .black.opacity(0.12), radius: 18, y: 3)
