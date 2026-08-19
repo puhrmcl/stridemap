@@ -11,6 +11,7 @@ struct ProfileView: View {
     @State private var showSearch = false
     @State private var showSettings = false
     @State private var showFilters = false
+    @State private var showImport = false
     @AppStorage("studioIsHome") private var studioIsHome = false
 
     /// The scope the totals reflect — the user's app-wide selection, clamped back to All if the
@@ -35,6 +36,8 @@ struct ProfileView: View {
                     row(title: "Search", subtitle: "Find a run by name, place, or date",
                         systemName: "magnifyingglass") { showSearch = true }
                     activityFilterRow
+                    row(title: "Import Activity", subtitle: "Bring in runs from other apps",
+                        systemName: "square.and.arrow.down") { showImport = true }
                     row(title: "Settings", subtitle: "Account, units, sync, and more",
                         systemName: "gearshape") { showSettings = true }
                 }
@@ -54,6 +57,7 @@ struct ProfileView: View {
             .sheet(isPresented: $showSearch) { SearchView() }
             .sheet(isPresented: $showFilters) { FilterView() }
             .sheet(isPresented: $showSettings) { SettingsView() }
+            .sheet(isPresented: $showImport) { NavigationStack { AddHistoryView() } }
         }
     }
 
