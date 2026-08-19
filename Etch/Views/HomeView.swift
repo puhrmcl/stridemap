@@ -49,7 +49,7 @@ struct HomeView: View {
 
     /// Current height of the docked search sheet, so the floating map controls track its top edge.
     /// Starts collapsed (just the search pill), matching the sheet's collapsed detent.
-    @State private var sheetHeight: CGFloat = 96
+    @State private var sheetHeight: CGFloat = 66
     /// Measured map height, for sizing the sheet's detents.
     @State private var screenHeight: CGFloat = 800
 
@@ -87,6 +87,9 @@ struct HomeView: View {
     /// native Menu), so it reads as part of the pill.
     @State private var showModeMenu = false
     @State private var showTypeMenu = false
+    /// The map-action capsule shows just the globe + current-location by default; the globe expands
+    /// it to reveal the map-type picker, the pins toggle, and recenter.
+    @State private var mapOptionsExpanded = false
     /// The base-map-style dropdown, rendered as a custom glass panel extending from the map-style
     /// button, so it matches the pill's dropdowns rather than using a detached native Menu.
     @State private var showMapStyleMenu = false
@@ -283,7 +286,7 @@ struct HomeView: View {
         .overlay(alignment: .bottom) {
             let maxH = screenHeight * 0.90
             let mid = max(260, maxH * 0.5)
-            let t = max(0, min(1, (sheetHeight - 96) / (mid - 96)))
+            let t = max(0, min(1, (sheetHeight - 66) / (mid - 66)))
             if !isMapPopup {
                 // Content-sized (not full-screen) so the map above the sheet stays interactive.
                 ZStack(alignment: .bottom) {
@@ -865,30 +868,41 @@ struct HomeView: View {
 
     private var actionCapsule: some View {
         VStack(spacing: 0) {
-            capsuleButton(systemName: mapStyle.symbol, isActive: showMapStyleMenu) {
-                withAnimation(Theme.spring) { showMapStyleMenu.toggle() }
+            // Globe: toggles the extra map options in/out.
+            capsuleButton(systemName: "globe.americas.fill", isActive: mapOptionsExpanded) {
+                withAnimation(Theme.spring) {
+                    mapOptionsExpanded.toggle()
+                    if !mapOptionsExpanded { showMapStyleMenu = false }
+                }
             }
-            if !showLocations {
+            if mapOptionsExpanded {
                 capsuleDivider
-                // Show/hide the start pins — hiding leaves just the mapped route lines.
-                capsuleButton(systemName: showPins ? "mappin.and.ellipse" : "mappin.slash") {
-                    withAnimation(Theme.spring) { showPins.toggle() }
+                // Map-type picker — opens the base-map style dropdown.
+                capsuleButton(systemName: "map", isActive: showMapStyleMenu) {
+                    withAnimation(Theme.spring) { showMapStyleMenu.toggle() }
+                }
+                if !showLocations {
+                    capsuleDivider
+                    // Show/hide the start pins — hiding leaves just the mapped route lines.
+                    capsuleButton(systemName: showPins ? "mappin.and.ellipse" : "mappin.slash") {
+                        withAnimation(Theme.spring) { showPins.toggle() }
+                    }
+                }
+                capsuleDivider
+                // Recenter: fit the shown runs, or reframe the Locations overlay.
+                capsuleButton(systemName: "arrow.up.left.and.arrow.down.right") {
+                    if showLocations {
+                        selectedStateName = nil
+                        selectedPlaceLabel = nil
+                        locationRecenterToken += 1
+                    } else {
+                        fitShownRuns()
+                    }
                 }
             }
             capsuleDivider
-            if showLocations {
-                // Re-frame the overlay to fit all its pins / regions (and drop any single state
-                // selection so the full choropleth returns).
-                capsuleButton(systemName: "arrow.up.left.and.arrow.down.right") {
-                    selectedStateName = nil
-                    selectedPlaceLabel = nil
-                    locationRecenterToken += 1
-                }
-            } else {
-                capsuleButton(systemName: "arrow.up.left.and.arrow.down.right") { fitShownRuns() }
-                capsuleDivider
-                capsuleButton(systemName: "location.fill") { appModel.recenterOnUser() }
-            }
+            // Current location — always shown.
+            capsuleButton(systemName: "location.fill") { appModel.recenterOnUser() }
         }
         .glassBackground(cornerRadius: 26)
     }

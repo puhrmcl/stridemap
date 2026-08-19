@@ -32,7 +32,7 @@ struct MapSearchSheet: View {
     @FocusState private var searchFocused: Bool
     @State private var dragStart: CGFloat?
 
-    private var collapsed: CGFloat { 96 }
+    private var collapsed: CGFloat { 66 }
     private var mid: CGFloat { max(260, maxHeight * 0.5) }
     private var full: CGFloat { maxHeight }
     private var detents: [CGFloat] { [collapsed, mid, full] }
