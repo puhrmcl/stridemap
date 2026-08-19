@@ -9,6 +9,8 @@ import SwiftData
 struct MapSearchSheet: View {
     /// The height available above the top chrome — sets the detent sizes.
     let maxHeight: CGFloat
+    /// The screen's bottom safe-area inset, so the full page can run past it to the physical edge.
+    var bottomSafeInset: CGFloat = 0
     /// Reported up so the floating map controls can sit just above the sheet's top edge.
     @Binding var height: CGFloat
 
@@ -41,18 +43,24 @@ struct MapSearchSheet: View {
     /// only exists (and takes layout space) here.
     private var isExpanded: Bool { height > collapsed + 20 }
 
-    /// 0 while collapsed → 1 once lifted to the mid rest — drives the pill-to-sheet morph.
-    private var lift: CGFloat { min(1, max(0, (height - collapsed) / max(1, mid - collapsed))) }
+    /// Phase 1 — collapsed → mid: the floating capsule opens into a floating rounded card.
+    private var p1: CGFloat { min(1, max(0, (height - collapsed) / max(1, mid - collapsed))) }
+    /// Phase 2 — mid → full: the floating card runs edge-to-edge down into a full bottom page.
+    private var p2: CGFloat { min(1, max(0, (height - mid) / max(1, full - mid))) }
 
-    /// Top corners: a true capsule radius (≈ half the compact height) while collapsed, easing to
-    /// the sheet's rounded top as it rises.
-    private var topRadius: CGFloat { (collapsed / 2) * (1 - lift) + 22 * lift }
+    /// The rounded-card corner radius at rest — a true capsule collapsed (≈ half the height),
+    /// easing to a card radius by the mid rest.
+    private var restingRadius: CGFloat { (collapsed / 2) * (1 - p1) + 24 * p1 }   // 30 → 24
 
-    /// Bottom corners: rounded to a capsule while collapsed, squaring off as it expands so the full
-    /// page runs edge-to-edge into the bottom of the screen (like Apple Maps).
-    private var bottomRadius: CGFloat { (collapsed / 2) * (1 - lift) }
+    /// Top corners stay rounded throughout.
+    private var topRadius: CGFloat { restingRadius }
 
-    /// The morphing container outline — a floating capsule collapsed, a bottom-anchored page expanded.
+    /// Bottom corners stay rounded (contouring the screen) through the partial state, then square
+    /// off only as the page reaches full — where the display's own rounded corners mask them.
+    private var bottomRadius: CGFloat { restingRadius * (1 - p2) }
+
+    /// The morphing container outline — a floating capsule, then a floating rounded card, then a
+    /// bottom-anchored full page.
     private func containerShape() -> UnevenRoundedRectangle {
         UnevenRoundedRectangle(
             topLeadingRadius: topRadius,
@@ -63,19 +71,17 @@ struct MapSearchSheet: View {
         )
     }
 
-    /// Float clear of the home indicator while collapsed; run to the very bottom edge once expanded.
-    private var bottomInset: CGFloat { 16 * (1 - lift) }
-
-    /// The sheet widens as it rises: inset while it's the floating pill, a little wider at the
-    /// mid rest, and edge-to-edge (full screen width) when fully extended — matching Apple Maps.
+    /// Inset from the screen edges as a floating pill/card; edge-to-edge once fully extended.
     private var horizontalInset: CGFloat {
-        if height <= mid {
-            let f = min(1, max(0, (height - collapsed) / max(1, mid - collapsed)))
-            return 20 - 8 * f           // 20 → 12
-        } else {
-            let f = min(1, max(0, (height - mid) / max(1, full - mid)))
-            return 12 * (1 - f)         // 12 → 0
-        }
+        let resting = 20 * (1 - p1) + 12 * p1   // 20 → 12
+        return resting * (1 - p2)               // 12 → 0
+    }
+
+    /// Float clear of the home indicator while collapsed and partially expanded; pull past the
+    /// safe area to the physical bottom edge as the page reaches full.
+    private var bottomInset: CGFloat {
+        let resting = 16 * (1 - p1) + 12 * p1        // 16 → 12
+        return resting * (1 - p2) - bottomSafeInset * p2   // 12 → -(safe area)
     }
 
     private var results: [Run] {

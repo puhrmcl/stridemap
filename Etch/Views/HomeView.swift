@@ -50,6 +50,7 @@ struct HomeView: View {
     /// Current height of the docked search sheet, so the floating map controls track its top edge.
     /// Starts collapsed (just the search pill), matching the sheet's collapsed detent.
     @State private var sheetHeight: CGFloat = 60
+    @State private var bottomSafeInset: CGFloat = 0
     /// Measured map height, for sizing the sheet's detents.
     @State private var screenHeight: CGFloat = 800
 
@@ -212,6 +213,15 @@ struct HomeView: View {
                 )
             }
         }
+        // Measure the bottom safe-area inset *before* ignoring it, so the expanded search page can
+        // run past the home indicator to the true bottom edge.
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { bottomSafeInset = geo.safeAreaInsets.bottom }
+                    .onChange(of: geo.safeAreaInsets.bottom) { _, v in bottomSafeInset = v }
+            }
+        )
         .ignoresSafeArea()
         // Tap anywhere on the map to dismiss the open mode dropdown (it sits above this layer).
         .overlay {
@@ -295,7 +305,7 @@ struct HomeView: View {
                         .opacity(1 - t)                        // fade out as the sheet expands
                         .allowsHitTesting(t < 0.5)
 
-                    MapSearchSheet(maxHeight: maxH, height: $sheetHeight)
+                    MapSearchSheet(maxHeight: maxH, bottomSafeInset: bottomSafeInset, height: $sheetHeight)
                 }
                 .frame(height: sheetHeight + 90, alignment: .bottom)
                 .frame(maxWidth: .infinity, alignment: .bottom)
