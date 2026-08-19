@@ -14,6 +14,19 @@ struct MapSearchSheet: View {
 
     @Environment(AppModel.self) private var appModel
     @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
+    @Query(sort: \SavedPoster.updatedAt, order: .reverse) private var savedPosters: [SavedPoster]
+
+    private var stats: RunStatistics { RunStatistics(runs) }
+    /// Saved Studio posters whose run still exists (a deleted run can't be recomposed).
+    private var keptPosters: [SavedPoster] {
+        savedPosters.filter { poster in runs.contains { $0.id == poster.runID } }
+    }
+    private func run(for poster: SavedPoster) -> Run? { runs.first { $0.id == poster.runID } }
+    /// Recent runs that are records/milestones — the "achievements" thumbnails.
+    private var milestoneRuns: [Run] {
+        let ids = stats.milestoneRunIDs
+        return runs.filter { ids.contains($0.id) }
+    }
 
     @State private var query = ""
     @FocusState private var searchFocused: Bool
@@ -23,19 +36,6 @@ struct MapSearchSheet: View {
     private var mid: CGFloat { max(260, maxHeight * 0.5) }
     private var full: CGFloat { maxHeight }
     private var detents: [CGFloat] { [collapsed, mid, full] }
-
-    private struct Item: Identifiable {
-        let surface: AppModel.Surface
-        let title: String
-        let icon: String
-        var id: String { surface.rawValue }
-    }
-    private let explore: [Item] = [
-        Item(surface: .timeline, title: "Timeline", icon: "square.grid.2x2"),
-        Item(surface: .highlights, title: "Achievements", icon: "trophy"),
-        Item(surface: .studio, title: "Studio", icon: "photo.artframe"),
-        Item(surface: .filters, title: "Filter", icon: "line.3.horizontal.decrease")
-    ]
 
     private var results: [Run] {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
@@ -56,10 +56,11 @@ struct MapSearchSheet: View {
             grabber
             searchField
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 24) {
                     if query.isEmpty {
-                        exploreRow
-                        recentRuns
+                        recentSection
+                        studioSection
+                        achievementsSection
                     } else {
                         resultsList
                     }
@@ -134,47 +135,106 @@ struct MapSearchSheet: View {
         }
         .padding(.leading, 14)
         .padding(.trailing, 6)
-        .padding(.vertical, 6)
+        .padding(.vertical, 5)
         .background(.regularMaterial, in: .capsule)
-        .overlay(Capsule().strokeBorder(.separator.opacity(0.5), lineWidth: 0.5))
-        .padding(.horizontal, 14)
+        .overlay(Capsule().strokeBorder(.separator.opacity(0.35), lineWidth: 0.5))
+        .padding(.horizontal, 12)
         .padding(.bottom, 10)
     }
 
     // MARK: Idle content
 
-    private var exploreRow: some View {
-        HStack(spacing: 10) {
-            ForEach(explore) { item in
-                Button { appModel.presentedSurface = item.surface } label: {
-                    VStack(spacing: 8) {
-                        Image(systemName: item.icon)
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(Theme.accentOnGlass)
-                            .frame(width: 52, height: 52)
-                            .background(.regularMaterial, in: .circle)
-                        Text(item.title)
-                            .font(.system(.caption, design: .rounded).weight(.medium))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+    /// A section title with a right chevron that opens the full surface (Apple's "see all").
+    private func sectionHeader(_ title: String, _ surface: AppModel.Surface) -> some View {
+        Button { appModel.presentedSurface = surface } label: {
+            HStack(spacing: 5) {
+                Text(title)
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .foregroundStyle(.primary)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// The three most recent activities, with a chevron to the full Timeline.
+    @ViewBuilder
+    private var recentSection: some View {
+        let recent = Array(runs.prefix(3))
+        if !recent.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeader("Recent", .timeline)
+                runList(recent)
             }
         }
     }
 
+    /// Recent Studio creations as poster thumbnails, with a chevron to Studio.
     @ViewBuilder
-    private var recentRuns: some View {
-        let recent = Array(runs.prefix(10))
-        if !recent.isEmpty {
+    private var studioSection: some View {
+        let posters = Array(keptPosters.prefix(8))
+        if !posters.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Recent")
-                    .font(.system(.title3, design: .rounded).weight(.bold))
-                runList(recent)
+                sectionHeader("Studio", .studio)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 16) {
+                        ForEach(posters) { poster in
+                            if let run = run(for: poster) {
+                                Button { appModel.presentedSurface = .studio } label: {
+                                    SavedPosterCard(run: run, poster: poster)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
             }
+        }
+    }
+
+    /// Recent records/milestones as route thumbnails, with a chevron to Achievements.
+    @ViewBuilder
+    private var achievementsSection: some View {
+        let milestones = Array(milestoneRuns.prefix(8))
+        if !milestones.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeader("Achievements", .highlights)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 12) {
+                        ForEach(milestones) { run in
+                            Button { open(run) } label: { achievementCard(run) }
+                                .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+    }
+
+    private func achievementCard(_ run: Run) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            RunTileImage(run: run)
+                .frame(width: 140, height: 104)
+                .clipShape(.rect(cornerRadius: 12))
+                .overlay(alignment: .topLeading) {
+                    Image(systemName: "trophy.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(6)
+                        .background(Theme.Palette.brass, in: .circle)
+                        .padding(6)
+                }
+            Text(stats.milestoneLabels(for: run).first ?? run.name)
+                .font(.system(.caption, design: .rounded).weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .frame(width: 140, alignment: .leading)
         }
     }
 

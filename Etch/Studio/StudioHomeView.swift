@@ -502,7 +502,7 @@ struct StudioHomeView: View {
 /// A kept poster on the Studio home shelf — its actual composition re-rendered at preview
 /// resolution, with the run's name beneath. Tapping the enclosing button reopens it in Studio
 /// with the saved recipe restored.
-private struct SavedPosterCard: View {
+struct SavedPosterCard: View {
     let run: Run
     let poster: SavedPoster
 
