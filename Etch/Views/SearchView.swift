@@ -15,15 +15,7 @@ struct SearchView: View {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return Array(runs.prefix(30)) }
         let q = trimmed.lowercased()
-        return runs.filter { run in
-            run.name.lowercased().contains(q)
-                || (run.notes?.lowercased().contains(q) ?? false)
-                || (run.city?.lowercased().contains(q) ?? false)
-                || (run.state?.lowercased().contains(q) ?? false)
-                || (run.country?.lowercased().contains(q) ?? false)
-                || Format.date(run.startDate).lowercased().contains(q)
-                || (run.isRace && "race".contains(q))
-        }
+        return runs.filter { RunSearch.matches($0, query: q) }
     }
 
     var body: some View {
