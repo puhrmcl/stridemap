@@ -76,14 +76,16 @@ struct MapSearchSheet: View {
         }
         .frame(height: height, alignment: .top)
         .frame(maxWidth: .infinity)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .strokeBorder(.separator.opacity(0.35), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(.separator.opacity(0.4), lineWidth: 0.75)
         )
         .shadow(color: .black.opacity(0.12), radius: 18, y: 3)
-        .padding(.horizontal, 8)
+        // Apple Maps insets the search sheet clearly from the screen edges (the map controls
+        // sit outside it), with a large continuous rounding and a faint hairline border.
+        .padding(.horizontal, 24)
         .padding(.bottom, 8)
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .onChange(of: searchFocused) { _, focused in
