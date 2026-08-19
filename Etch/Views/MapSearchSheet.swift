@@ -15,6 +15,9 @@ struct MapSearchSheet: View {
     @Binding var height: CGFloat
 
     @Environment(AppModel.self) private var appModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Changes each time the sheet settles into a detent — drives the settle haptic.
+    @State private var snappedDetent: CGFloat = 60
     @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
     @Query(sort: \SavedPoster.updatedAt, order: .reverse) private var savedPosters: [SavedPoster]
 
@@ -148,6 +151,8 @@ struct MapSearchSheet: View {
         .onChange(of: searchFocused) { _, focused in
             if focused { snap(to: full) }
         }
+        // A soft tactile settle as the sheet lands on a detent (Apple Maps-style).
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.6), trigger: snappedDetent)
     }
 
     // MARK: Header
@@ -410,6 +415,10 @@ struct MapSearchSheet: View {
     }
 
     private func snap(to target: CGFloat) {
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) { height = target }
+        snappedDetent = target   // triggers a soft settle haptic when the detent actually changes
+        let animation: Animation = reduceMotion
+            ? .easeOut(duration: 0.2)
+            : .spring(response: 0.34, dampingFraction: 0.86)
+        withAnimation(animation) { height = target }
     }
 }

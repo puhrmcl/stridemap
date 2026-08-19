@@ -354,6 +354,8 @@ struct HomeView: View {
         // Let the keyboard float over the map and the docked search sheet (Apple Maps behaviour)
         // rather than pushing the whole screen up when the search field is focused.
         .ignoresSafeArea(.keyboard, edges: .bottom)
+        // A light tactile tick when the base map type changes from the Map Type picker.
+        .sensoryFeedback(.selection, trigger: mapStyleRaw)
     }
 
     /// The one thing presented over the map: a surface (bottom buttons), a selected run, or a
