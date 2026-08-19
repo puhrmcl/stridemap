@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 /// The Apple Maps-style docked search sheet: always present at the bottom of the map, draggable
 /// between a collapsed bar, a mid rest, and full height, with the map live behind it. A search
@@ -80,12 +81,17 @@ struct MapSearchSheet: View {
         return resting * (1 - p2)               // 12 → 0
     }
 
-    /// Float clear of the home indicator while collapsed and partially expanded; drop to the bottom
-    /// edge as the page reaches full.
-    private var bottomInset: CGFloat {
-        let resting = 16 * (1 - p1) + 12 * p1        // 16 → 12
-        return resting * (1 - p2)                    // 12 → 0
+    /// The screen's bottom safe-area inset, so the float can be measured against the physical
+    /// bottom edge rather than the safe-area line the overlay anchors to.
+    private var bottomSafeArea: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow }
+            .first?.safeAreaInsets.bottom ?? 0
     }
+
+    /// The floating card sits the *same* distance off the bottom as off the sides — measured from
+    /// the physical bottom edge, so it isn't pushed up by the home-indicator safe area.
+    private var bottomInset: CGFloat { horizontalInset - bottomSafeArea }
 
     /// Extra material extended below the sheet as it reaches full, so the page bleeds past the
     /// home indicator to the physical bottom edge (no map ever shows beneath it) while its top
