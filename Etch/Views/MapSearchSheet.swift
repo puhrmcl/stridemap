@@ -427,7 +427,9 @@ struct MapSearchSheet: View {
     /// the page collapses it, while normal scrolling stays with the scroll view. Ungated (the
     /// grabber and the collapsed pill) always drives the sheet.
     private func dragGesture(gated: Bool) -> some Gesture {
-        DragGesture(minimumDistance: gated ? 8 : 0)
+        // A non-zero threshold so a tap on the pill focuses the field (and expands the page)
+        // instead of being captured as a zero-distance drag that snaps it back to collapsed.
+        DragGesture(minimumDistance: 8)
             .onChanged { value in
                 if gated {
                     guard dragStart != nil || (scrollAtTop && value.translation.height > 0) else { return }

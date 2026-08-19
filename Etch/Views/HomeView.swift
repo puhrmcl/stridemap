@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import CoreLocation
 import MapKit
+import UIKit
 
 /// Carries the measured height of the totals pill's right-hand column up to the pill, so the
 /// leading icon and divider can be sized to match it exactly.
@@ -163,6 +164,14 @@ struct HomeView: View {
         appModel.fit(shownRuns)
     }
 
+    /// The screen's bottom safe-area inset — the floating controls track the search sheet's true
+    /// top edge, which sits relative to the physical bottom (not the safe-area line).
+    private var bottomSafeArea: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow }
+            .first?.safeAreaInsets.bottom ?? 0
+    }
+
     var body: some View {
         @Bindable var appModel = appModel
 
@@ -291,7 +300,11 @@ struct HomeView: View {
                 // Content-sized (not full-screen) so the map above the sheet stays interactive.
                 ZStack(alignment: .bottom) {
                     floatingControls
-                        .padding(.bottom, sheetHeight + 20)   // sit just above the floating sheet
+                        // Sit a small, Apple-Maps-sized gap above the sheet's true top edge. The
+                        // sheet floats ~20pt above the physical bottom, so its top is
+                        // (sheetHeight + 20 - safeArea) above the safe-area line the ZStack anchors
+                        // to; add ~20pt of gap above that.
+                        .padding(.bottom, max(20, sheetHeight + 40 - bottomSafeArea))
                         .opacity(1 - t)                        // fade out as the sheet expands
                         .allowsHitTesting(t < 0.5)
 
