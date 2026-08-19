@@ -9,8 +9,6 @@ import SwiftData
 struct MapSearchSheet: View {
     /// The height available above the top chrome — sets the detent sizes.
     let maxHeight: CGFloat
-    /// The screen's bottom safe-area inset, so the full page can run past it to the physical edge.
-    var bottomSafeInset: CGFloat = 0
     /// Reported up so the floating map controls can sit just above the sheet's top edge.
     @Binding var height: CGFloat
 
@@ -36,6 +34,8 @@ struct MapSearchSheet: View {
     @State private var query = ""
     @FocusState private var searchFocused: Bool
     @State private var dragStart: CGFloat?
+    /// Whether the expanded page's scroll view is at its top — gates the swipe-to-collapse hand-off.
+    @State private var scrollAtTop = true
 
     private var collapsed: CGFloat { 60 }
     private var mid: CGFloat { max(260, maxHeight * 0.5) }
@@ -80,12 +80,17 @@ struct MapSearchSheet: View {
         return resting * (1 - p2)               // 12 → 0
     }
 
-    /// Float clear of the home indicator while collapsed and partially expanded; pull past the
-    /// safe area to the physical bottom edge as the page reaches full.
+    /// Float clear of the home indicator while collapsed and partially expanded; drop to the bottom
+    /// edge as the page reaches full.
     private var bottomInset: CGFloat {
         let resting = 16 * (1 - p1) + 12 * p1        // 16 → 12
-        return resting * (1 - p2) - bottomSafeInset * p2   // 12 → -(safe area)
+        return resting * (1 - p2)                    // 12 → 0
     }
+
+    /// Extra material extended below the sheet as it reaches full, so the page bleeds past the
+    /// home indicator to the physical bottom edge (no map ever shows beneath it) while its top
+    /// edge stays put. Generous enough to cover any device's bottom safe area.
+    private var bleed: CGFloat { 90 * p2 }
 
     private var results: [Run] {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
@@ -125,14 +130,25 @@ struct MapSearchSheet: View {
                     .padding(.top, 6)
                     // Clear the home indicator when the page runs to the bottom edge.
                     .padding(.bottom, 44)
+                    // Track whether the page is scrolled to its top, so a downward swipe from the
+                    // top hands off to the sheet (collapse) instead of scrolling.
+                    .background(
+                        GeometryReader { g in
+                            Color.clear.onChange(of: g.frame(in: .named("sheetScroll")).minY) { _, y in
+                                scrollAtTop = y >= -1
+                            }
+                        }
+                    )
                 }
+                .coordinateSpace(name: "sheetScroll")
                 // Scrolling the page dismisses the keyboard so the tiles behind it are visible.
                 .scrollDismissesKeyboard(.immediately)
             }
         }
         // Top-aligned once expanded (field pinned above the scroll); centred while collapsed so the
-        // search pill and avatar sit in the middle of the floating container.
-        .frame(height: height, alignment: isExpanded ? .top : .center)
+        // search pill and avatar sit in the middle of the floating container. The bleed extends the
+        // material below the frame so the full page runs off the bottom edge.
+        .frame(height: height + bleed, alignment: isExpanded ? .top : .center)
         .frame(maxWidth: .infinity)
         .background(.regularMaterial, in: containerShape())
         .clipShape(containerShape())
@@ -141,12 +157,14 @@ struct MapSearchSheet: View {
                 .strokeBorder(.separator.opacity(0.4), lineWidth: 0.75)
         )
         .shadow(color: .black.opacity(0.12), radius: 18, y: 3)
-        // While collapsed the whole pill is draggable (there's no grabber); once expanded the
-        // grabber and the scroll view own the gestures instead.
-        .simultaneousGesture(dragGesture, including: isExpanded ? .subviews : .all)
+        // The whole control is draggable: collapsed it's the pill; expanded, a downward swipe from
+        // the top of the page collapses it (the scroll view keeps its own drags otherwise).
+        .simultaneousGesture(dragGesture(gated: isExpanded), including: .all)
         // Widen as the sheet rises — inset as a floating pill, full width when fully extended.
         .padding(.horizontal, horizontalInset)
-        .padding(.bottom, bottomInset)
+        // Negative bleed pulls the extended material's bottom below the screen edge while the top
+        // stays where the drag height puts it.
+        .padding(.bottom, bottomInset - bleed)
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .onChange(of: searchFocused) { _, focused in
             if focused { snap(to: full) }
@@ -165,7 +183,8 @@ struct MapSearchSheet: View {
             .padding(.bottom, 6)
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
-            .gesture(dragGesture)
+            // The grabber always drives the sheet directly, regardless of scroll position.
+            .gesture(dragGesture(gated: false))
             // Tap the grabber to peek the explore page (no keyboard); tap again to collapse.
             .onTapGesture {
                 searchFocused = false
@@ -397,14 +416,22 @@ struct MapSearchSheet: View {
 
     // MARK: Drag / snap
 
-    private var dragGesture: some Gesture {
-        DragGesture()
+    /// The sheet drag. `gated` (used on the expanded page body) only lets a drag drive the sheet
+    /// when it begins as a downward swipe from the top of the scroll — so a swipe down anywhere on
+    /// the page collapses it, while normal scrolling stays with the scroll view. Ungated (the
+    /// grabber and the collapsed pill) always drives the sheet.
+    private func dragGesture(gated: Bool) -> some Gesture {
+        DragGesture(minimumDistance: gated ? 8 : 0)
             .onChanged { value in
+                if gated {
+                    guard dragStart != nil || (scrollAtTop && value.translation.height > 0) else { return }
+                }
                 let start = dragStart ?? height
                 if dragStart == nil { dragStart = start }
                 height = min(full, max(collapsed, start - value.translation.height))
             }
             .onEnded { value in
+                guard dragStart != nil else { return }
                 dragStart = nil
                 // Project a little momentum, then snap to the nearest detent.
                 let projected = height - value.predictedEndTranslation.height * 0.25 + value.translation.height * 0.25
