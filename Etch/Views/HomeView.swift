@@ -873,8 +873,8 @@ struct HomeView: View {
 
     private var actionCapsule: some View {
         VStack(spacing: 0) {
-            // Globe: toggles the extra map options in/out.
-            capsuleButton(systemName: "globe.americas.fill", isActive: mapOptionsExpanded) {
+            // Globe opens the extra map options; once open it becomes a close button.
+            capsuleButton(systemName: mapOptionsExpanded ? "xmark" : "globe.americas.fill", isActive: mapOptionsExpanded) {
                 withAnimation(Theme.spring) {
                     mapOptionsExpanded.toggle()
                     if !mapOptionsExpanded { showMapStyleMenu = false }
