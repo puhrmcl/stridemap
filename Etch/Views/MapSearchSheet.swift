@@ -32,7 +32,7 @@ struct MapSearchSheet: View {
     @FocusState private var searchFocused: Bool
     @State private var dragStart: CGFloat?
 
-    private var collapsed: CGFloat { 78 }
+    private var collapsed: CGFloat { 60 }
     private var mid: CGFloat { max(260, maxHeight * 0.5) }
     private var full: CGFloat { maxHeight }
     private var detents: [CGFloat] { [collapsed, mid, full] }
@@ -41,12 +41,22 @@ struct MapSearchSheet: View {
     /// only exists (and takes layout space) here.
     private var isExpanded: Bool { height > collapsed + 20 }
 
+    /// 0 while collapsed → 1 once lifted to the mid rest — drives the pill-to-sheet morph.
+    private var lift: CGFloat { min(1, max(0, (height - collapsed) / max(1, mid - collapsed))) }
+
+    /// A true capsule (radius ≈ half the compact height) while collapsed, easing to the sheet's
+    /// rounded-rectangle corners as it rises — so the resting control reads as a floating pill.
+    private var containerRadius: CGFloat { (collapsed / 2) * (1 - lift) + 22 * lift }
+
+    /// Float clear of the home indicator while collapsed; sit near the bottom edge once expanded.
+    private var bottomInset: CGFloat { 16 * (1 - lift) + 8 * lift }
+
     /// The sheet widens as it rises: inset while it's the floating pill, a little wider at the
     /// mid rest, and edge-to-edge (full screen width) when fully extended — matching Apple Maps.
     private var horizontalInset: CGFloat {
         if height <= mid {
             let f = min(1, max(0, (height - collapsed) / max(1, mid - collapsed)))
-            return 24 - 12 * f          // 24 → 12
+            return 20 - 8 * f           // 20 → 12
         } else {
             let f = min(1, max(0, (height - mid) / max(1, full - mid)))
             return 12 * (1 - f)         // 12 → 0
@@ -69,7 +79,9 @@ struct MapSearchSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            grabber
+            // The grabber only appears once lifted; collapsed, the control is a clean pill you drag
+            // directly (no handle), so it doesn't read as a bottom sheet.
+            if isExpanded { grabber }
             searchField
             // Only present once expanded, so it doesn't claim layout space in the collapsed pill
             // (which lets the search field centre vertically in the rounded container).
@@ -96,16 +108,19 @@ struct MapSearchSheet: View {
         // search pill and avatar sit in the middle of the floating container.
         .frame(height: height, alignment: isExpanded ? .top : .center)
         .frame(maxWidth: .infinity)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: containerRadius, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: containerRadius, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: containerRadius, style: .continuous)
                 .strokeBorder(.separator.opacity(0.4), lineWidth: 0.75)
         )
         .shadow(color: .black.opacity(0.12), radius: 18, y: 3)
+        // While collapsed the whole pill is draggable (there's no grabber); once expanded the
+        // grabber and the scroll view own the gestures instead.
+        .simultaneousGesture(dragGesture, including: isExpanded ? .subviews : .all)
         // Widen as the sheet rises — inset as a floating pill, full width when fully extended.
         .padding(.horizontal, horizontalInset)
-        .padding(.bottom, 8)
+        .padding(.bottom, bottomInset)
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .onChange(of: searchFocused) { _, focused in
             if focused { snap(to: full) }
@@ -158,9 +173,16 @@ struct MapSearchSheet: View {
         .padding(.leading, 14)
         .padding(.trailing, 6)
         .padding(.vertical, 5)
-        .background(.regularMaterial, in: .capsule)
-        .overlay(Capsule().strokeBorder(.separator.opacity(0.35), lineWidth: 0.5))
-        .padding(.horizontal, 12)
+        // Expanded, the field is its own inset capsule at the top of the sheet; collapsed, it sits
+        // directly on the outer pill so the whole control reads as one soft capsule.
+        .background {
+            if isExpanded {
+                Capsule().fill(.regularMaterial)
+                    .overlay(Capsule().strokeBorder(.separator.opacity(0.35), lineWidth: 0.5))
+            }
+        }
+        // Keep content clear of the pill's curved ends when collapsed.
+        .padding(.horizontal, isExpanded ? 12 : 18)
         // Gap before the scroll content when expanded; none when collapsed so the pill centres.
         .padding(.bottom, isExpanded ? 10 : 0)
     }
