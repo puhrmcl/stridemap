@@ -336,6 +336,9 @@ struct HomeView: View {
         } message: {
             Text("Apple doesn't have street-level imagery for this spot yet. Try panning to a more built-up area.")
         }
+        // Let the keyboard float over the map and the docked search sheet (Apple Maps behaviour)
+        // rather than pushing the whole screen up when the search field is focused.
+        .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 
     /// The one thing presented over the map: a surface (bottom buttons), a selected run, or a
@@ -1030,6 +1033,7 @@ struct HomeView: View {
         case .settings: SettingsView()
         case .profile: ProfileView()
         case .mapPrint: MapPrintView(runs: scopedRuns, kind: currentPrintKind)
+        case .addHistory: NavigationStack { AddHistoryView() }
         }
     }
 }

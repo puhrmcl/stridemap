@@ -58,6 +58,7 @@ struct MapSearchSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     if query.isEmpty {
+                        pagesSection
                         recentSection
                         studioSection
                         achievementsSection
@@ -143,6 +144,53 @@ struct MapSearchSheet: View {
     }
 
     // MARK: Idle content
+
+    /// One page-shortcut destination shown as a circular icon above Recent.
+    private struct PageShortcut: Identifiable {
+        let surface: AppModel.Surface
+        let title: String
+        let icon: String
+        var id: String { surface.rawValue }
+    }
+
+    private let pageShortcuts: [PageShortcut] = [
+        PageShortcut(surface: .timeline, title: "Timeline", icon: "square.grid.2x2"),
+        PageShortcut(surface: .highlights, title: "Achievements", icon: "trophy"),
+        PageShortcut(surface: .studio, title: "Studio", icon: "photo.artframe"),
+        PageShortcut(surface: .filters, title: "Filter", icon: "line.3.horizontal.decrease"),
+        PageShortcut(surface: .addHistory, title: "Import", icon: "square.and.arrow.down")
+    ]
+
+    /// A row of circular page shortcuts (Timeline, Achievements, Studio, Filter, Import),
+    /// sitting above Recent like Apple Maps' quick actions.
+    private var pagesSection: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 14) {
+                ForEach(pageShortcuts) { item in
+                    Button {
+                        searchFocused = false
+                        appModel.presentedSurface = item.surface
+                    } label: {
+                        VStack(spacing: 7) {
+                            Image(systemName: item.icon)
+                                .font(.system(size: 22, weight: .semibold))
+                                .foregroundStyle(Theme.accentOnGlass)
+                                .frame(width: 58, height: 58)
+                                .background(.regularMaterial, in: .circle)
+                                .overlay(Circle().strokeBorder(.separator.opacity(0.3), lineWidth: 0.5))
+                            Text(item.title)
+                                .font(.system(.caption, design: .rounded).weight(.medium))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                        }
+                        .frame(width: 72)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
 
     /// A section title with a right chevron that opens the full surface (Apple's "see all").
     private func sectionHeader(_ title: String, _ surface: AppModel.Surface) -> some View {

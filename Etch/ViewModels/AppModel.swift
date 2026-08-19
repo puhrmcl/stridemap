@@ -16,7 +16,7 @@ final class AppModel {
 
     /// Which full-screen surface (if any) is presented over the map.
     enum Surface: String, Identifiable {
-        case filters, timeline, highlights, studio, yearInReview, search, settings, profile, mapPrint, hub
+        case filters, timeline, highlights, studio, yearInReview, search, settings, profile, mapPrint, hub, addHistory
         var id: String { rawValue }
     }
     var presentedSurface: Surface?
