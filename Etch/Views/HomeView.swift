@@ -49,7 +49,7 @@ struct HomeView: View {
 
     /// Current height of the docked search sheet, so the floating map controls track its top edge.
     /// Starts collapsed (just the search pill), matching the sheet's collapsed detent.
-    @State private var sheetHeight: CGFloat = 66
+    @State private var sheetHeight: CGFloat = 78
     /// Measured map height, for sizing the sheet's detents.
     @State private var screenHeight: CGFloat = 800
 
@@ -286,7 +286,7 @@ struct HomeView: View {
         .overlay(alignment: .bottom) {
             let maxH = screenHeight * 0.90
             let mid = max(260, maxH * 0.5)
-            let t = max(0, min(1, (sheetHeight - 66) / (mid - 66)))
+            let t = max(0, min(1, (sheetHeight - 78) / (mid - 78)))
             if !isMapPopup {
                 // Content-sized (not full-screen) so the map above the sheet stays interactive.
                 ZStack(alignment: .bottom) {

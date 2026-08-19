@@ -32,10 +32,26 @@ struct MapSearchSheet: View {
     @FocusState private var searchFocused: Bool
     @State private var dragStart: CGFloat?
 
-    private var collapsed: CGFloat { 66 }
+    private var collapsed: CGFloat { 78 }
     private var mid: CGFloat { max(260, maxHeight * 0.5) }
     private var full: CGFloat { maxHeight }
     private var detents: [CGFloat] { [collapsed, mid, full] }
+
+    /// True once the sheet has been lifted off its collapsed rest — the scrollable content
+    /// only exists (and takes layout space) here.
+    private var isExpanded: Bool { height > collapsed + 20 }
+
+    /// The sheet widens as it rises: inset while it's the floating pill, a little wider at the
+    /// mid rest, and edge-to-edge (full screen width) when fully extended — matching Apple Maps.
+    private var horizontalInset: CGFloat {
+        if height <= mid {
+            let f = min(1, max(0, (height - collapsed) / max(1, mid - collapsed)))
+            return 24 - 12 * f          // 24 → 12
+        } else {
+            let f = min(1, max(0, (height - mid) / max(1, full - mid)))
+            return 12 * (1 - f)         // 12 → 0
+        }
+    }
 
     private var results: [Run] {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
@@ -55,26 +71,30 @@ struct MapSearchSheet: View {
         VStack(spacing: 0) {
             grabber
             searchField
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    if query.isEmpty {
-                        pagesSection
-                        recentSection
-                        studioSection
-                        achievementsSection
-                    } else {
-                        resultsList
+            // Only present once expanded, so it doesn't claim layout space in the collapsed pill
+            // (which lets the search field centre vertically in the rounded container).
+            if isExpanded {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        if query.isEmpty {
+                            pagesSection
+                            recentSection
+                            studioSection
+                            achievementsSection
+                        } else {
+                            resultsList
+                        }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 6)
+                    .padding(.bottom, 24)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 6)
-                .padding(.bottom, 24)
+                .scrollDismissesKeyboard(.interactively)
             }
-            .scrollDismissesKeyboard(.interactively)
-            // Keep the sheet fixed when the keyboard appears (the field stays pinned at the top).
-            .opacity(height > collapsed + 20 ? 1 : 0)
         }
-        .frame(height: height, alignment: .top)
+        // Top-aligned once expanded (field pinned above the scroll); centred while collapsed so the
+        // search pill and avatar sit in the middle of the floating container.
+        .frame(height: height, alignment: isExpanded ? .top : .center)
         .frame(maxWidth: .infinity)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -83,9 +103,8 @@ struct MapSearchSheet: View {
                 .strokeBorder(.separator.opacity(0.4), lineWidth: 0.75)
         )
         .shadow(color: .black.opacity(0.12), radius: 18, y: 3)
-        // Apple Maps insets the search sheet clearly from the screen edges (the map controls
-        // sit outside it), with a large continuous rounding and a faint hairline border.
-        .padding(.horizontal, 24)
+        // Widen as the sheet rises — inset as a floating pill, full width when fully extended.
+        .padding(.horizontal, horizontalInset)
         .padding(.bottom, 8)
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .onChange(of: searchFocused) { _, focused in
@@ -142,7 +161,8 @@ struct MapSearchSheet: View {
         .background(.regularMaterial, in: .capsule)
         .overlay(Capsule().strokeBorder(.separator.opacity(0.35), lineWidth: 0.5))
         .padding(.horizontal, 12)
-        .padding(.bottom, 10)
+        // Gap before the scroll content when expanded; none when collapsed so the pill centres.
+        .padding(.bottom, isExpanded ? 10 : 0)
     }
 
     // MARK: Idle content
