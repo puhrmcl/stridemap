@@ -38,7 +38,7 @@ struct MapSearchSheet: View {
     /// Whether the expanded page's scroll view is at its top — gates the swipe-to-collapse hand-off.
     @State private var scrollAtTop = true
 
-    private var collapsed: CGFloat { 60 }
+    private var collapsed: CGFloat { 76 }
     private var mid: CGFloat { max(260, maxHeight * 0.5) }
     private var full: CGFloat { maxHeight }
     private var detents: [CGFloat] { [collapsed, mid, full] }
@@ -52,14 +52,15 @@ struct MapSearchSheet: View {
     /// Phase 2 — mid → full: the floating card runs edge-to-edge down into a full bottom page.
     private var p2: CGFloat { min(1, max(0, (height - mid) / max(1, full - mid))) }
 
-    /// The rounded-card corner radius at rest — a true capsule collapsed (≈ half the height),
-    /// easing to a card radius by the mid rest.
-    private var restingRadius: CGFloat { (collapsed / 2) * (1 - p1) + 24 * p1 }   // 30 → 24
+    /// The rounded-card corner radius at rest — a true capsule collapsed (≈ half the compact
+    /// height), easing to a large radius by the mid rest so the partial card's corners echo the
+    /// iPhone display's rounded corners.
+    private var restingRadius: CGFloat { (collapsed / 2) * (1 - p1) + 44 * p1 }   // 38 → 44
 
-    /// Top corners stay rounded throughout.
-    private var topRadius: CGFloat { restingRadius }
+    /// Top corners: the card radius while floating, easing to a sheet radius as it reaches full.
+    private var topRadius: CGFloat { restingRadius * (1 - p2) + 22 * p2 }
 
-    /// Bottom corners stay rounded (contouring the screen) through the partial state, then square
+    /// Bottom corners: the card radius (contouring the screen) through the partial state, squaring
     /// off only as the page reaches full — where the display's own rounded corners mask them.
     private var bottomRadius: CGFloat { restingRadius * (1 - p2) }
 
@@ -77,7 +78,7 @@ struct MapSearchSheet: View {
 
     /// Inset from the screen edges as a floating pill/card; edge-to-edge once fully extended.
     private var horizontalInset: CGFloat {
-        let resting = 20 * (1 - p1) + 12 * p1   // 20 → 12
+        let resting = 16 * (1 - p1) + 12 * p1   // 16 → 12
         return resting * (1 - p2)               // 12 → 0
     }
 
@@ -198,45 +199,41 @@ struct MapSearchSheet: View {
             }
     }
 
-    /// A single Apple Maps-style search pill: magnifier + field, with the profile avatar tucked in
-    /// at the trailing edge.
+    /// Apple Maps-style search row: an inset search-field capsule with the profile avatar as a
+    /// separate circle beside it, both sitting on the larger outer pill/sheet.
     private var searchField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(.secondary)
-            TextField("Search runs, places, dates…", text: $query)
-                .focused($searchFocused)
-                .submitLabel(.search)
-                .autocorrectionDisabled()
-            if !query.isEmpty {
-                Button { query = "" } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
+        HStack(spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                TextField("Search runs, places, dates…", text: $query)
+                    .focused($searchFocused)
+                    .submitLabel(.search)
+                    .autocorrectionDisabled()
+                if !query.isEmpty {
+                    Button { query = "" } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
+            .padding(.leading, 14)
+            .padding(.trailing, 12)
+            .padding(.vertical, 10)
+            .background(.regularMaterial, in: .capsule)
+            .overlay(Capsule().strokeBorder(.separator.opacity(0.35), lineWidth: 0.5))
+
             Button { appModel.presentedSurface = .profile } label: {
                 Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 30))
+                    .font(.system(size: 34))
                     .foregroundStyle(Theme.accent)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Profile")
         }
-        .padding(.leading, 14)
-        .padding(.trailing, 6)
-        .padding(.vertical, 5)
-        // Expanded, the field is its own inset capsule at the top of the sheet; collapsed, it sits
-        // directly on the outer pill so the whole control reads as one soft capsule.
-        .background {
-            if isExpanded {
-                Capsule().fill(.regularMaterial)
-                    .overlay(Capsule().strokeBorder(.separator.opacity(0.35), lineWidth: 0.5))
-            }
-        }
-        // Keep content clear of the pill's curved ends when collapsed.
-        .padding(.horizontal, isExpanded ? 12 : 18)
-        // Gap before the scroll content when expanded; none when collapsed so the pill centres.
+        .padding(.horizontal, 12)
+        // Gap before the scroll content when expanded; none when collapsed so the row centres.
         .padding(.bottom, isExpanded ? 10 : 0)
     }
 

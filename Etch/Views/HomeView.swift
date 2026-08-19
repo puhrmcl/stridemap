@@ -44,13 +44,12 @@ struct HomeView: View {
 
     /// The route map's live center, for opening Look Around at whatever is on screen.
     @State private var centerBox = MapCenterBox()
-    /// A fetched Look Around scene to present, and whether the last request found no coverage.
-    @State private var lookAround: LookAroundScenePresentation?
-    @State private var lookAroundUnavailable = false
 
     /// Current height of the docked search sheet, so the floating map controls track its top edge.
     /// Starts collapsed (just the search pill), matching the sheet's collapsed detent.
-    @State private var sheetHeight: CGFloat = 60
+    @State private var sheetHeight: CGFloat = 76
+    /// Route map tilt: false = flat 2D, true = tilted 3D.
+    @State private var is3D = false
     /// Measured map height, for sizing the sheet's detents.
     @State private var screenHeight: CGFloat = 800
 
@@ -217,6 +216,7 @@ struct HomeView: View {
                     command: $appModel.command,
                     mapStyle: mapStyle,
                     showPins: showPins,
+                    is3D: is3D,
                     centerBox: centerBox
                 )
             }
@@ -295,7 +295,7 @@ struct HomeView: View {
         .overlay(alignment: .bottom) {
             let maxH = screenHeight * 0.90
             let mid = max(260, maxH * 0.5)
-            let t = max(0, min(1, (sheetHeight - 60) / (mid - 60)))
+            let t = max(0, min(1, (sheetHeight - 76) / (mid - 76)))
             if !isMapPopup {
                 // Content-sized (not full-screen) so the map above the sheet stays interactive.
                 ZStack(alignment: .bottom) {
@@ -347,12 +347,6 @@ struct HomeView: View {
                     .presentationDetents([.medium, .large])
                     .presentationBackground(.regularMaterial)
             }
-        }
-        .fullScreenCover(item: $lookAround) { LookAroundScreen(scene: $0.scene) }
-        .alert("Look Around Unavailable", isPresented: $lookAroundUnavailable) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Apple doesn't have street-level imagery for this spot yet. Try panning to a more built-up area.")
         }
         // Let the keyboard float over the map and the docked search sheet (Apple Maps behaviour)
         // rather than pushing the whole screen up when the search field is focused.
@@ -874,16 +868,33 @@ struct HomeView: View {
     /// The map's action buttons, grouped in a single vertical capsule (Apple Maps style): base-map
     /// style, show/hide pins, recenter-to-fit, and current location. In the Locations overview the
     /// pins toggle is dropped and recenter reframes the overlay.
-    /// The map's floating controls: the Look Around binoculars on the left, the action capsule on
-    /// the right (with its map-style dropdown rising above it).
+    /// The map's floating controls: the 2D/3D toggle above the action capsule, on the right.
     private var floatingControls: some View {
         HStack(alignment: .bottom, spacing: 0) {
-            if !showLocations { binocularsButton }
             Spacer(minLength: 0)
-            actionCapsule
+            VStack(spacing: 8) {
+                if !showLocations { dimensionButton }
+                actionCapsule
+            }
         }
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity)
+    }
+
+    /// Toggles the route map between a flat 2D view and a tilted 3D view (Apple Maps' "3D"
+    /// button). The label shows the mode you'll switch *to*.
+    private var dimensionButton: some View {
+        Button {
+            withAnimation(Theme.spring) { is3D.toggle() }
+        } label: {
+            Text(is3D ? "2D" : "3D")
+                .font(.system(size: 17, weight: .bold, design: .rounded))
+                .foregroundStyle(is3D ? Theme.accentOnGlass : .primary)
+                .frame(width: 54, height: 54)
+                .glassCircle()
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(is3D ? "Switch to 2D" : "Switch to 3D")
     }
 
     private var actionCapsule: some View {
@@ -927,19 +938,6 @@ struct HomeView: View {
         .glassBackground(cornerRadius: 26)
     }
 
-    /// The Look Around binoculars — a standalone round button on the left (Apple Maps placement),
-    /// opening Look Around at the map's current center. Route map only.
-    private var binocularsButton: some View {
-        Button { openLookAround() } label: {
-            Image(systemName: "binoculars.fill")
-                .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(.primary)
-                .frame(width: 54, height: 54)
-                .glassCircle()
-        }
-        .buttonStyle(.plain)
-    }
-
     /// One flat icon button inside the action capsule (the capsule itself carries the glass).
     private func capsuleButton(systemName: String, isActive: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -956,19 +954,6 @@ struct HomeView: View {
     /// full screen width (an unconstrained Rectangle expands to infinity).
     private var capsuleDivider: some View {
         Rectangle().fill(.primary.opacity(0.12)).frame(width: 34, height: 0.75)
-    }
-
-    /// Fetches the Look Around scene at the map's current center and presents it, or notes that
-    /// there's no coverage there.
-    private func openLookAround() {
-        guard let coordinate = centerBox.coordinate else { return }
-        Task {
-            if let scene = try? await MKLookAroundSceneRequest(coordinate: coordinate).scene {
-                lookAround = LookAroundScenePresentation(scene: scene)
-            } else {
-                lookAroundUnavailable = true
-            }
-        }
     }
 
     /// The Apple Maps-style "Map Type" picker: a dimmed backdrop with a rounded-top card rising

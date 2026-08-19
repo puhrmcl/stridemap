@@ -40,6 +40,8 @@ struct RunMapView: UIViewRepresentable {
     var renderStyle: RouteRenderStyle = .routes
     /// When false, the tappable start pins are hidden and only the route lines are drawn.
     var showPins: Bool = true
+    /// Tilts the camera into a 3D view when true, flat 2D when false.
+    var is3D: Bool = false
     /// Receives the map's current center as it pans, so callers (e.g. the Look Around binoculars)
     /// can act on it without the churn of a `@State` update on every frame.
     var centerBox: MapCenterBox? = nil
@@ -94,6 +96,14 @@ struct RunMapView: UIViewRepresentable {
             map.overrideUserInterfaceStyle = mapStyle.forcedInterfaceStyle
         }
 
+        // Tilt into / out of 3D when the toggle changes, keeping the current center and zoom.
+        if context.coordinator.appliedIs3D != is3D {
+            context.coordinator.appliedIs3D = is3D
+            let camera = map.camera
+            camera.pitch = is3D ? 55 : 0
+            map.setCamera(camera, animated: true)
+        }
+
         // Switching between per-run and history rendering changes both geometry (history uses
         // simplified routes) and styling, so rebuild the overlay set from scratch on a change.
         let renderChanged = context.coordinator.appliedRenderStyle != renderStyle
@@ -134,6 +144,7 @@ struct RunMapView: UIViewRepresentable {
         var lastCommandID: UUID?
         var appliedStyle: MapStyleOption?
         var appliedRenderStyle: RouteRenderStyle?
+        var appliedIs3D: Bool?
         /// Whether the map has framed the runs once on first appearance.
         var didInitialFrame = false
 
