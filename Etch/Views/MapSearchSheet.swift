@@ -297,7 +297,7 @@ struct MapSearchSheet: View {
                     .foregroundStyle(.primary)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.accent)
                 Spacer(minLength: 0)
             }
             .contentShape(Rectangle())
