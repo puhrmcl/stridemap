@@ -22,7 +22,14 @@ private struct PillWidthKey: PreferenceKey {
 enum LocationOverlay: String, CaseIterable, Identifiable {
     case cities, states, countries, landmarks
     var id: String { rawValue }
-    var label: String { rawValue.capitalized }
+    var label: String {
+        switch self {
+        case .cities: return "City"
+        case .states: return "State"
+        case .countries: return "Country"
+        case .landmarks: return "Landmark"
+        }
+    }
     var symbol: String {
         switch self {
         case .cities: return "building.2.fill"
@@ -84,13 +91,6 @@ struct HomeView: View {
     /// Bumped by the Locations recenter button; folded into the overlay map's id so the map is
     /// rebuilt and re-framed to fit all its pins/regions.
     @State private var locationRecenterToken = 0
-
-    // Locations cascade — Country → State → City. Each level filters the next and reframes the
-    // city map to the selected scope. Built straight from the runs' own place fields, so it works
-    // for any country (not just where boundary polygons exist).
-    @State private var selCountry: String?
-    @State private var selState: String?
-    @State private var selCity: String?
 
     /// Measured height of the pill's totals column, used to size the leading icon and divider to
     /// exactly that — `maxHeight: .infinity` would instead grab the whole top bar's height. Seeded
@@ -212,16 +212,34 @@ struct HomeView: View {
 
         Group {
             if showLocations {
-                // Country → State → City: a single city map, its pins filtered to the current
-                // cascade selection. Reframes to fit whenever the selection (or recenter) changes.
-                CitiesMapView(
-                    cities: cascadePins,
-                    selectedRunID: $appModel.selectedRunID,
-                    stackedRunIDs: $appModel.stackedRunIDs,
-                    focusCoordinate: $focusCity,
-                    mapStyle: mapStyle
-                )
-                .id("cascade-\(selCountry ?? "all")-\(selState ?? "all")-\(locationRecenterToken)")
+                if locationOverlay == .states {
+                    StatesMapView(
+                        intensities: stateIntensities,
+                        mapStyle: mapStyle,
+                        focusStateName: $focusStateName,
+                        selectedName: selectedStateName,
+                        runPoints: selectedStateRunPoints,
+                        selectedRunID: $appModel.selectedRunID,
+                        stackedRunIDs: $appModel.stackedRunIDs
+                    )
+                    .id("states-\(locationRecenterToken)")
+                } else if locationOverlay == .countries {
+                    CountriesMapView(
+                        intensities: countryIntensities,
+                        mapStyle: mapStyle,
+                        focusCountryName: $focusCountryName
+                    )
+                    .id("countries-\(locationRecenterToken)")
+                } else {
+                    CitiesMapView(
+                        cities: overlayPlaces,
+                        selectedRunID: $appModel.selectedRunID,
+                        stackedRunIDs: $appModel.stackedRunIDs,
+                        focusCoordinate: $focusCity,
+                        mapStyle: mapStyle
+                    )
+                    .id("\(locationOverlay.rawValue)-\(locationRecenterToken)")
+                }
             } else {
                 RunMapView(
                     runs: visibleRuns,
@@ -249,10 +267,7 @@ struct HomeView: View {
         // The "View" label reflects the chosen place; reset it (and any selected state) when the
         // overlay or mode changes.
         .onChange(of: locationOverlay) { selectedPlaceLabel = nil; selectedStateName = nil }
-        .onChange(of: showLocations) {
-            selectedPlaceLabel = nil; selectedStateName = nil
-            selCountry = nil; selState = nil; selCity = nil
-        }
+        .onChange(of: showLocations) { selectedPlaceLabel = nil; selectedStateName = nil }
         // Recompute the selected state's run pins whenever the selection or the located-run set
         // changes.
         .onChange(of: selectedStateName) { recomputeSelectedStateRunPoints() }
@@ -456,37 +471,15 @@ struct HomeView: View {
 
             if showTypeMenu { typeDropdown }
             if showModeMenu { modeDropdown }
-            // The currently selected view, in a strip that reads as attached to the bottom of the
-            // pill — hidden while a dropdown is open (which already names the choices).
-            if !showTypeMenu && !showModeMenu { selectedViewStrip }
-            // Locations: a left-aligned Country → State → City cascade under the pill.
-            if showLocations && !showTypeMenu && !showModeMenu { locationCascade }
+            // Places: independent Country / State / City / Landmark dropdowns under the pill.
+            if showLocations && !showTypeMenu && !showModeMenu { modeSelector }
         }
     }
 
-    /// A slim strip beneath the pill naming the current view (All Activities / PRs / Locations …),
-    /// sized to the pill's width so it reads as an extension of it.
-    private var selectedViewStrip: some View {
-        HStack(spacing: 7) {
-            Image(systemName: currentViewSymbol)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(Theme.accentOnGlass)
-            Text(currentViewLabel)
-                .font(.system(.footnote, design: .rounded).weight(.semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 13)
-        .padding(.vertical, 6)
-        .frame(width: pillWidth, alignment: .leading)
-        .glassBackground(cornerRadius: 13)
-    }
-
-    /// The label for the current view — the map-mode when showing routes, else the deepest chosen
-    /// place in the Locations cascade.
+    /// The label for the current view shown in the pill — the map-mode when showing routes, else
+    /// "Places". Kept short so the pill doesn't grow with long text.
     private var currentViewLabel: String {
-        showLocations ? (selCity ?? selState ?? selCountry ?? "Locations") : modeLabel(appModel.filter.mode)
+        showLocations ? "Places" : modeLabel(appModel.filter.mode)
     }
 
     private var currentViewSymbol: String {
@@ -505,25 +498,18 @@ struct HomeView: View {
                     .frame(height: pillColumnHeight)
                 pillDivider
             }
-            // Middle: the totals, tappable to open the map-view (mode) dropdown.
-            Button {
-                withAnimation(Theme.spring) { showModeMenu.toggle(); showTypeMenu = false }
-            } label: {
-                HStack(spacing: 6) {
-                    metricsRow
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Theme.accentOnGlass)
-                        .rotationEffect(.degrees(showModeMenu ? 180 : 0))
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .background(
-                GeometryReader { geo in
-                    Color.clear.preference(key: PillColumnHeightKey.self, value: geo.size.height)
-                }
-            )
+            // Middle: the totals (display only).
+            metricsRow
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.preference(key: PillColumnHeightKey.self, value: geo.size.height)
+                    }
+                )
+            pillDivider
+            // Right: the current view (All Runs / PRs / Places …) with a dropdown chevron — tap to
+            // open the map-view (mode) dropdown.
+            viewSelector
+                .frame(height: pillColumnHeight)
         }
         .onPreferenceChange(PillColumnHeightKey.self) { if $0 > 0 { pillColumnHeight = $0 } }
         .fixedSize(horizontal: true, vertical: false)
@@ -536,6 +522,34 @@ struct HomeView: View {
             }
         )
         .onPreferenceChange(PillWidthKey.self) { if $0 > 0 { pillWidth = $0 } }
+    }
+
+    /// The view indicator on the right of the pill: a map glyph, the current view's name, and a
+    /// dropdown chevron. Tapping opens the map-view (mode) dropdown. The label is width-capped and
+    /// truncates, so a long view name never blows the pill out.
+    private var viewSelector: some View {
+        Button {
+            withAnimation(Theme.spring) { showModeMenu.toggle(); showTypeMenu = false }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: currentViewSymbol)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.accentOnGlass)
+                Text(currentViewLabel)
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: 130, alignment: .leading)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Theme.accentOnGlass)
+                    .rotationEffect(.degrees(showModeMenu ? 180 : 0))
+            }
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     /// A hairline separator sized to the pill's row height.
@@ -634,7 +648,7 @@ struct HomeView: View {
                 }
             }
             dropdownDivider
-            modeRow(label: "Locations", symbol: "mappin.and.ellipse", selected: showLocations) {
+            modeRow(label: "Places", symbol: "mappin.and.ellipse", selected: showLocations) {
                 applyMode(.locations)
             }
         }
@@ -752,115 +766,15 @@ struct HomeView: View {
         }
     }
 
-    // MARK: Locations cascade (Country → State → City)
-
-    /// Located runs in scope that carry a country — the cascade's source data.
-    private var geoRuns: [Run] {
-        scopedRuns.filter { ($0.country?.isEmpty == false) && $0.startCoordinate != nil }
-    }
-
-    /// A place level's entries (name + run count), most-visited first.
-    private func rankedPlaces(_ key: (Run) -> String?, from runs: [Run]) -> [(name: String, count: Int)] {
-        Dictionary(grouping: runs.filter { (key($0)?.isEmpty == false) }, by: { key($0) ?? "" })
-            .map { (name: $0.key, count: $0.value.count) }
-            .filter { !$0.name.isEmpty }
-            .sorted { $0.count != $1.count ? $0.count > $1.count : $0.name < $1.name }
-    }
-
-    private var cascadeCountries: [(name: String, count: Int)] { rankedPlaces({ $0.country }, from: geoRuns) }
-    private var cascadeStates: [(name: String, count: Int)] {
-        guard let c = selCountry else { return [] }
-        return rankedPlaces({ $0.state }, from: geoRuns.filter { $0.country == c })
-    }
-    private var cascadeCities: [(name: String, count: Int)] {
-        let base = geoRuns.filter { r in
-            (selCountry == nil || r.country == selCountry) && (selState == nil || r.state == selState)
-        }
-        return rankedPlaces({ $0.city }, from: base)
-    }
-
-    /// The city pins shown on the map, filtered to the current cascade selection.
-    private var cascadePins: [RunStatistics.TravelPlace] {
-        stats.travelPlaces.filter { place in
-            let r = place.runs.first
-            return (selCountry == nil || r?.country == selCountry)
-                && (selState == nil || r?.state == selState)
-        }
-    }
-
-    /// The average coordinate of a selected city's runs, to focus the map on it.
-    private func cityCoordinate(_ city: String) -> CLLocationCoordinate2D? {
-        cascadePins.first { $0.runs.first?.city == city }?.coordinate
-    }
-
-    /// The Locations cascade: Country, then (when the country has states) State, then City — each a
-    /// glass dropdown, left-aligned under the pill. Selecting a level filters the next and reframes
-    /// the map; a "Show all" row at each level steps back up.
-    @ViewBuilder private var locationCascade: some View {
-        // Whether the City level should appear: a state is chosen, or the country has no states.
-        let showCity = selState != nil || (selCountry != nil && cascadeStates.isEmpty)
-        HStack(spacing: 8) {
-            cascadeMenu(symbol: "globe.americas.fill", title: selCountry ?? "Country",
-                        items: cascadeCountries,
-                        allTitle: selCountry != nil ? "All Countries" : nil,
-                        onAll: { selCountry = nil; selState = nil; selCity = nil; locationRecenterToken += 1 },
-                        onPick: { selCountry = $0; selState = nil; selCity = nil; locationRecenterToken += 1 })
-
-            if selCountry != nil, !cascadeStates.isEmpty {
-                cascadeMenu(symbol: "map.fill", title: selState ?? "State",
-                            items: cascadeStates,
-                            allTitle: selState != nil ? "All States" : nil,
-                            onAll: { selState = nil; selCity = nil; locationRecenterToken += 1 },
-                            onPick: { selState = $0; selCity = nil; locationRecenterToken += 1 })
-            }
-
-            if showCity, !cascadeCities.isEmpty {
-                cascadeMenu(symbol: "building.2.fill", title: selCity ?? "City",
-                            items: cascadeCities,
-                            allTitle: selCity != nil ? "All Cities" : nil,
-                            onAll: { selCity = nil; locationRecenterToken += 1 },
-                            onPick: { name in
-                                selCity = name
-                                if let coord = cityCoordinate(name) { focusCity = coord }
-                            })
-            }
-        }
-        .padding(.vertical, 3)
-    }
-
-    /// One cascade dropdown: a glass pill that opens a menu of places (name · count), with an
-    /// optional "show all" row to clear this level.
-    private func cascadeMenu(symbol: String, title: String, items: [(name: String, count: Int)],
-                             allTitle: String?, onAll: @escaping () -> Void,
-                             onPick: @escaping (String) -> Void) -> some View {
-        Menu {
-            if let allTitle {
-                Button { onAll() } label: { Label(allTitle, systemImage: "arrow.uturn.left") }
-            }
-            ForEach(items, id: \.name) { item in
-                Button("\(item.name)  ·  \(item.count)") { onPick(item.name) }
-            }
-        } label: {
-            pill(symbol: symbol, text: title)
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// The primary map-mode dropdown, plus — in Locations mode — a secondary dropdown to pick
-    /// the specific overlay and a "jump to" menu to zoom to a place. Scrolls horizontally so
-    /// every pill keeps its full label on one line rather than wrapping/hyphenating when the
-    /// three don't all fit on a narrow screen.
+    /// Places: the overlay-type dropdown (Country / State / City / Landmark), each its own list,
+    /// plus a "jump to" menu that zooms the active overlay to a chosen place. Left-aligned under
+    /// the pill.
     private var modeSelector: some View {
-        // Centered under the totals pill, mirroring its alignment.
-        HStack {
-            Spacer(minLength: 0)
-            HStack(spacing: 10) {
-                overlaySelector
-                placesMenu
-            }
-            .padding(.vertical, 3)   // room for the pills' soft shadows
-            Spacer(minLength: 0)
+        HStack(spacing: 10) {
+            overlaySelector
+            placesMenu
         }
+        .padding(.vertical, 3)   // room for the pills' soft shadows
     }
 
     /// Secondary dropdown: which Locations overlay to show.
@@ -903,14 +817,18 @@ struct HomeView: View {
             if !countryRanked.isEmpty {
                 placesMenuLabel(title: selectedPlaceLabel ?? "View") {
                     ForEach(countryRanked, id: \.name) { item in
-                        Button("\(item.name)  ·  \(item.count)") {
+                        Button("\(displayCountry(item.name))  ·  \(item.count)") {
                             focusCountryName = item.name
-                            selectedPlaceLabel = item.name
+                            selectedPlaceLabel = displayCountry(item.name)
                         }
                     }
                 }
             }
+        } else if locationOverlay == .cities, !overlayPlaces.isEmpty {
+            // Cities grouped under their state, so a long list stays navigable.
+            placesMenuLabel(title: selectedPlaceLabel ?? "View") { citiesByStateMenu }
         } else if !overlayPlaces.isEmpty {
+            // Landmarks — a flat list.
             placesMenuLabel(title: selectedPlaceLabel ?? "View") {
                 ForEach(overlayPlaces) { place in
                     Button("\(shortPlaceLabel(place))  ·  \(place.runs.count)") {
@@ -920,6 +838,37 @@ struct HomeView: View {
                 }
             }
         }
+    }
+
+    /// The Cities jump-to list, grouped into a section per state (most-visited state first), with
+    /// the bare city name under each — so a big travel history reads as a tidy state-by-state index.
+    @ViewBuilder private var citiesByStateMenu: some View {
+        let grouped = Dictionary(grouping: overlayPlaces) { $0.runs.first?.state ?? "" }
+        let orderedStates = grouped.keys.sorted { a, b in
+            let ca = grouped[a]?.reduce(0) { $0 + $1.runs.count } ?? 0
+            let cb = grouped[b]?.reduce(0) { $0 + $1.runs.count } ?? 0
+            return ca != cb ? ca > cb : a < b
+        }
+        ForEach(orderedStates, id: \.self) { state in
+            Section(state.isEmpty ? "Other" : state) {
+                ForEach(grouped[state] ?? []) { place in
+                    Button("\(cityOnly(place))  ·  \(place.runs.count)") {
+                        focusCity = place.coordinate
+                        selectedPlaceLabel = cityOnly(place)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Just the city name from a "City, State, Country" travel label (the state is the section head).
+    private func cityOnly(_ place: RunStatistics.TravelPlace) -> String {
+        place.label.components(separatedBy: ", ").first ?? place.label
+    }
+
+    /// A shorter display name for a country — "USA" for the United States, keeping the list tidy.
+    private func displayCountry(_ name: String) -> String {
+        (name == "United States" || name == "United States of America") ? "USA" : name
     }
 
     /// A compact place label that stays on one menu line — for cities, drops the country so
