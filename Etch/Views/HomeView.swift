@@ -171,6 +171,14 @@ struct HomeView: View {
             .first?.safeAreaInsets.bottom ?? 0
     }
 
+    /// The screen's top safe-area inset (status bar / Dynamic Island), so the fully-expanded search
+    /// page can run right up to just below it — above the totals pill.
+    private var topSafeArea: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow }
+            .first?.safeAreaInsets.top ?? 0
+    }
+
     var body: some View {
         @Bindable var appModel = appModel
 
@@ -293,7 +301,8 @@ struct HomeView: View {
             }
         )
         .overlay(alignment: .bottom) {
-            let maxH = screenHeight * 0.90
+            // Full height runs to just below the status bar / Dynamic Island — above the totals pill.
+            let maxH = max(screenHeight * 0.5, screenHeight - topSafeArea - 8)
             let mid = max(260, maxH * 0.5)
             let t = max(0, min(1, (sheetHeight - 76) / (mid - 76)))
             if !isMapPopup {
