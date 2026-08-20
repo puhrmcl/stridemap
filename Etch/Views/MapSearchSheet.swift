@@ -444,13 +444,53 @@ struct MapSearchSheet: View {
         LazyVStack(spacing: 0) {
             ForEach(Array(list.enumerated()), id: \.element.id) { index, run in
                 if index > 0 { Divider().padding(.leading, 16) }
-                Button { open(run) } label: {
-                    RunRow(run: run).padding(.horizontal, 12).padding(.vertical, 8)
-                }
-                .buttonStyle(.plain)
+                runRow(run)
             }
         }
         .background(.regularMaterial, in: .rect(cornerRadius: 18))
+    }
+
+    /// A single activity tile: the tappable run row plus a trailing "⋯" overflow menu offering
+    /// Share, so a run can be shared straight from the search page without opening it first.
+    private func runRow(_ run: Run) -> some View {
+        HStack(spacing: 0) {
+            Button { open(run) } label: {
+                RunRow(run: run).padding(.leading, 12).padding(.vertical, 8)
+            }
+            .buttonStyle(.plain)
+
+            Menu {
+                ShareLink(item: shareSummary(for: run)) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 40, height: 40)
+                    .contentShape(.rect)
+            }
+            .padding(.trailing, 6)
+        }
+    }
+
+    /// A tidy text summary of a run for the system share sheet (times, pace, place).
+    private func shareSummary(for run: Run) -> String {
+        var lines: [String] = [run.isRace ? "🏁 \(run.name)" : run.name, Format.dateTime(run.startDate)]
+        if !run.placeLabel.isEmpty { lines.append(run.placeLabel) }
+        lines.append("")
+        lines.append("Distance  \(Format.distance(run.distance, decimals: 2))")
+        lines.append("Time  \(Format.duration(run.movingTime))")
+        if run.distance > 0 {
+            let secondsPerKm = Double(run.movingTime) / (run.distance / 1000)
+            lines.append("Pace  \(Format.pace(secondsPerKm: secondsPerKm))")
+        }
+        if run.elevationGain > 0 {
+            lines.append("Elevation  \(Format.elevationGain(run.elevationGain))")
+        }
+        lines.append("")
+        lines.append("Tracked with Etch")
+        return lines.joined(separator: "\n")
     }
 
     private func open(_ run: Run) {
