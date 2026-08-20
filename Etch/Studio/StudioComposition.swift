@@ -150,6 +150,20 @@ struct StudioComposition: View {
     var textOverride: Color? = nil
     var groundOverride: Color? = nil
 
+    // MARK: Remodel options
+    /// Tone every vector colour to grey (the raster panels are desaturated upstream).
+    var monochrome: Bool = false
+    /// The curated Title typeface.
+    var titleFont: PosterFont = .editorial
+    /// Whether the title line is drawn.
+    var showTitle: Bool = true
+    /// Whether the location line is drawn.
+    var showLocation: Bool = true
+    /// Location override; nil falls back to the run's city/state.
+    var locationOverride: String? = nil
+    /// Which of the five Gallery art layouts to compose (Gallery product only).
+    var galleryDesignRaw: String = GalleryDesign.portfolio.rawValue
+
     static let width: CGFloat = 1000
     static let artHeight: CGFloat = 1000
     /// Footer column width in landscape when the data sits beside the art.
@@ -175,18 +189,32 @@ struct StudioComposition: View {
         }
     }
 
-    private var routeColor: Color { routeOverride ?? edition.route }
+    /// Grey version of a colour (luminance), used when the poster is monochrome so the route and
+    /// type read as considered black-and-white rather than a lone colour on a grey photo.
+    private func toneMono(_ c: Color) -> Color {
+        guard monochrome else { return c }
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(c).getRed(&r, green: &g, blue: &b, alpha: &a)
+        let y = 0.299 * r + 0.587 * g + 0.114 * b
+        return Color(red: Double(y), green: Double(y), blue: Double(y)).opacity(Double(a))
+    }
+
+    private var routeColor: Color { toneMono(routeOverride ?? edition.route) }
+    /// Ground keeps its chosen tone even in monochrome (a warm paper or deep ink still reads);
+    /// only the coloured marks (route, accents) are toned to grey.
     private var groundColor: Color { groundOverride ?? edition.ground }
+    private var accentColor: Color { toneMono(edition.accent) }
+    private var casingColor: Color? { edition.casing.map(toneMono) }
 
     /// Type colour that stays legible on a user-chosen ground: an explicit text pick always
     /// wins; otherwise, when the ground is overridden, derive ink/subtle from its luminance.
     private var autoInk: Color { groundColor.isDarkGround ? Theme.Palette.bone : Theme.Palette.ink }
     private var inkColor: Color {
-        if let textOverride { return textOverride }
+        if let textOverride { return toneMono(textOverride) }
         return groundOverride != nil ? autoInk : edition.ink
     }
     private var subtleColor: Color {
-        if let textOverride { return textOverride.opacity(0.6) }
+        if let textOverride { return toneMono(textOverride).opacity(0.6) }
         return groundOverride != nil ? autoInk.opacity(0.6) : edition.subtle
     }
 
@@ -250,39 +278,91 @@ struct StudioComposition: View {
         return tiles
     }
 
-    private var galleryComposition: some View {
-        VStack(spacing: 44) {
-            HStack(spacing: 16) {
-                ForEach(Array(galleryTiles.enumerated()), id: \.offset) { _, tile in
-                    galleryTileView(tile)
-                }
-            }
-            .frame(height: 440)
+    private var galleryDesign: GalleryDesign { GalleryDesign(rawValue: galleryDesignRaw) ?? .portfolio }
+    /// Gallery follows the chosen orientation: a tall portrait sheet, or a wide landscape one.
+    private var galleryWidth: CGFloat { orientation == .portrait ? Self.width : Self.wideArtWidth }
+    private var galleryArtHeight: CGFloat { orientation == .portrait ? 620 : 460 }
 
-            VStack(spacing: 14) {
-                Text(titleText.uppercased())
-                    .font(.system(size: 44, weight: .regular, design: .serif))
-                    .tracking(10)
-                    .foregroundStyle(inkColor)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.5)
-                    .multilineTextAlignment(.center)
-                if !placeLine.isEmpty {
-                    Text(placeLine.uppercased())
-                        .font(.system(size: 18, weight: .regular, design: .serif))
-                        .tracking(5)
-                        .foregroundStyle(subtleColor)
-                }
-            }
-            .frame(maxWidth: .infinity)
+    private var galleryComposition: some View {
+        VStack(spacing: 40) {
+            galleryFramesView
+                .frame(height: galleryArtHeight)
+
+            galleryMasthead
+
+            if !resolvedStats.isEmpty { galleryStatRow }
 
             if showElevationProfile && elevationSamples.count > 1 {
                 elevationProfileContent
             }
         }
         .padding(80)
-        .frame(width: Self.width)
+        .frame(width: galleryWidth)
         .background(groundColor)
+    }
+
+    /// A frame at index `i`, clamped so a design never reads past the resolved tile plan.
+    @ViewBuilder private func galleryFrame(_ i: Int, _ tiles: [GalleryTile]) -> some View {
+        galleryTileView(i < tiles.count ? tiles[i] : .map)
+    }
+
+    /// The five curated arrangements — one hero, two side-by-side, three across, a 2×2 grid, or a
+    /// feature frame over a strip of three.
+    @ViewBuilder private var galleryFramesView: some View {
+        let tiles = galleryTiles
+        let g: CGFloat = 16
+        switch galleryDesign {
+        case .portfolio:
+            galleryFrame(0, tiles)
+        case .duo:
+            HStack(spacing: g) { galleryFrame(0, tiles); galleryFrame(1, tiles) }
+        case .triptych:
+            HStack(spacing: g) { galleryFrame(0, tiles); galleryFrame(1, tiles); galleryFrame(2, tiles) }
+        case .grid:
+            VStack(spacing: g) {
+                HStack(spacing: g) { galleryFrame(0, tiles); galleryFrame(1, tiles) }
+                HStack(spacing: g) { galleryFrame(2, tiles); galleryFrame(3, tiles) }
+            }
+        case .feature:
+            VStack(spacing: g) {
+                galleryFrame(0, tiles).frame(maxHeight: .infinity)
+                HStack(spacing: g) { galleryFrame(1, tiles); galleryFrame(2, tiles); galleryFrame(3, tiles) }
+                    .frame(height: galleryArtHeight * 0.32)
+            }
+        }
+    }
+
+    /// Title + location beneath the frames, in the chosen face.
+    @ViewBuilder private var galleryMasthead: some View {
+        VStack(spacing: 14) {
+            if showTitle {
+                Text(titleText.uppercased())
+                    .font(.system(size: 44, weight: titleFont.titleWeight, design: titleFont.design))
+                    .tracking(8 + titleFont.extraTracking)
+                    .foregroundStyle(inkColor)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.5)
+                    .multilineTextAlignment(.center)
+            }
+            if !placeLine.isEmpty {
+                Text(placeLine.uppercased())
+                    .font(.system(size: 18, weight: .regular, design: titleFont.design))
+                    .tracking(5)
+                    .foregroundStyle(subtleColor)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// A compact centred row of the chosen data slots, under the masthead.
+    private var galleryStatRow: some View {
+        HStack(alignment: .top, spacing: 0) {
+            ForEach(Array(resolvedStats.enumerated()), id: \.offset) { index, item in
+                if index > 0 { statDivider }
+                stat(item.metric.label, item.value)
+            }
+        }
+        .frame(maxWidth: 680)
     }
 
     @ViewBuilder private func galleryTileView(_ tile: GalleryTile) -> some View {
@@ -548,7 +628,7 @@ struct StudioComposition: View {
     /// The route as vector art (optional casing under the coloured line), at a given stroke width.
     private func routeGraphic(width: CGFloat) -> some View {
         ZStack {
-            if let casing = edition.casing {
+            if let casing = casingColor {
                 RouteShape(coordinates: run.coordinates)
                     .stroke(casing.opacity(0.9), style: stroke(width * 1.7))
             }
@@ -595,8 +675,10 @@ struct StudioComposition: View {
             heroBlock(leading: false)
             if !placeLine.isEmpty { metaLine([placeLine], leading: false) }
             if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: false) }
-            Rectangle().fill(subtleColor.opacity(0.4)).frame(width: 90, height: 2).padding(.vertical, 6)
-            statRow
+            if !resolvedStats.isEmpty {
+                Rectangle().fill(subtleColor.opacity(0.4)).frame(width: 90, height: 2).padding(.vertical, 6)
+                statRow
+            }
             metaLine([dateText], leading: false).padding(.top, 6)
         }
     }
@@ -699,7 +781,7 @@ struct StudioComposition: View {
         VStack(spacing: 6) {
             Image(systemName: metric.icon)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(edition.accent)
+                .foregroundStyle(accentColor)
             Text(value)
                 .font(.system(size: 26, weight: .bold))
                 .foregroundStyle(inkColor)
@@ -727,14 +809,17 @@ struct StudioComposition: View {
         return Format.date(run.startDate)
     }
 
+    @ViewBuilder
     private func title(leading: Bool) -> some View {
-        Text(titleText.uppercased())
-            .font(.system(size: 26, weight: .semibold))
-            .tracking(4)
-            .foregroundStyle(subtleColor)
-            .lineLimit(2)
-            .multilineTextAlignment(leading ? .leading : .center)
-            .frame(maxWidth: .infinity, alignment: leading ? .leading : .center)
+        if showTitle {
+            Text(titleText.uppercased())
+                .font(.system(size: 26, weight: titleFont.titleWeight, design: titleFont.design))
+                .tracking(4 + titleFont.extraTracking)
+                .foregroundStyle(subtleColor)
+                .lineLimit(2)
+                .multilineTextAlignment(leading ? .leading : .center)
+                .frame(maxWidth: .infinity, alignment: leading ? .leading : .center)
+        }
     }
 
     private func heroBlock(leading: Bool) -> some View {
@@ -748,7 +833,7 @@ struct StudioComposition: View {
             Text(heroCaption)
                 .font(.system(size: 24, weight: .semibold))
                 .tracking(8)
-                .foregroundStyle(edition.accent)
+                .foregroundStyle(accentColor)
         }
         .frame(maxWidth: .infinity, alignment: leading ? .leading : .center)
     }
@@ -799,7 +884,7 @@ struct StudioComposition: View {
             HStack(spacing: 6) {
                 Image(systemName: metric.icon)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(edition.accent)
+                    .foregroundStyle(accentColor)
                 Text(value)
                     .font(.system(size: 30, weight: .bold))
                     .foregroundStyle(inkColor)
@@ -843,7 +928,9 @@ struct StudioComposition: View {
     }
 
     private var placeLine: String {
-        [run.city, run.state].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
+        guard showLocation else { return "" }
+        if let locationOverride, !locationOverride.isEmpty { return locationOverride }
+        return [run.city, run.state].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
     }
 }
 

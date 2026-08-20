@@ -41,6 +41,41 @@ final class SavedPoster {
     var textColorHex: String?
     var groundColorHex: String?
 
+    // MARK: Remodel recipe (Map / Gallery products)
+    //
+    // Added in the Studio remodel. Existing posters saved before the remodel have `familyRaw`
+    // empty; `PosterConfig(poster:)` detects that and migrates them to the closest new setup, so
+    // these defaults are only ever read for genuinely new posters.
+
+    /// "map" or "gallery". Empty on pre-remodel posters (triggers migration).
+    var familyRaw: String = ""
+    var mapStyleRaw: String = "standard"
+    var galleryDesignRaw: String = "portfolio"
+    var galleryFramesRaw: [String] = []
+    var monochrome: Bool = false
+    var fontRaw: String = "editorial"
+    var showTitle: Bool = true
+    var showLocation: Bool = true
+    /// Location override; empty falls back to the run's city/state.
+    var locationText: String = ""
+
+    /// A bare poster for a run; `PosterConfig.write(into:run:)` fills in the recipe.
+    convenience init(runID: UUID, runName: String) {
+        self.init(
+            runID: runID, runName: runName,
+            editionRaw: StudioEdition.ID.gallery.rawValue, layoutRaw: StudioLayout.classic.rawValue,
+            orientationRaw: StudioOrientation.portrait.rawValue,
+            dataPlacementRaw: StudioDataPlacement.side.rawValue,
+            photoLayoutRaw: StudioPhotoLayout.single.rawValue,
+            customTitle: "", customDate: "",
+            heroMetricRaw: StatMetric.distance.rawValue, statSlotsRaw: [],
+            showEditorialPhoto: false, showMemoryRoute: false,
+            showElevationProfile: false, includeWeather: false,
+            routeColorHex: nil, textColorHex: nil, groundColorHex: nil
+        )
+        self.familyRaw = PosterFamily.map.rawValue
+    }
+
     init(
         id: UUID = UUID(),
         runID: UUID,

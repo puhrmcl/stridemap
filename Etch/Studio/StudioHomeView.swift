@@ -565,24 +565,9 @@ struct SavedPosterCard: View {
     }
 
     private func renderThumbnail() async {
-        let slots = poster.statSlotsRaw.compactMap { StatMetric(rawValue: $0) }
-        let request = StudioRenderer.Request(
-            run: run, edition: edition,
-            layout: StudioLayout(rawValue: poster.layoutRaw) ?? .classic,
-            orientation: orientation, dataPlacement: dataPlacement,
-            photoLayout: StudioPhotoLayout(rawValue: poster.photoLayoutRaw) ?? .single,
-            titleOverride: poster.customTitle.isEmpty ? nil : poster.customTitle,
-            dateOverride: poster.customDate.isEmpty ? nil : poster.customDate,
-            showEditorialPhoto: poster.showEditorialPhoto,
-            showMemoryRoute: poster.showMemoryRoute,
-            heroMetric: StatMetric(rawValue: poster.heroMetricRaw) ?? .distance,
-            statSlots: slots.isEmpty ? [.time, .pace, .elevationGain] : slots,
-            showElevationProfile: poster.showElevationProfile,
-            includeWeather: poster.includeWeather,
-            routeColor: Color(hex: poster.routeColorHex),
-            textColor: Color(hex: poster.textColorHex),
-            groundColor: Color(hex: poster.groundColorHex)
-        )
+        // Build through PosterConfig so a thumbnail honours the remodel (Map/Gallery, mono, font,
+        // title/location visibility) and old posters migrate to their closest new setup.
+        let request = PosterConfig(poster: poster).request(for: run)
         thumbnail = await StudioRenderer.image(for: request, scale: 1)
     }
 }

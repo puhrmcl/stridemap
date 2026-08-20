@@ -1,151 +1,123 @@
 import SwiftUI
 import SwiftData
 
-/// Etch Studio: a gallery-like way to turn a run into a finished piece. The user swipes
-/// through curated *editions* — each a complete composition — and can retune the path and text
-/// colours from a curated set before exporting. Deliberately editorial: the artwork is the
-/// hero, chrome stays quiet.
+/// Etch Studio's poster editor, remodelled around two products — a **Map** poster and a **Gallery**
+/// poster — each refined through a small, tabbed control tray (Style · Text · Data · Export) beneath
+/// a live preview. Deliberately editorial: the artwork is the hero, chrome stays quiet, and one
+/// decision is made at a time.
 struct StudioView: View {
     let run: Run
-    /// When opened from a kept poster, its stored recipe seeds every control below and future
-    /// saves update it in place instead of creating a duplicate.
+    /// When opened from a kept poster, its stored recipe seeds the editor and future saves update it
+    /// in place instead of creating a duplicate.
     private let existingPoster: SavedPoster?
+
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
-    @State private var selection: StudioEdition.ID = .gallery
-    @State private var includeWeather = false
-    @State private var routeColor: Color?
-    @State private var textColor: Color?
-    @State private var groundColor: Color?
-    @State private var layout: StudioLayout = .classic
-    @State private var orientation: StudioOrientation = .portrait
-    @State private var dataPlacement: StudioDataPlacement = .side
-    @State private var photoLayout: StudioPhotoLayout = .single
-    /// The share/export canvas — Poster (native) or a social aspect (Square / Feed / Story).
-    @State private var outputSize: StudioOutputSize = .poster
-    @State private var customTitle = ""
-    @State private var customDate = ""
-    @State private var showEditorialPhoto = false
-    @State private var showMemoryRoute = false
-    @State private var heroMetric: StatMetric = .distance
-    @State private var statSlots: [StatMetric] = [.time, .pace, .elevationGain]
-    @State private var showElevationProfile = false
-    @State private var galleryShowMapTile = false
-    @State private var galleryCellsRaw: [String] = ["photo", "photo", "photo"]
+    /// The single source of truth the whole editor binds to.
+    @State private var config: PosterConfig
+
+    /// Which control tab is showing.
+    private enum Tab: String, CaseIterable, Identifiable {
+        case style, text, data, export
+        var id: String { rawValue }
+        var name: String {
+            switch self {
+            case .style: return "Style"
+            case .text: return "Text"
+            case .data: return "Data"
+            case .export: return "Export"
+            }
+        }
+        var icon: String {
+            switch self {
+            case .style: return "paintpalette"
+            case .text: return "textformat"
+            case .data: return "chart.bar"
+            case .export: return "square.and.arrow.up"
+            }
+        }
+    }
+    @State private var tab: Tab = .style
+
     @State private var showPrints = false
-    @State private var showCustomize = false
     @State private var showExport = false
-    /// The id of the kept poster this composition is linked to, once saved — so a second Save
-    /// updates the same piece rather than piling up copies.
+    /// The kept poster this composition is linked to, once saved — so a second Save updates the
+    /// same piece rather than piling up copies.
     @State private var savedPosterID: UUID?
-    /// Drives the brief confirmation pill after a keep/update/remove.
     @State private var showSavedConfirmation = false
     @State private var confirmationText = "Kept in Studio"
-    /// Bumped on any customization change; part of the cache key so artwork re-renders.
-    @State private var revision = 0
 
-    @State private var rendered: [String: UIImage] = [:]
-    @State private var rendering: Set<String> = []
+    @State private var rendered: UIImage?
+    @State private var isRendering = false
 
     init(run: Run, poster: SavedPoster? = nil) {
         self.run = run
         self.existingPoster = poster
-        guard let p = poster else {
-            // A fresh poster defaults its metrics to what suits the activity — speed for rides,
-            // elevation for hikes, pace for runs.
-            let defaults = StatMetric.defaults(for: run.activityType)
-            _heroMetric = State(initialValue: defaults.hero)
-            _statSlots = State(initialValue: defaults.slots)
-            return
+        if let poster {
+            _config = State(initialValue: PosterConfig(poster: poster))
+            _savedPosterID = State(initialValue: poster.id)
+        } else {
+            _config = State(initialValue: PosterConfig.makeDefault(for: run))
         }
-        _selection = State(initialValue: p.editionID)
-        _includeWeather = State(initialValue: p.includeWeather)
-        _routeColor = State(initialValue: Color(hex: p.routeColorHex))
-        _textColor = State(initialValue: Color(hex: p.textColorHex))
-        _groundColor = State(initialValue: Color(hex: p.groundColorHex))
-        _layout = State(initialValue: StudioLayout(rawValue: p.layoutRaw) ?? .classic)
-        _orientation = State(initialValue: StudioOrientation(rawValue: p.orientationRaw) ?? .portrait)
-        _dataPlacement = State(initialValue: StudioDataPlacement(rawValue: p.dataPlacementRaw) ?? .side)
-        _photoLayout = State(initialValue: StudioPhotoLayout(rawValue: p.photoLayoutRaw) ?? .single)
-        _customTitle = State(initialValue: p.customTitle)
-        _customDate = State(initialValue: p.customDate)
-        _showEditorialPhoto = State(initialValue: p.showEditorialPhoto)
-        _showMemoryRoute = State(initialValue: p.showMemoryRoute)
-        _heroMetric = State(initialValue: StatMetric(rawValue: p.heroMetricRaw) ?? .distance)
-        let slots = p.statSlotsRaw.compactMap { StatMetric(rawValue: $0) }
-        _statSlots = State(initialValue: slots.isEmpty ? [.time, .pace, .elevationGain] : slots)
-        _showElevationProfile = State(initialValue: p.showElevationProfile)
-        _savedPosterID = State(initialValue: p.id)
     }
 
     private let pathSwatches: [Color] = [
         Theme.Palette.blue, Theme.Palette.ink, Theme.Palette.bone, Theme.Palette.brass, Theme.Palette.sage
     ]
     private let textSwatches: [Color] = [Theme.Palette.ink, Theme.Palette.bone, Theme.Palette.brass]
-    private let groundSwatches: [Color] = [Theme.Palette.ink, Theme.Palette.forest, Theme.Palette.bone]
-
-    private var editions: [StudioEdition] { StudioEdition.available(for: run) }
-    private var current: StudioEdition { StudioEdition.edition(selection) }
-    private func key(_ id: StudioEdition.ID) -> String { "\(id.rawValue)-\(revision)" }
-    private var currentKey: String { key(selection) }
+    private let groundSwatches: [Color] = [Theme.Palette.bone, Theme.Palette.ink, Theme.Palette.forest]
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                TabView(selection: $selection) {
-                    ForEach(editions) { edition in
-                        page(for: edition).tag(edition.id)
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-
-                controls
+                productPicker
+                preview
+                Divider()
+                trayTabBar
+                tray
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Etch Studio")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        if savedPosterID == nil {
-                            Button { saveAsNew() } label: { Label("Keep in Studio", systemImage: "bookmark") }
-                        } else {
-                            Button { updateSaved() } label: {
-                                Label("Update saved", systemImage: "arrow.triangle.2.circlepath")
-                            }
-                            Button { saveAsNew() } label: {
-                                Label("Save as new copy", systemImage: "plus.square.on.square")
-                            }
-                            Button(role: .destructive) { removeSaved() } label: {
-                                Label("Remove from Studio", systemImage: "bookmark.slash")
-                            }
-                        }
-                    } label: {
-                        Image(systemName: savedPosterID == nil ? "bookmark" : "bookmark.fill")
-                    }
-                    .accessibilityLabel(savedPosterID == nil ? "Keep in Studio" : "Saved — options")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showPrints = true } label: { Image(systemName: "bag") }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showExport = true } label: { Image(systemName: "square.and.arrow.up") }
-                        .sheet(isPresented: $showExport) {
-                            StudioExportSheet(request: request(for: current))
-                        }
-                }
-            }
+            .toolbar { toolbarContent }
             .overlay(alignment: .top) { savedConfirmation }
             .sheet(isPresented: $showPrints) { PrintShopView(subjectTitle: run.name) }
-            .task(id: currentKey) { await renderIfNeeded(selection) }
+            .sheet(isPresented: $showExport) { StudioExportSheet(request: config.request(for: run)) }
+            .task(id: renderKey) { await renderPreview() }
         }
     }
 
-    /// A brief pill confirming the composition was kept, so the user knows it's now in Studio.
-    @ViewBuilder
-    private var savedConfirmation: some View {
+    // MARK: Toolbar
+
+    @ToolbarContentBuilder private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                if savedPosterID == nil {
+                    Button { saveAsNew() } label: { Label("Keep in Studio", systemImage: "bookmark") }
+                } else {
+                    Button { updateSaved() } label: {
+                        Label("Update saved", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    Button { saveAsNew() } label: {
+                        Label("Save as new copy", systemImage: "plus.square.on.square")
+                    }
+                    Button(role: .destructive) { removeSaved() } label: {
+                        Label("Remove from Studio", systemImage: "bookmark.slash")
+                    }
+                }
+            } label: {
+                Image(systemName: savedPosterID == nil ? "bookmark" : "bookmark.fill")
+            }
+            .accessibilityLabel(savedPosterID == nil ? "Keep in Studio" : "Saved — options")
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button { showPrints = true } label: { Image(systemName: "bag") }
+        }
+    }
+
+    @ViewBuilder private var savedConfirmation: some View {
         if showSavedConfirmation {
             Label(confirmationText, systemImage: "checkmark.circle.fill")
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
@@ -158,255 +130,363 @@ struct StudioView: View {
         }
     }
 
+    // MARK: Product picker
+
+    private var productPicker: some View {
+        Picker("Product", selection: $config.family) {
+            ForEach(PosterFamily.allCases) { family in
+                Label(family.name, systemImage: family.icon).tag(family)
+            }
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, 20)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+    }
+
+    // MARK: Preview
+
     /// Aspect (w/h) of the current output — the social canvas when one is chosen, else the poster.
     private var previewAspect: CGFloat {
-        if let aspect = outputSize.aspect { return aspect }
-        let s = StudioComposition.nominalSize(orientation, dataPlacement)
+        if let aspect = config.outputSize.aspect { return aspect }
+        let s = StudioComposition.nominalSize(config.orientation, config.dataPlacement)
         return s.width / s.height
     }
 
-    // MARK: Pages
-
-    private func page(for edition: StudioEdition) -> some View {
+    private var preview: some View {
         VStack {
             Spacer(minLength: 0)
             Group {
-                if let image = rendered[key(edition.id)] {
-                    Image(uiImage: image)
+                if let rendered {
+                    Image(uiImage: rendered)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .clipShape(.rect(cornerRadius: 10))
                         .shadow(color: .black.opacity(0.22), radius: 20, y: 10)
                 } else {
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(edition.id == selection ? (groundColor ?? edition.ground) : edition.ground)
+                        .fill(config.groundColor ?? config.edition.ground)
                         .aspectRatio(previewAspect, contentMode: .fit)
                         .overlay {
                             VStack(spacing: 10) {
-                                ProgressView().tint(edition.accent)
+                                ProgressView().tint(config.edition.accent)
                                 Text("Composing…")
                                     .font(.system(.footnote, design: .rounded))
-                                    .foregroundStyle(edition.subtle)
+                                    .foregroundStyle(.secondary)
                             }
                         }
                         .shadow(color: .black.opacity(0.12), radius: 16, y: 8)
                 }
             }
-            .padding(.horizontal, 28)
+            .padding(.horizontal, 30)
             Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: Tray
+
+    private var trayTabBar: some View {
+        HStack(spacing: 0) {
+            ForEach(Tab.allCases) { t in
+                Button { withAnimation(.easeInOut(duration: 0.18)) { tab = t } } label: {
+                    VStack(spacing: 3) {
+                        Image(systemName: t.icon).font(.system(size: 16, weight: .semibold))
+                        Text(t.name).font(.system(size: 11, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundStyle(tab == t ? Theme.accent : Color.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 6)
+    }
+
+    private var tray: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                switch tab {
+                case .style:  styleTab
+                case .text:   textTab
+                case .data:   dataTab
+                case .export: exportTab
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 8)
+            .padding(.bottom, 16)
+        }
+        .frame(height: 250)
+        .scrollBounceBehavior(.basedOnSize)
+        .background(.regularMaterial)
+    }
+
+    // MARK: Style tab
+
+    @ViewBuilder private var styleTab: some View {
+        if config.family == .map {
+            chipRow("Map", MapStyle.allCases, selection: $config.mapStyle,
+                    label: { $0.name }, icon: { $0.icon })
+        } else {
+            chipRow("Layout", GalleryDesign.allCases, selection: $config.galleryDesign,
+                    label: { $0.name }, icon: { $0.icon })
+            galleryFramesEditor
+        }
+        colorModeToggle
+        orientationPicker
+    }
+
+    private var colorModeToggle: some View {
+        Picker("Colour", selection: $config.monochrome) {
+            Text("Colour").tag(false)
+            Text("B & W").tag(true)
+        }
+        .pickerStyle(.segmented)
+        .frame(maxWidth: 320)
+    }
+
+    private var orientationPicker: some View {
+        Picker("Orientation", selection: $config.orientation) {
+            ForEach(StudioOrientation.allCases) { Label($0.name, systemImage: $0.symbol).tag($0) }
+        }
+        .pickerStyle(.segmented)
+        .frame(maxWidth: 320)
+    }
+
+    /// Per-frame media pickers for the Gallery product — each frame shows a Photo, the Map, the
+    /// Route line, or the Elevation profile.
+    private var galleryFramesEditor: some View {
+        VStack(spacing: 6) {
+            Text("FRAMES")
+                .font(.system(size: 11, weight: .semibold)).tracking(1.5)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 8) {
+                ForEach(0..<config.galleryDesign.frameCount, id: \.self) { i in
+                    Menu {
+                        Picker("Frame", selection: frameBinding(i)) {
+                            ForEach(GalleryTileKind.allCases) { kind in
+                                Label(kind.name, systemImage: kind.icon).tag(kind)
+                            }
+                        }
+                    } label: {
+                        let kind = frameKind(i)
+                        VStack(spacing: 3) {
+                            Image(systemName: kind.icon).font(.system(size: 15, weight: .semibold))
+                            Text(kind.name).font(.system(size: 10, weight: .semibold))
+                        }
+                        .foregroundStyle(Theme.accent)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 46)
+                        .background(Theme.accent.opacity(0.1), in: .rect(cornerRadius: 8))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .frame(maxWidth: 340)
+    }
+
+    private func frameKind(_ i: Int) -> GalleryTileKind {
+        let frames = config.resolvedFrames
+        return i < frames.count ? frames[i] : .photo
+    }
+
+    private func frameBinding(_ i: Int) -> Binding<GalleryTileKind> {
+        Binding(
+            get: { frameKind(i) },
+            set: { newValue in
+                var frames = config.resolvedFrames
+                guard frames.indices.contains(i) else { return }
+                frames[i] = newValue
+                config.galleryFrames = frames
+            }
+        )
+    }
+
+    // MARK: Text tab
+
+    @ViewBuilder private var textTab: some View {
+        toggleFieldRow("Title", show: $config.showTitle, text: $config.title, placeholder: run.name)
+        toggleFieldRow("Location", show: $config.showLocation, text: $config.location,
+                       placeholder: derivedPlace)
+        textFieldRow("Date", text: $config.date, placeholder: Format.date(run.startDate))
+        fontPicker
+        colorRow("Text", selection: $config.textColor, swatches: textSwatches, fallback: config.edition.ink)
+        colorRow("Panel", selection: $config.groundColor, swatches: groundSwatches, fallback: config.edition.ground)
+        colorRow("Path", selection: $config.routeColor, swatches: pathSwatches, fallback: config.edition.route)
+    }
+
+    private var derivedPlace: String {
+        [run.city, run.state].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
+    }
+
+    private var fontPicker: some View {
+        HStack(spacing: 10) {
+            Text("Font")
+                .font(.system(.caption, design: .rounded).weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 62, alignment: .leading)
+            ForEach(PosterFont.allCases) { face in
+                Button { config.font = face } label: {
+                    VStack(spacing: 2) {
+                        Text(face.sample)
+                            .font(.system(size: 20, weight: face.titleWeight, design: face.design))
+                        Text(face.name)
+                            .font(.system(size: 9, weight: .semibold))
+                    }
+                    .foregroundStyle(config.font == face ? .white : Color.primary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(config.font == face ? Theme.accent : Color.secondary.opacity(0.12),
+                                in: .rect(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: 340)
+    }
+
+    // MARK: Data tab
+
+    @ViewBuilder private var dataTab: some View {
+        VStack(spacing: 8) {
+            Stepper("Data points: \(config.dataSlots.count)", value: slotCount, in: 0...4)
+                .font(.system(.subheadline, design: .rounded))
+                .frame(maxWidth: 300)
+            if config.dataSlots.isEmpty {
+                Text("No data shown — just the art and title.")
+                    .font(.system(.caption, design: .rounded))
+                    .foregroundStyle(.secondary)
+            } else {
+                HStack(spacing: 8) {
+                    ForEach(config.dataSlots.indices, id: \.self) { i in
+                        Menu {
+                            ForEach(StatMetric.allCases) { metric in
+                                Button {
+                                    config.dataSlots[i] = metric
+                                } label: {
+                                    if metric == config.dataSlots[i] {
+                                        Label(metric.menuName, systemImage: "checkmark")
+                                    } else {
+                                        Text(metric.menuName)
+                                    }
+                                }
+                                .disabled(!metric.isAvailable(for: run))
+                            }
+                        } label: {
+                            slotChip(config.dataSlots[i])
+                        }
+                        .menuStyle(.borderlessButton)
+                    }
+                }
+                .frame(maxWidth: 340)
+            }
+        }
+
+        Toggle(isOn: $config.showElevation) {
+            Label("Elevation profile", systemImage: "mountain.2")
+                .font(.system(.subheadline, design: .rounded))
+        }
+        .tint(Theme.accent)
+        .frame(maxWidth: 300)
+
+        if run.hasWeather {
+            Toggle(isOn: $config.includeWeather) {
+                Label("Include weather", systemImage: "cloud.sun")
+                    .font(.system(.subheadline, design: .rounded))
+            }
+            .tint(Theme.accent)
+            .frame(maxWidth: 300)
         }
     }
 
-    // MARK: Controls
-
-    /// Format pickers — extracted so the customize VStack stays within the type-checker's budget.
-    @ViewBuilder private var formatControls: some View {
-        if current.isPhoto, run.photoReferences.count > 1 {
-            Picker("Photos", selection: $photoLayout) {
-                ForEach(StudioPhotoLayout.allCases) { Text($0.name).tag($0) }
+    private var slotCount: Binding<Int> {
+        Binding(
+            get: { config.dataSlots.count },
+            set: { n in
+                var slots = config.dataSlots
+                let pool: [StatMetric] = [.time, .pace, .elevationGain, .speed, .avgHeartRate, .calories]
+                while slots.count < n { slots.append(pool.first { !slots.contains($0) } ?? .time) }
+                while slots.count > n { slots.removeLast() }
+                config.dataSlots = slots
             }
-            .pickerStyle(.segmented).frame(maxWidth: 320)
-        }
-        Picker("Orientation", selection: $orientation) {
-            ForEach(StudioOrientation.allCases) { Text($0.name).tag($0) }
-        }
-        .pickerStyle(.segmented).frame(maxWidth: 320)
-        Picker("Output", selection: $outputSize) {
+        )
+    }
+
+    // MARK: Export tab
+
+    @ViewBuilder private var exportTab: some View {
+        Picker("Output", selection: $config.outputSize) {
             ForEach(StudioOutputSize.allCases) { size in
                 Label(size.name, systemImage: size.symbol).tag(size)
             }
         }
-        .pickerStyle(.segmented).frame(maxWidth: 320)
-        if orientation == .landscape {
-            Picker("Data", selection: $dataPlacement) {
-                ForEach(StudioDataPlacement.allCases) { Text($0.name).tag($0) }
-            }
-            .pickerStyle(.segmented).frame(maxWidth: 320)
+        .pickerStyle(.segmented)
+        .frame(maxWidth: 340)
+
+        Text("Poster keeps print proportions; Square / Feed / Story mat it onto a social canvas.")
+            .font(.system(.caption, design: .rounded))
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: 320)
+
+        Button { showExport = true } label: {
+            Label("Share / Save Image", systemImage: "square.and.arrow.up")
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: 300)
+                .frame(height: 46)
+                .background(Theme.accent, in: .capsule)
         }
-        Picker("Layout", selection: $layout) {
-            ForEach(StudioLayout.allCases) { Text($0.name).tag($0) }
+        .buttonStyle(.plain)
+
+        Button { showPrints = true } label: {
+            Label("Order a Print", systemImage: "bag")
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .foregroundStyle(Theme.accent)
+                .frame(maxWidth: 300)
+                .frame(height: 46)
+                .background(Theme.accent.opacity(0.12), in: .capsule)
         }
-        .pickerStyle(.segmented).frame(maxWidth: 320)
+        .buttonStyle(.plain)
     }
 
-    /// Title / date / colour rows — extracted for the same reason.
-    @ViewBuilder private var fieldControls: some View {
-        textFieldRow("Title", text: $customTitle, placeholder: run.name)
-        textFieldRow("Date", text: $customDate, placeholder: Format.date(run.startDate))
-        colorRow("Path", selection: $routeColor, swatches: pathSwatches, fallback: current.route)
-        colorRow("Text", selection: $textColor, swatches: textSwatches, fallback: current.ink)
-        colorRow("Panel", selection: $groundColor, swatches: groundSwatches, fallback: current.ground)
-    }
+    // MARK: Shared control components
 
-    /// Per-tile editor for the Gallery layout — set each tile to a Photo, the Map, the Route line,
-    /// or the Elevation profile, and choose how many tiles (2–4).
-    @ViewBuilder private var galleryCellEditor: some View {
-        if layout == .gallery {
-            VStack(spacing: 8) {
-                Stepper("Tiles: \(galleryCellsRaw.count)", value: galleryCellCount, in: 2...4)
-                    .font(.system(.subheadline, design: .rounded))
-                    .frame(maxWidth: 280)
+    /// A horizontal chip row for an enum choice (map style, gallery design), with a header.
+    private func chipRow<T: Hashable & Identifiable>(
+        _ header: String, _ options: [T], selection: Binding<T>,
+        label: @escaping (T) -> String, icon: @escaping (T) -> String
+    ) -> some View {
+        VStack(spacing: 6) {
+            Text(header.uppercased())
+                .font(.system(size: 11, weight: .semibold)).tracking(1.5)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(galleryCellsRaw.indices, id: \.self) { i in
-                        Menu {
-                            Picker("Tile", selection: galleryCellBinding(i)) {
-                                ForEach(GalleryTileKind.allCases) { kind in
-                                    Label(kind.name, systemImage: kind.icon).tag(kind.rawValue)
-                                }
+                    ForEach(options) { option in
+                        let isOn = selection.wrappedValue == option
+                        Button { selection.wrappedValue = option } label: {
+                            VStack(spacing: 4) {
+                                Image(systemName: icon(option)).font(.system(size: 16, weight: .semibold))
+                                Text(label(option)).font(.system(size: 10, weight: .semibold))
                             }
-                        } label: {
-                            let kind = GalleryTileKind(rawValue: galleryCellsRaw[i]) ?? .photo
-                            VStack(spacing: 3) {
-                                Image(systemName: kind.icon).font(.system(size: 15, weight: .semibold))
-                                Text(kind.name).font(.system(size: 10, weight: .semibold))
-                            }
-                            .foregroundStyle(Theme.accent)
-                            .frame(width: 60, height: 46)
-                            .background(Theme.accent.opacity(0.1), in: .rect(cornerRadius: 8))
+                            .foregroundStyle(isOn ? .white : Color.primary)
+                            .frame(width: 66, height: 52)
+                            .background(isOn ? Theme.accent : Color.secondary.opacity(0.12),
+                                        in: .rect(cornerRadius: 10))
                         }
                         .buttonStyle(.plain)
                     }
                 }
             }
-            .frame(maxWidth: 320)
         }
-    }
-
-    private var galleryCellCount: Binding<Int> {
-        Binding(
-            get: { galleryCellsRaw.count },
-            set: { newCount in
-                var cells = galleryCellsRaw
-                while cells.count < newCount { cells.append("photo") }
-                while cells.count > newCount { cells.removeLast() }
-                galleryCellsRaw = cells
-            }
-        )
-    }
-
-    private func galleryCellBinding(_ i: Int) -> Binding<String> {
-        Binding(
-            get: { galleryCellsRaw.indices.contains(i) ? galleryCellsRaw[i] : "photo" },
-            set: { newValue in
-                guard galleryCellsRaw.indices.contains(i) else { return }
-                galleryCellsRaw[i] = newValue
-            }
-        )
-    }
-
-    /// The option toggles for the customize sheet — extracted so the customize VStack stays within
-    /// the Swift type-checker's budget.
-    @ViewBuilder private var optionToggles: some View {
-        if layout == .editorial, !run.photoReferences.isEmpty {
-            Toggle(isOn: $showEditorialPhoto) {
-                Label("Photo beside text", systemImage: "photo")
-                    .font(.system(.subheadline, design: .rounded))
-            }
-            .tint(Theme.accent)
-            .frame(maxWidth: 280)
-        }
-
-        if current.isPhoto {
-            Toggle(isOn: $showMemoryRoute) {
-                Label("Show route in layout", systemImage: "scribble.variable")
-                    .font(.system(.subheadline, design: .rounded))
-            }
-            .tint(Theme.accent)
-            .frame(maxWidth: 280)
-        }
-
-        Toggle(isOn: $showElevationProfile) {
-            Label("Elevation profile", systemImage: "mountain.2")
-                .font(.system(.subheadline, design: .rounded))
-        }
-        .tint(Theme.accent)
-        .frame(maxWidth: 280)
-
-        galleryCellEditor
-
-        if run.hasWeather {
-            Toggle(isOn: $includeWeather) {
-                Label("Include weather", systemImage: "cloud.sun")
-                    .font(.system(.subheadline, design: .rounded))
-            }
-            .tint(Theme.accent)
-            .frame(maxWidth: 280)
-        }
-    }
-
-    private var controls: some View {
-        VStack(spacing: 14) {
-            HStack(spacing: 8) {
-                ForEach(editions) { edition in
-                    Circle()
-                        .fill(edition.id == selection ? Theme.accent : Color.secondary.opacity(0.3))
-                        .frame(width: 7, height: 7)
-                }
-            }
-            VStack(spacing: 2) {
-                Text(current.name)
-                    .font(.system(.title2, design: .rounded).weight(.bold))
-                Text(current.descriptor)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 320)
-            }
-
-            Button {
-                withAnimation(.easeInOut(duration: 0.25)) { showCustomize.toggle() }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "slider.horizontal.3").font(.caption)
-                    Text("Customize")
-                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                    Image(systemName: showCustomize ? "chevron.up" : "chevron.down")
-                        .font(.caption2.weight(.bold))
-                }
-                .foregroundStyle(Theme.accent)
-            }
-            .buttonStyle(.plain)
-
-            customizeSheet
-        }
-        .padding(.vertical, 18)
-        .padding(.horizontal, 24)
-        .frame(maxWidth: .infinity)
-        .background(.regularMaterial)
-        .onChange(of: renderSignature) { bump() }
-    }
-
-    /// The expandable customize panel, extracted so `controls` stays within the type-checker's
-    /// budget.
-    @ViewBuilder private var customizeSheet: some View {
-        if showCustomize {
-            ScrollView {
-                VStack(spacing: 12) {
-                    formatControls
-                    fieldControls
-                    headlineEditor
-                    if layout != .minimal { statSlotEditor }
-                    optionToggles
-                }
-                .padding(.bottom, 6)
-            }
-            .frame(maxHeight: 300)
-            .scrollBounceBehavior(.basedOnSize)
-            .transition(.opacity.combined(with: .move(edge: .bottom)))
-        }
-    }
-
-    /// One string that changes whenever any render-affecting option changes — a single onChange
-    /// re-renders the preview, replacing a long chain of per-property onChange modifiers (which
-    /// blew the Swift type-checker's budget).
-    private var renderSignature: String {
-        [layout.rawValue, orientation.rawValue, dataPlacement.rawValue, photoLayout.rawValue,
-         outputSize.rawValue, customTitle, customDate,
-         "\(showEditorialPhoto)", "\(showMemoryRoute)", "\(showElevationProfile)",
-         "\(galleryShowMapTile)", galleryCellsRaw.joined(separator: ","), "\(includeWeather)",
-         heroMetric.rawValue, statSlots.map(\.rawValue).joined(separator: ","),
-         String(describing: routeColor), String(describing: textColor), String(describing: groundColor)
-        ].joined(separator: "|")
+        .frame(maxWidth: 340)
     }
 
     private func textFieldRow(_ title: String, text: Binding<String>, placeholder: String) -> some View {
@@ -429,62 +509,30 @@ struct StudioView: View {
         .frame(maxWidth: 340)
     }
 
-    /// The big headline metric — tap to swap the hero number (distance by default) for any
-    /// available metric.
-    private var headlineEditor: some View {
-        HStack(spacing: 10) {
-            Text("Headline")
+    /// A field row with a show/hide toggle at the front — for Title and Location.
+    private func toggleFieldRow(_ title: String, show: Binding<Bool>, text: Binding<String>, placeholder: String) -> some View {
+        HStack(spacing: 8) {
+            Button { show.wrappedValue.toggle() } label: {
+                Image(systemName: show.wrappedValue ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 18))
+                    .foregroundStyle(show.wrappedValue ? Theme.accent : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            Text(title)
                 .font(.system(.caption, design: .rounded).weight(.semibold))
                 .foregroundStyle(.secondary)
                 .frame(width: 62, alignment: .leading)
-            Menu {
-                ForEach(StatMetric.allCases) { metric in
-                    Button {
-                        heroMetric = metric
-                    } label: {
-                        if metric == heroMetric {
-                            Label(metric.menuName, systemImage: "checkmark")
-                        } else {
-                            Text(metric.menuName)
-                        }
-                    }
-                    .disabled(!metric.isAvailable(for: run))
+            TextField(placeholder, text: text)
+                .font(.system(.subheadline, design: .rounded))
+                .textInputAutocapitalization(.words)
+                .submitLabel(.done)
+                .disabled(!show.wrappedValue)
+                .opacity(show.wrappedValue ? 1 : 0.4)
+            if !text.wrappedValue.isEmpty {
+                Button { text.wrappedValue = "" } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
                 }
-            } label: {
-                slotChip(heroMetric)
-            }
-            .menuStyle(.borderlessButton)
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: 340)
-    }
-
-    /// "Complication"-style stat slots: tap a slot to choose which metric it shows, from a
-    /// curated set. Unavailable metrics (no HR, etc.) are greyed out.
-    private var statSlotEditor: some View {
-        HStack(spacing: 10) {
-            Text("Stats")
-                .font(.system(.caption, design: .rounded).weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 38, alignment: .leading)
-            ForEach(statSlots.indices, id: \.self) { i in
-                Menu {
-                    ForEach(StatMetric.allCases) { metric in
-                        Button {
-                            statSlots[i] = metric
-                        } label: {
-                            if metric == statSlots[i] {
-                                Label(metric.menuName, systemImage: "checkmark")
-                            } else {
-                                Text(metric.menuName)
-                            }
-                        }
-                        .disabled(!metric.isAvailable(for: run))
-                    }
-                } label: {
-                    slotChip(statSlots[i])
-                }
-                .menuStyle(.borderlessButton)
+                .buttonStyle(.plain)
             }
         }
         .frame(maxWidth: 340)
@@ -529,6 +577,7 @@ struct StudioView: View {
             .labelsHidden()
             .frame(width: 32)
         }
+        .frame(maxWidth: 340)
     }
 
     private func autoChip(isSelected: Bool, action: @escaping () -> Void) -> some View {
@@ -555,7 +604,6 @@ struct StudioView: View {
 
     // MARK: Keeping
 
-    /// The kept poster this composition is currently linked to, if any.
     private var linkedPoster: SavedPoster? {
         guard let id = savedPosterID else { return nil }
         return try? modelContext.fetch(
@@ -563,45 +611,26 @@ struct StudioView: View {
         ).first
     }
 
-    /// A fresh SavedPoster capturing the current composition.
-    private func makePoster() -> SavedPoster {
-        SavedPoster(
-            runID: run.id, runName: run.name,
-            editionRaw: selection.rawValue, layoutRaw: layout.rawValue,
-            orientationRaw: orientation.rawValue, dataPlacementRaw: dataPlacement.rawValue,
-            photoLayoutRaw: photoLayout.rawValue, customTitle: customTitle, customDate: customDate,
-            heroMetricRaw: heroMetric.rawValue, statSlotsRaw: statSlots.map(\.rawValue),
-            showEditorialPhoto: showEditorialPhoto, showMemoryRoute: showMemoryRoute,
-            showElevationProfile: showElevationProfile, includeWeather: includeWeather,
-            routeColorHex: routeColor?.hexString, textColorHex: textColor?.hexString,
-            groundColorHex: groundColor?.hexString
-        )
-    }
-
-    /// Keep the current composition as a *new* piece in Studio, and link to it — so the same run
-    /// can hold several saved versions (a Gallery and a Night, say).
     private func saveAsNew() {
-        let poster = makePoster()
+        let poster = SavedPoster(runID: run.id, runName: run.name)
+        config.write(into: poster, run: run)
         modelContext.insert(poster)
         savedPosterID = poster.id
         confirm("Kept in Studio")
     }
 
-    /// Overwrite the linked kept poster with the current composition.
     private func updateSaved() {
         guard let existing = linkedPoster else { saveAsNew(); return }
-        writeRecipe(into: existing)
+        config.write(into: existing, run: run)
         confirm("Updated")
     }
 
-    /// Un-keep: remove the linked poster from Studio.
     private func removeSaved() {
         if let existing = linkedPoster { modelContext.delete(existing) }
         savedPosterID = nil
         confirm("Removed from Studio")
     }
 
-    /// Flash a brief confirmation pill.
     private func confirm(_ text: String) {
         confirmationText = text
         withAnimation(.spring(duration: 0.35)) { showSavedConfirmation = true }
@@ -611,65 +640,26 @@ struct StudioView: View {
         }
     }
 
-    /// Copy the live controls into an existing kept poster.
-    private func writeRecipe(into p: SavedPoster) {
-        p.runName = run.name
-        p.editionRaw = selection.rawValue
-        p.layoutRaw = layout.rawValue
-        p.orientationRaw = orientation.rawValue
-        p.dataPlacementRaw = dataPlacement.rawValue
-        p.photoLayoutRaw = photoLayout.rawValue
-        p.customTitle = customTitle
-        p.customDate = customDate
-        p.heroMetricRaw = heroMetric.rawValue
-        p.statSlotsRaw = statSlots.map(\.rawValue)
-        p.showEditorialPhoto = showEditorialPhoto
-        p.showMemoryRoute = showMemoryRoute
-        p.showElevationProfile = showElevationProfile
-        p.includeWeather = includeWeather
-        p.routeColorHex = routeColor?.hexString
-        p.textColorHex = textColor?.hexString
-        p.groundColorHex = groundColor?.hexString
-        p.updatedAt = Date()
-    }
-
     // MARK: Rendering
 
-    private func bump() {
-        rendered.removeAll()
-        rendering.removeAll()
-        revision += 1
+    /// A compact signature of every render-affecting field — one `task(id:)` re-renders the preview
+    /// when any of them changes.
+    private var renderKey: String {
+        [config.family.rawValue, config.mapStyle.rawValue, config.galleryDesign.rawValue,
+         config.resolvedFrames.map(\.rawValue).joined(separator: ","),
+         "\(config.monochrome)", config.orientation.rawValue, config.dataPlacement.rawValue,
+         config.font.rawValue, "\(config.showTitle)", config.title,
+         "\(config.showLocation)", config.location, config.date,
+         config.dataSlots.map(\.rawValue).joined(separator: ","),
+         "\(config.showElevation)", "\(config.includeWeather)", config.outputSize.rawValue,
+         config.routeColor?.hexString ?? "-", config.textColor?.hexString ?? "-",
+         config.groundColor?.hexString ?? "-"
+        ].joined(separator: "|")
     }
 
-    private func renderIfNeeded(_ id: StudioEdition.ID) async {
-        let k = key(id)
-        guard rendered[k] == nil, !rendering.contains(k) else { return }
-        rendering.insert(k)
-        defer { rendering.remove(k) }
-        if let image = await render(StudioEdition.edition(id)) {
-            rendered[k] = image
-        }
-    }
-
-    @MainActor
-    private func render(_ edition: StudioEdition) async -> UIImage? {
-        await StudioRenderer.image(for: request(for: edition), scale: 2)
-    }
-
-    /// The render request for a given edition, using the current layout/colour/weather options.
-    private func request(for edition: StudioEdition) -> StudioRenderer.Request {
-        StudioRenderer.Request(
-            run: run, edition: edition, layout: layout, orientation: orientation,
-            dataPlacement: dataPlacement,
-            photoLayout: photoLayout,
-            titleOverride: customTitle.isEmpty ? nil : customTitle,
-            dateOverride: customDate.isEmpty ? nil : customDate,
-            showEditorialPhoto: showEditorialPhoto,
-            showMemoryRoute: showMemoryRoute,
-            heroMetric: heroMetric, statSlots: statSlots, showElevationProfile: showElevationProfile,
-            galleryShowMapTile: galleryShowMapTile, galleryCellsRaw: galleryCellsRaw,
-            includeWeather: includeWeather, routeColor: routeColor, textColor: textColor,
-            groundColor: groundColor, outputSize: outputSize
-        )
+    private func renderPreview() async {
+        isRendering = true
+        defer { isRendering = false }
+        rendered = await StudioRenderer.image(for: config.request(for: run), scale: 2)
     }
 }

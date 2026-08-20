@@ -1,4 +1,6 @@
 import SwiftUI
+import UIKit
+import CoreImage
 
 /// Renders an Etch Studio artwork to an image — at preview scale for the gallery, or at print
 /// resolution for a high-res download / print order. One path so the preview and the print are
@@ -34,6 +36,20 @@ enum StudioRenderer {
         var groundColor: Color? = nil
         /// The share/export canvas — `poster` (native) or a social aspect the poster is matted onto.
         var outputSize: StudioOutputSize = .poster
+
+        // MARK: Remodel options
+        /// Render the whole piece in black & white (images desaturated, vector colours toned to grey).
+        var monochrome: Bool = false
+        /// The curated Title typeface.
+        var titleFont: PosterFont = .editorial
+        /// Whether the title line is drawn.
+        var showTitle: Bool = true
+        /// Whether the location line is drawn.
+        var showLocation: Bool = true
+        /// Location override; nil falls back to the run's city/state.
+        var locationOverride: String? = nil
+        /// Gallery product: which of the five curated art layouts to compose.
+        var galleryDesignRaw: String = GalleryDesign.portfolio.rawValue
     }
 
     /// Largest long edge (px) rendered on-device, to stay within memory limits (~18–20″ at
@@ -91,7 +107,13 @@ enum StudioRenderer {
         async let panelTask = panelImage(for: request, panelPixelWidth: pixelWidth)
         async let photosTask = photoImages(for: request, panelPixelWidth: pixelWidth)
         async let profileTask = elevationProfile(for: request)
-        let (panel, photos, profile) = await (panelTask, photosTask, profileTask)
+        var (panel, photos, profile) = await (panelTask, photosTask, profileTask)
+        // Black & white: desaturate the raster panels here (ImageRenderer can't apply a colour
+        // filter to a live map/photo), and let the composition tone its vector colours to grey.
+        if request.monochrome {
+            panel = panel.map { $0.desaturated() }
+            photos = photos.map { $0.desaturated() }
+        }
         let composition = StudioComposition(
             run: request.run, edition: request.edition, panelImage: panel,
             photoImages: photos,
@@ -110,7 +132,13 @@ enum StudioRenderer {
             galleryShowMapTile: request.galleryShowMapTile,
             galleryCellsRaw: request.galleryCellsRaw,
             routeOverride: request.routeColor, textOverride: request.textColor,
-            groundOverride: request.groundColor
+            groundOverride: request.groundColor,
+            monochrome: request.monochrome,
+            titleFont: request.titleFont,
+            showTitle: request.showTitle,
+            showLocation: request.showLocation,
+            locationOverride: request.locationOverride,
+            galleryDesignRaw: request.galleryDesignRaw
         )
         let renderer = ImageRenderer(content: composition)
         renderer.scale = scale
@@ -204,6 +232,21 @@ enum StudioRenderer {
         let target = min(longEdgePixels, maxLongEdgePixels)
         let scale = max(2, target / compositionLongEdge)
         return await image(for: request, scale: scale)
+    }
+}
+
+extension UIImage {
+    /// A black & white copy, for monochrome posters. Falls back to the original if the filter
+    /// can't be built. Shared CIContext keeps repeated renders cheap.
+    private static let monoContext = CIContext(options: nil)
+
+    func desaturated() -> UIImage {
+        guard let ciInput = CIImage(image: self),
+              let filter = CIFilter(name: "CIPhotoEffectMono") else { return self }
+        filter.setValue(ciInput, forKey: kCIInputImageKey)
+        guard let output = filter.outputImage,
+              let cg = UIImage.monoContext.createCGImage(output, from: output.extent) else { return self }
+        return UIImage(cgImage: cg, scale: scale, orientation: imageOrientation)
     }
 }
 
