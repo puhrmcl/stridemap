@@ -47,19 +47,21 @@ enum MapStyleOption: String, CaseIterable, Identifiable {
     }
 
     /// A fresh MapKit configuration for this style. Points of interest are excluded so the
-    /// map stays calm and the routes are the focus.
-    func configuration() -> MKMapConfiguration {
+    /// map stays calm and the routes are the focus. `elevated` raises terrain/buildings for the
+    /// 3D view (Terrain is always realistic).
+    func configuration(elevated: Bool = false) -> MKMapConfiguration {
+        let elevation: MKMapElevationStyle = elevated ? .realistic : .flat
         switch self {
         case .standard:
             // Muted emphasis desaturates the base map so geography recedes and the Etch route /
             // markers are the only high-contrast thing on screen — archival, not navigational.
-            let config = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .muted)
+            let config = MKStandardMapConfiguration(elevationStyle: elevation, emphasisStyle: .muted)
             config.pointOfInterestFilter = .excludingAll
             return config
         case .night:
             // Full (default) emphasis, forced dark: a high-contrast dark map that reads clearly
             // apart from the washed-out muted Standard — even when the system is already dark.
-            let config = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .default)
+            let config = MKStandardMapConfiguration(elevationStyle: elevation, emphasisStyle: .default)
             config.pointOfInterestFilter = .excludingAll
             return config
         case .terrain:
@@ -70,9 +72,9 @@ enum MapStyleOption: String, CaseIterable, Identifiable {
             config.pointOfInterestFilter = .excludingAll
             return config
         case .satellite:
-            return MKImageryMapConfiguration(elevationStyle: .flat)
+            return MKImageryMapConfiguration(elevationStyle: elevation)
         case .hybrid:
-            let config = MKHybridMapConfiguration(elevationStyle: .flat)
+            let config = MKHybridMapConfiguration(elevationStyle: elevation)
             config.pointOfInterestFilter = .excludingAll
             return config
         }

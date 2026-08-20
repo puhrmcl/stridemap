@@ -90,17 +90,26 @@ struct RunMapView: UIViewRepresentable {
 
     func updateUIView(_ map: MKMapView, context: Context) {
         context.coordinator.parent = self
-        if context.coordinator.appliedStyle != mapStyle {
+
+        // Reapply the base configuration when the style changes — or when 3D toggles, so terrain
+        // and buildings actually rise (realistic elevation) rather than staying flat.
+        if context.coordinator.appliedStyle != mapStyle || context.coordinator.appliedIs3D != is3D {
             context.coordinator.appliedStyle = mapStyle
-            map.preferredConfiguration = mapStyle.configuration()
+            map.preferredConfiguration = mapStyle.configuration(elevated: is3D)
             map.overrideUserInterfaceStyle = mapStyle.forcedInterfaceStyle
         }
 
-        // Tilt into / out of 3D when the toggle changes, keeping the current center and zoom.
+        // Tilt into / out of 3D when the toggle changes, keeping the current center and zoom. A
+        // fresh MKMapCamera reliably applies the pitch (mutating map.camera in place does not).
         if context.coordinator.appliedIs3D != is3D {
             context.coordinator.appliedIs3D = is3D
-            let camera = map.camera
-            camera.pitch = is3D ? 55 : 0
+            let current = map.camera
+            let camera = MKMapCamera(
+                lookingAtCenter: current.centerCoordinate,
+                fromDistance: max(current.centerCoordinateDistance, 300),
+                pitch: is3D ? 60 : 0,
+                heading: current.heading
+            )
             map.setCamera(camera, animated: true)
         }
 
