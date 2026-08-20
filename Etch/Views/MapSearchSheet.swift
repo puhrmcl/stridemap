@@ -38,7 +38,7 @@ struct MapSearchSheet: View {
     /// Whether the expanded page's scroll view is at its top — gates the swipe-to-collapse hand-off.
     @State private var scrollAtTop = true
 
-    private var collapsed: CGFloat { 76 }
+    private var collapsed: CGFloat { 62 }
     private var mid: CGFloat { max(260, maxHeight * 0.5) }
     private var full: CGFloat { maxHeight }
     private var detents: [CGFloat] { [collapsed, mid, full] }
@@ -229,7 +229,8 @@ struct MapSearchSheet: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Profile")
         }
-        .padding(.horizontal, 12)
+        // Tighter gap between the outer pill and the search field + avatar inside it.
+        .padding(.horizontal, 8)
         // Gap before the scroll content when expanded; none when collapsed so the row centres.
         .padding(.bottom, isExpanded ? 10 : 0)
     }

@@ -47,7 +47,7 @@ struct HomeView: View {
 
     /// Current height of the docked search sheet, so the floating map controls track its top edge.
     /// Starts collapsed (just the search pill), matching the sheet's collapsed detent.
-    @State private var sheetHeight: CGFloat = 76
+    @State private var sheetHeight: CGFloat = 62
     /// Route map tilt: false = flat 2D, true = tilted 3D.
     @State private var is3D = false
     /// Measured map height, for sizing the sheet's detents.
@@ -304,7 +304,7 @@ struct HomeView: View {
             // Full height runs to just below the status bar / Dynamic Island — above the totals pill.
             let maxH = max(screenHeight * 0.5, screenHeight - topSafeArea - 8)
             let mid = max(260, maxH * 0.5)
-            let t = max(0, min(1, (sheetHeight - 76) / (mid - 76)))
+            let t = max(0, min(1, (sheetHeight - 62) / (mid - 62)))
             if !isMapPopup {
                 // Content-sized (not full-screen) so the map above the sheet stays interactive.
                 ZStack(alignment: .bottom) {
