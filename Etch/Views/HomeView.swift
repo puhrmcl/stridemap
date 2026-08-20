@@ -11,6 +11,13 @@ private struct PillColumnHeightKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
+/// Carries the measured full width of the totals pill up, so its dropdowns (and the selected-view
+/// strip beneath it) can be sized to exactly the pill's width.
+private struct PillWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
 /// The specific overlay shown under the home map's "Locations" mode.
 enum LocationOverlay: String, CaseIterable, Identifiable {
     case cities, states, countries, landmarks
@@ -82,6 +89,10 @@ struct HomeView: View {
     /// exactly that — `maxHeight: .infinity` would instead grab the whole top bar's height. Seeded
     /// near the real value so the icon's fill is bounded even before the first measurement lands.
     @State private var pillColumnHeight: CGFloat = 40
+
+    /// Measured full width of the totals pill, so its dropdowns and the selected-view strip below
+    /// it match the pill exactly (rather than a fixed guess).
+    @State private var pillWidth: CGFloat = 250
 
     /// The map-mode dropdown, rendered as a custom panel that extends from the pill (not a detached
     /// native Menu), so it reads as part of the pill.
@@ -437,7 +448,7 @@ struct HomeView: View {
     private var topBar: some View {
         // Leading-aligned (Apple Maps style): the pill sits top-left, its dropdowns drop straight
         // beneath it, and the Studio-first close button leads the row in-flow.
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 if isMapPopup {
                     GlassIconButton(systemName: "xmark") { dismiss() }
@@ -456,8 +467,39 @@ struct HomeView: View {
 
             if showTypeMenu { typeDropdown }
             if showModeMenu { modeDropdown }
+            // The currently selected view, in a strip that reads as attached to the bottom of the
+            // pill — hidden while a dropdown is open (which already names the choices).
+            if !showTypeMenu && !showModeMenu { selectedViewStrip }
             if showLocations { modeSelector }
         }
+    }
+
+    /// A slim strip beneath the pill naming the current view (All Activities / PRs / Locations …),
+    /// sized to the pill's width so it reads as an extension of it.
+    private var selectedViewStrip: some View {
+        HStack(spacing: 7) {
+            Image(systemName: currentViewSymbol)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Theme.accentOnGlass)
+            Text(currentViewLabel)
+                .font(.system(.footnote, design: .rounded).weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 6)
+        .frame(width: pillWidth, alignment: .leading)
+        .glassBackground(cornerRadius: 13)
+    }
+
+    /// The label for the current view — the map-mode when showing routes, else the Locations overlay.
+    private var currentViewLabel: String {
+        showLocations ? locationOverlay.label : modeLabel(appModel.filter.mode)
+    }
+
+    private var currentViewSymbol: String {
+        showLocations ? locationOverlay.symbol : appModel.filter.mode.symbol
     }
 
     /// One glass pill, a single row: the activity-type selector on the left, the totals in the
@@ -497,6 +539,12 @@ struct HomeView: View {
         .padding(.horizontal, 11)
         .padding(.vertical, 8)
         .glassBackground(cornerRadius: 17)
+        .background(
+            GeometryReader { geo in
+                Color.clear.preference(key: PillWidthKey.self, value: geo.size.width)
+            }
+        )
+        .onPreferenceChange(PillWidthKey.self) { if $0 > 0 { pillWidth = $0 } }
     }
 
     /// A hairline separator sized to the pill's row height.
@@ -560,7 +608,7 @@ struct HomeView: View {
             }
         }
         .padding(.vertical, 5)
-        .frame(width: 250)
+        .frame(width: max(pillWidth, 210))
         .glassBackground(cornerRadius: 20)
         .transition(.asymmetric(
             insertion: .scale(scale: 0.92, anchor: .topLeading).combined(with: .opacity),
@@ -600,7 +648,7 @@ struct HomeView: View {
             }
         }
         .padding(.vertical, 5)
-        .frame(width: 250)
+        .frame(width: max(pillWidth, 210))
         .glassBackground(cornerRadius: 20)
         .transition(.asymmetric(
             insertion: .scale(scale: 0.92, anchor: .topLeading).combined(with: .opacity),
@@ -905,14 +953,13 @@ struct HomeView: View {
     /// The map's action buttons, grouped in a single vertical capsule (Apple Maps style): base-map
     /// style, show/hide pins, recenter-to-fit, and current location. In the Locations overview the
     /// pins toggle is dropped and recenter reframes the overlay.
-    /// The map's floating controls: the 2D/3D toggle above the action capsule, on the right.
+    /// The map's floating controls: the 2D/3D toggle on the *left* (where Look Around's binoculars
+    /// used to sit), the action capsule on the right.
     private var floatingControls: some View {
         HStack(alignment: .bottom, spacing: 0) {
+            if !showLocations { dimensionButton }
             Spacer(minLength: 0)
-            VStack(spacing: 8) {
-                if !showLocations { dimensionButton }
-                actionCapsule
-            }
+            actionCapsule
         }
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity)
