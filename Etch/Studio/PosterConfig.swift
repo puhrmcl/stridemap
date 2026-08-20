@@ -46,6 +46,28 @@ enum MapStyle: String, CaseIterable, Identifiable {
     }
 }
 
+/// A Map poster's layout — how the area beneath the map is composed. `statement` is the full
+/// editorial footer (title, big headline, place, data, date); `minimal` reduces it to just the
+/// title and date under the map; `photo` fills the data area with 1–3 photos.
+enum MapLayout: String, CaseIterable, Identifiable {
+    case statement, minimal, photo
+    var id: String { rawValue }
+    var name: String {
+        switch self {
+        case .statement: return "Statement"
+        case .minimal:   return "Minimal"
+        case .photo:     return "Photo"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .statement: return "doc.richtext"
+        case .minimal:   return "textformat"
+        case .photo:     return "photo.on.rectangle"
+        }
+    }
+}
+
 /// A curated Title typeface — three faces, no font zoo: an editorial serif, the app's modern
 /// rounded face, and a wide poster sans. Applied to the title (and echoed on the location line).
 enum PosterFont: String, CaseIterable, Identifiable {
@@ -128,6 +150,10 @@ enum GalleryDesign: String, CaseIterable, Identifiable {
 struct PosterConfig {
     var family: PosterFamily = .map
     var mapStyle: MapStyle = .standard
+    /// Map product: how the area beneath the map is composed (Statement / Minimal / Photo).
+    var mapLayout: MapLayout = .statement
+    /// Map Photo layout: how many photos to show (1–3).
+    var mapPhotoCount: Int = 1
     var galleryDesign: GalleryDesign = .portfolio
     /// Media shown in each Gallery frame, in order. Trimmed/padded to the design's frame count.
     var galleryFrames: [GalleryTileKind] = [.photo, .map, .route, .elevation]
@@ -197,6 +223,8 @@ struct PosterConfig {
         r.showLocation = showLocation
         r.locationOverride = location.isEmpty ? nil : location
         r.galleryDesignRaw = galleryDesign.rawValue
+        r.mapLayoutRaw = mapLayout.rawValue
+        r.mapPhotoCount = mapPhotoCount
         return r
     }
 
@@ -207,6 +235,8 @@ struct PosterConfig {
         p.runName = run.name
         p.familyRaw = family.rawValue
         p.mapStyleRaw = mapStyle.rawValue
+        p.mapLayoutRaw = mapLayout.rawValue
+        p.mapPhotoCount = mapPhotoCount
         p.galleryDesignRaw = galleryDesign.rawValue
         p.galleryFramesRaw = galleryFrames.map(\.rawValue)
         p.monochrome = monochrome
@@ -251,6 +281,8 @@ struct PosterConfig {
         }
         family = PosterFamily(rawValue: p.familyRaw) ?? .map
         mapStyle = MapStyle(rawValue: p.mapStyleRaw) ?? .standard
+        mapLayout = MapLayout(rawValue: p.mapLayoutRaw) ?? .statement
+        mapPhotoCount = max(1, min(3, p.mapPhotoCount))
         galleryDesign = GalleryDesign(rawValue: p.galleryDesignRaw) ?? .portfolio
         galleryFrames = p.galleryFramesRaw.compactMap { GalleryTileKind(rawValue: $0) }
         if galleryFrames.isEmpty { galleryFrames = [.photo, .map, .route, .elevation] }

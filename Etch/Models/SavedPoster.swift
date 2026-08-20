@@ -58,6 +58,10 @@ final class SavedPoster {
     var showLocation: Bool = true
     /// Location override; empty falls back to the run's city/state.
     var locationText: String = ""
+    /// Map product layout — "statement" (full data), "minimal" (title + date), or "photo".
+    var mapLayoutRaw: String = "statement"
+    /// How many photos the map Photo layout shows (1–3).
+    var mapPhotoCount: Int = 1
 
     /// A bare poster for a run; `PosterConfig.write(into:run:)` fills in the recipe.
     convenience init(runID: UUID, runName: String) {
@@ -65,7 +69,7 @@ final class SavedPoster {
             runID: runID, runName: runName,
             editionRaw: StudioEdition.ID.gallery.rawValue, layoutRaw: StudioLayout.classic.rawValue,
             orientationRaw: StudioOrientation.portrait.rawValue,
-            dataPlacementRaw: StudioDataPlacement.side.rawValue,
+            dataPlacementRaw: StudioDataPlacement.right.rawValue,
             photoLayoutRaw: StudioPhotoLayout.single.rawValue,
             customTitle: "", customDate: "",
             heroMetricRaw: StatMetric.distance.rawValue, statSlotsRaw: [],

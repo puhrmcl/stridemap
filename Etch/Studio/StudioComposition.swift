@@ -190,6 +190,10 @@ struct StudioComposition: View {
     var locationOverride: String? = nil
     /// Which of the five Gallery art layouts to compose (Gallery product only).
     var galleryDesignRaw: String = GalleryDesign.portfolio.rawValue
+    /// Map product layout — statement (full footer) / minimal (title + date) / photo (photo strip).
+    var mapLayoutRaw: String = MapLayout.statement.rawValue
+    /// How many photos the map Photo layout shows (1–3).
+    var mapPhotoCount: Int = 1
 
     static let width: CGFloat = 1000
     static let artHeight: CGFloat = 1000
@@ -689,6 +693,13 @@ struct StudioComposition: View {
                 if memoryRouteInFooter && layout != .editorial {
                     // Route takes the hero slot; the four metrics run across beneath it.
                     memoryRouteFooter
+                } else if layout == .classic {
+                    // Map product: the layout beneath the map is chosen by mapLayout.
+                    switch MapLayout(rawValue: mapLayoutRaw) ?? .statement {
+                    case .statement: classicFooter
+                    case .minimal:   mapMinimalFooter
+                    case .photo:     mapPhotoFooter
+                    }
                 } else {
                     switch layout {
                     case .classic: classicFooter
@@ -729,6 +740,53 @@ struct StudioComposition: View {
             title(leading: false)
             heroBlock(leading: false)
             metaLine([placeLine, dateText], leading: false)
+        }
+    }
+
+    /// Map "Minimal": the quietest map poster — just the title and the date beneath the map.
+    private var mapMinimalFooter: some View {
+        VStack(spacing: 12) {
+            title(leading: false)
+            metaLine([dateText], leading: false)
+        }
+    }
+
+    /// Map "Photo": a strip of 1–3 photos fills the data area, over the title and a place · date line.
+    private var mapPhotoFooter: some View {
+        VStack(spacing: 22) {
+            title(leading: false)
+            mapPhotoStrip
+            if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: false) }
+            metaLine([placeLine, dateText], leading: false).padding(.top, 2)
+        }
+    }
+
+    /// The photo strip for the map Photo layout — equal-width tiles, or a placeholder if the run
+    /// has no photos yet (the editor offers an Add Photo action to fill it).
+    @ViewBuilder private var mapPhotoStrip: some View {
+        let n = max(1, min(3, mapPhotoCount))
+        let photos = Array(photoImages.prefix(n))
+        if photos.isEmpty {
+            RoundedRectangle(cornerRadius: 14)
+                .fill(subtleColor.opacity(0.12))
+                .frame(height: 360)
+                .overlay(
+                    Image(systemName: "photo")
+                        .font(.system(size: 88, weight: .semibold))
+                        .foregroundStyle(subtleColor)
+                )
+        } else {
+            HStack(spacing: 14) {
+                ForEach(photos.indices, id: \.self) { i in
+                    Image(uiImage: photos[i])
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 360)
+                        .clipped()
+                        .clipShape(.rect(cornerRadius: 14))
+                }
+            }
         }
     }
 

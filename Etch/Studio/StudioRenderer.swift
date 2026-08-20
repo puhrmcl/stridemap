@@ -50,6 +50,10 @@ enum StudioRenderer {
         var locationOverride: String? = nil
         /// Gallery product: which of the five curated art layouts to compose.
         var galleryDesignRaw: String = GalleryDesign.portfolio.rawValue
+        /// Map product: how the area beneath the map is composed (statement / minimal / photo).
+        var mapLayoutRaw: String = MapLayout.statement.rawValue
+        /// Map Photo layout: how many photos to show (1–3).
+        var mapPhotoCount: Int = 1
     }
 
     /// Largest long edge (px) rendered on-device, to stay within memory limits (~18–20″ at
@@ -83,6 +87,9 @@ enum StudioRenderer {
             ids = Array(request.run.photoReferences.prefix(4))
         } else if request.layout == .keepsake {
             ids = Array(request.run.photoReferences.prefix(1))
+        } else if request.mapLayoutRaw == MapLayout.photo.rawValue {
+            // Map Photo layout: a strip of up to 3 photos fills the data area.
+            ids = Array(request.run.photoReferences.prefix(max(1, min(3, request.mapPhotoCount))))
         } else if request.showEditorialPhoto {
             ids = Array(request.run.photoReferences.prefix(1))
         } else {
@@ -138,7 +145,9 @@ enum StudioRenderer {
             showTitle: request.showTitle,
             showLocation: request.showLocation,
             locationOverride: request.locationOverride,
-            galleryDesignRaw: request.galleryDesignRaw
+            galleryDesignRaw: request.galleryDesignRaw,
+            mapLayoutRaw: request.mapLayoutRaw,
+            mapPhotoCount: request.mapPhotoCount
         )
         let renderer = ImageRenderer(content: composition)
         renderer.scale = scale

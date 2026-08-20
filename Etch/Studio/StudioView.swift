@@ -42,6 +42,8 @@ struct StudioView: View {
 
     @State private var showPrints = false
     @State private var showExport = false
+    /// Presenting the library picker to add a photo to this run.
+    @State private var showPhotoPicker = false
     /// The kept poster this composition is linked to, once saved — so a second Save updates the
     /// same piece rather than piling up copies.
     @State private var savedPosterID: UUID?
@@ -84,6 +86,10 @@ struct StudioView: View {
             .overlay(alignment: .top) { savedConfirmation }
             .sheet(isPresented: $showPrints) { PrintShopView(subjectTitle: run.name) }
             .sheet(isPresented: $showExport) { StudioExportSheet(request: config.request(for: run)) }
+            .sheet(isPresented: $showPhotoPicker) {
+                AssetPhotoPicker(selectionLimit: 4) { ids in addPhotos(ids) }
+                    .ignoresSafeArea()
+            }
             .task(id: renderKey) { await renderPreview() }
         }
     }
@@ -230,16 +236,49 @@ struct StudioView: View {
         if config.family == .map {
             chipRow("Map", MapStyle.allCases, selection: $config.mapStyle,
                     label: { $0.name }, icon: { $0.icon })
+            // The layout beneath the map — sits directly under the map type.
+            chipRow("Layout", MapLayout.allCases, selection: $config.mapLayout,
+                    label: { $0.name }, icon: { $0.icon })
+            if config.mapLayout == .photo { mapPhotoControls }
         } else {
             chipRow("Layout", GalleryDesign.allCases, selection: $config.galleryDesign,
                     label: { $0.name }, icon: { $0.icon })
             galleryFramesEditor
+            addPhotoButton
         }
         colorModeToggle
         orientationPicker
         // Where the data sits relative to the art — only meaningful in landscape (portrait always
         // stacks the data beneath the art).
         if config.orientation == .landscape { dataPlacementPicker }
+    }
+
+    /// Photo controls for the map Photo layout — how many photos, plus Add Photo.
+    private var mapPhotoControls: some View {
+        VStack(spacing: 8) {
+            Stepper("Photos: \(config.mapPhotoCount)", value: $config.mapPhotoCount, in: 1...3)
+                .font(.system(.subheadline, design: .rounded))
+                .frame(maxWidth: 300)
+            addPhotoButton
+        }
+        .frame(maxWidth: 340)
+    }
+
+    /// Adds a photo from the library to this run — so it appears in the poster *and* in the run's
+    /// activity details (both read `Run.photoReferences`).
+    private var addPhotoButton: some View {
+        Button {
+            Task { await PhotoLibrary.requestAuthorization(); showPhotoPicker = true }
+        } label: {
+            Label(run.photoReferences.isEmpty ? "Add Photo" : "Add Photo · \(run.photoReferences.count) on run",
+                  systemImage: "photo.badge.plus")
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .foregroundStyle(Theme.accent)
+                .frame(maxWidth: 300)
+                .frame(height: 44)
+                .background(Theme.accent.opacity(0.12), in: .capsule)
+        }
+        .buttonStyle(.plain)
     }
 
     /// Landscape only: place the data column left / right of the art, or across the top / bottom.
@@ -692,7 +731,9 @@ struct StudioView: View {
     /// A compact signature of every render-affecting field — one `task(id:)` re-renders the preview
     /// when any of them changes.
     private var renderKey: String {
-        [config.family.rawValue, config.mapStyle.rawValue, config.galleryDesign.rawValue,
+        [config.family.rawValue, config.mapStyle.rawValue,
+         config.mapLayout.rawValue, "\(config.mapPhotoCount)", "\(run.photoReferences.count)",
+         config.galleryDesign.rawValue,
          config.resolvedFrames.map(\.rawValue).joined(separator: ","),
          "\(config.monochrome)", config.orientation.rawValue, config.dataPlacement.rawValue,
          config.font.rawValue, "\(config.showTitle)", config.title,
@@ -709,5 +750,16 @@ struct StudioView: View {
         isRendering = true
         defer { isRendering = false }
         rendered = await StudioRenderer.image(for: config.request(for: run), scale: 2)
+    }
+
+    /// Appends newly picked library photos to this run (de-duplicated), which persists them on the
+    /// run so they show both here and in the run's activity details, then re-renders the preview.
+    private func addPhotos(_ ids: [String]) {
+        guard !ids.isEmpty else { return }
+        var refs = run.photoReferences
+        for id in ids where !refs.contains(id) { refs.append(id) }
+        guard refs.count != run.photoReferences.count else { return }
+        run.photoReferences = refs
+        try? modelContext.save()
     }
 }
