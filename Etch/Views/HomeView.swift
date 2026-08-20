@@ -333,7 +333,9 @@ struct HomeView: View {
                 }
                 .frame(height: sheetHeight + 90, alignment: .bottom)
                 .frame(maxWidth: .infinity, alignment: .bottom)
-                .ignoresSafeArea(.container, edges: .bottom)
+                // Ignore the top inset too (the totals pill reserves it via safeAreaInset), so the
+                // expanded page can run up past it to just below the status bar.
+                .ignoresSafeArea(.container, edges: [.top, .bottom])
                 .ignoresSafeArea(.keyboard, edges: .bottom)
             } else {
                 // Popup: just the floating controls, above the safe-area bottom.
