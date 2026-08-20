@@ -82,11 +82,38 @@ enum StudioOutputSize: String, CaseIterable, Identifiable {
     }
 }
 
-/// Where the run data sits relative to the art in landscape. Ignored in portrait (always bottom).
+/// Where the run data sits relative to the art in landscape — beside it (left / right) or across
+/// it (top / bottom). Ignored in portrait (always bottom).
 enum StudioDataPlacement: String, CaseIterable, Identifiable {
-    case side, bottom
+    case left, right, top, bottom
     var id: String { rawValue }
-    var name: String { self == .side ? "Data Side" : "Data Bottom" }
+    var name: String {
+        switch self {
+        case .left: return "Left"
+        case .right: return "Right"
+        case .top: return "Top"
+        case .bottom: return "Bottom"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .left: return "rectangle.lefthalf.inset.filled"
+        case .right: return "rectangle.righthalf.inset.filled"
+        case .top: return "rectangle.tophalf.inset.filled"
+        case .bottom: return "rectangle.bottomhalf.inset.filled"
+        }
+    }
+    /// Data sits beside the art as a vertical column (left / right), vs. across it (top / bottom).
+    var isSide: Bool { self == .left || self == .right }
+    /// Maps a stored raw value, translating the pre-b289 `side` name onto the new `right`.
+    static func from(raw: String) -> StudioDataPlacement {
+        switch raw {
+        case "left":  return .left
+        case "top":   return .top
+        case "bottom": return .bottom
+        default:      return .right   // "right" and legacy "side"
+        }
+    }
 }
 
 /// How the Memory edition arranges the run's photos in the art panel. Only meaningful when the
@@ -123,7 +150,7 @@ struct StudioComposition: View {
     var includeWeather: Bool = false
     var layout: StudioLayout = .classic
     var orientation: StudioOrientation = .portrait
-    var dataPlacement: StudioDataPlacement = .side
+    var dataPlacement: StudioDataPlacement = .right
     var photoLayout: StudioPhotoLayout = .single
     /// User-typed overrides for the title and date; nil/empty falls back to the run's values.
     var titleOverride: String? = nil
@@ -174,7 +201,7 @@ struct StudioComposition: View {
 
     /// The art panel's pixel size for an orientation + placement.
     static func artSize(_ orientation: StudioOrientation, _ placement: StudioDataPlacement) -> CGSize {
-        (orientation == .landscape && placement == .bottom)
+        (orientation == .landscape && !placement.isSide)
             ? CGSize(width: wideArtWidth, height: wideArtHeight)
             : CGSize(width: width, height: artHeight)
     }
@@ -183,9 +210,12 @@ struct StudioComposition: View {
     /// footer height is dynamic; the constants below are the across-the-bottom allowances.
     static func nominalSize(_ orientation: StudioOrientation, _ placement: StudioDataPlacement) -> CGSize {
         switch (orientation, placement) {
-        case (.portrait, _):          return CGSize(width: width, height: artHeight + 620)
-        case (.landscape, .side):     return CGSize(width: width + landscapeFooterWidth, height: artHeight)
-        case (.landscape, .bottom):   return CGSize(width: wideArtWidth, height: wideArtHeight + 540)
+        case (.portrait, _):
+            return CGSize(width: width, height: artHeight + 620)
+        case (.landscape, .left), (.landscape, .right):
+            return CGSize(width: width + landscapeFooterWidth, height: artHeight)
+        case (.landscape, .top), (.landscape, .bottom):
+            return CGSize(width: wideArtWidth, height: wideArtHeight + 540)
         }
     }
 
@@ -220,7 +250,7 @@ struct StudioComposition: View {
 
     private var artDimensions: CGSize { Self.artSize(orientation, dataPlacement) }
     /// Landscape with the data column beside the art (vs. above/below it).
-    private var isSideLayout: Bool { orientation == .landscape && dataPlacement == .side }
+    private var isSideLayout: Bool { orientation == .landscape && dataPlacement.isSide }
 
     /// The elevation strip only fits under the art in portrait.
     private var hasElevationStrip: Bool {
@@ -235,8 +265,18 @@ struct StudioComposition: View {
                 keepsakeComposition
             } else if isSideLayout {
                 HStack(spacing: 0) {
-                    art
+                    if dataPlacement == .left {
+                        footer
+                        art
+                    } else {
+                        art
+                        footer
+                    }
+                }
+            } else if orientation == .landscape && dataPlacement == .top {
+                VStack(spacing: 0) {
                     footer
+                    art
                 }
             } else {
                 VStack(spacing: 0) {

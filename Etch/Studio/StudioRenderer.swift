@@ -19,7 +19,7 @@ enum StudioRenderer {
         var edition: StudioEdition
         var layout: StudioLayout = .classic
         var orientation: StudioOrientation = .portrait
-        var dataPlacement: StudioDataPlacement = .side
+        var dataPlacement: StudioDataPlacement = .right
         var photoLayout: StudioPhotoLayout = .single
         var titleOverride: String? = nil
         var dateOverride: String? = nil

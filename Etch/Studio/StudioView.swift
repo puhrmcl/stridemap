@@ -237,6 +237,26 @@ struct StudioView: View {
         }
         colorModeToggle
         orientationPicker
+        // Where the data sits relative to the art — only meaningful in landscape (portrait always
+        // stacks the data beneath the art).
+        if config.orientation == .landscape { dataPlacementPicker }
+    }
+
+    /// Landscape only: place the data column left / right of the art, or across the top / bottom.
+    private var dataPlacementPicker: some View {
+        VStack(spacing: 6) {
+            Text("DATA POSITION")
+                .font(.system(size: 11, weight: .semibold)).tracking(1.5)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Picker("Data position", selection: $config.dataPlacement) {
+                ForEach(StudioDataPlacement.allCases) { p in
+                    Image(systemName: p.symbol).tag(p)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+        .frame(maxWidth: 340)
     }
 
     private var colorModeToggle: some View {
@@ -353,6 +373,33 @@ struct StudioView: View {
     // MARK: Data tab
 
     @ViewBuilder private var dataTab: some View {
+        // The big headline metric, chosen from the same set as the data slots.
+        HStack(spacing: 10) {
+            Text("Headline")
+                .font(.system(.caption, design: .rounded).weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 66, alignment: .leading)
+            Menu {
+                ForEach(StatMetric.allCases) { metric in
+                    Button {
+                        config.heroMetric = metric
+                    } label: {
+                        if metric == config.heroMetric {
+                            Label(metric.menuName, systemImage: "checkmark")
+                        } else {
+                            Text(metric.menuName)
+                        }
+                    }
+                    .disabled(!metric.isAvailable(for: run))
+                }
+            } label: {
+                slotChip(config.heroMetric)
+            }
+            .menuStyle(.borderlessButton)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: 340)
+
         VStack(spacing: 8) {
             Stepper("Data points: \(config.dataSlots.count)", value: slotCount, in: 0...4)
                 .font(.system(.subheadline, design: .rounded))
@@ -650,6 +697,7 @@ struct StudioView: View {
          "\(config.monochrome)", config.orientation.rawValue, config.dataPlacement.rawValue,
          config.font.rawValue, "\(config.showTitle)", config.title,
          "\(config.showLocation)", config.location, config.date,
+         config.heroMetric.rawValue,
          config.dataSlots.map(\.rawValue).joined(separator: ","),
          "\(config.showElevation)", "\(config.includeWeather)", config.outputSize.rawValue,
          config.routeColor?.hexString ?? "-", config.textColor?.hexString ?? "-",

@@ -524,7 +524,7 @@ struct SavedPosterCard: View {
 
     private var edition: StudioEdition { StudioEdition.edition(poster.editionID) }
     private var orientation: StudioOrientation { StudioOrientation(rawValue: poster.orientationRaw) ?? .portrait }
-    private var dataPlacement: StudioDataPlacement { StudioDataPlacement(rawValue: poster.dataPlacementRaw) ?? .side }
+    private var dataPlacement: StudioDataPlacement { StudioDataPlacement.from(raw: poster.dataPlacementRaw) }
     private var aspect: CGFloat {
         let s = StudioComposition.nominalSize(orientation, dataPlacement)
         return s.width / s.height

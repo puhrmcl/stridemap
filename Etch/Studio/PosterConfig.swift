@@ -133,7 +133,7 @@ struct PosterConfig {
     var galleryFrames: [GalleryTileKind] = [.photo, .map, .route, .elevation]
     var monochrome: Bool = false
     var orientation: StudioOrientation = .portrait
-    var dataPlacement: StudioDataPlacement = .side
+    var dataPlacement: StudioDataPlacement = .right
     var font: PosterFont = .editorial
     var showTitle: Bool = true
     /// Title override; empty falls back to the run's name.
@@ -143,6 +143,8 @@ struct PosterConfig {
     var location: String = ""
     /// Date override; empty falls back to the run's date.
     var date: String = ""
+    /// The big headline metric (distance by default) — chosen from the same set as the slots.
+    var heroMetric: StatMetric = .distance
     /// 0–4 "complication" slots shown beneath the headline.
     var dataSlots: [StatMetric] = [.time, .pace, .elevationGain]
     var showElevation: Bool = false
@@ -182,7 +184,7 @@ struct PosterConfig {
             orientation: orientation, dataPlacement: dataPlacement, photoLayout: photoLayout,
             titleOverride: title.isEmpty ? nil : title,
             dateOverride: date.isEmpty ? nil : date,
-            heroMetric: .distance, statSlots: dataSlots,
+            heroMetric: heroMetric, statSlots: dataSlots,
             showElevationProfile: showElevation,
             galleryCellsRaw: resolvedFrames.map(\.rawValue),
             includeWeather: includeWeather,
@@ -218,6 +220,7 @@ struct PosterConfig {
         p.locationText = location
         p.customDate = date
         p.statSlotsRaw = dataSlots.map(\.rawValue)
+        p.heroMetricRaw = heroMetric.rawValue
         p.showElevationProfile = showElevation
         p.includeWeather = includeWeather
         p.routeColorHex = routeColor?.hexString
@@ -226,7 +229,6 @@ struct PosterConfig {
         // Legacy mirror so anything still reading the old fields stays coherent.
         p.editionRaw = edition.id.rawValue
         p.layoutRaw = layout.rawValue
-        p.heroMetricRaw = StatMetric.distance.rawValue
         p.showEditorialPhoto = false
         p.showMemoryRoute = false
         p.updatedAt = Date()
@@ -254,7 +256,7 @@ struct PosterConfig {
         if galleryFrames.isEmpty { galleryFrames = [.photo, .map, .route, .elevation] }
         monochrome = p.monochrome
         orientation = StudioOrientation(rawValue: p.orientationRaw) ?? .portrait
-        dataPlacement = StudioDataPlacement(rawValue: p.dataPlacementRaw) ?? .side
+        dataPlacement = StudioDataPlacement.from(raw: p.dataPlacementRaw)
         photoLayout = StudioPhotoLayout(rawValue: p.photoLayoutRaw) ?? .single
         font = PosterFont(rawValue: p.fontRaw) ?? .editorial
         showTitle = p.showTitle
@@ -262,6 +264,7 @@ struct PosterConfig {
         showLocation = p.showLocation
         location = p.locationText
         date = p.customDate
+        heroMetric = StatMetric(rawValue: p.heroMetricRaw) ?? .distance
         let slots = p.statSlotsRaw.compactMap { StatMetric(rawValue: $0) }
         dataSlots = slots
         showElevation = p.showElevationProfile
@@ -278,7 +281,8 @@ struct PosterConfig {
     private static func migrated(from p: SavedPoster) -> PosterConfig {
         var c = PosterConfig()
         c.orientation = StudioOrientation(rawValue: p.orientationRaw) ?? .portrait
-        c.dataPlacement = StudioDataPlacement(rawValue: p.dataPlacementRaw) ?? .side
+        c.dataPlacement = StudioDataPlacement.from(raw: p.dataPlacementRaw)
+        c.heroMetric = StatMetric(rawValue: p.heroMetricRaw) ?? .distance
         c.photoLayout = StudioPhotoLayout(rawValue: p.photoLayoutRaw) ?? .single
         c.title = p.customTitle
         c.date = p.customDate
