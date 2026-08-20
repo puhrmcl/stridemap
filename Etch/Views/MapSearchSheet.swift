@@ -128,8 +128,9 @@ struct MapSearchSheet: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 6)
-                    // Clear the home indicator when the page runs to the bottom edge.
-                    .padding(.bottom, 44)
+                    // Generous tail space so the last section (Achievements) can scroll up fully
+                    // into view above the bottom edge.
+                    .padding(.bottom, 160)
                     // Track whether the page is scrolled to its top, so a downward swipe from the
                     // top hands off to the sheet (collapse) instead of scrolling.
                     .background(
@@ -247,7 +248,8 @@ struct MapSearchSheet: View {
         PageShortcut(surface: .timeline, title: "Timeline", icon: "square.grid.2x2"),
         PageShortcut(surface: .highlights, title: "Achievements", icon: "trophy"),
         PageShortcut(surface: .studio, title: "Studio", icon: "photo.artframe"),
-        PageShortcut(surface: .filters, title: "Filter", icon: "line.3.horizontal.decrease")
+        PageShortcut(surface: .filters, title: "Filter", icon: "line.3.horizontal.decrease"),
+        PageShortcut(surface: .addHistory, title: "Import", icon: "square.and.arrow.down")
     ]
 
     /// A row of circular page shortcuts (Timeline, Achievements, Studio, Filter), sitting above
@@ -361,7 +363,8 @@ struct MapSearchSheet: View {
 
     private func achievementCard(_ run: Run) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            RunTileImage(run: run)
+            // mapFallback renders the route over a MapKit snapshot — a real map behind the thumbnail.
+            RunTileImage(run: run, mapFallback: true)
                 .frame(width: 140, height: 104)
                 .clipShape(.rect(cornerRadius: 12))
                 .overlay(alignment: .topLeading) {
