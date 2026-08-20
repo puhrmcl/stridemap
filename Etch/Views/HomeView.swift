@@ -319,30 +319,27 @@ struct HomeView: View {
             let maxH = max(screenHeight * 0.5, screenHeight - topSafeArea)
             let mid = max(260, maxH * 0.5)
             let t = max(0, min(1, (sheetHeight - 62) / (mid - 62)))
-            if !isMapPopup {
-                // Content-sized (not full-screen) so the map above the sheet stays interactive.
-                ZStack(alignment: .bottom) {
-                    floatingControls
-                        // Sit a small, Apple-Maps-sized gap above the sheet's true top edge. The
-                        // sheet floats ~20pt above the physical bottom, so its top is
-                        // (sheetHeight + 20 - safeArea) above the safe-area line the ZStack anchors
-                        // to; add ~20pt of gap above that.
-                        .padding(.bottom, max(20, sheetHeight + 40 - bottomSafeArea))
-                        .opacity(1 - t)                        // fade out as the sheet expands
-                        .allowsHitTesting(t < 0.5)
+            // The docked search bar/page shows in both the main map and the Studio-first map popup,
+            // so search and the explore shortcuts are always reachable from the map.
+            // Content-sized (not full-screen) so the map above the sheet stays interactive.
+            ZStack(alignment: .bottom) {
+                floatingControls
+                    // Sit a small, Apple-Maps-sized gap above the sheet's true top edge. The
+                    // sheet floats ~20pt above the physical bottom, so its top is
+                    // (sheetHeight + 20 - safeArea) above the safe-area line the ZStack anchors
+                    // to; add ~20pt of gap above that.
+                    .padding(.bottom, max(20, sheetHeight + 40 - bottomSafeArea))
+                    .opacity(1 - t)                        // fade out as the sheet expands
+                    .allowsHitTesting(t < 0.5)
 
-                    MapSearchSheet(maxHeight: maxH, height: $sheetHeight)
-                }
-                .frame(height: sheetHeight + 90, alignment: .bottom)
-                .frame(maxWidth: .infinity, alignment: .bottom)
-                // Ignore the top inset too (the totals pill reserves it via safeAreaInset), so the
-                // expanded page can run up past it to just below the status bar.
-                .ignoresSafeArea(.container, edges: [.top, .bottom])
-                .ignoresSafeArea(.keyboard, edges: .bottom)
-            } else {
-                // Popup: just the floating controls, above the safe-area bottom.
-                floatingControls.padding(.bottom, 20)
+                MapSearchSheet(maxHeight: maxH, height: $sheetHeight)
             }
+            .frame(height: sheetHeight + 90, alignment: .bottom)
+            .frame(maxWidth: .infinity, alignment: .bottom)
+            // Ignore the top inset too (the totals pill reserves it via safeAreaInset), so the
+            // expanded page can run up past it to just below the status bar.
+            .ignoresSafeArea(.container, edges: [.top, .bottom])
+            .ignoresSafeArea(.keyboard, edges: .bottom)
         }
         .overlay {
             if allRuns.isEmpty {

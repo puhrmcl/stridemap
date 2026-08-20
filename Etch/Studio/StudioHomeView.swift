@@ -19,6 +19,9 @@ struct StudioHomeView: View {
 
     @State private var showMap = false
     @State private var showProfile = false
+    /// The user's chosen profile photo (shared with the profile page and map search bar), so the
+    /// Studio-first toolbar avatar shows it too.
+    @AppStorage("profileImageData") private var profileImageData: Data?
     /// Posters the user kept, newest edit first.
     @Query(sort: \SavedPoster.updatedAt, order: .reverse) private var savedPosters: [SavedPoster]
 
@@ -119,14 +122,27 @@ struct StudioHomeView: View {
                     // Studio-first: profile on the left, the map as a mini-thumbnail on the right.
                     ToolbarItem(placement: .topBarLeading) {
                         Button { showProfile = true } label: {
-                            Image(systemName: "person.crop.circle")
-                                .font(.system(size: 22))
-                                .foregroundStyle(Theme.accent)
+                            // Shows the user's chosen photo (like the map search bar); the plain
+                            // person glyph is the placeholder before one is set.
+                            ProfileAvatar(size: 30) {
+                                Image(systemName: "person.crop.circle")
+                                    .font(.system(size: 26))
+                                    .foregroundStyle(Theme.accent)
+                            }
+                        }
+                        // Long-press to remove the photo without opening the profile page.
+                        .contextMenu {
+                            if profileImageData != nil {
+                                Button(role: .destructive) { profileImageData = nil } label: {
+                                    Label("Remove Photo", systemImage: "trash")
+                                }
+                            }
                         }
                     }
                     ToolbarItem(placement: .principal) {
-                        // Studio is the app's home here, so lead with the Etch brand mark.
-                        Image("BrandLogo").resizable().scaledToFit().frame(height: 22)
+                        // Studio is the app's home here, so lead with the Etch brand mark — larger
+                        // in this primary role so the wordmark reads clearly.
+                        Image("BrandLogo").resizable().scaledToFit().frame(height: 30)
                             .accessibilityLabel("Etch")
                     }
                     ToolbarItem(placement: .topBarTrailing) { mapThumbnailButton }

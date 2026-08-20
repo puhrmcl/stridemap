@@ -97,6 +97,15 @@ struct ProfileView: View {
                     }
                 }
             }
+            // A visible remove control once a photo is set (the long-press menu isn't obvious).
+            if profileImageData != nil {
+                Button(role: .destructive) { profileImageData = nil } label: {
+                    Text("Remove Photo")
+                        .font(.system(.footnote, design: .rounded).weight(.medium))
+                        .foregroundStyle(.red)
+                }
+                .buttonStyle(.plain)
+            }
             HStack(spacing: 22) {
                 stat(
                     value: Format.distanceValue(stats.totalDistanceMeters)
