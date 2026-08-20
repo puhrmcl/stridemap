@@ -1058,26 +1058,24 @@ struct HomeView: View {
             withAnimation(Theme.gentle) { mapStyleRaw = style.rawValue }
         } label: {
             VStack(spacing: 8) {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(mapModeGradient(style))
-                    .frame(width: 92, height: 92)
-                    .overlay(
-                        Image(systemName: style.symbol)
-                            .font(.system(size: 26, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.95))
-                            .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .strokeBorder(.white.opacity(0.12), lineWidth: 0.5)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .strokeBorder(selected ? Theme.accent : .clear, lineWidth: 3)
-                    )
+                ZStack {
+                    // A representative gradient shows immediately; the real map snapshot fades in.
+                    mapModeGradient(style)
+                    MapStyleThumbnail(style: style, size: 92)
+                }
+                .frame(width: 92, height: 92)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(.white.opacity(0.14), lineWidth: 0.5)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(selected ? Theme.accent : .clear, lineWidth: 3)
+                )
                 Text(style.label)
-                    .font(.system(.subheadline, design: .rounded).weight(selected ? .semibold : .regular))
-                    .foregroundStyle(selected ? .primary : .secondary)
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .foregroundStyle(selected ? Theme.accent : .primary)
             }
         }
         .buttonStyle(.plain)
