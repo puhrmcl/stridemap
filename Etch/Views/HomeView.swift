@@ -171,12 +171,14 @@ struct HomeView: View {
             .first?.safeAreaInsets.bottom ?? 0
     }
 
-    /// The screen's top safe-area inset (status bar / Dynamic Island), so the fully-expanded search
-    /// page can run right up to just below it — above the totals pill.
+    /// The status-bar / Dynamic Island height, so the fully-expanded search page can run right up
+    /// to just below it — above the totals pill. Uses the status-bar frame rather than the window's
+    /// safeAreaInsets.top, which the totals pill's own safeAreaInset inflates.
     private var topSafeArea: CGFloat {
-        UIApplication.shared.connectedScenes
-            .compactMap { ($0 as? UIWindowScene)?.keyWindow }
-            .first?.safeAreaInsets.top ?? 0
+        let bar = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.statusBarManager?.statusBarFrame.height ?? 0
+        return bar > 0 ? bar : 47   // fall back to a typical notch inset
     }
 
     /// How far the search page has expanded past its mid rest toward full (0 → 1) — fades the
@@ -1058,21 +1060,23 @@ struct HomeView: View {
             withAnimation(Theme.gentle) { mapStyleRaw = style.rawValue }
         } label: {
             VStack(spacing: 8) {
-                ZStack {
-                    // A representative gradient shows immediately; the real map snapshot fades in.
-                    mapModeGradient(style)
-                    MapStyleThumbnail(style: style, size: 92)
-                }
-                .frame(width: 92, height: 92)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(.white.opacity(0.14), lineWidth: 0.5)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(selected ? Theme.accent : .clear, lineWidth: 3)
-                )
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(mapModeGradient(style))
+                    .frame(width: 92, height: 92)
+                    .overlay(
+                        Image(systemName: style.symbol)
+                            .font(.system(size: 30, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .strokeBorder(.white.opacity(0.14), lineWidth: 0.5)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .strokeBorder(selected ? Theme.accent : .clear, lineWidth: 3)
+                    )
                 Text(style.label)
                     .font(.system(.subheadline, design: .rounded).weight(.semibold))
                     .foregroundStyle(selected ? Theme.accent : .primary)
