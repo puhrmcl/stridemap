@@ -50,7 +50,7 @@ enum MapStyleOption: String, CaseIterable, Identifiable {
     /// map stays calm and the routes are the focus. `elevated` raises terrain/buildings for the
     /// 3D view (Terrain is always realistic).
     func configuration(elevated: Bool = false) -> MKMapConfiguration {
-        let elevation: MKMapElevationStyle = elevated ? .realistic : .flat
+        let elevation: MKMapConfiguration.ElevationStyle = elevated ? .realistic : .flat
         switch self {
         case .standard:
             // Muted emphasis desaturates the base map so geography recedes and the Etch route /
