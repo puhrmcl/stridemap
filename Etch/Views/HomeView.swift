@@ -184,7 +184,7 @@ struct HomeView: View {
     /// How far the search page has expanded past its mid rest toward full (0 → 1) — fades the
     /// totals pill out so the page covers the top of the screen.
     private var expandProgress: CGFloat {
-        let maxH = max(screenHeight * 0.5, screenHeight - topSafeArea - 8)
+        let maxH = max(screenHeight * 0.5, screenHeight - topSafeArea)
         let mid = max(260, maxH * 0.5)
         return max(0, min(1, (sheetHeight - mid) / max(1, maxH - mid)))
     }
@@ -316,7 +316,7 @@ struct HomeView: View {
         )
         .overlay(alignment: .bottom) {
             // Full height runs to just below the status bar / Dynamic Island — above the totals pill.
-            let maxH = max(screenHeight * 0.5, screenHeight - topSafeArea - 8)
+            let maxH = max(screenHeight * 0.5, screenHeight - topSafeArea)
             let mid = max(260, maxH * 0.5)
             let t = max(0, min(1, (sheetHeight - 62) / (mid - 62)))
             if !isMapPopup {

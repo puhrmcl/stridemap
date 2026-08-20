@@ -101,16 +101,23 @@ struct RunMapView: UIViewRepresentable {
 
         // Tilt into / out of 3D when the toggle changes, keeping the current center and zoom. A
         // fresh MKMapCamera reliably applies the pitch (mutating map.camera in place does not).
+        // Deferred to the next runloop so it lands *after* the elevated configuration above has
+        // settled — imagery/hybrid only allow a tilt under realistic elevation, so a synchronous
+        // set (before the config applies) would clamp back to flat on those styles.
         if context.coordinator.appliedIs3D != is3D {
             context.coordinator.appliedIs3D = is3D
-            let current = map.camera
-            let camera = MKMapCamera(
-                lookingAtCenter: current.centerCoordinate,
-                fromDistance: max(current.centerCoordinateDistance, 300),
-                pitch: is3D ? 60 : 0,
-                heading: current.heading
-            )
-            map.setCamera(camera, animated: true)
+            let targetPitch: CGFloat = is3D ? 60 : 0
+            DispatchQueue.main.async { [weak map] in
+                guard let map else { return }
+                let current = map.camera
+                let camera = MKMapCamera(
+                    lookingAtCenter: current.centerCoordinate,
+                    fromDistance: max(current.centerCoordinateDistance, 300),
+                    pitch: targetPitch,
+                    heading: current.heading
+                )
+                map.setCamera(camera, animated: true)
+            }
         }
 
         // Switching between per-run and history rendering changes both geometry (history uses

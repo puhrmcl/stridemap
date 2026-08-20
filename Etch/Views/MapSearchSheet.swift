@@ -147,6 +147,10 @@ struct MapSearchSheet: View {
                 .scrollDisabled(height < full - 1)
                 // Scrolling the page dismisses the keyboard so the tiles behind it are visible.
                 .scrollDismissesKeyboard(.immediately)
+                // A tap anywhere on the page also dismisses the keyboard (buttons still fire).
+                .simultaneousGesture(TapGesture().onEnded {
+                    if searchFocused { searchFocused = false }
+                })
             }
         }
         // Top-aligned once expanded (field pinned above the scroll); centred while collapsed so the
