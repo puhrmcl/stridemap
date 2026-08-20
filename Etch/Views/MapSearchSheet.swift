@@ -141,6 +141,9 @@ struct MapSearchSheet: View {
                     )
                 }
                 .coordinateSpace(name: "sheetScroll")
+                // Don't scroll the contents until the page is fully expanded — a swipe up first
+                // drives the sheet to full, then subsequent swipes scroll.
+                .scrollDisabled(height < full - 1)
                 // Scrolling the page dismisses the keyboard so the tiles behind it are visible.
                 .scrollDismissesKeyboard(.immediately)
             }
@@ -426,7 +429,15 @@ struct MapSearchSheet: View {
         DragGesture(minimumDistance: 8)
             .onChanged { value in
                 if gated {
-                    guard dragStart != nil || (scrollAtTop && value.translation.height > 0) else { return }
+                    let atFull = height >= full - 1
+                    let verticalDominant = abs(value.translation.height) > abs(value.translation.width)
+                    // Below full, a vertical drag drives the sheet (expand up / collapse down) —
+                    // the scroll is disabled there. At full, only a downward swipe from the very top
+                    // hands back to the sheet (to collapse); everything else scrolls.
+                    let engage = dragStart != nil
+                        || (!atFull && verticalDominant)
+                        || (atFull && scrollAtTop && value.translation.height > 0)
+                    guard engage else { return }
                 }
                 let start = dragStart ?? height
                 if dragStart == nil { dragStart = start }
