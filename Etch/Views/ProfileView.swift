@@ -1,5 +1,7 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
+import UIKit
 
 /// The account hub. A quick summary of the runner's totals, with Search and Settings living
 /// here rather than crowding the map's bottom bar.
@@ -13,6 +15,11 @@ struct ProfileView: View {
     @State private var showFilters = false
     @State private var showImport = false
     @AppStorage("studioIsHome") private var studioIsHome = false
+
+    /// The user's chosen profile photo (shared with the map search bar avatar), and the picker
+    /// selection that feeds it.
+    @AppStorage("profileImageData") private var profileImageData: Data?
+    @State private var photoItem: PhotosPickerItem?
 
     /// The scope the totals reflect — the user's app-wide selection, clamped back to All if the
     /// stored scope was hidden in Settings. The filter is always available here on the profile hub.
@@ -63,11 +70,32 @@ struct ProfileView: View {
 
     private var header: some View {
         VStack(spacing: 16) {
-            ZStack {
-                Circle().fill(Theme.accent.opacity(0.15)).frame(width: 84, height: 84)
-                Image(systemName: "person.fill")
-                    .font(.system(size: 38, weight: .semibold))
-                    .foregroundStyle(Theme.accent)
+            // Tap the avatar to choose a profile photo; long-press to remove it once set.
+            PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
+                ProfileAvatar(size: 84) {
+                    ZStack {
+                        Circle().fill(Theme.accent.opacity(0.15))
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 38, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                    }
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(6)
+                        .background(Theme.accent, in: .circle)
+                        .overlay(Circle().strokeBorder(Color(.systemBackground), lineWidth: 2))
+                }
+            }
+            .buttonStyle(.plain)
+            .contextMenu {
+                if profileImageData != nil {
+                    Button(role: .destructive) { profileImageData = nil } label: {
+                        Label("Remove Photo", systemImage: "trash")
+                    }
+                }
             }
             HStack(spacing: 22) {
                 stat(
@@ -81,6 +109,27 @@ struct ProfileView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
+        .onChange(of: photoItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data),
+                   let avatar = avatarData(from: image) {
+                    await MainActor.run { profileImageData = avatar }
+                }
+            }
+        }
+    }
+
+    /// Downscale a picked photo to a small square-ish JPEG before storing it — app storage isn't
+    /// for large blobs, and the avatar is only ever shown small.
+    private func avatarData(from image: UIImage, maxDimension: CGFloat = 512) -> Data? {
+        let maxSide = max(image.size.width, image.size.height)
+        let scale = min(1, maxDimension / max(1, maxSide))
+        let target = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: target)
+        let resized = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: target)) }
+        return resized.jpegData(compressionQuality: 0.85)
     }
 
     /// The filter row between Search and Settings — opens the full Filters sheet (activity, date,

@@ -80,8 +80,10 @@ struct MapSearchSheet: View {
     }
 
     /// Inset from the screen edges as a floating pill/card; edge-to-edge once fully extended.
+    /// The collapsed pill sits well in from the edges to match Apple Maps' inset search bar,
+    /// then widens as it lifts (mid) and finally runs full width (full).
     private var horizontalInset: CGFloat {
-        let resting = 16 * (1 - p1) + 12 * p1   // 16 → 12
+        let resting = 36 * (1 - p1) + 12 * p1   // 36 → 12
         return resting * (1 - p2)               // 12 → 0
     }
 
@@ -177,9 +179,9 @@ struct MapSearchSheet: View {
         .padding(.bottom, bottomInset - bleed)
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .onChange(of: searchFocused) { _, focused in
-            // First tap opens the page only partially (to the mid rest); a swipe up from there
-            // takes it full — matching Apple Maps.
-            if focused && height < mid { snap(to: mid) }
+            // Tapping into the field opens the page fully with the keyboard. A swipe up (which
+            // never focuses the field) only peeks it partially, with no keyboard.
+            if focused { snap(to: full) }
         }
         // A soft tactile settle as the sheet lands on a detent (Apple Maps-style).
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.6), trigger: snappedDetent)
@@ -261,9 +263,11 @@ struct MapSearchSheet: View {
             .overlay(Capsule().strokeBorder(.separator.opacity(0.35), lineWidth: 0.5))
 
             Button { appModel.presentedSurface = .profile } label: {
-                Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 34))
-                    .foregroundStyle(Theme.accent)
+                ProfileAvatar(size: 34) {
+                    Image(systemName: "person.crop.circle.fill")
+                        .font(.system(size: 34))
+                        .foregroundStyle(Theme.accent)
+                }
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Profile")
