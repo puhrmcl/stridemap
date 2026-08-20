@@ -55,9 +55,6 @@ struct TimelineView: View {
             }
             .navigationTitle("Timeline")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
-            }
             .safeAreaInset(edge: .bottom) {
                 if !scopedRuns.isEmpty { scopePicker }
             }

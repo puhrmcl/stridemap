@@ -130,10 +130,8 @@ struct StudioHomeView: View {
                             .accessibilityLabel("Etch")
                     }
                     ToolbarItem(placement: .topBarTrailing) { mapThumbnailButton }
-                } else {
-                    // Sheet mode: the wordmark leads the content (below), so the bar is just Done.
-                    ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
                 }
+                // Sheet mode has no close button — swipe the sheet down to dismiss.
             }
             .fullScreenCover(isPresented: $showMap) { HomeView(isMapPopup: true) }
             .sheet(isPresented: $showProfile) { ProfileView() }

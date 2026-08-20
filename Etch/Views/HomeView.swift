@@ -179,6 +179,14 @@ struct HomeView: View {
             .first?.safeAreaInsets.top ?? 0
     }
 
+    /// How far the search page has expanded past its mid rest toward full (0 → 1) — fades the
+    /// totals pill out so the page covers the top of the screen.
+    private var expandProgress: CGFloat {
+        let maxH = max(screenHeight * 0.5, screenHeight - topSafeArea - 8)
+        let mid = max(260, maxH * 0.5)
+        return max(0, min(1, (sheetHeight - mid) / max(1, maxH - mid)))
+    }
+
     var body: some View {
         @Bindable var appModel = appModel
 
@@ -288,6 +296,10 @@ struct HomeView: View {
             topBar
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
+                // Fade the totals pill out as the search page expands toward full, so the page
+                // reads as covering the whole screen — above the pill — like the other surfaces.
+                .opacity(1 - expandProgress)
+                .allowsHitTesting(expandProgress < 0.5)
         }
         // The docked Apple Maps-style search sheet plus the floating map controls that track its
         // top edge. A plain overlay (not a system sheet), so the map stays interactive above it and
@@ -345,6 +357,8 @@ struct HomeView: View {
             switch sheet {
             case .surface(let surface):
                 surfaceView(for: surface)
+                    // A grabber makes the swipe-down-to-close obvious now the Done button is gone.
+                    .presentationDragIndicator(.visible)
             case .run(let id):
                 if let run = allRuns.first(where: { $0.id == id }) {
                     RunDetailView(run: run)

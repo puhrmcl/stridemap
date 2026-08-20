@@ -65,11 +65,6 @@ struct HighlightsView: View {
             }
             .navigationTitle("Achievements")
             .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                }
-            }
             .onAppear {
                 // Heal a stored scope that's since been hidden in Settings so it doesn't linger.
                 if !ActivitySettings.isVisible(appModel.activityScope) { setScope(.all) }
