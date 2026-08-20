@@ -37,6 +37,9 @@ struct MapSearchSheet: View {
     @State private var dragStart: CGFloat?
     /// Whether the expanded page's scroll view is at its top — gates the swipe-to-collapse hand-off.
     @State private var scrollAtTop = true
+    /// Measured height of the pinned header (grabber + search row), so the scrolling content can be
+    /// padded to clear it and slide behind it (Apple Maps' pinned search bar).
+    @State private var headerHeight: CGFloat = 0
 
     private var collapsed: CGFloat { 62 }
     private var mid: CGFloat { max(260, maxHeight * 0.5) }
@@ -107,13 +110,10 @@ struct MapSearchSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // The grabber only appears once lifted; collapsed, the control is a clean pill you drag
-            // directly (no handle), so it doesn't read as a bottom sheet.
-            if isExpanded { grabber }
-            searchField
-            // Only present once expanded, so it doesn't claim layout space in the collapsed pill
-            // (which lets the search field centre vertically in the rounded container).
+        ZStack(alignment: .top) {
+            // The scrolling page sits *behind* the pinned header and slides under it — the header's
+            // own material blurs whatever scrolls beneath, so the search bar and avatar stay put at
+            // the top while the content moves (Apple Maps' pinned search).
             if isExpanded {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
@@ -127,7 +127,8 @@ struct MapSearchSheet: View {
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.top, 6)
+                    // Clear the pinned header, then a small gap before the first section.
+                    .padding(.top, headerHeight + 6)
                     // Generous tail space so the last section (Achievements) can scroll up fully
                     // into view above the bottom edge.
                     .padding(.bottom, 160)
@@ -152,8 +153,9 @@ struct MapSearchSheet: View {
                     if searchFocused { searchFocused = false }
                 })
             }
+            pinnedHeader
         }
-        // Top-aligned once expanded (field pinned above the scroll); centred while collapsed so the
+        // Top-aligned once expanded (header pinned above the scroll); centred while collapsed so the
         // search pill and avatar sit in the middle of the floating container. The bleed extends the
         // material below the frame so the full page runs off the bottom edge.
         .frame(height: height + bleed, alignment: isExpanded ? .top : .center)
@@ -175,13 +177,46 @@ struct MapSearchSheet: View {
         .padding(.bottom, bottomInset - bleed)
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .onChange(of: searchFocused) { _, focused in
-            if focused { snap(to: full) }
+            // First tap opens the page only partially (to the mid rest); a swipe up from there
+            // takes it full — matching Apple Maps.
+            if focused && height < mid { snap(to: mid) }
         }
         // A soft tactile settle as the sheet lands on a detent (Apple Maps-style).
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.6), trigger: snappedDetent)
     }
 
     // MARK: Header
+
+    /// The grabber + search row, pinned at the top of the sheet. Once expanded it carries its own
+    /// material so the scrolling page disappears behind it; collapsed it's transparent so the
+    /// floating pill's single material reads cleanly. Its height is measured so the scroll content
+    /// can be padded to clear it.
+    private var pinnedHeader: some View {
+        VStack(spacing: 0) {
+            // The grabber only appears once lifted; collapsed, the control is a clean pill you drag
+            // directly (no handle), so it doesn't read as a bottom sheet.
+            if isExpanded { grabber }
+            searchField
+        }
+        .background {
+            if isExpanded {
+                Rectangle()
+                    .fill(.regularMaterial)
+                    // A faint hairline appears under the bar once the page scrolls beneath it.
+                    .overlay(alignment: .bottom) {
+                        Divider().opacity(scrollAtTop ? 0 : 1)
+                    }
+            }
+        }
+        // Measure the header so the scroll content can be offset to start just below it.
+        .background(
+            GeometryReader { g in
+                Color.clear
+                    .onAppear { headerHeight = g.size.height }
+                    .onChange(of: g.size.height) { _, h in headerHeight = h }
+            }
+        )
+    }
 
     private var grabber: some View {
         Capsule()
