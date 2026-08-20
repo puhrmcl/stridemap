@@ -329,7 +329,9 @@ struct MapSearchSheet: View {
                     HStack(alignment: .top, spacing: 16) {
                         ForEach(posters) { poster in
                             if let run = run(for: poster) {
-                                Button { appModel.presentedSurface = .studio } label: {
+                                // Tapping a thumbnail opens that poster's project; the section
+                                // header's chevron opens the Studio page.
+                                Button { appModel.studioPoster = poster } label: {
                                     SavedPosterCard(run: run, poster: poster)
                                 }
                                 .buttonStyle(.plain)

@@ -366,11 +366,18 @@ struct HomeView: View {
                     RunDetailView(run: run)
                         .presentationDetents([.medium, .large])
                         .presentationBackground(.regularMaterial)
+                        // The detail has its own ✕ close, so the redundant drag line (which sat
+                        // awkwardly above the toolbar) is hidden — swipe-to-dismiss still works.
+                        .presentationDragIndicator(.hidden)
                 }
             case .stack(let ids):
                 RunStackView(runs: allRuns.filter { ids.contains($0.id) })
                     .presentationDetents([.medium, .large])
                     .presentationBackground(.regularMaterial)
+            case .studioPoster(let poster):
+                if let run = allRuns.first(where: { $0.id == poster.runID }) {
+                    StudioView(run: run, poster: poster)
+                }
             }
         }
         // Let the keyboard float over the map and the docked search sheet (Apple Maps behaviour)
@@ -386,11 +393,13 @@ struct HomeView: View {
         case surface(AppModel.Surface)
         case run(UUID)
         case stack([UUID])
+        case studioPoster(SavedPoster)
         var id: String {
             switch self {
             case .surface(let surface): return "surface-\(surface.rawValue)"
             case .run(let id): return "run-\(id.uuidString)"
             case .stack(let ids): return "stack-\(ids.map(\.uuidString).joined())"
+            case .studioPoster(let poster): return "poster-\(poster.id.uuidString)"
             }
         }
     }
@@ -398,6 +407,7 @@ struct HomeView: View {
     private var activeSheet: Binding<ActiveSheet?> {
         Binding(
             get: {
+                if let poster = appModel.studioPoster { return .studioPoster(poster) }
                 if let surface = appModel.presentedSurface { return .surface(surface) }
                 if let ids = appModel.stackedRunIDs, ids.count > 1 { return .stack(ids) }
                 if let id = appModel.selectedRunID { return .run(id) }
@@ -411,10 +421,13 @@ struct HomeView: View {
                     appModel.selectedRunID = id
                 case .stack(let ids):
                     appModel.stackedRunIDs = ids
+                case .studioPoster(let poster):
+                    appModel.studioPoster = poster
                 case nil:
                     appModel.presentedSurface = nil
                     appModel.selectedRunID = nil
                     appModel.stackedRunIDs = nil
+                    appModel.studioPoster = nil
                 }
             }
         )

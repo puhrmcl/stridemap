@@ -25,6 +25,9 @@ final class AppModel {
     /// cluster is tapped — so stacked runs at one location can be told apart and opened.
     var stackedRunIDs: [UUID]?
 
+    /// A saved Studio poster to open directly in the editor (from an explore-page thumbnail).
+    var studioPoster: SavedPoster?
+
     // MARK: Camera helpers
 
     func focus(on run: Run) {
