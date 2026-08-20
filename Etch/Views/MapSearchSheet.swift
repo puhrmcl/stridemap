@@ -253,44 +253,41 @@ struct MapSearchSheet: View {
         PageShortcut(surface: .timeline, title: "Timeline", icon: "square.grid.2x2"),
         PageShortcut(surface: .highlights, title: "Achievements", icon: "trophy"),
         PageShortcut(surface: .studio, title: "Studio", icon: "photo.artframe"),
-        PageShortcut(surface: .filters, title: "Filter", icon: "line.3.horizontal.decrease"),
-        PageShortcut(surface: .addHistory, title: "Import", icon: "square.and.arrow.down")
+        PageShortcut(surface: .filters, title: "Filter", icon: "line.3.horizontal.decrease")
     ]
 
     /// A row of circular page shortcuts (Timeline, Achievements, Studio, Filter), sitting above
     /// Recent like Apple Maps' quick actions — Etch-blue-to-ink circles with white glyphs.
     private var pagesSection: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 14) {
-                ForEach(pageShortcuts) { item in
-                    Button {
-                        searchFocused = false
-                        appModel.presentedSurface = item.surface
-                    } label: {
-                        VStack(spacing: 7) {
-                            Image(systemName: item.icon)
-                                .font(.system(size: 22, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .frame(width: 58, height: 58)
-                                .background(
-                                    LinearGradient(
-                                        colors: [Theme.accent, Theme.Palette.ink],
-                                        startPoint: .top, endPoint: .bottom
-                                    ),
-                                    in: .circle
-                                )
-                            Text(item.title)
-                                .font(.system(.caption, design: .rounded).weight(.medium))
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
-                        }
-                        .frame(width: 72)
+        HStack(spacing: 0) {
+            ForEach(pageShortcuts) { item in
+                Button {
+                    searchFocused = false
+                    appModel.presentedSurface = item.surface
+                } label: {
+                    VStack(spacing: 7) {
+                        Image(systemName: item.icon)
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 58, height: 58)
+                            .background(
+                                LinearGradient(
+                                    colors: [Theme.accent, Theme.Palette.ink],
+                                    startPoint: .top, endPoint: .bottom
+                                ),
+                                in: .circle
+                            )
+                        Text(item.title)
+                            .font(.system(.caption, design: .rounded).weight(.medium))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
                     }
-                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity)   // spread the four evenly across the width
                 }
+                .buttonStyle(.plain)
             }
-            .padding(.vertical, 2)
         }
+        .padding(.vertical, 2)
     }
 
     /// A section title with a right chevron that opens the full surface (Apple's "see all").
