@@ -21,7 +21,6 @@ struct RunFilter: Equatable {
     enum Mode: String, CaseIterable, Identifiable {
         case all = "All Runs"
         case recent = "Recent"
-        case long = "Long Runs"
         case prs = "PRs"
         case races = "Races"
         case favorites = "Favorites"
@@ -31,11 +30,17 @@ struct RunFilter: Equatable {
             switch self {
             case .all: return "map"
             case .recent: return "sparkles"
-            case .long: return "arrow.left.and.right"
             case .prs: return "trophy"
             case .races: return "flag.checkered"
             case .favorites: return "heart.fill"
             }
+        }
+
+        /// Decodes a stored raw value, mapping the retired `Long Runs` (Distance) view — which an
+        /// older install may have persisted — safely back to `All` rather than an invalid state.
+        static func fromStored(_ raw: String?) -> Mode {
+            guard let raw, let mode = Mode(rawValue: raw) else { return .all }
+            return mode
         }
     }
 
@@ -60,9 +65,6 @@ struct RunFilter: Equatable {
     var minDuration: Int?
     var maxDuration: Int?
 
-    /// Threshold (metres) that qualifies as a "long run" for `.long` mode.
-    var longRunThreshold: Double = 16_000 // ~10 miles
-
     var isActive: Bool {
         dateRange != .all || mode != .all || surface != .any
             || city != nil || state != nil || country != nil
@@ -78,7 +80,6 @@ struct RunFilter: Equatable {
         switch mode {
         case .all: break
         case .recent: if run.ageInDays > 30 { return false }
-        case .long: if run.distance < longRunThreshold { return false }
         case .prs: if !isPR { return false }
         case .races: if !run.isRace { return false }
         case .favorites: if !run.isFavorite { return false }

@@ -61,6 +61,7 @@ struct HomeView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(SyncService.self) private var sync
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \Run.startDate, order: .reverse) private var allRuns: [Run]
 
     @AppStorage("mapStyle") private var mapStyleRaw = MapStyleOption.standard.rawValue
@@ -357,6 +358,13 @@ struct HomeView: View {
         .overlay {
             if showMapStyleMenu { mapModesSheet }
         }
+        // The Activity Type / Activity View pickers — tile bottom sheets matching Map Type.
+        .overlay {
+            if showTypeMenu { activityTypeSheet }
+        }
+        .overlay {
+            if showModeMenu { activityViewSheet }
+        }
         // A single sheet for both surfaces and the run detail. Two `.sheet` modifiers — even
         // on different views — can leave one flaky; one sheet driven by one binding is
         // reliable, so the bottom buttons always present on the first tap.
@@ -390,6 +398,13 @@ struct HomeView: View {
         .ignoresSafeArea(.keyboard, edges: .bottom)
         // A light tactile tick when the base map type changes from the Map Type picker.
         .sensoryFeedback(.selection, trigger: mapStyleRaw)
+        // A selection tick when the activity type or view actually changes.
+        .sensoryFeedback(.selection, trigger: appModel.activityScope)
+        .sensoryFeedback(.selection, trigger: appModel.filter.mode)
+        .sensoryFeedback(.selection, trigger: showLocations)
+        // A soft tick as either picker opens or closes.
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.4), trigger: showTypeMenu)
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.4), trigger: showModeMenu)
     }
 
     /// The one thing presented over the map: a surface (bottom buttons), a selected run, or a
@@ -463,21 +478,26 @@ struct HomeView: View {
                 }
             }
 
-            if showTypeMenu { typeDropdown }
-            if showModeMenu { modeDropdown }
-            // Places: independent Country / State / City / Landmark dropdowns under the pill.
+            // Places: independent Country / State / City / Landmark dropdowns under the pill. The
+            // Activity Type / View pickers are now bottom sheets (see the overlays below), not
+            // dropdowns, so they no longer sit under the pill.
             if showLocations && !showTypeMenu && !showModeMenu { modeSelector }
         }
     }
 
-    /// The label for the current view shown in the pill — the map-mode when showing routes, else
-    /// "Places". Kept short so the pill doesn't grow with long text.
-    private var currentViewLabel: String {
+    /// The current view's name — used for VoiceOver only (the pill shows an icon, not text): the
+    /// map-mode when showing routes, else "Places".
+    private var currentViewName: String {
         showLocations ? "Places" : modeLabel(appModel.filter.mode)
     }
 
     private var currentViewSymbol: String {
         showLocations ? "mappin.and.ellipse" : appModel.filter.mode.symbol
+    }
+
+    /// The current activity type's short name — for VoiceOver.
+    private var currentScopeName: String {
+        appModel.activityScope == .all ? "All" : appModel.activityScope.label
     }
 
     /// One glass pill, a single row: the activity-type selector on the left, the totals in the
@@ -518,36 +538,28 @@ struct HomeView: View {
         .onPreferenceChange(PillWidthKey.self) { if $0 > 0 { pillWidth = $0 } }
     }
 
-    /// The view indicator on the right of the pill: a map glyph, the current view's name, and a
-    /// dropdown chevron. Tapping opens the map-view (mode) dropdown. The label is width-capped and
-    /// truncates, so a long view name never blows the pill out.
+    /// The right control: the current view's icon (map / trophy / heart / pin …) plus a dropdown
+    /// chevron — icon-only, so it stays compact and the pill never grows with a long view name.
+    /// Tapping anywhere in it opens the Activity View selector.
     private var viewSelector: some View {
         Button {
             withAnimation(Theme.spring) { showModeMenu.toggle(); showTypeMenu = false }
         } label: {
-            HStack(spacing: 5) {
+            HStack(spacing: 3) {
                 Image(systemName: currentViewSymbol)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Theme.accentOnGlass)
-                Text(currentViewLabel)
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    // A fixed width so the pill is one consistent size across every view name
-                    // (All / Distance / PRs / Places …) — it never grows or shrinks, keeping the
-                    // pill and its dropdowns a steady size. Sized to just fit the longest label
-                    // ("Favorites"), so the pill stays as narrow as possible.
-                    .frame(width: 74, alignment: .leading)
+                    .font(.system(size: 17, weight: .semibold))
+                    .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(Theme.accentOnGlass)
+                    .font(.system(size: 9, weight: .bold))
                     .rotationEffect(.degrees(showModeMenu ? 180 : 0))
             }
+            .foregroundStyle(Theme.accentOnGlass)
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Activity View, \(currentViewName)")
+        .accessibilityHint("Double tap to change activity view.")
     }
 
     /// A hairline separator sized to the pill's row height.
@@ -566,6 +578,7 @@ struct HomeView: View {
             HStack(spacing: 3) {
                 Image(systemName: appModel.activityScope.icon)
                     .font(.system(size: 17, weight: .semibold))
+                    .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
                 Image(systemName: "chevron.down")
                     .font(.system(size: 9, weight: .bold))
                     .rotationEffect(.degrees(showTypeMenu ? 180 : 0))
@@ -575,6 +588,8 @@ struct HomeView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Activity Type, \(currentScopeName)")
+        .accessibilityHint("Double tap to change activity type.")
     }
 
     /// The totals — activity count then distance, separated by a dot. Count has no leading icon
@@ -597,29 +612,59 @@ struct HomeView: View {
         }
     }
 
-    /// The activity-type dropdown — the same glass panel as the view dropdown, listing the activity
-    /// types. Anchored to extend from the type icon on the left.
-    private var typeDropdown: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(activityScopeOptions.enumerated()), id: \.element) { index, scope in
-                if index > 0 { dropdownDivider }
-                modeRow(label: scope == .all ? "All" : scope.label,
-                        symbol: scope.icon,
-                        selected: appModel.activityScope == scope) {
-                    applyScope(scope)
-                }
+    /// The Activity Type bottom sheet — tiles for All / Runs / Hikes / Rides / Walks (only the
+    /// activity types enabled in Settings), matching the Map Type sheet's design.
+    private var activityTypeSheet: some View {
+        EtchSelectionSheet(
+            title: "Activity Type",
+            options: activityScopeOptions.map { scope in
+                SelectionOption(
+                    id: scope.rawValue,
+                    icon: scope.icon,
+                    label: scope == .all ? "All" : scope.label,
+                    isSelected: appModel.activityScope == scope,
+                    accessibilityLabel: "Activity Type, \(scope == .all ? "All" : scope.label)"
+                ) { applyScope(scope) }
             }
+        ) {
+            withAnimation(Theme.spring) { showTypeMenu = false }
         }
-        .padding(.vertical, 5)
-        .frame(width: max(pillWidth, 210))
-        .glassBackground(cornerRadius: 20)
-        .transition(.asymmetric(
-            insertion: .scale(scale: 0.92, anchor: .topLeading).combined(with: .opacity),
-            removal: .scale(scale: 0.96, anchor: .topLeading).combined(with: .opacity)
-        ))
     }
 
-    /// Applies an activity-type choice from the type dropdown, then closes it.
+    /// The Activity View bottom sheet — All / Recent / PRs / Races / Favorites / Places, matching
+    /// the Map Type sheet. `RunFilter.Mode.allCases` supplies the first five; Places is appended.
+    private var activityViewSheet: some View {
+        EtchSelectionSheet(
+            title: "Activity View",
+            options: activityViewOptions
+        ) {
+            withAnimation(Theme.spring) { showModeMenu = false }
+        }
+    }
+
+    private var activityViewOptions: [SelectionOption] {
+        var options = RunFilter.Mode.allCases.map { mode in
+            SelectionOption(
+                id: mode.rawValue,
+                icon: mode.symbol,
+                label: modeLabel(mode),
+                isSelected: !showLocations && appModel.filter.mode == mode,
+                accessibilityLabel: "Activity View, \(modeLabel(mode))"
+            ) { applyMode(.mode(mode)) }
+        }
+        options.append(
+            SelectionOption(
+                id: "places",
+                icon: "mappin.and.ellipse",
+                label: "Places",
+                isSelected: showLocations,
+                accessibilityLabel: "Activity View, Places"
+            ) { applyMode(.locations) }
+        )
+        return options
+    }
+
+    /// Applies an activity-type choice from the type sheet, then closes it.
     private func applyScope(_ scope: ActivityScope) {
         withAnimation(Theme.gentle) {
             appModel.activityScope = scope
@@ -634,60 +679,7 @@ struct HomeView: View {
         withAnimation(Theme.spring) { showTypeMenu = false }
     }
 
-    /// The map-mode dropdown panel — a glass sheet the same width as the pill that drops down from
-    /// it, so it reads as an extension of the pill rather than a detached menu.
-    private var modeDropdown: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(RunFilter.Mode.allCases.enumerated()), id: \.element) { index, mode in
-                if index > 0 { dropdownDivider }
-                modeRow(label: modeLabel(mode), symbol: mode.symbol,
-                        selected: !showLocations && appModel.filter.mode == mode) {
-                    applyMode(.mode(mode))
-                }
-            }
-            dropdownDivider
-            modeRow(label: "Places", symbol: "mappin.and.ellipse", selected: showLocations) {
-                applyMode(.locations)
-            }
-        }
-        .padding(.vertical, 5)
-        .frame(width: max(pillWidth, 210))
-        .glassBackground(cornerRadius: 20)
-        .transition(.asymmetric(
-            insertion: .scale(scale: 0.92, anchor: .topLeading).combined(with: .opacity),
-            removal: .scale(scale: 0.96, anchor: .topLeading).combined(with: .opacity)
-        ))
-    }
-
-    private var dropdownDivider: some View {
-        Rectangle().fill(.secondary.opacity(0.12)).frame(height: 1).padding(.horizontal, 14)
-    }
-
-    private func modeRow(label: String, symbol: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: symbol)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Theme.accentOnGlass)
-                    .frame(width: 24)
-                Text(label)
-                    .font(.system(.subheadline, design: .rounded).weight(.medium))
-                    .foregroundStyle(.primary)
-                Spacer(minLength: 8)
-                if selected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Theme.accentOnGlass)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 11)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// Applies a mode chosen in the custom dropdown, then closes it.
+    /// Applies a mode chosen in the Activity View sheet, then closes it.
     private func applyMode(_ newValue: ModeSelection) {
         withAnimation(Theme.gentle) {
             showLocations = false
@@ -726,7 +718,6 @@ struct HomeView: View {
         switch mode {
         case .all:       return "All"
         case .recent:    return "Recent"
-        case .long:      return "Distance"
         case .prs:       return "PRs"
         case .races:     return "Races"
         case .favorites: return "Favorites"
@@ -739,6 +730,9 @@ struct HomeView: View {
         VStack(spacing: 0) {
             Text(value)
                 .font(.system(.subheadline, design: .rounded).weight(.bold))
+                // Monospaced digits so the count/distance don't jitter the pill as they tick.
+                .monospacedDigit()
+                .contentTransition(.numericText())
             Text(unit)
                 .font(.system(.caption2, design: .rounded).weight(.medium))
                 .foregroundStyle(.secondary)
