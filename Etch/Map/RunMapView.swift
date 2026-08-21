@@ -92,33 +92,19 @@ struct RunMapView: UIViewRepresentable {
     func updateUIView(_ map: MKMapView, context: Context) {
         context.coordinator.parent = self
 
-        // Reapply the base configuration when the style changes — or when 3D toggles, so terrain
-        // and buildings actually rise (realistic elevation) rather than staying flat.
+        // Reapply the base configuration — and re-assert the tilt — when the style changes or 3D
+        // toggles, so terrain/buildings actually rise (realistic elevation) rather than staying
+        // flat. Doing both together means switching the base map while 3D is on keeps the tilt.
         if context.coordinator.appliedStyle != mapStyle || context.coordinator.appliedIs3D != is3D {
             context.coordinator.appliedStyle = mapStyle
+            context.coordinator.appliedIs3D = is3D
             map.preferredConfiguration = mapStyle.configuration(elevated: is3D)
             map.overrideUserInterfaceStyle = mapStyle.forcedInterfaceStyle
-        }
-
-        // Tilt into / out of 3D when the toggle changes, keeping the current center and zoom. A
-        // fresh MKMapCamera reliably applies the pitch (mutating map.camera in place does not).
-        // Deferred to the next runloop so it lands *after* the elevated configuration above has
-        // settled — imagery/hybrid only allow a tilt under realistic elevation, so a synchronous
-        // set (before the config applies) would clamp back to flat on those styles.
-        if context.coordinator.appliedIs3D != is3D {
-            context.coordinator.appliedIs3D = is3D
-            let targetPitch: CGFloat = is3D ? 60 : 0
-            DispatchQueue.main.async { [weak map] in
-                guard let map else { return }
-                let current = map.camera
-                let camera = MKMapCamera(
-                    lookingAtCenter: current.centerCoordinate,
-                    fromDistance: max(current.centerCoordinateDistance, 300),
-                    pitch: targetPitch,
-                    heading: current.heading
-                )
-                map.setCamera(camera, animated: true)
-            }
+            // Imagery (Satellite/Hybrid) takes longer than a single runloop to switch to realistic
+            // elevation; a tilt applied before it settles gets clamped back to flat — which is why
+            // 3D used to work only on Standard. `applyTilt` retries, backing off, until the pitch
+            // actually takes on whatever base map is active.
+            context.coordinator.applyTilt(to: map, pitch: is3D ? 60 : 0)
         }
 
         // Switching between per-run and history rendering changes both geometry (history uses
@@ -588,6 +574,33 @@ struct RunMapView: UIViewRepresentable {
         /// footprint of tracked history lands in view at once.
         func frameAll(runs: [Run]) {
             fit(runs: runs, animated: true)
+        }
+
+        /// Tilts the camera to `pitch` (0 = flat 2D, 60 = 3D), retrying with a short back-off until
+        /// it takes. Satellite/Hybrid imagery only accept a tilt once their realistic-elevation
+        /// configuration has settled, which lags a base-map/3D change by a variable amount; a single
+        /// set lands too early on those styles and gets clamped flat (the reason 3D used to work only
+        /// on Standard). Each attempt bails if the requested state is already satisfied or the user
+        /// has since toggled 3D again, so the retries self-terminate.
+        func applyTilt(to map: MKMapView, pitch: CGFloat, attempt: Int = 0) {
+            let delays: [Double] = [0.05, 0.35, 0.7, 1.1]
+            guard attempt < delays.count else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + delays[attempt]) { [weak self, weak map] in
+                guard let self, let map, self.parent.is3D == (pitch > 0) else { return }
+                // Already where we want it? (tilted when asking for 3D, flat when asking for 2D.)
+                let satisfied = pitch > 0 ? map.camera.pitch >= 5 : map.camera.pitch < 5
+                if satisfied { return }
+                let camera = MKMapCamera(
+                    lookingAtCenter: map.camera.centerCoordinate,
+                    fromDistance: max(map.camera.centerCoordinateDistance, 300),
+                    pitch: pitch,
+                    heading: map.camera.heading
+                )
+                // Animate the first attempt for a smooth tilt; snap on retries so the check below
+                // reads the settled pitch rather than a mid-animation value.
+                map.setCamera(camera, animated: attempt == 0)
+                self.applyTilt(to: map, pitch: pitch, attempt: attempt + 1)
+            }
         }
 
         private func fit(runs: [Run], padding: CGFloat = 60, animated: Bool = true) {
