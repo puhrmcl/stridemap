@@ -41,7 +41,9 @@ struct MapSearchSheet: View {
     /// padded to clear it and slide behind it (Apple Maps' pinned search bar).
     @State private var headerHeight: CGFloat = 0
 
-    private var collapsed: CGFloat { 62 }
+    /// Tall enough for the grabber handle + the search row, so the collapsed pill shows a drag
+    /// handle above the search bar (Apple Maps-style) rather than a bare capsule.
+    private var collapsed: CGFloat { 78 }
     private var mid: CGFloat { max(260, maxHeight * 0.5) }
     private var full: CGFloat { maxHeight }
     private var detents: [CGFloat] { [collapsed, mid, full] }
@@ -152,8 +154,11 @@ struct MapSearchSheet: View {
                 }
                 .coordinateSpace(name: "sheetScroll")
                 // Don't scroll the contents until the page is fully expanded — a swipe up first
-                // drives the sheet to full, then subsequent swipes scroll.
-                .scrollDisabled(height < full - 1)
+                // drives the sheet to full, then subsequent swipes scroll. Also keep scroll disabled
+                // for the duration of an active sheet drag (dragStart != nil), so the ScrollView
+                // never grabs the gesture as the height crosses `full` — the hand-off that made
+                // dragging up/down feel glitchy.
+                .scrollDisabled(dragStart != nil || height < full - 1)
                 // Scrolling the page dismisses the keyboard so the tiles behind it are visible.
                 .scrollDismissesKeyboard(.immediately)
             }
@@ -173,7 +178,7 @@ struct MapSearchSheet: View {
         .shadow(color: .black.opacity(0.12), radius: 18, y: 3)
         // The whole control is draggable: collapsed it's the pill; expanded, a downward swipe from
         // the top of the page collapses it (the scroll view keeps its own drags otherwise).
-        .simultaneousGesture(dragGesture(gated: isExpanded), including: .all)
+        .simultaneousGesture(dragGesture(gated: isExpanded, minimumDistance: isExpanded ? 3 : 8), including: .all)
         // Widen as the sheet rises — inset as a floating pill, full width when fully extended.
         .padding(.horizontal, horizontalInset)
         // Negative bleed pulls the extended material's bottom below the screen edge while the top
@@ -197,9 +202,9 @@ struct MapSearchSheet: View {
     /// can be padded to clear it.
     private var pinnedHeader: some View {
         VStack(spacing: 0) {
-            // The grabber only appears once lifted; collapsed, the control is a clean pill you drag
-            // directly (no handle), so it doesn't read as a bottom sheet.
-            if isExpanded { grabber }
+            // The grabber shows at every height — a small handle above the search bar that signals
+            // "drag me up" even when the pill is collapsed (Apple Maps-style).
+            grabber
             searchField
         }
         .background {
@@ -231,7 +236,7 @@ struct MapSearchSheet: View {
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
             // The grabber always drives the sheet directly, regardless of scroll position.
-            .gesture(dragGesture(gated: false))
+            .gesture(dragGesture(gated: false, minimumDistance: 3))
             // Tap the grabber to peek the explore page (no keyboard); tap again to collapse.
             .onTapGesture {
                 searchFocused = false
@@ -511,10 +516,12 @@ struct MapSearchSheet: View {
     /// when it begins as a downward swipe from the top of the scroll — so a swipe down anywhere on
     /// the page collapses it, while normal scrolling stays with the scroll view. Ungated (the
     /// grabber and the collapsed pill) always drives the sheet.
-    private func dragGesture(gated: Bool) -> some Gesture {
+    private func dragGesture(gated: Bool, minimumDistance: CGFloat = 8) -> some Gesture {
         // A non-zero threshold so a tap on the pill focuses the field (and expands the page)
-        // instead of being captured as a zero-distance drag that snaps it back to collapsed.
-        DragGesture(minimumDistance: 8)
+        // instead of being captured as a zero-distance drag that snaps it back to collapsed. The
+        // expanded page and the grabber use a smaller threshold so the drag tracks the finger
+        // almost immediately (less "hold, then jump").
+        DragGesture(minimumDistance: minimumDistance)
             .onChanged { value in
                 if gated {
                     let atFull = height >= full - 1
