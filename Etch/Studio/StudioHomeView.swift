@@ -530,23 +530,25 @@ struct SavedPosterCard: View {
         return s.width / s.height
     }
     private var title: String { poster.customTitle.isEmpty ? run.name : poster.customTitle }
-    private var cardWidth: CGFloat { orientation == .landscape ? 210 : 150 }
+    /// Every kept-poster thumbnail is shown at the same tile size, whatever the poster's
+    /// orientation — the artwork is fitted (never cropped) onto its own ground, so a shelf of
+    /// mixed portrait/landscape etches reads as a tidy, uniform gallery.
+    private let tileWidth: CGFloat = 150
+    private let tileHeight: CGFloat = 190
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Group {
+            ZStack {
+                (Color(hex: poster.groundColorHex) ?? edition.ground)
                 if let thumbnail {
                     Image(uiImage: thumbnail)
                         .resizable()
-                        .aspectRatio(contentMode: .fit)
+                        .scaledToFit()
                 } else {
-                    Rectangle()
-                        .fill(Color(hex: poster.groundColorHex) ?? edition.ground)
-                        .aspectRatio(aspect, contentMode: .fit)
-                        .overlay { ProgressView().tint(edition.accent) }
+                    ProgressView().tint(edition.accent)
                 }
             }
-            .frame(width: cardWidth)
+            .frame(width: tileWidth, height: tileHeight)
             .clipShape(.rect(cornerRadius: 12))
             .shadow(color: .black.opacity(0.18), radius: 10, y: 5)
 
@@ -559,7 +561,7 @@ struct SavedPosterCard: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .frame(width: cardWidth, alignment: .leading)
+            .frame(width: tileWidth, alignment: .leading)
         }
         .task(id: poster.updatedAt) { await renderThumbnail() }
     }
