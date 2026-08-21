@@ -46,6 +46,11 @@ struct RunMapView: UIViewRepresentable {
     /// Receives the map's current center as it pans, so callers (e.g. the Look Around binoculars)
     /// can act on it without the churn of a `@State` update on every frame.
     var centerBox: MapCenterBox? = nil
+    /// A monotonic revision of the map's drawable content, owned by `AppModel`. The overlay/pin/
+    /// cluster rebuild runs only when this integer advances — an O(1) compare — so a search-sheet
+    /// drag (or any unrelated parent re-render) never iterates the run set here. The parent bumps
+    /// it when the drawn routes/pins could actually differ (import / edit / filter / scope / pins).
+    var contentRevision: Int = 0
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -117,29 +122,13 @@ struct RunMapView: UIViewRepresentable {
             context.coordinator.resetOverlays()
         }
 
-        // Rebuild overlays/pins/clusters only when the run set (or its styling inputs) actually
-        // changed. A search-sheet drag re-evaluates the parent body ~60×/s with an identical run
-        // list; skipping the rebuild there keeps the map from re-diffing hundreds of routes each
-        // frame. Selection is always applied (it's cheap and must track taps).
-        var hasher = Hasher()
-        hasher.combine(runs.count)
-        // `updatedAt` is a cheap stored Date bumped whenever a run is imported or edited — including
-        // route replacement — so the map refreshes on material changes without decoding thousands of
-        // polylines (which `coordinates` would) on every update.
-        for run in runs {
-            hasher.combine(run.id)
-            hasher.combine(run.updatedAt)
-        }
-        // The milestone *set identity* — not just its count. A, B, C → A, B, D keeps the same count
-        // but must restyle pins. XOR of the members' hashes is order-independent and changes whenever
-        // the set does (stable within a process, which is all this in-session comparison needs).
-        var milestoneHash = 0
-        for id in milestoneRunIDs { milestoneHash ^= id.hashValue }
-        hasher.combine(milestoneHash)
-        hasher.combine(fadeWithAge)
-        let signature = hasher.finalize()
-        if renderChanged || context.coordinator.lastRunsSignature != signature {
-            context.coordinator.lastRunsSignature = signature
+        // Rebuild overlays/pins/clusters only when the map's *content revision* advances — an O(1)
+        // integer compare, not an iteration over every activity. The parent bumps the revision only
+        // when the drawn routes/pins could actually differ (import / edit / filter / scope / pins),
+        // so a search-sheet drag (or any unrelated parent re-render) does no run-set work here at all.
+        // Selection is always applied below (it's cheap and must track taps).
+        if renderChanged || context.coordinator.lastContentRevision != contentRevision {
+            context.coordinator.lastContentRevision = contentRevision
             context.coordinator.updateOverlays(with: runs, fadeWithAge: fadeWithAge)
             context.coordinator.rebuildClusters(force: true)
         }
@@ -187,10 +176,11 @@ struct RunMapView: UIViewRepresentable {
         var appliedShowPins: Bool?
         /// Whether the map has framed the runs once on first appearance.
         var didInitialFrame = false
-        /// A cheap signature of the last-rendered run set, so pure re-layouts (e.g. the search sheet
-        /// dragging, which re-evaluates the parent's body every frame) skip the overlay/cluster
-        /// rebuild when the runs haven't actually changed — keeping the map buttery during drags.
-        var lastRunsSignature: Int?
+        /// The `contentRevision` the overlays/clusters were last built for. Compared as a single
+        /// integer on every representable update so pure re-layouts (e.g. the search sheet dragging,
+        /// which re-evaluates the parent's body every frame) skip the overlay/cluster rebuild
+        /// entirely when the drawable content hasn't changed — keeping the map buttery during drags.
+        var lastContentRevision: Int?
 
         /// run id → overlay, so we can diff efficiently between updates.
         private var overlaysByID: [UUID: RunPolyline] = [:]

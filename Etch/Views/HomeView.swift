@@ -163,6 +163,17 @@ struct HomeView: View {
     /// map, total, and overview below.
     private var scopedRuns: [Run] { allRuns.scoped(to: effectiveScope) }
 
+    /// The newest edit timestamp across every activity. A route edit or favorite toggle bumps a
+    /// run's `updatedAt` without changing the count, so this is what tells the map to redraw after
+    /// an in-place edit. It's an O(n) max, but evaluated only when `HomeView.body` genuinely
+    /// re-renders — never on the per-frame sheet-drag path, which no longer re-runs the body — so
+    /// it costs nothing during interaction while still catching every content change.
+    private var runEditSignature: Double {
+        var newest = 0.0
+        for run in allRuns { newest = max(newest, run.updatedAt.timeIntervalSinceReferenceDate) }
+        return newest
+    }
+
     private var stats: RunStatistics { RunStatistics(scopedRuns) }
 
     /// Runs that count as milestones — their map pins get the gold trophy.
@@ -268,7 +279,8 @@ struct HomeView: View {
                     mapStyle: mapStyle,
                     showPins: showPins,
                     is3D: is3D,
-                    centerBox: centerBox
+                    centerBox: centerBox,
+                    contentRevision: appModel.mapContentRevision
                 )
             }
         }
@@ -313,12 +325,21 @@ struct HomeView: View {
         }
         // Applying a filter reframes the route map to the newly filtered runs.
         .onChange(of: appModel.filter) {
+            appModel.bumpMapContent()
             if !isOverviewMode { appModel.fit(visibleRuns) }
         }
         // Switching activity type reframes the route map to the newly scoped set.
         .onChange(of: appModel.activityScope) {
+            appModel.bumpMapContent()
             if !isOverviewMode { appModel.fit(visibleRuns) }
         }
+        // Bump the map's content revision on the discrete events that change what it draws —
+        // new/removed activities, a route edit or favorite toggle (same count, new `updatedAt`),
+        // or the pins toggle. The route map then rebuilds overlays/clusters only on these, never
+        // on an unrelated re-render (a sheet drag), which is the whole point of the revision.
+        .onChange(of: allRuns.count) { appModel.bumpMapContent() }
+        .onChange(of: runEditSignature) { appModel.bumpMapContent() }
+        .onChange(of: showPins) { appModel.bumpMapContent() }
         .onAppear {
             // Heal a stored scope that's since been hidden in Settings (e.g. viewing Hikes, then
             // turning hikes off) so the selector and totals never point at an unavailable type.
