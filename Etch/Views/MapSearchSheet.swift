@@ -41,9 +41,9 @@ struct MapSearchSheet: View {
     /// padded to clear it and slide behind it (Apple Maps' pinned search bar).
     @State private var headerHeight: CGFloat = 0
 
-    /// Tall enough for the grabber handle + the search row, so the collapsed pill shows a drag
-    /// handle above the search bar (Apple Maps-style) rather than a bare capsule.
-    private var collapsed: CGFloat { 78 }
+    /// Hugs the grabber handle + the search row so the collapsed pill stays as compact as Apple
+    /// Maps' search bar — the drag handle sits just above the search field with no extra height.
+    private var collapsed: CGFloat { 66 }
     private var mid: CGFloat { max(260, maxHeight * 0.5) }
     private var full: CGFloat { maxHeight }
     private var detents: [CGFloat] { [collapsed, mid, full] }
@@ -196,26 +196,17 @@ struct MapSearchSheet: View {
 
     // MARK: Header
 
-    /// The grabber + search row, pinned at the top of the sheet. Once expanded it carries its own
-    /// material so the scrolling page disappears behind it; collapsed it's transparent so the
-    /// floating pill's single material reads cleanly. Its height is measured so the scroll content
-    /// can be padded to clear it.
+    /// The grabber + search row, pinned at the top of the sheet. It carries no material of its own —
+    /// the search field's own capsule keeps the query legible, and the header otherwise sits directly
+    /// on the sheet's single pane of glass, so the whole expanded page reads as one uniform frosted
+    /// surface with the blurred map visible through it (no solid slab or divider behind the search
+    /// bar). Its height is measured so the scroll content can be padded to clear it.
     private var pinnedHeader: some View {
         VStack(spacing: 0) {
             // The grabber shows at every height — a small handle above the search bar that signals
             // "drag me up" even when the pill is collapsed (Apple Maps-style).
             grabber
             searchField
-        }
-        .background {
-            if isExpanded {
-                Rectangle()
-                    .fill(.regularMaterial)
-                    // A faint hairline appears under the bar once the page scrolls beneath it.
-                    .overlay(alignment: .bottom) {
-                        Divider().opacity(scrollAtTop ? 0 : 1)
-                    }
-            }
         }
         // Measure the header so the scroll content can be offset to start just below it.
         .background(
@@ -230,9 +221,9 @@ struct MapSearchSheet: View {
     private var grabber: some View {
         Capsule()
             .fill(.secondary.opacity(0.4))
-            .frame(width: 38, height: 5)
+            .frame(width: 36, height: 5)
             .padding(.top, 7)
-            .padding(.bottom, 6)
+            .padding(.bottom, 4)
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
             // The grabber always drives the sheet directly, regardless of scroll position.
