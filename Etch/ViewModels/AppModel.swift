@@ -14,6 +14,14 @@ final class AppModel {
     var selectedRunID: UUID?
     var command: MapCameraCommand?
 
+    /// Studio-first mode: Studio is the home page, the map becomes a popup. Held here (rather than
+    /// only in `@AppStorage`) so a change made deep inside nested sheets — Profile → Settings —
+    /// propagates to `RootView` immediately instead of waiting for the next app launch. Persisted
+    /// under the same `studioIsHome` key so the choice survives relaunches.
+    var studioIsHome: Bool = UserDefaults.standard.bool(forKey: "studioIsHome") {
+        didSet { UserDefaults.standard.set(studioIsHome, forKey: "studioIsHome") }
+    }
+
     /// Which full-screen surface (if any) is presented over the map.
     enum Surface: String, Identifiable {
         case filters, timeline, highlights, studio, yearInReview, search, settings, profile, mapPrint, hub, addHistory

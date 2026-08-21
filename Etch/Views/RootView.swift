@@ -8,13 +8,12 @@ struct RootView: View {
     @Environment(StravaAuthService.self) private var auth
     @Environment(HealthKitService.self) private var healthKit
     @Environment(SyncService.self) private var sync
+    @Environment(AppModel.self) private var appModel
     @Query private var runs: [Run]
 
     @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding = false
     /// New users pick their activities and default view here before entering the app.
     @AppStorage("didCompleteSetup") private var didCompleteSetup = false
-    /// Studio-first mode: Studio is the home page, the map becomes a popup.
-    @AppStorage("studioIsHome") private var studioIsHome = false
     // Observed so the root re-renders when the user toggles activities to/from all-off.
     @AppStorage("includeRuns") private var includeRuns = true
     @AppStorage("includeHikes") private var includeHikes = true
@@ -51,7 +50,7 @@ struct RootView: View {
                 if !didCompleteSetup || allActivitiesOff {
                     SetupView()
                         .transition(.opacity)
-                } else if studioIsHome {
+                } else if appModel.studioIsHome {
                     StudioHomeView(isHome: true)
                         .transition(.opacity)
                 } else {
@@ -64,7 +63,7 @@ struct RootView: View {
             }
         }
         .animation(Theme.gentle, value: isReady)
-        .animation(Theme.gentle, value: studioIsHome)
+        .animation(Theme.gentle, value: appModel.studioIsHome)
         .animation(Theme.gentle, value: allActivitiesOff)
         .animation(Theme.gentle, value: didCompleteSetup)
         .task(id: isReady) {

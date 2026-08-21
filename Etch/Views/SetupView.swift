@@ -5,13 +5,13 @@ import SwiftUI
 /// changed later in Settings / Profile. Turning an activity on re-imports it; nothing is deleted.
 struct SetupView: View {
     @Environment(SyncService.self) private var sync
+    @Environment(AppModel.self) private var appModel
     @Environment(\.colorScheme) private var scheme
 
     @AppStorage("includeRuns") private var includeRuns = true
     @AppStorage("includeHikes") private var includeHikes = true
     @AppStorage("includeRides") private var includeRides = true
     @AppStorage("includeWalks") private var includeWalks = false
-    @AppStorage("studioIsHome") private var studioIsHome = false
     @AppStorage("didCompleteSetup") private var didCompleteSetup = false
 
     private var ground: Color { scheme == .dark ? Theme.Palette.ink : Theme.Palette.bone }
@@ -79,9 +79,10 @@ struct SetupView: View {
     // MARK: Default view
 
     private var defaultViewCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        @Bindable var appModel = appModel
+        return VStack(alignment: .leading, spacing: 8) {
             sectionLabel("App Focus")
-            AppFocusToggle(studioIsHome: $studioIsHome)
+            AppFocusToggle(studioIsHome: $appModel.studioIsHome)
                 .padding(18)
                 .background(.regularMaterial, in: .rect(cornerRadius: 18))
         }

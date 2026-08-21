@@ -14,7 +14,6 @@ struct ProfileView: View {
     @State private var showSettings = false
     @State private var showFilters = false
     @State private var showImport = false
-    @AppStorage("studioIsHome") private var studioIsHome = false
 
     /// The user's chosen profile photo (shared with the map search bar avatar), and the picker
     /// selection that feeds it.
@@ -31,7 +30,8 @@ struct ProfileView: View {
     private var stats: RunStatistics { RunStatistics(allRuns.scoped(to: scope).countingTotals) }
 
     var body: some View {
-        NavigationStack {
+        @Bindable var appModel = appModel
+        return NavigationStack {
             List {
                 Section {
                     header
@@ -50,7 +50,7 @@ struct ProfileView: View {
                 }
 
                 Section {
-                    AppFocusToggle(studioIsHome: $studioIsHome)
+                    AppFocusToggle(studioIsHome: $appModel.studioIsHome)
                         .padding(.vertical, 10)
                 } header: {
                     Text("App Focus")

@@ -5,13 +5,13 @@ struct SettingsView: View {
     @Environment(StravaAuthService.self) private var auth
     @Environment(HealthKitService.self) private var healthKit
     @Environment(SyncService.self) private var sync
+    @Environment(AppModel.self) private var appModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @Query private var runs: [Run]
 
     @AppStorage("appearance") private var appearance = Appearance.system.rawValue
     @AppStorage("unitSystem") private var unitSystem = UnitSystem.miles.rawValue
-    @AppStorage("studioIsHome") private var studioIsHome = false
     @AppStorage("includeRuns") private var includeRuns = true
     @AppStorage("includeHikes") private var includeHikes = true
     @AppStorage("includeRides") private var includeRides = true
@@ -280,8 +280,9 @@ struct SettingsView: View {
     }
 
     private var appFocusSection: some View {
-        Section {
-            AppFocusToggle(studioIsHome: $studioIsHome)
+        @Bindable var appModel = appModel
+        return Section {
+            AppFocusToggle(studioIsHome: $appModel.studioIsHome)
                 .padding(.vertical, 10)
         } header: {
             Text("App Focus")
