@@ -41,6 +41,9 @@ struct RunDetailView: View {
     @State private var showLocationPicker = false
     /// Notes start folded; expand to read or edit them.
     @State private var notesExpanded = false
+    /// A rendered PNG of the run's route over a map, prepared in the background so "Share Activity"
+    /// can attach it alongside the text summary. Nil until ready (or for a route-less run).
+    @State private var routeShareImage: UIImage?
 
     private struct PhotoSelection: Identifiable { let id: String }
 
@@ -132,7 +135,13 @@ struct RunDetailView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 14) {
                         Menu {
-                            ShareLink(item: run.shareSummary) {
+                            Button {
+                                // Share the text summary and — when it's rendered — a PNG of the
+                                // route over a map, together in one share.
+                                var items: [Any] = [run.shareSummary]
+                                if let routeShareImage { items.append(routeShareImage) }
+                                AppShare.present(items)
+                            } label: {
                                 Label("Share Activity", systemImage: "square.and.arrow.up")
                             }
                             if run.hasMapLocation {
@@ -162,6 +171,12 @@ struct RunDetailView: View {
                     }
                 }
             }
+        }
+        // Render the route-over-map PNG in the background so it's ready to attach when the user
+        // shares. Skipped for route-less runs.
+        .task(id: run.id) {
+            guard routeShareImage == nil, run.coordinates.count > 1 else { return }
+            routeShareImage = await PosterMap.routePanel(for: run, size: CGSize(width: 1000, height: 1000))
         }
     }
 

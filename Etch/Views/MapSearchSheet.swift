@@ -40,6 +40,10 @@ struct MapSearchSheet: View {
     /// Measured height of the pinned header (grabber + search row), so the scrolling content can be
     /// padded to clear it and slide behind it (Apple Maps' pinned search bar).
     @State private var headerHeight: CGFloat = 0
+    /// Bumped whenever the sheet settles below full, which re-creates the scroll view so it snaps
+    /// back to the top — so collapsing to the partial rest always shows the Explore buttons again,
+    /// never a mid-scroll position frozen from when the page was full.
+    @State private var scrollResetToken = 0
 
     /// Hugs the grabber handle + the search row so the collapsed pill matches Apple Maps' search
     /// bar — the drag handle sits just above the unified search row with no extra height.
@@ -152,6 +156,9 @@ struct MapSearchSheet: View {
                         if searchFocused { searchFocused = false }
                     }
                 }
+                // Re-create the scroll view when the sheet drops below full, so it resets to the top
+                // and the Explore buttons show again at the partial rest.
+                .id(scrollResetToken)
                 .coordinateSpace(name: "sheetScroll")
                 // Don't scroll the contents until the page is fully expanded — a swipe up first
                 // drives the sheet to full, then subsequent swipes scroll. Also keep scroll disabled
@@ -573,6 +580,9 @@ struct MapSearchSheet: View {
 
     private func snap(to target: CGFloat) {
         snappedDetent = target   // triggers a soft settle haptic when the detent actually changes
+        // Settling anywhere below full resets the page to the top, so a swipe-down always lands on
+        // the Explore buttons rather than a frozen mid-scroll position.
+        if target < full - 1 { scrollResetToken += 1 }
         let animation: Animation = reduceMotion
             ? .easeOut(duration: 0.18)
             : .spring(response: 0.3, dampingFraction: 0.86)
