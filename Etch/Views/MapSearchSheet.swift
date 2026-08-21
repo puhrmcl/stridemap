@@ -202,27 +202,42 @@ struct MapSearchSheet: View {
     /// surface with the blurred map visible through it (no solid slab or divider behind the search
     /// bar). Its height is measured so the scroll content can be padded to clear it.
     private var pinnedHeader: some View {
-        VStack(spacing: 0) {
-            // The grabber shows at every height — a small handle above the search bar that signals
-            // "drag me up" even when the pill is collapsed (Apple Maps-style).
-            grabber
-            searchField
-        }
-        // Measure the header so the scroll content can be offset to start just below it.
-        .background(
-            GeometryReader { g in
-                Color.clear
-                    .onAppear { headerHeight = g.size.height }
-                    .onChange(of: g.size.height) { _, h in headerHeight = h }
+        header
+            // Measure the header so the scroll content can be offset to start just below it.
+            .background(
+                GeometryReader { g in
+                    Color.clear
+                        .onAppear { headerHeight = g.size.height }
+                        .onChange(of: g.size.height) { _, h in headerHeight = h }
+                }
+            )
+    }
+
+    @ViewBuilder private var header: some View {
+        if isExpanded {
+            // Expanded: the grabber sits above the pinned search field, which the page scrolls under.
+            VStack(spacing: 0) {
+                grabber
+                searchField
             }
-        )
+        } else {
+            // Collapsed: the search row is vertically centred in the pill, and the grabber floats in
+            // the small strip above it — centred in that strip, with only a minimal gap above it —
+            // rather than stacking on top and pushing the search row low.
+            ZStack {
+                searchField
+                grabber
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            }
+            .frame(height: collapsed)
+        }
     }
 
     private var grabber: some View {
         Capsule()
             .fill(.secondary.opacity(0.4))
             .frame(width: 36, height: 5)
-            .padding(.top, 7)
+            .padding(.top, 5)
             .padding(.bottom, 4)
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
@@ -268,13 +283,17 @@ struct MapSearchSheet: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.leading, isExpanded ? 14 : 0)
-            .padding(.trailing, isExpanded ? 12 : 0)
-            .padding(.vertical, isExpanded ? 10 : 0)
+            .padding(.leading, isExpanded ? 14 : 14)
+            .padding(.trailing, isExpanded ? 12 : 14)
+            .padding(.vertical, isExpanded ? 10 : 8)
             .background {
                 if isExpanded {
                     Capsule().fill(.regularMaterial)
                         .overlay(Capsule().strokeBorder(.separator.opacity(0.35), lineWidth: 0.5))
+                } else {
+                    // A subtle recessed shade so the search field reads as a distinct bar sitting on
+                    // the pill, a touch darker/lighter than the pill's own glass.
+                    Capsule().fill(.primary.opacity(0.08))
                 }
             }
 
@@ -288,10 +307,10 @@ struct MapSearchSheet: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Profile")
         }
-        // Generous side insets while collapsed so the icon and avatar sit in from the pill's rounded
-        // ends like Apple Maps; pulled in tight once expanded where the field has its own capsule.
-        .padding(.leading, isExpanded ? 8 : 20)
-        .padding(.trailing, isExpanded ? 8 : 16)
+        // Side insets from the pill's rounded ends; the collapsed field carries its own shade
+        // capsule, so it pulls in a little from the edges with the avatar just outside it.
+        .padding(.leading, isExpanded ? 8 : 12)
+        .padding(.trailing, isExpanded ? 8 : 12)
         // Gap before the scroll content when expanded; none when collapsed so the row centres.
         .padding(.bottom, isExpanded ? 10 : 0)
     }
