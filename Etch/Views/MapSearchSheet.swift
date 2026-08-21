@@ -41,9 +41,9 @@ struct MapSearchSheet: View {
     /// padded to clear it and slide behind it (Apple Maps' pinned search bar).
     @State private var headerHeight: CGFloat = 0
 
-    /// Hugs the grabber handle + the search row so the collapsed pill stays as compact as Apple
-    /// Maps' search bar — the drag handle sits just above the search field with no extra height.
-    private var collapsed: CGFloat { 66 }
+    /// Hugs the grabber handle + the search row so the collapsed pill matches Apple Maps' search
+    /// bar — the drag handle sits just above the unified search row with no extra height.
+    private var collapsed: CGFloat { 62 }
     private var mid: CGFloat { max(260, maxHeight * 0.5) }
     private var full: CGFloat { maxHeight }
     private var detents: [CGFloat] { [collapsed, mid, full] }
@@ -85,7 +85,7 @@ struct MapSearchSheet: View {
     /// The collapsed pill sits well in from the edges to match Apple Maps' inset search bar,
     /// then widens as it lifts (mid) and finally runs full width (full).
     private var horizontalInset: CGFloat {
-        let resting = 36 * (1 - p1) + 12 * p1   // 36 → 12
+        let resting = 20 * (1 - p1) + 12 * p1   // 20 → 12
         return resting * (1 - p2)               // 12 → 0
     }
 
@@ -235,15 +235,18 @@ struct MapSearchSheet: View {
             }
     }
 
-    /// Apple Maps-style search row: an inset search-field capsule with the profile avatar as a
-    /// separate circle beside it, both sitting on the larger outer pill/sheet.
+    /// Apple Maps-style search row. Collapsed, it's a single unified bar: the search icon and
+    /// placeholder on the left with the profile avatar tucked inside on the right, all sitting
+    /// directly on the pill (no inner capsule) — exactly Apple Maps' collapsed search. Expanded,
+    /// the query field takes its own capsule so it stays legible over the scrolling page, with the
+    /// avatar beside it.
     private var searchField: some View {
         HStack(spacing: 10) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(.secondary)
-                TextField("Search runs, places, dates…", text: $query)
+                TextField("Search and explore", text: $query)
                     .focused($searchFocused)
                     .submitLabel(.search)
                     .autocorrectionDisabled()
@@ -254,11 +257,15 @@ struct MapSearchSheet: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.leading, 14)
-            .padding(.trailing, 12)
-            .padding(.vertical, 10)
-            .background(.regularMaterial, in: .capsule)
-            .overlay(Capsule().strokeBorder(.separator.opacity(0.35), lineWidth: 0.5))
+            .padding(.leading, isExpanded ? 14 : 0)
+            .padding(.trailing, isExpanded ? 12 : 0)
+            .padding(.vertical, isExpanded ? 10 : 0)
+            .background {
+                if isExpanded {
+                    Capsule().fill(.regularMaterial)
+                        .overlay(Capsule().strokeBorder(.separator.opacity(0.35), lineWidth: 0.5))
+                }
+            }
 
             Button { appModel.presentedSurface = .profile } label: {
                 ProfileAvatar(size: 34) {
@@ -270,8 +277,10 @@ struct MapSearchSheet: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Profile")
         }
-        // Tighter gap between the outer pill and the search field + avatar inside it.
-        .padding(.horizontal, 8)
+        // Generous side insets while collapsed so the icon and avatar sit in from the pill's rounded
+        // ends like Apple Maps; pulled in tight once expanded where the field has its own capsule.
+        .padding(.leading, isExpanded ? 8 : 20)
+        .padding(.trailing, isExpanded ? 8 : 16)
         // Gap before the scroll content when expanded; none when collapsed so the row centres.
         .padding(.bottom, isExpanded ? 10 : 0)
     }
