@@ -53,7 +53,8 @@ struct RunMapView: UIViewRepresentable {
         let map = MKMapView()
         map.delegate = context.coordinator
         map.showsUserLocation = true
-        map.pointOfInterestFilter = .excludingAll
+        // Explore surfaces Apple's POI; every other style stays route-focused.
+        map.pointOfInterestFilter = mapStyle.pointsOfInterest
         map.showsCompass = false
         map.showsScale = false
 
@@ -99,6 +100,7 @@ struct RunMapView: UIViewRepresentable {
             context.coordinator.appliedStyle = mapStyle
             context.coordinator.appliedIs3D = is3D
             map.preferredConfiguration = mapStyle.configuration(elevated: is3D)
+            map.pointOfInterestFilter = mapStyle.pointsOfInterest
             map.overrideUserInterfaceStyle = mapStyle.forcedInterfaceStyle
             // Imagery (Satellite/Hybrid) takes longer than a single runloop to switch to realistic
             // elevation; a tilt applied before it settles gets clamped back to flat — which is why

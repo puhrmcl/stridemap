@@ -131,6 +131,24 @@ struct RunDetailView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 14) {
+                        Menu {
+                            ShareLink(item: run.shareSummary) {
+                                Label("Share Activity", systemImage: "square.and.arrow.up")
+                            }
+                            if run.hasMapLocation {
+                                Button { run.openInAppleMaps() } label: {
+                                    Label("Open in Maps", systemImage: "map")
+                                }
+                                Button { run.openInAppleMaps(directions: true) } label: {
+                                    Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond")
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .foregroundStyle(.secondary)
+                        }
+                        .accessibilityLabel("More")
+
                         Button {
                             run.isFavorite.toggle()
                         } label: {

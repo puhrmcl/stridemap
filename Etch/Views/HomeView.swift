@@ -1199,6 +1199,8 @@ struct HomeView: View {
         switch style {
         case .standard:
             colors = [Color(red: 0.83, green: 0.86, blue: 0.83), Color(red: 0.70, green: 0.77, blue: 0.72)]
+        case .explore:
+            colors = [Color(red: 0.87, green: 0.89, blue: 0.85), Color(red: 0.76, green: 0.82, blue: 0.74)]
         case .night:
             colors = [Color(red: 0.12, green: 0.14, blue: 0.22), Color(red: 0.05, green: 0.06, blue: 0.12)]
         case .terrain:

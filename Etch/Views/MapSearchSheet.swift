@@ -482,8 +482,16 @@ struct MapSearchSheet: View {
             .buttonStyle(.plain)
 
             Menu {
-                ShareLink(item: shareSummary(for: run)) {
+                ShareLink(item: run.shareSummary) {
                     Label("Share", systemImage: "square.and.arrow.up")
+                }
+                if run.hasMapLocation {
+                    Button { run.openInAppleMaps() } label: {
+                        Label("Open in Maps", systemImage: "map")
+                    }
+                    Button { run.openInAppleMaps(directions: true) } label: {
+                        Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond")
+                    }
                 }
             } label: {
                 Image(systemName: "ellipsis")
@@ -494,25 +502,6 @@ struct MapSearchSheet: View {
             }
             .padding(.trailing, 6)
         }
-    }
-
-    /// A tidy text summary of a run for the system share sheet (times, pace, place).
-    private func shareSummary(for run: Run) -> String {
-        var lines: [String] = [run.isRace ? "🏁 \(run.name)" : run.name, Format.dateTime(run.startDate)]
-        if !run.placeLabel.isEmpty { lines.append(run.placeLabel) }
-        lines.append("")
-        lines.append("Distance  \(Format.distance(run.distance, decimals: 2))")
-        lines.append("Time  \(Format.duration(run.movingTime))")
-        if run.distance > 0 {
-            let secondsPerKm = Double(run.movingTime) / (run.distance / 1000)
-            lines.append("Pace  \(Format.pace(secondsPerKm: secondsPerKm))")
-        }
-        if run.elevationGain > 0 {
-            lines.append("Elevation  \(Format.elevationGain(run.elevationGain))")
-        }
-        lines.append("")
-        lines.append("Tracked with Etch")
-        return lines.joined(separator: "\n")
     }
 
     private func open(_ run: Run) {
