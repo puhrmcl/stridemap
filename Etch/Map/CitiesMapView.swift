@@ -18,8 +18,12 @@ struct CitiesMapView: UIViewRepresentable {
     @Binding var selectedRunID: UUID?
     /// Tapping a city surfaces its runs as a pick-list through this binding.
     @Binding var stackedRunIDs: [UUID]?
-    /// Set by the home-map "jump to city" menu; zooms to that coordinate, then clears.
+    /// Set by the home-map "jump to city" menu — the coordinate to zoom to.
     var focusCoordinate: Binding<CLLocationCoordinate2D?> = .constant(nil)
+    /// Advances on each "jump to city" pick. The map re-frames to `focusCoordinate` whenever this
+    /// changes — so every pick (even the same city twice) deterministically moves the map, rather
+    /// than depending on a binding being cleared in time.
+    var focusToken: Int = 0
     /// Base map style (standard / satellite / hybrid), shared with the other maps.
     var mapStyle: MapStyleOption = .standard
 
@@ -53,17 +57,19 @@ struct CitiesMapView: UIViewRepresentable {
             context.coordinator.frame(map, cities: cities)
         }
 
-        // A jump-to-city request: zoom to that city, then clear the binding so the same city
-        // can be picked again later.
-        if let coordinate = focusCoordinate.wrappedValue {
-            map.setRegion(
-                MKCoordinateRegion(
-                    center: coordinate,
-                    span: MKCoordinateSpan(latitudeDelta: 0.18, longitudeDelta: 0.18)
-                ),
-                animated: true
-            )
-            DispatchQueue.main.async { focusCoordinate.wrappedValue = nil }
+        // A jump-to-city request: whenever the focus token advances, zoom to the chosen coordinate.
+        // Token-gated so each pick fires exactly once and re-picking the same city still moves the map.
+        if focusToken != context.coordinator.lastFocusToken {
+            context.coordinator.lastFocusToken = focusToken
+            if let coordinate = focusCoordinate.wrappedValue {
+                map.setRegion(
+                    MKCoordinateRegion(
+                        center: coordinate,
+                        span: MKCoordinateSpan(latitudeDelta: 0.18, longitudeDelta: 0.18)
+                    ),
+                    animated: true
+                )
+            }
         }
     }
 
@@ -72,6 +78,7 @@ struct CitiesMapView: UIViewRepresentable {
     final class Coordinator: NSObject, MKMapViewDelegate {
         var parent: CitiesMapView
         var appliedStyle: MapStyleOption?
+        var lastFocusToken = 0
         private(set) var installedCount = -1
 
         init(_ parent: CitiesMapView) { self.parent = parent }

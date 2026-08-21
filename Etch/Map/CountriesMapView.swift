@@ -11,8 +11,10 @@ struct CountriesMapView: UIViewRepresentable {
     var intensities: [String: Double]
     /// Base map style (standard / satellite / hybrid), shared with the other maps.
     var mapStyle: MapStyleOption = .standard
-    /// Set by the home-map "jump to country" menu; zooms to that country's boundary, then clears.
+    /// Set by the home-map "jump to country" menu — the country to zoom to.
     var focusCountryName: Binding<String?> = .constant(nil)
+    /// Advances on each "jump to country" pick; the map re-frames whenever it changes.
+    var focusToken: Int = 0
 
     func makeCoordinator() -> Coordinator { Coordinator(intensities: intensities) }
 
@@ -62,15 +64,17 @@ struct CountriesMapView: UIViewRepresentable {
         // user's own panning is never fought afterwards.
         context.coordinator.frameVisitedIfNeeded(on: map)
 
-        // A jump-to-country request: frame that country's boundary, then clear the binding.
-        if let name = focusCountryName.wrappedValue,
-           let rect = WorldCountryBoundaries.shared.boundingMapRect(for: name) {
-            map.setVisibleMapRect(
-                rect,
-                edgePadding: UIEdgeInsets(top: 90, left: 40, bottom: 120, right: 40),
-                animated: true
-            )
-            DispatchQueue.main.async { focusCountryName.wrappedValue = nil }
+        // A jump-to-country request: when the focus token advances, frame that country's boundary.
+        if focusToken != context.coordinator.lastFocusToken {
+            context.coordinator.lastFocusToken = focusToken
+            if let name = focusCountryName.wrappedValue,
+               let rect = WorldCountryBoundaries.shared.boundingMapRect(for: name) {
+                map.setVisibleMapRect(
+                    rect,
+                    edgePadding: UIEdgeInsets(top: 90, left: 40, bottom: 120, right: 40),
+                    animated: true
+                )
+            }
         }
     }
 
@@ -79,6 +83,7 @@ struct CountriesMapView: UIViewRepresentable {
     final class Coordinator: NSObject, MKMapViewDelegate {
         var intensities: [String: Double]
         var appliedStyle: MapStyleOption?
+        var lastFocusToken = 0
         private var nameByOverlay: [ObjectIdentifier: String] = [:]
         private var didFrameVisited = false
 

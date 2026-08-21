@@ -105,6 +105,10 @@ struct HomeView: View {
     /// Bumped by the Locations recenter button; folded into the overlay map's id so the map is
     /// rebuilt and re-framed to fit all its pins/regions.
     @State private var locationRecenterToken = 0
+    /// Bumped on every "jump to place" pick (city / state / country / landmark). Passed to the
+    /// overview maps so each pick deterministically re-frames the map — even re-picking the same
+    /// place — instead of relying on a binding whose async clear could be missed on device.
+    @State private var placeFocusToken = 0
 
     /// Measured height of the pill's totals column, used to size the leading icon and divider to
     /// exactly that — `maxHeight: .infinity` would instead grab the whole top bar's height. Seeded
@@ -228,6 +232,7 @@ struct HomeView: View {
                         intensities: stateIntensities,
                         mapStyle: mapStyle,
                         focusStateName: $focusStateName,
+                        focusToken: placeFocusToken,
                         selectedName: selectedStateName,
                         runPoints: selectedStateRunPoints,
                         selectedRunID: $appModel.selectedRunID,
@@ -238,7 +243,8 @@ struct HomeView: View {
                     CountriesMapView(
                         intensities: countryIntensities,
                         mapStyle: mapStyle,
-                        focusCountryName: $focusCountryName
+                        focusCountryName: $focusCountryName,
+                        focusToken: placeFocusToken
                     )
                     .id("countries-\(locationRecenterToken)")
                 } else {
@@ -247,6 +253,7 @@ struct HomeView: View {
                         selectedRunID: $appModel.selectedRunID,
                         stackedRunIDs: $appModel.stackedRunIDs,
                         focusCoordinate: $focusCity,
+                        focusToken: placeFocusToken,
                         mapStyle: mapStyle
                     )
                     .id("\(locationOverlay.rawValue)-\(locationRecenterToken)")
@@ -788,7 +795,7 @@ struct HomeView: View {
     private var placesMenu: some View {
         if locationOverlay == .states {
             if !stateRanked.isEmpty {
-                placesMenuLabel(title: selectedPlaceLabel ?? "View") {
+                placesMenuLabel(title: selectedPlaceLabel ?? "All") {
                     if selectedStateName != nil {
                         Button {
                             selectedStateName = nil
@@ -801,31 +808,34 @@ struct HomeView: View {
                             selectedStateName = item.name
                             focusStateName = item.name
                             selectedPlaceLabel = item.name
+                            placeFocusToken += 1
                         }
                     }
                 }
             }
         } else if locationOverlay == .countries {
             if !countryRanked.isEmpty {
-                placesMenuLabel(title: selectedPlaceLabel ?? "View") {
+                placesMenuLabel(title: selectedPlaceLabel ?? "All") {
                     ForEach(countryRanked, id: \.name) { item in
                         Button("\(displayCountry(item.name))  ·  \(item.count)") {
                             focusCountryName = item.name
                             selectedPlaceLabel = displayCountry(item.name)
+                            placeFocusToken += 1
                         }
                     }
                 }
             }
         } else if locationOverlay == .cities, !overlayPlaces.isEmpty {
             // Cities grouped under their state, so a long list stays navigable.
-            placesMenuLabel(title: selectedPlaceLabel ?? "View") { citiesByStateMenu }
+            placesMenuLabel(title: selectedPlaceLabel ?? "All") { citiesByStateMenu }
         } else if !overlayPlaces.isEmpty {
             // Landmarks — a flat list.
-            placesMenuLabel(title: selectedPlaceLabel ?? "View") {
+            placesMenuLabel(title: selectedPlaceLabel ?? "All") {
                 ForEach(overlayPlaces) { place in
                     Button("\(shortPlaceLabel(place))  ·  \(place.runs.count)") {
                         focusCity = place.coordinate
                         selectedPlaceLabel = shortPlaceLabel(place)
+                        placeFocusToken += 1
                     }
                 }
             }
@@ -847,6 +857,7 @@ struct HomeView: View {
                     Button("\(cityOnly(place))  ·  \(place.runs.count)") {
                         focusCity = place.coordinate
                         selectedPlaceLabel = cityOnly(place)
+                        placeFocusToken += 1
                     }
                 }
             }

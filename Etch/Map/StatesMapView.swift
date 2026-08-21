@@ -14,8 +14,10 @@ struct StatesMapView: UIViewRepresentable {
     var intensities: [String: Double]
     /// Base map style (standard / satellite / hybrid), shared with the route map.
     var mapStyle: MapStyleOption = .standard
-    /// Set by the home-map "jump to state" menu; zooms to that state's boundary, then clears.
+    /// Set by the home-map "jump to state" menu — the state to zoom to.
     var focusStateName: Binding<String?> = .constant(nil)
+    /// Advances on each "jump to state" pick; the map re-frames whenever it changes.
+    var focusToken: Int = 0
     /// The single selected state, if any. Only this state is shaded; its runs are pinned.
     var selectedName: String? = nil
     /// Start points of the runs inside the selected state, pinned when a state is selected.
@@ -71,16 +73,17 @@ struct StatesMapView: UIViewRepresentable {
         }
         context.coordinator.refreshPins(on: map)
 
-        // A jump-to-state request: frame that state's boundary, then clear the binding so the
-        // same state can be picked again later.
-        if let name = focusStateName.wrappedValue,
-           let rect = USStateBoundaries.shared.boundingMapRect(for: name) {
-            map.setVisibleMapRect(
-                rect,
-                edgePadding: UIEdgeInsets(top: 90, left: 40, bottom: 120, right: 40),
-                animated: true
-            )
-            DispatchQueue.main.async { focusStateName.wrappedValue = nil }
+        // A jump-to-state request: when the focus token advances, frame that state's boundary.
+        if focusToken != context.coordinator.lastFocusToken {
+            context.coordinator.lastFocusToken = focusToken
+            if let name = focusStateName.wrappedValue,
+               let rect = USStateBoundaries.shared.boundingMapRect(for: name) {
+                map.setVisibleMapRect(
+                    rect,
+                    edgePadding: UIEdgeInsets(top: 90, left: 40, bottom: 120, right: 40),
+                    animated: true
+                )
+            }
         }
     }
 
@@ -91,6 +94,7 @@ struct StatesMapView: UIViewRepresentable {
         var intensities: [String: Double]
         var appliedStyle: MapStyleOption?
         var selectedName: String?
+        var lastFocusToken = 0
         /// Overlay identity → boundary name (overlays are the shared boundary polygons).
         private var nameByOverlay: [ObjectIdentifier: String] = [:]
         /// run id → its pin annotation, for diffing the selected state's runs.
