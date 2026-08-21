@@ -544,9 +544,10 @@ struct HomeView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     // A fixed width so the pill is one consistent size across every view name
-                    // (Everything / Distance / PRs / Places …) — it never grows or shrinks, keeping
-                    // the pill and its dropdowns a steady size. Sized to fit the longest label.
-                    .frame(width: 92, alignment: .leading)
+                    // (All / Distance / PRs / Places …) — it never grows or shrinks, keeping the
+                    // pill and its dropdowns a steady size. Sized to fit the longest label
+                    // ("Favorites") and no wider, so the pill stays narrow.
+                    .frame(width: 80, alignment: .leading)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(Theme.accentOnGlass)
@@ -732,7 +733,7 @@ struct HomeView: View {
     /// Recent / PRs / Races / Favorites are activity-neutral and read the same everywhere.
     private func modeLabel(_ mode: RunFilter.Mode) -> String {
         switch mode {
-        case .all:       return "Everything"
+        case .all:       return "All"
         case .recent:    return "Recent"
         case .long:      return "Distance"
         case .prs:       return "PRs"
