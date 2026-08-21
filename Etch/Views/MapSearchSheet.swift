@@ -143,6 +143,12 @@ struct MapSearchSheet: View {
                             }
                         }
                     )
+                    // A tap anywhere on the page (including the empty gaps, thanks to the hit shape)
+                    // dismisses the keyboard; tapping a tile still fires the tile's own action.
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if searchFocused { searchFocused = false }
+                    }
                 }
                 .coordinateSpace(name: "sheetScroll")
                 // Don't scroll the contents until the page is fully expanded — a swipe up first
@@ -150,10 +156,6 @@ struct MapSearchSheet: View {
                 .scrollDisabled(height < full - 1)
                 // Scrolling the page dismisses the keyboard so the tiles behind it are visible.
                 .scrollDismissesKeyboard(.immediately)
-                // A tap anywhere on the page also dismisses the keyboard (buttons still fire).
-                .simultaneousGesture(TapGesture().onEnded {
-                    if searchFocused { searchFocused = false }
-                })
             }
             pinnedHeader
         }
@@ -527,6 +529,9 @@ struct MapSearchSheet: View {
                 }
                 let start = dragStart ?? height
                 if dragStart == nil { dragStart = start }
+                // Swiping down on the sheet hides the keyboard immediately — you don't have to
+                // collapse it all the way for the keyboard to go away.
+                if searchFocused && value.translation.height > 0 { searchFocused = false }
                 height = min(full, max(collapsed, start - value.translation.height))
             }
             .onEnded { value in
