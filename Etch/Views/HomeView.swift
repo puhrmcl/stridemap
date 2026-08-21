@@ -18,6 +18,18 @@ private struct PillWidthKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
+/// The docked search sheet's live drag height, held in a tiny reference object rather than in
+/// `HomeView`'s `@State`. The sheet updates it ~60×/s while dragging; keeping it *out* of HomeView's
+/// own state means the map, the totals pill, and the (expensive) run-statistics derivations are not
+/// re-evaluated on every finger movement. Only the small views that visibly track the sheet — the
+/// floating controls and the top-bar fade — observe this, so finger movement drives a lightweight
+/// presentation update instead of a full Home-screen re-render.
+@MainActor
+@Observable
+final class SheetMetrics {
+    var height: CGFloat = 62
+}
+
 /// The specific overlay shown under the home map's "Locations" mode.
 enum LocationOverlay: String, CaseIterable, Identifiable {
     case cities, states, countries, landmarks
@@ -59,9 +71,10 @@ struct HomeView: View {
     /// The route map's live center, for opening Look Around at whatever is on screen.
     @State private var centerBox = MapCenterBox()
 
-    /// Current height of the docked search sheet, so the floating map controls track its top edge.
-    /// Starts collapsed (just the search pill), matching the sheet's collapsed detent.
-    @State private var sheetHeight: CGFloat = 62
+    /// Live height of the docked search sheet, held in a lightweight observable so a drag doesn't
+    /// invalidate HomeView's body (and re-run the run-statistics derivations) every frame. Only the
+    /// floating controls and the top-bar fade observe it. Starts at the collapsed detent.
+    @State private var sheetMetrics = SheetMetrics()
     /// Route map tilt: false = flat 2D, true = tilted 3D.
     @State private var is3D = false
     /// Measured map height, for sizing the sheet's detents.
@@ -198,12 +211,10 @@ struct HomeView: View {
         return bar > 0 ? bar : 47   // fall back to a typical notch inset
     }
 
-    /// How far the search page has expanded past its mid rest toward full (0 → 1) — fades the
-    /// totals pill out so the page covers the top of the screen.
-    private var expandProgress: CGFloat {
-        let maxH = max(screenHeight * 0.5, screenHeight - topSafeArea)
-        let mid = max(260, maxH * 0.5)
-        return max(0, min(1, (sheetHeight - mid) / max(1, maxH - mid)))
+    /// The search sheet's full-height detent — runs to just below the status bar / Dynamic Island.
+    /// Depends only on the (rarely-changing) screen height, never the live drag position.
+    private var sheetMaxHeight: CGFloat {
+        max(screenHeight * 0.5, screenHeight - topSafeArea)
     }
 
     var body: some View {
@@ -309,13 +320,13 @@ struct HomeView: View {
         // their hit-testing and they don't compete with the map's UIKit gestures (which made
         // the buttons need several taps).
         .safeAreaInset(edge: .top, spacing: 0) {
-            topBar
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                // Fade the totals pill out as the search page expands toward full, so the page
-                // reads as covering the whole screen — above the pill — like the other surfaces.
-                .opacity(1 - expandProgress)
-                .allowsHitTesting(expandProgress < 0.5)
+            // The fade-with-sheet lives in a child that observes the live height, so the totals pill
+            // fades smoothly as the page expands without re-running HomeView's body every frame.
+            SheetFade(metrics: sheetMetrics, maxHeight: sheetMaxHeight) {
+                topBar
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+            }
         }
         // The docked Apple Maps-style search sheet plus the floating map controls that track its
         // top edge. A plain overlay (not a system sheet), so the map stays interactive above it and
@@ -328,33 +339,13 @@ struct HomeView: View {
                     .onChange(of: geo.size.height) { _, h in screenHeight = h }
             }
         )
+        // The docked search sheet plus the floating map controls that track its top edge, in a
+        // child that owns the live-height layout. Because HomeView's body doesn't read the live
+        // height, a drag re-renders only this layer (and the sheet) — never the map or the pill.
         .overlay(alignment: .bottom) {
-            // Full height runs to just below the status bar / Dynamic Island — above the totals pill.
-            let maxH = max(screenHeight * 0.5, screenHeight - topSafeArea)
-            let mid = max(260, maxH * 0.5)
-            // 62 = the sheet's collapsed height (grabber + search row).
-            let t = max(0, min(1, (sheetHeight - 62) / (mid - 62)))
-            // The docked search bar/page shows in both the main map and the Studio-first map popup,
-            // so search and the explore shortcuts are always reachable from the map.
-            // Content-sized (not full-screen) so the map above the sheet stays interactive.
-            ZStack(alignment: .bottom) {
+            SheetLayer(metrics: sheetMetrics, maxHeight: sheetMaxHeight, bottomSafeArea: bottomSafeArea) {
                 floatingControls
-                    // Sit a small, Apple-Maps-sized gap above the sheet's true top edge. The
-                    // sheet floats ~20pt above the physical bottom, so its top is
-                    // (sheetHeight + 20 - safeArea) above the safe-area line the ZStack anchors
-                    // to; add ~20pt of gap above that.
-                    .padding(.bottom, max(20, sheetHeight + 40 - bottomSafeArea))
-                    .opacity(1 - t)                        // fade out as the sheet expands
-                    .allowsHitTesting(t < 0.5)
-
-                MapSearchSheet(maxHeight: maxH, height: $sheetHeight)
             }
-            .frame(height: sheetHeight + 90, alignment: .bottom)
-            .frame(maxWidth: .infinity, alignment: .bottom)
-            // Ignore the top inset too (the totals pill reserves it via safeAreaInset), so the
-            // expanded page can run up past it to just below the status bar.
-            .ignoresSafeArea(.container, edges: [.top, .bottom])
-            .ignoresSafeArea(.keyboard, edges: .bottom)
         }
         .overlay {
             if allRuns.isEmpty {
@@ -1273,5 +1264,59 @@ struct HomeView: View {
         case .mapPrint: MapPrintView(runs: scopedRuns, kind: currentPrintKind)
         case .addHistory: NavigationStack { AddHistoryView() }
         }
+    }
+}
+
+// MARK: - Sheet-tracking layers
+
+/// Fades (and disables) its content as the search sheet expands past its mid rest. Reads the live
+/// sheet height from the shared `SheetMetrics`, so only this small view re-renders during a drag —
+/// the totals pill it wraps is built once by HomeView and reused.
+private struct SheetFade<Content: View>: View {
+    let metrics: SheetMetrics
+    let maxHeight: CGFloat
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        let mid = max(260, maxHeight * 0.5)
+        let progress = max(0, min(1, (metrics.height - mid) / max(1, maxHeight - mid)))
+        content
+            .opacity(1 - progress)
+            .allowsHitTesting(progress < 0.5)
+    }
+}
+
+/// The bottom layer: the floating map controls tracking the sheet's top edge, over the docked
+/// `MapSearchSheet`. It owns the live-height layout (reading `SheetMetrics`) so a drag re-renders
+/// only this layer and the sheet — never HomeView's body, the map, or the run-statistics work.
+private struct SheetLayer<Controls: View>: View {
+    @Bindable var metrics: SheetMetrics
+    let maxHeight: CGFloat
+    let bottomSafeArea: CGFloat
+    @ViewBuilder var controls: Controls
+
+    /// The sheet's collapsed detent (grabber + search row).
+    private let collapsed: CGFloat = 62
+
+    var body: some View {
+        let mid = max(260, maxHeight * 0.5)
+        // Fade the controls out over the collapsed → mid range as the sheet rises.
+        let t = max(0, min(1, (metrics.height - collapsed) / max(1, mid - collapsed)))
+        ZStack(alignment: .bottom) {
+            controls
+                // Sit a small, Apple-Maps-sized gap above the sheet's true top edge (the sheet floats
+                // ~20pt above the physical bottom, so its top is height + 20 − safeArea up).
+                .padding(.bottom, max(20, metrics.height + 40 - bottomSafeArea))
+                .opacity(1 - t)
+                .allowsHitTesting(t < 0.5)
+
+            MapSearchSheet(maxHeight: maxHeight, height: $metrics.height)
+        }
+        .frame(height: metrics.height + 90, alignment: .bottom)
+        .frame(maxWidth: .infinity, alignment: .bottom)
+        // Ignore the top inset too (the totals pill reserves it via safeAreaInset), so the expanded
+        // page can run up past it to just below the status bar.
+        .ignoresSafeArea(.container, edges: [.top, .bottom])
+        .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 }

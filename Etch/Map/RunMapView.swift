@@ -123,15 +123,34 @@ struct RunMapView: UIViewRepresentable {
         // frame. Selection is always applied (it's cheap and must track taps).
         var hasher = Hasher()
         hasher.combine(runs.count)
-        for run in runs { hasher.combine(run.id) }
-        hasher.combine(milestoneRunIDs.count)
+        // `updatedAt` is a cheap stored Date bumped whenever a run is imported or edited — including
+        // route replacement — so the map refreshes on material changes without decoding thousands of
+        // polylines (which `coordinates` would) on every update.
+        for run in runs {
+            hasher.combine(run.id)
+            hasher.combine(run.updatedAt)
+        }
+        // The milestone *set identity* — not just its count. A, B, C → A, B, D keeps the same count
+        // but must restyle pins. XOR of the members' hashes is order-independent and changes whenever
+        // the set does (stable within a process, which is all this in-session comparison needs).
+        var milestoneHash = 0
+        for id in milestoneRunIDs { milestoneHash ^= id.hashValue }
+        hasher.combine(milestoneHash)
         hasher.combine(fadeWithAge)
         let signature = hasher.finalize()
         if renderChanged || context.coordinator.lastRunsSignature != signature {
             context.coordinator.lastRunsSignature = signature
             context.coordinator.updateOverlays(with: runs, fadeWithAge: fadeWithAge)
-            context.coordinator.rebuildClusters(force: false)
+            context.coordinator.rebuildClusters(force: true)
         }
+
+        // Toggling pins doesn't change the run signature, so rebuild the clusters explicitly when it
+        // flips — otherwise the pins would only appear/disappear on the next unrelated run change.
+        if context.coordinator.appliedShowPins != showPins {
+            context.coordinator.appliedShowPins = showPins
+            context.coordinator.rebuildClusters(force: true)
+        }
+
         context.coordinator.updateSelection(selectedRunID)
 
         // On entering history, frame everything so the whole footprint is in view. Otherwise,
@@ -163,6 +182,9 @@ struct RunMapView: UIViewRepresentable {
         var appliedStyle: MapStyleOption?
         var appliedRenderStyle: RouteRenderStyle?
         var appliedIs3D: Bool?
+        /// The pins-visible state the clusters were last built for. Tracked independently so toggling
+        /// `showPins` forces a cluster rebuild even though the run set (and its signature) is unchanged.
+        var appliedShowPins: Bool?
         /// Whether the map has framed the runs once on first appearance.
         var didInitialFrame = false
         /// A cheap signature of the last-rendered run set, so pure re-layouts (e.g. the search sheet
@@ -172,6 +194,9 @@ struct RunMapView: UIViewRepresentable {
 
         /// run id → overlay, so we can diff efficiently between updates.
         private var overlaysByID: [UUID: RunPolyline] = [:]
+        /// run id → the `updatedAt` its overlay was built from, so a run whose route (or other
+        /// map-relevant data) changed is rebuilt even though its id is unchanged.
+        private var overlayRevisionByID: [UUID: Date] = [:]
 
         /// Lightweight start points for the mapped runs, used to place tappable pins — with each
         /// run's pin kind (race / milestone / normal) so single-run pins can style themselves.
@@ -209,6 +234,7 @@ struct RunMapView: UIViewRepresentable {
             guard let map else { return }
             map.removeOverlays(Array(overlaysByID.values))
             overlaysByID.removeAll()
+            overlayRevisionByID.removeAll()
         }
 
         func updateOverlays(with runs: [Run], fadeWithAge: Bool) {
@@ -241,15 +267,17 @@ struct RunMapView: UIViewRepresentable {
             }
             coordByID = Dictionary(runPoints.map { ($0.id, $0.coordinate) }, uniquingKeysWith: { first, _ in first })
 
+            let revByID = Dictionary(routed.map { ($0.id, $0.updatedAt) }, uniquingKeysWith: { first, _ in first })
             let newIDs = Set(routed.map { $0.id })
-            let oldIDs = Set(overlaysByID.keys)
 
-            // Remove overlays no longer visible.
-            for id in oldIDs.subtracting(newIDs) {
-                if let overlay = overlaysByID[id] {
-                    map.removeOverlay(overlay)
-                    overlaysByID[id] = nil
-                }
+            // Remove overlays that are gone, OR whose run changed since we drew it (a route edit /
+            // re-import bumps `updatedAt`) — the add-loop below then rebuilds the changed ones fresh,
+            // so an edited route doesn't render stale geometry under the same id.
+            for (id, overlay) in overlaysByID {
+                if newIDs.contains(id) && overlayRevisionByID[id] == revByID[id] { continue }
+                map.removeOverlay(overlay)
+                overlaysByID[id] = nil
+                overlayRevisionByID[id] = nil
             }
 
             guard !routed.isEmpty else { return }
@@ -283,6 +311,7 @@ struct RunMapView: UIViewRepresentable {
                 polyline.ageFraction = fraction
                 polyline.emphasised = run.isRace
                 overlaysByID[run.id] = polyline
+                overlayRevisionByID[run.id] = run.updatedAt
                 toAdd.append(polyline)
             }
             if !toAdd.isEmpty { map.addOverlays(toAdd, level: .aboveRoads) }

@@ -20,16 +20,38 @@ struct MapSearchSheet: View {
     @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
     @Query(sort: \SavedPoster.updatedAt, order: .reverse) private var savedPosters: [SavedPoster]
 
-    private var stats: RunStatistics { RunStatistics(runs) }
-    /// Saved Studio posters whose run still exists (a deleted run can't be recomposed).
-    private var keptPosters: [SavedPoster] {
-        savedPosters.filter { poster in runs.contains { $0.id == poster.runID } }
+    // Explore derivations (statistics, kept posters, achievement runs, an id→run lookup) cached in
+    // @State and recomputed only when the run / poster sets change — never on every body evaluation.
+    // Dragging the sheet re-runs this body ~60×/s; keeping this work out of that path means a drag
+    // doesn't rebuild RunStatistics or rescan the posters each frame.
+    @State private var cachedStats = RunStatistics([])
+    @State private var cachedKeptPosters: [SavedPoster] = []
+    @State private var cachedMilestoneRuns: [Run] = []
+    @State private var runByID: [UUID: Run] = [:]
+    /// Search results for the debounced query, likewise cached off the per-frame path.
+    @State private var cachedResults: [Run] = []
+    /// The query after a short debounce, so typing doesn't refilter every keystroke.
+    @State private var debouncedQuery = ""
+
+    private func run(for poster: SavedPoster) -> Run? { runByID[poster.runID] }
+
+    /// Recompute the explore derivations. O(runs) once per data change (not per frame). Poster
+    /// matching uses a dictionary lookup, not an O(posters × runs) nested scan.
+    private func recomputeDerived() {
+        let stats = RunStatistics(runs)
+        let byID = Dictionary(runs.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let milestoneIDs = stats.milestoneRunIDs
+        cachedStats = stats
+        runByID = byID
+        cachedKeptPosters = savedPosters.filter { byID[$0.runID] != nil }
+        cachedMilestoneRuns = runs.filter { milestoneIDs.contains($0.id) }
     }
-    private func run(for poster: SavedPoster) -> Run? { runs.first { $0.id == poster.runID } }
-    /// Recent runs that are records/milestones — the "achievements" thumbnails.
-    private var milestoneRuns: [Run] {
-        let ids = stats.milestoneRunIDs
-        return runs.filter { ids.contains($0.id) }
+
+    /// Recompute search results for the current debounced query.
+    private func recomputeResults() {
+        guard !debouncedQuery.isEmpty else { cachedResults = []; return }
+        let q = debouncedQuery.lowercased()
+        cachedResults = runs.filter { RunSearch.matches($0, query: q) }
     }
 
     @State private var query = ""
@@ -110,13 +132,6 @@ struct MapSearchSheet: View {
     /// edge stays put. Generous enough to cover any device's bottom safe area.
     private var bleed: CGFloat { 90 * p2 }
 
-    private var results: [Run] {
-        let trimmed = query.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return [] }
-        let q = trimmed.lowercased()
-        return runs.filter { RunSearch.matches($0, query: q) }
-    }
-
     var body: some View {
         ZStack(alignment: .top) {
             // The scrolling page sits *behind* the pinned header and slides under it — the header's
@@ -125,7 +140,7 @@ struct MapSearchSheet: View {
             if isExpanded {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        if query.isEmpty {
+                        if debouncedQuery.isEmpty {
                             pagesSection
                             recentSection
                             studioSection
@@ -199,6 +214,24 @@ struct MapSearchSheet: View {
         }
         // A soft tactile settle as the sheet lands on a detent (Apple Maps-style).
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.6), trigger: snappedDetent)
+        // Build the explore derivations once now, then only when the run / poster sets change (add /
+        // remove). `.count` reads are O(1), so these gates cost nothing on the per-frame drag path.
+        .onAppear { recomputeDerived(); recomputeResults() }
+        .onChange(of: runs.count) { recomputeDerived(); recomputeResults() }
+        .onChange(of: savedPosters.count) { recomputeDerived() }
+        // Debounce typing: restart a short timer on each keystroke (this .task only re-runs when the
+        // raw query changes, not on drags), then commit the trimmed query and refilter once.
+        .task(id: query) {
+            let trimmed = query.trimmingCharacters(in: .whitespaces)
+            guard trimmed != debouncedQuery else { return }
+            // Debounce typing; clearing the field commits immediately so it feels instant.
+            if !trimmed.isEmpty {
+                try? await Task.sleep(for: .milliseconds(180))
+                guard !Task.isCancelled else { return }
+            }
+            debouncedQuery = trimmed
+            recomputeResults()
+        }
     }
 
     // MARK: Header
@@ -405,7 +438,7 @@ struct MapSearchSheet: View {
     /// Recent Studio creations as poster thumbnails, with a chevron to Studio.
     @ViewBuilder
     private var studioSection: some View {
-        let posters = Array(keptPosters.prefix(8))
+        let posters = Array(cachedKeptPosters.prefix(8))
         if !posters.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 sectionHeader("Studio", .studio)
@@ -431,7 +464,7 @@ struct MapSearchSheet: View {
     /// Recent records/milestones as route thumbnails, with a chevron to Achievements.
     @ViewBuilder
     private var achievementsSection: some View {
-        let milestones = Array(milestoneRuns.prefix(8))
+        let milestones = Array(cachedMilestoneRuns.prefix(8))
         if !milestones.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 sectionHeader("Achievements", .highlights)
@@ -462,7 +495,7 @@ struct MapSearchSheet: View {
                         .background(Theme.Palette.brass, in: .circle)
                         .padding(6)
                 }
-            Text(stats.milestoneLabels(for: run).first ?? run.name)
+            Text(cachedStats.milestoneLabels(for: run).first ?? run.name)
                 .font(.system(.caption, design: .rounded).weight(.semibold))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
@@ -472,16 +505,16 @@ struct MapSearchSheet: View {
 
     @ViewBuilder
     private var resultsList: some View {
-        if results.isEmpty {
-            ContentUnavailableView.search(text: query).padding(.top, 30)
+        if cachedResults.isEmpty {
+            ContentUnavailableView.search(text: debouncedQuery).padding(.top, 30)
         } else {
             VStack(alignment: .leading, spacing: 10) {
-                Text("\(results.count) result\(results.count == 1 ? "" : "s")")
+                Text("\(cachedResults.count) result\(cachedResults.count == 1 ? "" : "s")")
                     .font(.system(.subheadline, design: .rounded).weight(.semibold))
                     .foregroundStyle(.secondary)
                 // Cap the rendered rows: each row hosts a live map, so a broad match must not
                 // spin up hundreds at once (that exhausts MapKit and crashes the app).
-                runList(Array(results.prefix(50)))
+                runList(Array(cachedResults.prefix(50)))
             }
         }
     }
