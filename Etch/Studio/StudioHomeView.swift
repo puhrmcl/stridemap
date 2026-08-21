@@ -344,7 +344,6 @@ struct StudioHomeView: View {
     private var milestones: [(Run, String?)] {
         var out: [(Run, String?)] = []
         if let r = stats.longestRun, r.hasRoute { out.append((r, "Furthest")) }
-        if let r = stats.longestDurationRun, r.hasRoute { out.append((r, "Longest")) }
         // Pace-based superlatives only make sense for runs (a hike's "fastest" is meaningless).
         if scope.usesPace, let r = stats.fastestRun, r.hasRoute { out.append((r, "Fastest")) }
         if let r = stats.highestClimb, r.hasRoute { out.append((r, "Highest")) }

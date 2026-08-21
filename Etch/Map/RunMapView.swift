@@ -24,7 +24,8 @@ struct RunMapView: UIViewRepresentable {
 
     /// The currently visible (already filtered) runs.
     var runs: [Run]
-    /// Runs that are milestones (personal records / superlatives) — their pins show a gold trophy.
+    /// Runs that are milestones (personal records / superlatives) — their pins show the activity
+    /// glyph on a gold ground.
     var milestoneRunIDs: Set<UUID> = []
     /// Selected run's activity id.
     @Binding var selectedRunID: UUID?
@@ -645,9 +646,9 @@ final class RunStartAnnotation: NSObject, MKAnnotation {
     }
 }
 
-/// How a single-run map pin reads: a plain runner, a blue checkered flag for a race, a gold trophy
-/// for a milestone (a record / superlative), or — when a run is both — a gold checkered flag that
-/// keeps the race identity while marking it a record.
+/// How a single-run map pin reads: a plain runner, a blue checkered flag for a race, the activity
+/// glyph on gold for a milestone (a record / superlative), or — when a run is both — a gold
+/// checkered flag that keeps the race identity while marking it a record.
 enum RunPinKind {
     case normal, race, milestone, raceMilestone, indoor
 }
@@ -701,8 +702,9 @@ final class RunPinView: MKAnnotationView {
     }
 
     /// Styles the pin by run kind: a race reads as a blue checkered flag so it stands out, a
-    /// milestone as a gold trophy; a run that's both keeps the checkered flag but on gold. A plain
-    /// run shows its activity glyph — a runner, cyclist, hiker, or walker per `activityType`.
+    /// milestone as the activity glyph on gold; a run that's both keeps the checkered flag but on
+    /// gold. A plain run shows its activity glyph — a runner, cyclist, hiker, or walker per
+    /// `activityType`.
     func configure(_ kind: RunPinKind, activityType: ActivityType = .run) {
         let symbol: String
         let background: UIColor
@@ -711,7 +713,10 @@ final class RunPinView: MKAnnotationView {
             symbol = "flag.checkered"
             background = UIColor(Theme.accent)          // Etch Blue — races stand out
         case .milestone:
-            symbol = "trophy.fill"
+            // A record still shows the activity's own glyph (runner / cyclist / hiker / walker),
+            // just on gold — so the pin says *what* the activity is, and its gold ground marks it a
+            // record, rather than a generic trophy.
+            symbol = activityType.detailIcon
             background = UIColor(Theme.Palette.brass)   // gold
         case .raceMilestone:
             symbol = "flag.checkered"                   // still a race…

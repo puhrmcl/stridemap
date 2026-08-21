@@ -113,15 +113,16 @@ struct RunStatistics {
     /// Runs that count as milestones — the marquee superlatives (furthest, longest, fastest,
     /// highest climb) plus every distance PR. Drives the gold trophy pin on the map and the
     /// milestone badge in run detail, so both agree.
-    /// The runs that *currently* hold a record — the marquee superlatives (furthest, longest,
-    /// fastest, highest climb) and the benchmark-distance bests (5K, 10K, Marathon, …). One run per
-    /// achievement, so the map shows a single milestone pin per record rather than stamping a gold
-    /// trophy on every run that ever set a distance progression (which piled up duplicates of the
-    /// same kind). `prRunIDs` still powers the PRs map mode, which deliberately shows the full
-    /// progression.
+    /// The runs that *currently* hold a record — one distinct run per achievement *type*: the
+    /// single biggest run (furthest by distance), the fastest, the highest climb, and each
+    /// benchmark-distance best (5K, 10K, Marathon, …). Deliberately *excludes* the longest-by-time
+    /// run: for most people that's a second "biggest run" that lands on a different activity than
+    /// the furthest, so it read as a duplicate milestone alongside it. Duration still shows in the
+    /// Records table. A Set, so a run holding several records still gets a single pin. `prRunIDs`
+    /// powers the PRs map mode, which shows the full distance progression.
     var milestoneRunIDs: Set<UUID> {
         var ids: Set<UUID> = []
-        for run in [longestRun, longestDurationRun, fastestRun] {
+        for run in [longestRun, fastestRun] {
             if let run { ids.insert(run.id) }
         }
         if let climb = highestClimb, climb.elevationGain > 0 { ids.insert(climb.id) }
@@ -137,7 +138,6 @@ struct RunStatistics {
         let noun = run.activityType.detailLabel.lowercased()
         var labels: [String] = []
         if longestRun?.id == run.id { labels.append("Furthest \(noun)") }
-        if longestDurationRun?.id == run.id { labels.append("Longest time") }
         if fastestRun?.id == run.id { labels.append("Fastest pace") }
         if highestClimb?.id == run.id, run.elevationGain > 0 { labels.append("Most climbing") }
         for pr in personalRecords where pr.run.id == run.id {
