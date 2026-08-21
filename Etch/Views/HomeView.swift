@@ -61,7 +61,7 @@ struct HomeView: View {
 
     /// Current height of the docked search sheet, so the floating map controls track its top edge.
     /// Starts collapsed (just the search pill), matching the sheet's collapsed detent.
-    @State private var sheetHeight: CGFloat = 78
+    @State private var sheetHeight: CGFloat = 62
     /// Route map tilt: false = flat 2D, true = tilted 3D.
     @State private var is3D = false
     /// Measured map height, for sizing the sheet's detents.
@@ -105,9 +105,6 @@ struct HomeView: View {
     /// native Menu), so it reads as part of the pill.
     @State private var showModeMenu = false
     @State private var showTypeMenu = false
-    /// The map-action capsule shows just the globe + current-location by default; the globe expands
-    /// it to reveal the map-type picker, the pins toggle, and recenter.
-    @State private var mapOptionsExpanded = false
     /// The base-map-style dropdown, rendered as a custom glass panel extending from the map-style
     /// button, so it matches the pill's dropdowns rather than using a detached native Menu.
     @State private var showMapStyleMenu = false
@@ -335,8 +332,8 @@ struct HomeView: View {
             // Full height runs to just below the status bar / Dynamic Island — above the totals pill.
             let maxH = max(screenHeight * 0.5, screenHeight - topSafeArea)
             let mid = max(260, maxH * 0.5)
-            // 78 = the sheet's collapsed height (grabber + search row).
-            let t = max(0, min(1, (sheetHeight - 78) / (mid - 78)))
+            // 62 = the sheet's collapsed height (grabber + search row).
+            let t = max(0, min(1, (sheetHeight - 62) / (mid - 62)))
             // The docked search bar/page shows in both the main map and the Studio-first map popup,
             // so search and the explore shortcuts are always reachable from the map.
             // Content-sized (not full-screen) so the map above the sheet stays interactive.
@@ -1005,74 +1002,53 @@ struct HomeView: View {
             Spacer(minLength: 0)
             actionCapsule
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, MapControl.edgeInset)
         .frame(maxWidth: .infinity)
     }
 
     /// Toggles the route map between a flat 2D view and a tilted 3D view (Apple Maps' "3D"
-    /// button). The label shows the mode you'll switch *to*.
+    /// button). The label shows the mode you'll switch *to*. Sized to the shared map-control size so
+    /// it reads as a peer of the right-hand capsule, not a dominant standalone button.
     private var dimensionButton: some View {
         Button {
             withAnimation(Theme.spring) { is3D.toggle() }
         } label: {
             Text(is3D ? "2D" : "3D")
-                .font(.system(size: 17, weight: .bold, design: .rounded))
+                .font(.system(size: 15, weight: .bold, design: .rounded))
                 .foregroundStyle(is3D ? Theme.accentOnGlass : .primary)
-                .frame(width: 54, height: 54)
+                .frame(width: MapControl.size, height: MapControl.size)
                 .glassCircle()
         }
         .buttonStyle(.plain)
         .accessibilityLabel(is3D ? "Switch to 2D" : "Switch to 3D")
     }
 
+    /// The right-side map controls as one narrow vertical glass capsule (Apple Maps): a map-type
+    /// button that opens the Map Type sheet, and the current-location button. The extra Etch options
+    /// (start pins, frame-to-fit) live inside the Map Type sheet so this capsule stays the same clean
+    /// two-control pill Apple uses.
     private var actionCapsule: some View {
         VStack(spacing: 0) {
-            // Globe opens the extra map options; once open it becomes a close button.
-            capsuleButton(systemName: mapOptionsExpanded ? "xmark" : "globe.americas.fill", isActive: mapOptionsExpanded) {
-                withAnimation(Theme.spring) {
-                    mapOptionsExpanded.toggle()
-                    if !mapOptionsExpanded { showMapStyleMenu = false }
-                }
+            capsuleButton(systemName: "map", isActive: showMapStyleMenu) {
+                withAnimation(Theme.spring) { showMapStyleMenu.toggle() }
             }
-            if mapOptionsExpanded {
-                capsuleDivider
-                // Map-type picker — opens the base-map style dropdown.
-                capsuleButton(systemName: "map", isActive: showMapStyleMenu) {
-                    withAnimation(Theme.spring) { showMapStyleMenu.toggle() }
-                }
-                if !showLocations {
-                    capsuleDivider
-                    // Show/hide the start pins — hiding leaves just the mapped route lines.
-                    capsuleButton(systemName: showPins ? "mappin.and.ellipse" : "mappin.slash") {
-                        withAnimation(Theme.spring) { showPins.toggle() }
-                    }
-                }
-                capsuleDivider
-                // Recenter: fit the shown runs, or reframe the Locations overlay.
-                capsuleButton(systemName: "arrow.up.left.and.arrow.down.right") {
-                    if showLocations {
-                        selectedStateName = nil
-                        selectedPlaceLabel = nil
-                        locationRecenterToken += 1
-                    } else {
-                        fitShownRuns()
-                    }
-                }
-            }
+            .accessibilityLabel("Map type")
+
             capsuleDivider
-            // Current location — always shown.
+
             capsuleButton(systemName: "location.fill") { appModel.recenterOnUser() }
+                .accessibilityLabel("Current location")
         }
-        .glassBackground(cornerRadius: 26)
+        .glassBackground(cornerRadius: MapControl.size / 2)
     }
 
     /// One flat icon button inside the action capsule (the capsule itself carries the glass).
     private func capsuleButton(systemName: String, isActive: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 19, weight: .medium))
+                .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(isActive ? Theme.accentOnGlass : .primary)
-                .frame(width: 54, height: 52)
+                .frame(width: MapControl.size, height: MapControl.size)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -1081,7 +1057,7 @@ struct HomeView: View {
     /// A hairline between capsule buttons. A *fixed* width keeps it from stretching the capsule to
     /// full screen width (an unconstrained Rectangle expands to infinity).
     private var capsuleDivider: some View {
-        Rectangle().fill(.primary.opacity(0.12)).frame(width: 34, height: 0.75)
+        Rectangle().fill(.primary.opacity(0.12)).frame(width: MapControl.size - 18, height: 0.5)
     }
 
     /// The Apple Maps-style "Map Type" picker: a dimmed backdrop with a rounded-top card rising
@@ -1126,6 +1102,8 @@ struct HomeView: View {
                 .padding(.horizontal, 2)
                 .padding(.bottom, 2)
             }
+
+            mapOptionsSection
         }
         .padding(.horizontal, 20)
         .padding(.top, 18)
@@ -1140,6 +1118,48 @@ struct HomeView: View {
                 .strokeBorder(.separator.opacity(0.3), lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.18), radius: 20, y: -2)
+    }
+
+    /// Display options that used to hang off the floating capsule — now grouped in the Map Type
+    /// sheet (Apple keeps map toggles here), so the on-map controls stay a clean two-button pill.
+    /// Start pins toggle for the route map; a frame-to-fit action that reframes the shown runs (or
+    /// resets the Locations overview).
+    @ViewBuilder private var mapOptionsSection: some View {
+        VStack(spacing: 0) {
+            if !showLocations {
+                Toggle(isOn: $showPins.animation(Theme.gentle)) {
+                    Label("Show start pins", systemImage: showPins ? "mappin.and.ellipse" : "mappin.slash")
+                        .font(.system(.subheadline, design: .rounded).weight(.medium))
+                }
+                .tint(Theme.accent)
+                .frame(minHeight: 44)
+
+                Divider()
+            }
+
+            Button {
+                withAnimation(Theme.spring) { showMapStyleMenu = false }
+                if showLocations {
+                    selectedStateName = nil
+                    selectedPlaceLabel = nil
+                    locationRecenterToken += 1
+                } else {
+                    fitShownRuns()
+                }
+            } label: {
+                Label(showLocations ? "Reset view" : "Frame all activities",
+                      systemImage: "arrow.up.left.and.arrow.down.right")
+                    .font(.system(.subheadline, design: .rounded).weight(.medium))
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .background(.ultraThinMaterial, in: .rect(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.separator.opacity(0.25), lineWidth: 0.5))
     }
 
     private func mapModeTile(_ style: MapStyleOption) -> some View {

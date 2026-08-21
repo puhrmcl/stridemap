@@ -244,13 +244,24 @@ struct MapSearchSheet: View {
         HStack(spacing: 10) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(size: 17, weight: .regular))
                     .foregroundStyle(.secondary)
                 TextField("Search and explore", text: $query)
+                    .font(.system(size: 17))
                     .focused($searchFocused)
                     .submitLabel(.search)
                     .autocorrectionDisabled()
-                if !query.isEmpty {
+                if query.isEmpty {
+                    // Apple's search bar carries a mic at the trailing edge; tapping it focuses the
+                    // field to start a search (no dictation backend yet).
+                    Button { searchFocused = true } label: {
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 15, weight: .regular))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Search")
+                } else {
                     Button { query = "" } label: {
                         Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
                     }

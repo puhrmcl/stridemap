@@ -1,5 +1,16 @@
 import SwiftUI
 
+/// The shared geometry system for the floating map controls, so the 3D button, the right-side
+/// map-type / location capsule, and any future control read as one Apple Maps-style family rather
+/// than a set of independently-sized buttons. One number drives them all: the control diameter sets
+/// the capsule width and its corner radius (radius = size / 2 → true semicircular caps).
+enum MapControl {
+    /// The diameter of a single control button — tuned to Apple Maps' compact floating controls.
+    static let size: CGFloat = 46
+    /// Inset of the control group from the screen edges, matching the reference's tight margins.
+    static let edgeInset: CGFloat = 14
+}
+
 /// A floating, frosted-glass container used for every overlay control on the map.
 /// Uses the native iOS 26 Liquid Glass effect where available, degrading gracefully.
 struct GlassContainer<Content: View>: View {
