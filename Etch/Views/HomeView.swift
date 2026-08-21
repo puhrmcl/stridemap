@@ -450,20 +450,23 @@ struct HomeView: View {
     // MARK: Top — totals + mode toggles
 
     private var topBar: some View {
-        // Leading-aligned (Apple Maps style): the pill sits top-left, its dropdowns drop straight
-        // beneath it, and the Studio-first close button leads the row in-flow.
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                if isMapPopup {
-                    GlassIconButton(systemName: "xmark") { dismiss() }
-                }
+        // The pill is centred in the screen (its fixed size keeps the layout steady); its dropdowns
+        // drop straight beneath it, centred to match. The Studio-first close button and the sync
+        // indicator float at the row's edges without shifting the pill.
+        VStack(alignment: .center, spacing: 8) {
+            ZStack {
                 totalsPill
-                Spacer(minLength: 8)
-                if sync.isSyncing {
-                    GlassContainer(padding: 10, cornerRadius: 18) {
-                        HStack(spacing: 6) {
-                            ProgressView().controlSize(.mini)
-                            Text("Syncing").font(.caption.weight(.medium))
+                HStack(spacing: 8) {
+                    if isMapPopup {
+                        GlassIconButton(systemName: "xmark") { dismiss() }
+                    }
+                    Spacer(minLength: 8)
+                    if sync.isSyncing {
+                        GlassContainer(padding: 10, cornerRadius: 18) {
+                            HStack(spacing: 6) {
+                                ProgressView().controlSize(.mini)
+                                Text("Syncing").font(.caption.weight(.medium))
+                            }
                         }
                     }
                 }
@@ -540,7 +543,10 @@ struct HomeView: View {
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .frame(maxWidth: 130, alignment: .leading)
+                    // A fixed width so the pill is one consistent size across every view name
+                    // (Everything / Distance / PRs / Places …) — it never grows or shrinks, keeping
+                    // the pill and its dropdowns a steady size. Sized to fit the longest label.
+                    .frame(width: 92, alignment: .leading)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(Theme.accentOnGlass)
@@ -605,7 +611,7 @@ struct HomeView: View {
         VStack(spacing: 0) {
             ForEach(Array(activityScopeOptions.enumerated()), id: \.element) { index, scope in
                 if index > 0 { dropdownDivider }
-                modeRow(label: scope == .all ? "All Types" : scope.label,
+                modeRow(label: scope == .all ? "All" : scope.label,
                         symbol: scope.icon,
                         selected: appModel.activityScope == scope) {
                     applyScope(scope)
@@ -726,9 +732,9 @@ struct HomeView: View {
     /// Recent / PRs / Races / Favorites are activity-neutral and read the same everywhere.
     private func modeLabel(_ mode: RunFilter.Mode) -> String {
         switch mode {
-        case .all:       return effectiveScope == .all ? "All Activities" : "All \(scopeNounPlural)"
+        case .all:       return "Everything"
         case .recent:    return "Recent"
-        case .long:      return effectiveScope == .all ? "Long Distance" : "Long \(scopeNounPlural)"
+        case .long:      return "Distance"
         case .prs:       return "PRs"
         case .races:     return "Races"
         case .favorites: return "Favorites"
