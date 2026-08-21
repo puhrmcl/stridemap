@@ -62,6 +62,8 @@ final class SavedPoster {
     var mapLayoutRaw: String = "statement"
     /// How many photos the map Photo layout shows (1–3).
     var mapPhotoCount: Int = 1
+    /// Poster text size multiplier (1 = the designed size).
+    var textScale: Double = 1
 
     /// A bare poster for a run; `PosterConfig.write(into:run:)` fills in the recipe.
     convenience init(runID: UUID, runName: String) {

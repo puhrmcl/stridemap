@@ -54,6 +54,8 @@ enum StudioRenderer {
         var mapLayoutRaw: String = MapLayout.statement.rawValue
         /// Map Photo layout: how many photos to show (1–3).
         var mapPhotoCount: Int = 1
+        /// Multiplies every text point size on the poster (user-adjustable). 1 = designed size.
+        var textScale: CGFloat = 1
     }
 
     /// Largest long edge (px) rendered on-device, to stay within memory limits (~18–20″ at
@@ -147,7 +149,8 @@ enum StudioRenderer {
             locationOverride: request.locationOverride,
             galleryDesignRaw: request.galleryDesignRaw,
             mapLayoutRaw: request.mapLayoutRaw,
-            mapPhotoCount: request.mapPhotoCount
+            mapPhotoCount: request.mapPhotoCount,
+            textScale: request.textScale
         )
         let renderer = ImageRenderer(content: composition)
         renderer.scale = scale

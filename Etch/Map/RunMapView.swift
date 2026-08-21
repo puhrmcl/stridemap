@@ -128,9 +128,22 @@ struct RunMapView: UIViewRepresentable {
             context.coordinator.resetOverlays()
         }
 
-        context.coordinator.updateOverlays(with: runs, fadeWithAge: fadeWithAge)
+        // Rebuild overlays/pins/clusters only when the run set (or its styling inputs) actually
+        // changed. A search-sheet drag re-evaluates the parent body ~60×/s with an identical run
+        // list; skipping the rebuild there keeps the map from re-diffing hundreds of routes each
+        // frame. Selection is always applied (it's cheap and must track taps).
+        var hasher = Hasher()
+        hasher.combine(runs.count)
+        for run in runs { hasher.combine(run.id) }
+        hasher.combine(milestoneRunIDs.count)
+        hasher.combine(fadeWithAge)
+        let signature = hasher.finalize()
+        if renderChanged || context.coordinator.lastRunsSignature != signature {
+            context.coordinator.lastRunsSignature = signature
+            context.coordinator.updateOverlays(with: runs, fadeWithAge: fadeWithAge)
+            context.coordinator.rebuildClusters(force: false)
+        }
         context.coordinator.updateSelection(selectedRunID)
-        context.coordinator.rebuildClusters(force: false)
 
         // On entering history, frame everything so the whole footprint is in view. Otherwise,
         // the first time we have runs to show, frame the map to them so it opens centered on
@@ -163,6 +176,10 @@ struct RunMapView: UIViewRepresentable {
         var appliedIs3D: Bool?
         /// Whether the map has framed the runs once on first appearance.
         var didInitialFrame = false
+        /// A cheap signature of the last-rendered run set, so pure re-layouts (e.g. the search sheet
+        /// dragging, which re-evaluates the parent's body every frame) skip the overlay/cluster
+        /// rebuild when the runs haven't actually changed — keeping the map buttery during drags.
+        var lastRunsSignature: Int?
 
         /// run id → overlay, so we can diff efficiently between updates.
         private var overlaysByID: [UUID: RunPolyline] = [:]

@@ -543,8 +543,8 @@ struct MapSearchSheet: View {
     private func snap(to target: CGFloat) {
         snappedDetent = target   // triggers a soft settle haptic when the detent actually changes
         let animation: Animation = reduceMotion
-            ? .easeOut(duration: 0.2)
-            : .spring(response: 0.34, dampingFraction: 0.86)
+            ? .easeOut(duration: 0.18)
+            : .spring(response: 0.3, dampingFraction: 0.86)
         withAnimation(animation) { height = target }
     }
 }

@@ -194,6 +194,13 @@ struct StudioComposition: View {
     var mapLayoutRaw: String = MapLayout.statement.rawValue
     /// How many photos the map Photo layout shows (1–3).
     var mapPhotoCount: Int = 1
+    /// Multiplies every text (and glyph) point size on the poster, so the user can dial the type
+    /// larger or smaller. 1 = the designed size.
+    var textScale: CGFloat = 1
+
+    /// A font point size scaled by `textScale` — every `.system(size:)` on the poster runs through
+    /// this so one control resizes the whole composition's type together.
+    private func ts(_ size: CGFloat) -> CGFloat { size * textScale }
 
     static let width: CGFloat = 1000
     static let artHeight: CGFloat = 1000
@@ -381,7 +388,7 @@ struct StudioComposition: View {
         VStack(spacing: 14) {
             if showTitle {
                 Text(titleText.uppercased())
-                    .font(.system(size: 44, weight: titleFont.titleWeight, design: titleFont.design))
+                    .font(.system(size: ts(44), weight: titleFont.titleWeight, design: titleFont.design))
                     .tracking(8 + titleFont.extraTracking)
                     .foregroundStyle(inkColor)
                     .lineLimit(2)
@@ -390,7 +397,7 @@ struct StudioComposition: View {
             }
             if !placeLine.isEmpty {
                 Text(placeLine.uppercased())
-                    .font(.system(size: 18, weight: .regular, design: titleFont.design))
+                    .font(.system(size: ts(18), weight: .regular, design: titleFont.design))
                     .tracking(5)
                     .foregroundStyle(subtleColor)
             }
@@ -470,10 +477,10 @@ struct StudioComposition: View {
             VStack(spacing: 0) {
                 HStack(alignment: .top) {
                     Text(dateText.uppercased())
-                        .font(.system(size: 15, weight: .semibold)).tracking(3)
+                        .font(.system(size: ts(15), weight: .semibold)).tracking(3)
                     Spacer()
                     if !coordsText.isEmpty {
-                        Text(coordsText).font(.system(size: 15, weight: .semibold)).tracking(2)
+                        Text(coordsText).font(.system(size: ts(15), weight: .semibold)).tracking(2)
                     }
                 }
                 .foregroundStyle(.white.opacity(0.9))
@@ -481,12 +488,12 @@ struct StudioComposition: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(titleText.uppercased())
-                            .font(.system(size: 60, weight: .heavy))
+                            .font(.system(size: ts(60), weight: .heavy))
                             .foregroundStyle(.white)
                             .lineLimit(2).minimumScaleFactor(0.5)
                         if !placeLine.isEmpty {
                             Text(placeLine.uppercased())
-                                .font(.system(size: 16, weight: .semibold)).tracking(4)
+                                .font(.system(size: ts(16), weight: .semibold)).tracking(4)
                                 .foregroundStyle(.white.opacity(0.85))
                         }
                     }
@@ -518,9 +525,9 @@ struct StudioComposition: View {
 
     private func keepsakeStat(_ metric: StatMetric, _ value: String) -> some View {
         VStack(spacing: 6) {
-            Image(systemName: metric.icon).font(.system(size: 15, weight: .semibold))
-            Text(value).font(.system(size: 26, weight: .bold)).minimumScaleFactor(0.5).lineLimit(1)
-            Text(metric.label).font(.system(size: 12, weight: .semibold)).tracking(1.5)
+            Image(systemName: metric.icon).font(.system(size: ts(15), weight: .semibold))
+            Text(value).font(.system(size: ts(26), weight: .bold)).minimumScaleFactor(0.5).lineLimit(1)
+            Text(metric.label).font(.system(size: ts(12), weight: .semibold)).tracking(1.5)
         }
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity)
@@ -535,7 +542,7 @@ struct StudioComposition: View {
     private var elevationProfileContent: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("ELEVATION  ·  \(UnitSystem.current.label.uppercased())")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: ts(15), weight: .semibold))
                 .tracking(3)
                 .foregroundStyle(subtleColor)
 
@@ -602,7 +609,7 @@ struct StudioComposition: View {
                 routeArt.padding(130)
             } else {
                 Image(systemName: "figure.run")
-                    .font(.system(size: 130, weight: .semibold))
+                    .font(.system(size: ts(130), weight: .semibold))
                     .foregroundStyle(subtleColor)
             }
         }
@@ -623,7 +630,7 @@ struct StudioComposition: View {
             let heroW = (w - g) * 0.62, sideW = (w - g) * 0.38
             if photos.isEmpty {
                 Image(systemName: "photo")
-                    .font(.system(size: 120, weight: .semibold))
+                    .font(.system(size: ts(120), weight: .semibold))
                     .foregroundStyle(subtleColor)
                     .frame(width: w, height: h)
             } else if photos.count == 1 {
@@ -772,7 +779,7 @@ struct StudioComposition: View {
                 .frame(height: 360)
                 .overlay(
                     Image(systemName: "photo")
-                        .font(.system(size: 88, weight: .semibold))
+                        .font(.system(size: ts(88), weight: .semibold))
                         .foregroundStyle(subtleColor)
                 )
         } else {
@@ -878,15 +885,15 @@ struct StudioComposition: View {
     private func gridStat(_ metric: StatMetric, _ value: String) -> some View {
         VStack(spacing: 6) {
             Image(systemName: metric.icon)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: ts(15), weight: .semibold))
                 .foregroundStyle(accentColor)
             Text(value)
-                .font(.system(size: 26, weight: .bold))
+                .font(.system(size: ts(26), weight: .bold))
                 .foregroundStyle(inkColor)
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)
             Text(metric.label)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: ts(13), weight: .semibold))
                 .tracking(1.5)
                 .foregroundStyle(subtleColor)
                 .lineLimit(1)
@@ -911,7 +918,7 @@ struct StudioComposition: View {
     private func title(leading: Bool) -> some View {
         if showTitle {
             Text(titleText.uppercased())
-                .font(.system(size: 26, weight: titleFont.titleWeight, design: titleFont.design))
+                .font(.system(size: ts(26), weight: titleFont.titleWeight, design: titleFont.design))
                 .tracking(4 + titleFont.extraTracking)
                 .foregroundStyle(subtleColor)
                 .lineLimit(2)
@@ -923,13 +930,13 @@ struct StudioComposition: View {
     private func heroBlock(leading: Bool) -> some View {
         VStack(alignment: leading ? .leading : .center, spacing: 6) {
             Text(heroValue)
-                .font(.system(size: 150, weight: .bold))
+                .font(.system(size: ts(150), weight: .bold))
                 .tracking(-2)
                 .foregroundStyle(inkColor)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
             Text(heroCaption)
-                .font(.system(size: 24, weight: .semibold))
+                .font(.system(size: ts(24), weight: .semibold))
                 .tracking(8)
                 .foregroundStyle(accentColor)
         }
@@ -965,12 +972,12 @@ struct StudioComposition: View {
     private func stat(_ label: String, _ value: String) -> some View {
         VStack(spacing: 8) {
             Text(value)
-                .font(.system(size: 32, weight: .bold))
+                .font(.system(size: ts(32), weight: .bold))
                 .foregroundStyle(inkColor)
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
             Text(label)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: ts(15), weight: .semibold))
                 .tracking(2)
                 .foregroundStyle(subtleColor)
         }
@@ -981,16 +988,16 @@ struct StudioComposition: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Image(systemName: metric.icon)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: ts(13), weight: .semibold))
                     .foregroundStyle(accentColor)
                 Text(value)
-                    .font(.system(size: 30, weight: .bold))
+                    .font(.system(size: ts(30), weight: .bold))
                     .foregroundStyle(inkColor)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             }
             Text(metric.label)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: ts(14), weight: .semibold))
                 .tracking(2)
                 .foregroundStyle(subtleColor)
         }
@@ -1002,7 +1009,7 @@ struct StudioComposition: View {
 
     private func weatherText(_ weather: String, leading: Bool) -> some View {
         Text(weather.uppercased())
-            .font(.system(size: 19, weight: .medium))
+            .font(.system(size: ts(19), weight: .medium))
             .tracking(4)
             .foregroundStyle(subtleColor)
             .frame(maxWidth: .infinity, alignment: leading ? .leading : .center)
@@ -1012,7 +1019,7 @@ struct StudioComposition: View {
     private func metaLine(_ parts: [String], leading: Bool) -> some View {
         let text = parts.filter { !$0.isEmpty }.joined(separator: "  ·  ")
         return Text(text.uppercased())
-            .font(.system(size: 19, weight: .semibold))
+            .font(.system(size: ts(19), weight: .semibold))
             .tracking(3)
             .foregroundStyle(subtleColor)
             .multilineTextAlignment(leading ? .leading : .center)

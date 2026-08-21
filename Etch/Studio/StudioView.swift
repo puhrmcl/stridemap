@@ -374,6 +374,7 @@ struct StudioView: View {
                        placeholder: derivedPlace)
         textFieldRow("Date", text: $config.date, placeholder: Format.date(run.startDate))
         fontPicker
+        textSizePicker
         colorRow("Text", selection: $config.textColor, swatches: textSwatches, fallback: config.edition.ink)
         colorRow("Panel", selection: $config.groundColor, swatches: groundSwatches, fallback: config.edition.ground)
         colorRow("Path", selection: $config.routeColor, swatches: pathSwatches, fallback: config.edition.route)
@@ -381,6 +382,24 @@ struct StudioView: View {
 
     private var derivedPlace: String {
         [run.city, run.state].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
+    }
+
+    /// Scales all of the poster's type up or down together (Small … XL).
+    private var textSizePicker: some View {
+        HStack(spacing: 10) {
+            Text("Size")
+                .font(.system(.caption, design: .rounded).weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 62, alignment: .leading)
+            Picker("Text size", selection: $config.textScale) {
+                Text("S").tag(CGFloat(0.85))
+                Text("M").tag(CGFloat(1.0))
+                Text("L").tag(CGFloat(1.15))
+                Text("XL").tag(CGFloat(1.3))
+            }
+            .pickerStyle(.segmented)
+        }
+        .frame(maxWidth: 340)
     }
 
     private var fontPicker: some View {
@@ -733,6 +752,7 @@ struct StudioView: View {
     private var renderKey: String {
         [config.family.rawValue, config.mapStyle.rawValue,
          config.mapLayout.rawValue, "\(config.mapPhotoCount)", "\(run.photoReferences.count)",
+         "\(config.textScale)",
          config.galleryDesign.rawValue,
          config.resolvedFrames.map(\.rawValue).joined(separator: ","),
          "\(config.monochrome)", config.orientation.rawValue, config.dataPlacement.rawValue,

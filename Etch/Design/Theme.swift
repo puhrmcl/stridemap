@@ -67,8 +67,11 @@ enum Theme {
     static let controlRadius: CGFloat = 22
     static let cardRadius: CGFloat = 28
 
-    static let spring = Animation.spring(response: 0.45, dampingFraction: 0.85)
-    static let gentle = Animation.easeInOut(duration: 0.35)
+    /// Snappy, Apple-Maps-like spring for chrome (dropdowns, capsules, map-option toggles) — a
+    /// short response so controls feel immediate rather than lagging behind the tap.
+    static let spring = Animation.spring(response: 0.3, dampingFraction: 0.86)
+    /// Quick ease for view/mode changes — fast enough to feel responsive, still smooth.
+    static let gentle = Animation.easeInOut(duration: 0.2)
 }
 
 extension Color {
