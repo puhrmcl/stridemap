@@ -153,9 +153,11 @@ struct HomeView: View {
     /// Runs that count as milestones — their map pins get the gold trophy.
     private var milestoneRunIDs: Set<UUID> { stats.milestoneRunIDs }
 
-    /// Runs passing the active filter.
+    /// Runs passing the active filter. The PRs view shows the runs that currently *hold* an
+    /// achievement (the milestone set — furthest, fastest, highest climb, and each distance PR),
+    /// i.e. the same activities marked with a gold pin, rather than the full distance progression.
     private var visibleRuns: [Run] {
-        let prs = appModel.filter.mode == .prs ? stats.prRunIDs : []
+        let prs = appModel.filter.mode == .prs ? stats.milestoneRunIDs : []
         return scopedRuns.filter { appModel.filter.matches($0, isPR: prs.contains($0.id)) }
     }
 
@@ -494,7 +496,7 @@ struct HomeView: View {
     /// middle (tap to open the map-view dropdown), and the filter button on the right (opens the
     /// full Filters as a bottom sheet). Each side element is sized to the totals' height.
     private var totalsPill: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 7) {
             // The activity-type selector only appears when there's more than one type to choose
             // between; with a single type the pill leads with the totals.
             if !isSingleActivity {
@@ -517,7 +519,7 @@ struct HomeView: View {
         }
         .onPreferenceChange(PillColumnHeightKey.self) { if $0 > 0 { pillColumnHeight = $0 } }
         .fixedSize(horizontal: true, vertical: false)
-        .padding(.horizontal, 11)
+        .padding(.horizontal, 8)
         .padding(.vertical, 8)
         .glassBackground(cornerRadius: 17)
         .background(
@@ -535,9 +537,9 @@ struct HomeView: View {
         Button {
             withAnimation(Theme.spring) { showModeMenu.toggle(); showTypeMenu = false }
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 Image(systemName: currentViewSymbol)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.accentOnGlass)
                 Text(currentViewLabel)
                     .font(.system(.subheadline, design: .rounded).weight(.semibold))
@@ -546,9 +548,9 @@ struct HomeView: View {
                     .truncationMode(.tail)
                     // A fixed width so the pill is one consistent size across every view name
                     // (All / Distance / PRs / Places …) — it never grows or shrinks, keeping the
-                    // pill and its dropdowns a steady size. Sized to fit the longest label
-                    // ("Favorites") and no wider, so the pill stays narrow.
-                    .frame(width: 80, alignment: .leading)
+                    // pill and its dropdowns a steady size. Sized to just fit the longest label
+                    // ("Favorites"), so the pill stays as narrow as possible.
+                    .frame(width: 74, alignment: .leading)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(Theme.accentOnGlass)
@@ -591,7 +593,7 @@ struct HomeView: View {
     /// (it would just duplicate the activity-type icon on the pill's left).
     private var metricsRow: some View {
         // Align the two numbers on one baseline; each unit label stacks beneath its own number.
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
+        HStack(alignment: .firstTextBaseline, spacing: 7) {
             metric(
                 value: shownStats.totalRuns.formatted(),
                 unit: effectiveScope.countNoun
