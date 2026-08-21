@@ -409,8 +409,8 @@ struct StudioComposition: View {
     private var galleryStatRow: some View {
         HStack(alignment: .top, spacing: 0) {
             ForEach(Array(resolvedStats.enumerated()), id: \.offset) { index, item in
-                if index > 0 { statDivider }
-                stat(item.metric.label, item.value)
+                if statDividerShown(resolvedStats, index) { statDivider }
+                stat(item.metric, item.value)
             }
         }
         .frame(maxWidth: 680)
@@ -507,7 +507,7 @@ struct StudioComposition: View {
                     Rectangle().fill(.white.opacity(0.6)).frame(height: 1)
                     HStack(alignment: .top, spacing: 0) {
                         ForEach(Array(fourStats.enumerated()), id: \.offset) { index, item in
-                            if index > 0 {
+                            if statDividerShown(fourStats, index) {
                                 Rectangle().fill(.white.opacity(0.4)).frame(width: 1, height: 40)
                             }
                             keepsakeStat(item.metric, item.value)
@@ -523,14 +523,19 @@ struct StudioComposition: View {
         .clipped()
     }
 
+    @ViewBuilder
     private func keepsakeStat(_ metric: StatMetric, _ value: String) -> some View {
-        VStack(spacing: 6) {
-            Image(systemName: metric.icon).font(.system(size: ts(15), weight: .semibold))
-            Text(value).font(.system(size: ts(26), weight: .bold)).minimumScaleFactor(0.5).lineLimit(1)
-            Text(metric.label).font(.system(size: ts(12), weight: .semibold)).tracking(1.5)
+        if metric == .none {
+            Color.clear.frame(maxWidth: .infinity)   // blank column
+        } else {
+            VStack(spacing: 6) {
+                Image(systemName: metric.icon).font(.system(size: ts(15), weight: .semibold))
+                Text(value).font(.system(size: ts(26), weight: .bold)).minimumScaleFactor(0.5).lineLimit(1)
+                Text(metric.label).font(.system(size: ts(12), weight: .semibold)).tracking(1.5)
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
         }
-        .foregroundStyle(.white)
-        .frame(maxWidth: .infinity)
     }
 
     /// Whole distance units (miles/km) for the profile's markers.
@@ -841,7 +846,7 @@ struct StudioComposition: View {
             Rectangle().fill(subtleColor.opacity(0.4)).frame(width: 90, height: 2).padding(.vertical, 4)
             HStack(alignment: .top, spacing: 0) {
                 ForEach(Array(fourStats.enumerated()), id: \.offset) { index, item in
-                    if index > 0 { statDivider }
+                    if statDividerShown(fourStats, index) { statDivider }
                     gridStat(item.metric, item.value)
                 }
             }
@@ -859,7 +864,7 @@ struct StudioComposition: View {
             Rectangle().fill(subtleColor.opacity(0.4)).frame(width: 90, height: 2).padding(.vertical, 4)
             HStack(alignment: .top, spacing: 0) {
                 ForEach(Array(fourStats.enumerated()), id: \.offset) { index, item in
-                    if index > 0 { statDivider }
+                    if statDividerShown(fourStats, index) { statDivider }
                     gridStat(item.metric, item.value)
                 }
             }
@@ -873,6 +878,13 @@ struct StudioComposition: View {
         [(metric: heroMetric, value: metricValue(heroMetric) ?? "—")] + resolvedStats
     }
 
+    /// Whether to draw a divider before the column at `index` in a stat row: only between two real
+    /// (non-blank) columns, so a blank `.none` slot reads as genuine empty space rather than an
+    /// empty box hemmed in by dividers.
+    private func statDividerShown(_ items: [(metric: StatMetric, value: String)], _ index: Int) -> Bool {
+        index > 0 && items[index].metric != .none && items[index - 1].metric != .none
+    }
+
     /// Resolves a metric's value, sourcing start elevation from the fetched terrain profile.
     private func metricValue(_ metric: StatMetric) -> String? {
         if metric == .startElevation {
@@ -882,24 +894,29 @@ struct StudioComposition: View {
         return metric.value(for: run)
     }
 
+    @ViewBuilder
     private func gridStat(_ metric: StatMetric, _ value: String) -> some View {
-        VStack(spacing: 6) {
-            Image(systemName: metric.icon)
-                .font(.system(size: ts(15), weight: .semibold))
-                .foregroundStyle(accentColor)
-            Text(value)
-                .font(.system(size: ts(26), weight: .bold))
-                .foregroundStyle(inkColor)
-                .minimumScaleFactor(0.5)
-                .lineLimit(1)
-            Text(metric.label)
-                .font(.system(size: ts(13), weight: .semibold))
-                .tracking(1.5)
-                .foregroundStyle(subtleColor)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+        if metric == .none {
+            Color.clear.frame(maxWidth: .infinity)   // blank column, keeps its share of the row
+        } else {
+            VStack(spacing: 6) {
+                Image(systemName: metric.icon)
+                    .font(.system(size: ts(15), weight: .semibold))
+                    .foregroundStyle(accentColor)
+                Text(value)
+                    .font(.system(size: ts(26), weight: .bold))
+                    .foregroundStyle(inkColor)
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(1)
+                Text(metric.label)
+                    .font(.system(size: ts(13), weight: .semibold))
+                    .tracking(1.5)
+                    .foregroundStyle(subtleColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity)
     }
 
     // MARK: Footer pieces
@@ -943,15 +960,18 @@ struct StudioComposition: View {
         .frame(maxWidth: .infinity, alignment: leading ? .leading : .center)
     }
 
-    /// The headline value. Distance keeps the signature bare number ("26.22"); any other chosen
-    /// metric shows its full formatted value.
+    /// The headline value. None leaves it blank; Distance keeps the signature bare number ("26.22");
+    /// any other chosen metric shows its full formatted value.
     private var heroValue: String {
-        heroMetric == .distance ? heroNumber : (metricValue(heroMetric) ?? "—")
+        if heroMetric == .none { return "" }
+        return heroMetric == .distance ? heroNumber : (metricValue(heroMetric) ?? "—")
     }
 
-    /// The caption beneath the headline. Distance shows the unit; others show the metric's label.
+    /// The caption beneath the headline. None leaves it blank; Distance shows the unit; others show
+    /// the metric's label.
     private var heroCaption: String {
-        heroMetric == .distance ? UnitSystem.current.label.uppercased() : heroMetric.label
+        if heroMetric == .none { return "" }
+        return heroMetric == .distance ? UnitSystem.current.label.uppercased() : heroMetric.label
     }
 
     /// The slot metrics resolved to (metric, value) for this run, unavailable ones showing "—".
@@ -963,43 +983,53 @@ struct StudioComposition: View {
     private var statRow: some View {
         HStack(alignment: .top, spacing: 0) {
             ForEach(Array(resolvedStats.enumerated()), id: \.offset) { index, item in
-                if index > 0 { statDivider }
-                stat(item.metric.label, item.value)
+                if statDividerShown(resolvedStats, index) { statDivider }
+                stat(item.metric, item.value)
             }
         }
     }
 
-    private func stat(_ label: String, _ value: String) -> some View {
-        VStack(spacing: 8) {
-            Text(value)
-                .font(.system(size: ts(32), weight: .bold))
-                .foregroundStyle(inkColor)
-                .minimumScaleFactor(0.6)
-                .lineLimit(1)
-            Text(label)
-                .font(.system(size: ts(15), weight: .semibold))
-                .tracking(2)
-                .foregroundStyle(subtleColor)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private func editorialStat(_ metric: StatMetric, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Image(systemName: metric.icon)
-                    .font(.system(size: ts(13), weight: .semibold))
-                    .foregroundStyle(accentColor)
+    @ViewBuilder
+    private func stat(_ metric: StatMetric, _ value: String) -> some View {
+        if metric == .none {
+            Color.clear.frame(maxWidth: .infinity)   // blank column
+        } else {
+            VStack(spacing: 8) {
                 Text(value)
-                    .font(.system(size: ts(30), weight: .bold))
+                    .font(.system(size: ts(32), weight: .bold))
                     .foregroundStyle(inkColor)
-                    .lineLimit(1)
                     .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+                Text(metric.label)
+                    .font(.system(size: ts(15), weight: .semibold))
+                    .tracking(2)
+                    .foregroundStyle(subtleColor)
             }
-            Text(metric.label)
-                .font(.system(size: ts(14), weight: .semibold))
-                .tracking(2)
-                .foregroundStyle(subtleColor)
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    @ViewBuilder
+    private func editorialStat(_ metric: StatMetric, _ value: String) -> some View {
+        if metric == .none {
+            Color.clear.frame(width: ts(52), height: 1)   // a blank gap in the left-aligned row
+        } else {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: metric.icon)
+                        .font(.system(size: ts(13), weight: .semibold))
+                        .foregroundStyle(accentColor)
+                    Text(value)
+                        .font(.system(size: ts(30), weight: .bold))
+                        .foregroundStyle(inkColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                }
+                Text(metric.label)
+                    .font(.system(size: ts(14), weight: .semibold))
+                    .tracking(2)
+                    .foregroundStyle(subtleColor)
+            }
         }
     }
 

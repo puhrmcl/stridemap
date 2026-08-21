@@ -645,12 +645,12 @@ struct StudioView: View {
 
     private func slotChip(_ metric: StatMetric) -> some View {
         VStack(spacing: 2) {
-            Text(metric.value(for: run) ?? "—")
+            Text(metric == .none ? "None" : (metric.value(for: run) ?? "—"))
                 .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
+                .foregroundStyle(metric == .none ? .secondary : .primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-            Text(metric.label)
+            Text(metric == .none ? "BLANK" : metric.label)
                 .font(.system(size: 9, weight: .semibold))
                 .tracking(1)
                 .foregroundStyle(.secondary)

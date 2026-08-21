@@ -5,6 +5,9 @@ import Foundation
 /// only how to label and format themselves from a run; unavailable ones (no heart rate, etc.)
 /// report nil so the editor can grey them out.
 enum StatMetric: String, CaseIterable, Identifiable {
+    /// A deliberately empty slot — renders as blank space on the poster. Selectable for any data
+    /// point (headline or slot) so the user can leave gaps in the composition.
+    case none
     case distance, time, pace, speed, elevationGain, startElevation, avgHeartRate, calories, cadence, place, date, weather
 
     var id: String { rawValue }
@@ -12,6 +15,7 @@ enum StatMetric: String, CaseIterable, Identifiable {
     /// Wide-tracked uppercase label shown beneath the value.
     var label: String {
         switch self {
+        case .none:         return ""
         case .distance:     return "DISTANCE"
         case .time:         return "TIME"
         case .pace:         return "PACE"
@@ -31,6 +35,7 @@ enum StatMetric: String, CaseIterable, Identifiable {
     /// icon to each data point.
     var icon: String {
         switch self {
+        case .none:          return "minus"
         case .distance:      return "point.topleft.down.to.point.bottomright.curvepath"
         case .time:          return "stopwatch"
         case .pace:          return "speedometer"
@@ -49,6 +54,7 @@ enum StatMetric: String, CaseIterable, Identifiable {
     /// A short name for the picker menu.
     var menuName: String {
         switch self {
+        case .none:           return "None"
         case .speed:          return "Avg speed"
         case .elevationGain:  return "Elevation gain"
         case .startElevation: return "Start elevation"
@@ -73,6 +79,8 @@ enum StatMetric: String, CaseIterable, Identifiable {
     /// The formatted value for a run, or nil when the run has no data for this metric.
     func value(for run: Run) -> String? {
         switch self {
+        case .none:
+            return nil
         case .distance:
             return Format.distance(run.distance)
         case .time:
@@ -108,6 +116,8 @@ enum StatMetric: String, CaseIterable, Identifiable {
     }
 
     func isAvailable(for run: Run) -> Bool {
+        // The blank slot is always selectable.
+        if self == .none { return true }
         // Start elevation comes from a terrain lookup along the route, so it's available whenever
         // the run has a route.
         if self == .startElevation { return run.coordinates.count > 1 }
