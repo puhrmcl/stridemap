@@ -406,21 +406,28 @@ struct MapSearchSheet: View {
         .padding(.vertical, 2)
     }
 
-    /// A section title with a right chevron that opens the full surface (Apple's "see all").
+    /// A section title with a right chevron that opens the full surface (Apple's "see all"). Only the
+    /// title + chevron are tappable — the empty space to their right isn't, so tapping the page
+    /// background never navigates. The thumbnails below open their own specific activity.
     private func sectionHeader(_ title: String, _ surface: AppModel.Surface) -> some View {
-        Button { appModel.presentedSurface = surface } label: {
-            HStack(spacing: 5) {
-                Text(title)
-                    .font(.system(.title3, design: .rounded).weight(.bold))
-                    .foregroundStyle(.primary)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(Theme.accent)
-                Spacer(minLength: 0)
+        HStack(spacing: 0) {
+            Button {
+                searchFocused = false
+                appModel.presentedSurface = surface
+            } label: {
+                HStack(spacing: 5) {
+                    Text(title)
+                        .font(.system(.title3, design: .rounded).weight(.bold))
+                        .foregroundStyle(.primary)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Theme.accent)
+                }
+                .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            Spacer(minLength: 0)
         }
-        .buttonStyle(.plain)
     }
 
     /// The three most recent activities, with a chevron to the full Timeline.
@@ -601,11 +608,14 @@ struct MapSearchSheet: View {
                 height = min(full, max(collapsed, start - value.translation.height))
             }
             .onEnded { value in
-                guard dragStart != nil else { return }
+                guard let startHeight = dragStart else { return }
                 dragStart = nil
                 // Project a little momentum, then snap to the nearest detent.
                 let projected = height - value.predictedEndTranslation.height * 0.25 + value.translation.height * 0.25
-                let target = detents.min(by: { abs($0 - projected) < abs($1 - projected) }) ?? collapsed
+                var target = detents.min(by: { abs($0 - projected) < abs($1 - projected) }) ?? collapsed
+                // A swipe up from the collapsed pill only *peeks* to the partial (mid) rest — it never
+                // flings straight to full. Opening fully (with the keyboard) is what a tap does.
+                if startHeight <= collapsed + 1 && target >= full - 1 { target = mid }
                 if target <= collapsed + 1 { searchFocused = false }
                 snap(to: target)
             }
