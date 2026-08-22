@@ -132,10 +132,13 @@ final class SearchSheetContainerViewController: UIViewController {
             action: #selector(SearchSheetInteractionController.handlePan(_:))
         )
         pan.delegate = controller
-        pan.cancelsTouchesInView = false
+        // Once this pan recognizes a drag it cancels the touch under the finger, so a downward swipe
+        // that starts on a card / row / shortcut never activates it. Taps (no movement) still fire.
+        pan.cancelsTouchesInView = true
         pan.delaysTouchesBegan = false
         pan.delaysTouchesEnded = false
         sheetView.addGestureRecognizer(pan)
+        controller.sheetPan = pan
 
         controller.sheetView = sheetView
         controller.surfaceView = surfaceView
@@ -165,6 +168,7 @@ final class SearchSheetContainerViewController: UIViewController {
         // changed — never mid-drag, where the bounds are stable.
         guard bounds != lastLaidOutBounds else {
             controller.configure(full: maxHeight, mid: max(260, maxHeight * 0.5), collapsed: 62)
+            controller.attachScrollViewIfNeeded()
             return
         }
         lastLaidOutBounds = bounds
@@ -182,6 +186,9 @@ final class SearchSheetContainerViewController: UIViewController {
         borderLayer.frame = sheetView.bounds
 
         controller.configure(full: maxHeight, mid: max(260, maxHeight * 0.5), collapsed: 62)
+        // Attach to the content scroll view's pan as soon as SwiftUI has built it, so the very first
+        // content drag at full is handled (accidental-tap cancellation + immediate hand-off).
+        controller.attachScrollViewIfNeeded()
     }
 
     /// Breadth-first search for the content's main vertical scroll view (the outer `ScrollView`;
