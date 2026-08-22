@@ -25,11 +25,12 @@ final class SearchSheetInteractionController: NSObject {
 
     /// How far the collapsed pill sits in from the screen's side edges — and, matching Apple Maps,
     /// the same distance it floats above the physical bottom edge.
-    static let pillInset: CGFloat = 14
+    static let pillInset: CGFloat = 20
     /// The collapsed pill's own height (grabber + search row).
     static let pillHeight: CGFloat = 64
-    /// Corner radius of the floating pill (all four corners at rest).
-    static let pillRadius: CGFloat = 28
+    /// Corner radius of the floating pill at rest. A full capsule for the pill's height, so the
+    /// anchored bar reads as a rounded pill rather than a soft-cornered slab.
+    static let pillRadius: CGFloat = pillHeight / 2
     /// The sheet's collapsed *visible* height: the pill plus the gap it floats above the bottom.
     static var collapsedVisibleHeight: CGFloat { pillHeight + pillInset }
 

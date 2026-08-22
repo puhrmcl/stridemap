@@ -224,7 +224,7 @@ struct SearchSheetContent: View {
         // is masked to a floating pill at rest, so anything narrower gets clipped) and to give the
         // field a margin inside the pill — matching Apple Maps. Constant, so the header never
         // relayouts as the sheet moves.
-        .padding(.horizontal, 24)
+        .padding(.horizontal, 30)
         // Gap before the scroll content when expanded; a little breathing room in the collapsed pill.
         .padding(.bottom, isExpanded ? 10 : 8)
     }
