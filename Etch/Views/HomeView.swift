@@ -174,6 +174,30 @@ struct HomeView: View {
         return newest
     }
 
+    /// Everything that determines what the route map draws, as one Equatable value. A single
+    /// `.onChange` on this advances the map's content revision, so the map rebuilds its overlays
+    /// only when the drawable set truly changes — and folding it into one value keeps `HomeView`'s
+    /// body to a single extra modifier, which the SwiftUI type-checker handles far more cheaply
+    /// than several separate `.onChange` handlers.
+    private var mapContentInputs: MapContentInputs {
+        MapContentInputs(
+            filter: appModel.filter,
+            scope: appModel.activityScope,
+            runCount: allRuns.count,
+            newestEdit: runEditSignature,
+            showPins: showPins
+        )
+    }
+
+    /// The map's drawable-content inputs, compared as a whole to trigger a single revision bump.
+    private struct MapContentInputs: Equatable {
+        var filter: RunFilter
+        var scope: ActivityScope
+        var runCount: Int
+        var newestEdit: Double
+        var showPins: Bool
+    }
+
     private var stats: RunStatistics { RunStatistics(scopedRuns) }
 
     /// Runs that count as milestones — their map pins get the gold trophy.
@@ -233,7 +257,11 @@ struct HomeView: View {
         max(screenHeight * 0.5, screenHeight - topSafeArea)
     }
 
-    var body: some View {
+    /// The map layer plus the state-syncing modifiers that don't depend on the search sheet's live
+    /// height. Split out of `body` so the modifier chain is two shorter expressions rather than one
+    /// enormous one — which keeps SwiftUI's type-checker comfortably under its per-expression time
+    /// limit (a single chain this long trips "unable to type-check in reasonable time").
+    @ViewBuilder private var mapCanvas: some View {
         @Bindable var appModel = appModel
 
         Group {
@@ -325,26 +353,27 @@ struct HomeView: View {
         }
         // Applying a filter reframes the route map to the newly filtered runs.
         .onChange(of: appModel.filter) {
-            appModel.bumpMapContent()
             if !isOverviewMode { appModel.fit(visibleRuns) }
         }
         // Switching activity type reframes the route map to the newly scoped set.
         .onChange(of: appModel.activityScope) {
-            appModel.bumpMapContent()
             if !isOverviewMode { appModel.fit(visibleRuns) }
         }
-        // Bump the map's content revision on the discrete events that change what it draws —
-        // new/removed activities, a route edit or favorite toggle (same count, new `updatedAt`),
-        // or the pins toggle. The route map then rebuilds overlays/clusters only on these, never
-        // on an unrelated re-render (a sheet drag), which is the whole point of the revision.
-        .onChange(of: allRuns.count) { appModel.bumpMapContent() }
-        .onChange(of: runEditSignature) { appModel.bumpMapContent() }
-        .onChange(of: showPins) { appModel.bumpMapContent() }
+        // Advance the map's content revision on the discrete events that change what it draws —
+        // filter, scope, new/removed activities, a route edit or favorite toggle (same count, new
+        // `updatedAt`), or the pins toggle — folded into one Equatable value so a single `onChange`
+        // covers them all. The route map then rebuilds overlays/clusters only when this changes,
+        // never on an unrelated re-render (a sheet drag), which is the whole point of the revision.
+        .onChange(of: mapContentInputs) { appModel.bumpMapContent() }
         .onAppear {
             // Heal a stored scope that's since been hidden in Settings (e.g. viewing Hikes, then
             // turning hikes off) so the selector and totals never point at an unavailable type.
             if !ActivitySettings.isVisible(appModel.activityScope) { appModel.activityScope = .all }
         }
+    }
+
+    var body: some View {
+        mapCanvas
         // Controls float via safe-area insets rather than a ZStack overlay, so SwiftUI owns
         // their hit-testing and they don't compete with the map's UIKit gestures (which made
         // the buttons need several taps).
