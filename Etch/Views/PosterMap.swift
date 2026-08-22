@@ -286,6 +286,50 @@ enum PosterMap {
         }
     }
 
+    /// The map image attached when an activity is shared. Uses the route-over-map panel when the
+    /// activity has a route; otherwise — a hand-entered race, or any activity placed on the map
+    /// without a recorded track — falls back to a map of *where* it happened with the start point
+    /// marked, so a shared activity always carries a picture of its place.
+    @MainActor
+    static func sharePanel(for run: Run, size: CGSize) async -> UIImage? {
+        if run.coordinates.count > 1 {
+            return await routePanel(for: run, size: size)
+        }
+        guard let coordinate = run.startCoordinate else { return nil }
+
+        let options = MKMapSnapshotter.Options()
+        options.region = MKCoordinateRegion(
+            center: coordinate, latitudinalMeters: 1600, longitudinalMeters: 1600
+        )
+        options.size = size
+        options.scale = 2
+        options.pointOfInterestFilter = .excludingAll
+        options.traitCollection = UITraitCollection(userInterfaceStyle: .light)
+        let config = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .muted)
+        config.pointOfInterestFilter = .excludingAll
+        options.preferredConfiguration = config
+
+        let snapshotter = MKMapSnapshotter(options: options)
+        let snapshot: MKMapSnapshotter.Snapshot? = await withCheckedContinuation { continuation in
+            snapshotter.start(with: .main) { snap, _ in continuation.resume(returning: snap) }
+        }
+        guard let snapshot else { return nil }
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = options.scale
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        let bone = UIColor(Theme.Palette.bone)
+        let blue = UIColor(Theme.Palette.blue)
+
+        return renderer.image { context in
+            snapshot.image.draw(in: CGRect(origin: .zero, size: size))
+            bone.withAlphaComponent(0.18).setFill()
+            context.cgContext.fill(CGRect(origin: .zero, size: size))
+            dot(context.cgContext, at: snapshot.point(for: coordinate), fill: blue, radius: 13)
+        }
+    }
+
     /// Shared CoreImage context for the satellite desaturation pass.
     private static let ciContext = CIContext(options: nil)
 

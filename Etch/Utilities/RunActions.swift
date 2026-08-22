@@ -29,6 +29,19 @@ extension Run {
     /// True when the activity has a location that can be opened in Apple Maps.
     var hasMapLocation: Bool { startCoordinate != nil }
 
+    /// A universal Apple Maps link to where the activity happened. Opens the Maps app on Apple
+    /// platforms and maps.apple.com anywhere else, so a shared activity is one tap from the place —
+    /// and the link still works for whoever receives it.
+    var appleMapsURL: URL? {
+        guard let coordinate = startCoordinate else { return nil }
+        var components = URLComponents(string: "https://maps.apple.com/")
+        components?.queryItems = [
+            URLQueryItem(name: "ll", value: "\(coordinate.latitude),\(coordinate.longitude)"),
+            URLQueryItem(name: "q", value: name.isEmpty ? "Activity" : name)
+        ]
+        return components?.url
+    }
+
     /// The activity's start point as an Apple Maps place, tagged with the run's name.
     var mapItem: MKMapItem? {
         guard let coordinate = startCoordinate else { return nil }

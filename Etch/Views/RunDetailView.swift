@@ -136,13 +136,18 @@ struct RunDetailView: View {
                     HStack(spacing: 14) {
                         Menu {
                             Button {
-                                // Share the text summary and — when it's rendered — a PNG of the
-                                // route over a map, together in one share.
+                                // Share the text summary, a PNG of the map (the route when there is
+                                // one, otherwise the place), and an Apple Maps link the recipient can
+                                // tap to open the location — all in one share.
                                 var items: [Any] = [run.shareSummary]
                                 if let routeShareImage { items.append(routeShareImage) }
+                                if let url = run.appleMapsURL { items.append(url) }
                                 AppShare.present(items)
                             } label: {
                                 Label("Share Activity", systemImage: "square.and.arrow.up")
+                            }
+                            Button { showStudio = true } label: {
+                                Label("Create in Studio", systemImage: "photo.artframe")
                             }
                             if run.hasMapLocation {
                                 Button { run.openInAppleMaps() } label: {
@@ -172,11 +177,12 @@ struct RunDetailView: View {
                 }
             }
         }
-        // Render the route-over-map PNG in the background so it's ready to attach when the user
-        // shares. Skipped for route-less runs.
+        // Render the map PNG in the background so it's ready to attach when the user shares — the
+        // route over a map when there's a track, otherwise a map of the place it happened. Only an
+        // activity with no location at all (an unplaced indoor run) shares without a picture.
         .task(id: run.id) {
-            guard routeShareImage == nil, run.coordinates.count > 1 else { return }
-            routeShareImage = await PosterMap.routePanel(for: run, size: CGSize(width: 1000, height: 1000))
+            guard routeShareImage == nil, run.hasMapLocation || run.coordinates.count > 1 else { return }
+            routeShareImage = await PosterMap.sharePanel(for: run, size: CGSize(width: 1000, height: 1000))
         }
     }
 
