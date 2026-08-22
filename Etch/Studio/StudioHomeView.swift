@@ -99,6 +99,7 @@ struct StudioHomeView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 30) {
                             intro
+                            collectionsSection
                             if !keptPosters.isEmpty { keptSection }
                             if !milestones.isEmpty { subjectRow("Milestones", milestones) }
                             let races = mapped.filter(\.isRace)
@@ -435,6 +436,74 @@ struct StudioHomeView: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 20)
+    }
+
+    // MARK: Collections — the curated line
+
+    @State private var collectionBrowser: StudioCollection?
+
+    /// The three curated collections, offered only when the user's history can fill them — an
+    /// empty collection is a broken promise, so it simply doesn't appear.
+    @ViewBuilder private var collectionsSection: some View {
+        let counts: [(StudioCollection, Int)] = [
+            (.course, StudioCollections.courses(in: runs).count),
+            (.summit, StudioCollections.summits(in: runs).count),
+            (.archive, StudioCollections.archiveStyles(for: runs).count)
+        ].filter { $0.1 > 0 }
+
+        if !counts.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Collections")
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+                VStack(spacing: 12) {
+                    ForEach(counts, id: \.0) { collection, count in
+                        Button { collectionBrowser = collection } label: {
+                            collectionCard(collection, count: count)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+            .sheet(item: $collectionBrowser) { collection in
+                CollectionBrowserView(collection: collection, runs: runs)
+            }
+        }
+    }
+
+    /// One collection as an editorial card: ink ground, the collection's accent as an eyebrow,
+    /// the count as quiet proof. Deliberately darker than the utility cards around it — this is
+    /// the shop window, not another tool row.
+    private func collectionCard(_ collection: StudioCollection, count: Int) -> some View {
+        HStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(collection.title.uppercased())
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .tracking(2.2)
+                    .foregroundStyle(collection.accent)
+                Text(collection.descriptor)
+                    .font(.system(.subheadline, design: .rounded))
+                    .foregroundStyle(Theme.Palette.bone.opacity(0.85))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(count == 1 ? "1 piece" : "\(count) pieces")
+                    .font(.caption2)
+                    .foregroundStyle(Theme.Palette.bone.opacity(0.45))
+            }
+            Spacer(minLength: 0)
+            Image(systemName: collection.symbol)
+                .font(.system(size: 24, weight: .medium))
+                .foregroundStyle(collection.accent.opacity(0.9))
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.bold))
+                .foregroundStyle(Theme.Palette.bone.opacity(0.35))
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.Palette.ink, in: .rect(cornerRadius: 18))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .strokeBorder(collection.accent.opacity(0.25), lineWidth: 0.75)
+        )
     }
 
     // MARK: Full-map prints (the whole history as one poster)

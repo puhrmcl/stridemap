@@ -42,9 +42,11 @@ struct MapPrintView: View {
     @State private var showExport = false
     @State private var showPrints = false
 
-    init(runs: [Run], kind: MapPrintKind = .allRuns) {
+    init(runs: [Run], kind: MapPrintKind = .allRuns, artStyle: MapArtStyle = .grid) {
         self.runs = runs
         _kind = State(initialValue: kind)
+        // The Archive Collection opens Wall Art directly on a chosen style.
+        _artStyle = State(initialValue: artStyle)
     }
 
     // MARK: Places + request

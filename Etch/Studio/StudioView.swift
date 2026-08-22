@@ -57,12 +57,16 @@ struct StudioView: View {
     /// True when the last render came back nil, so the canvas can explain itself.
     @State private var renderFailed = false
 
-    init(run: Run, poster: SavedPoster? = nil) {
+    init(run: Run, poster: SavedPoster? = nil, preset: PosterConfig? = nil) {
         self.run = run
         self.existingPoster = poster
         if let poster {
             _config = State(initialValue: PosterConfig(poster: poster))
             _savedPosterID = State(initialValue: poster.id)
+        } else if let preset {
+            // A curated entry (a Studio collection) opens on its authored recipe — the piece
+            // already looks finished; the tray refines it.
+            _config = State(initialValue: preset)
         } else {
             _config = State(initialValue: PosterConfig.makeDefault(for: run))
         }
