@@ -88,7 +88,12 @@ struct StudioView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarContent }
             .overlay(alignment: .top) { savedConfirmation }
-            .sheet(isPresented: $showPrints) { PrintShopView(subjectTitle: run.name) }
+            // Hand the composed artwork to the shop so the frame mockup shows the user's own piece
+            // rather than a placeholder — the whole point of the preview.
+            .sheet(isPresented: $showPrints) {
+                PrintShopView(subjectTitle: config.title.isEmpty ? run.name : config.title,
+                              artwork: rendered)
+            }
             .sheet(isPresented: $showExport) { StudioExportSheet(request: config.request(for: run)) }
             .sheet(isPresented: $showPhotoPicker) {
                 AssetPhotoPicker(selectionLimit: 4) { ids in addPhotos(ids) }
