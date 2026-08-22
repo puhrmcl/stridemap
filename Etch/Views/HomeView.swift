@@ -62,6 +62,7 @@ struct HomeView: View {
     @Environment(SyncService.self) private var sync
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Run.startDate, order: .reverse) private var allRuns: [Run]
 
     @AppStorage("mapStyle") private var mapStyleRaw = MapStyleOption.standard.rawValue
@@ -399,12 +400,26 @@ struct HomeView: View {
                     .onChange(of: geo.size.height) { _, h in screenHeight = h }
             }
         )
-        // The docked search sheet plus the floating map controls that track its top edge, in a
-        // child that owns the live-height layout. Because HomeView's body doesn't read the live
-        // height, a drag re-renders only this layer (and the sheet) — never the map or the pill.
+        // The docked search sheet plus the floating map controls that track its top edge — both in
+        // one overlay so HomeView's (large) body gains no extra modifier. The sheet is a UIKit motion
+        // shell (`SearchSheetHost`) hosting the SwiftUI search content: UIKit owns the physical
+        // drag/settle (a transform-driven, interruptible sheet), SwiftUI owns the content. The shell
+        // writes the live height into the same `sheetMetrics` bridge the controls and totals pill
+        // already track, so the map stays completely isolated during a drag.
         .overlay(alignment: .bottom) {
-            SheetLayer(metrics: sheetMetrics, maxHeight: sheetMaxHeight, bottomSafeArea: bottomSafeArea) {
-                floatingControls
+            ZStack(alignment: .bottom) {
+                SheetLayer(metrics: sheetMetrics, maxHeight: sheetMaxHeight, bottomSafeArea: bottomSafeArea) {
+                    floatingControls
+                }
+                SearchSheetHost(
+                    maxHeight: sheetMaxHeight,
+                    bottomSafeArea: bottomSafeArea,
+                    reduceMotion: reduceMotion,
+                    appModel: appModel,
+                    modelContainer: modelContext.container,
+                    onHeight: { sheetMetrics.height = $0 }
+                )
+                .ignoresSafeArea()
             }
         }
         .overlay {
@@ -1343,9 +1358,10 @@ private struct SheetFade<Content: View>: View {
     }
 }
 
-/// The bottom layer: the floating map controls tracking the sheet's top edge, over the docked
-/// `MapSearchSheet`. It owns the live-height layout (reading `SheetMetrics`) so a drag re-renders
-/// only this layer and the sheet — never HomeView's body, the map, or the run-statistics work.
+/// The floating map controls, tracking the search sheet's top edge. It owns the live-height layout
+/// (reading `SheetMetrics`, which the UIKit sheet shell writes each frame) so a drag re-renders only
+/// this small layer — never HomeView's body, the map, or the run-statistics work. The sheet itself
+/// is a sibling UIKit overlay (`SearchSheetHost`), so this layer no longer embeds it.
 private struct SheetLayer<Controls: View>: View {
     @Bindable var metrics: SheetMetrics
     let maxHeight: CGFloat
@@ -1361,18 +1377,13 @@ private struct SheetLayer<Controls: View>: View {
         let t = max(0, min(1, (metrics.height - collapsed) / max(1, mid - collapsed)))
         ZStack(alignment: .bottom) {
             controls
-                // Sit a small, Apple-Maps-sized gap above the sheet's true top edge (the sheet floats
-                // ~20pt above the physical bottom, so its top is height + 20 − safeArea up).
+                // Sit a small, Apple-Maps-sized gap above the sheet's true top edge.
                 .padding(.bottom, max(20, metrics.height + 40 - bottomSafeArea))
                 .opacity(1 - t)
                 .allowsHitTesting(t < 0.5)
-
-            MapSearchSheet(maxHeight: maxHeight, height: $metrics.height, bottomSafeArea: bottomSafeArea)
         }
-        .frame(height: metrics.height + 90, alignment: .bottom)
-        .frame(maxWidth: .infinity, alignment: .bottom)
-        // Ignore the top inset too (the totals pill reserves it via safeAreaInset), so the expanded
-        // page can run up past it to just below the status bar.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        // Ignore the top inset too (the totals pill reserves it via safeAreaInset).
         .ignoresSafeArea(.container, edges: [.top, .bottom])
         .ignoresSafeArea(.keyboard, edges: .bottom)
     }
