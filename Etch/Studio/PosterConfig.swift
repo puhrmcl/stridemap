@@ -14,7 +14,7 @@ enum PosterFamily: String, CaseIterable, Identifiable {
 /// the poster's ground, the most restrained look. Each maps onto a curated `StudioEdition` so the
 /// existing render pipeline draws it.
 enum MapStyle: String, CaseIterable, Identifiable {
-    case standard, terrain, satellite, dark, none
+    case standard, terrain, satellite, dark, contour, midnight, none
     var id: String { rawValue }
     var name: String {
         switch self {
@@ -22,6 +22,8 @@ enum MapStyle: String, CaseIterable, Identifiable {
         case .terrain:   return "Terrain"
         case .satellite: return "Satellite"
         case .dark:      return "Dark"
+        case .contour:   return "Trail Journal"
+        case .midnight:  return "Midnight Atlas"
         case .none:      return "No Map"
         }
     }
@@ -31,9 +33,14 @@ enum MapStyle: String, CaseIterable, Identifiable {
         case .terrain:   return "mountain.2"
         case .satellite: return "globe.americas.fill"
         case .dark:      return "moon.stars"
+        case .contour:   return "square.stack.3d.down.right"
+        case .midnight:  return "sparkles"
         case .none:      return "scribble.variable"
         }
     }
+    /// True for the two contour styles, which trace real terrain rather than snapshotting a map —
+    /// the most distinctive art Studio can make, and the slowest, since it needs elevation data.
+    var isContour: Bool { self == .contour || self == .midnight }
     /// The edition that renders this base map (defaults, before user colour overrides).
     var edition: StudioEdition {
         switch self {
@@ -41,6 +48,8 @@ enum MapStyle: String, CaseIterable, Identifiable {
         case .terrain:   return .terrain
         case .satellite: return .satellite
         case .dark:      return .atlasDark
+        case .contour:   return .trailJournal
+        case .midnight:  return .midnightAtlas
         case .none:      return .minimal
         }
     }
@@ -342,11 +351,13 @@ struct PosterConfig {
         } else {
             c.family = .map
             switch edition {
-            case .satellite:                  c.mapStyle = .satellite
-            case .terrain, .trailJournal:     c.mapStyle = .terrain
-            case .atlasDark, .night, .midnightAtlas: c.mapStyle = .dark
-            case .minimal:                    c.mapStyle = .none
-            default:                          c.mapStyle = .standard
+            case .satellite:            c.mapStyle = .satellite
+            case .terrain:              c.mapStyle = .terrain
+            case .trailJournal:         c.mapStyle = .contour
+            case .midnightAtlas:        c.mapStyle = .midnight
+            case .atlasDark, .night:    c.mapStyle = .dark
+            case .minimal:              c.mapStyle = .none
+            default:                    c.mapStyle = .standard
             }
         }
         return c

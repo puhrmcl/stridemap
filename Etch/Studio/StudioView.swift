@@ -52,6 +52,10 @@ struct StudioView: View {
 
     @State private var rendered: UIImage?
     @State private var isRendering = false
+    /// The text fields' debounced value — what the render key actually reads.
+    @State private var debouncedText = ""
+    /// True when the last render came back nil, so the canvas can explain itself.
+    @State private var renderFailed = false
 
     init(run: Run, poster: SavedPoster? = nil) {
         self.run = run
@@ -91,6 +95,16 @@ struct StudioView: View {
                     .ignoresSafeArea()
             }
             .task(id: renderKey) { await renderPreview() }
+            // Debounce the free-text fields: commit them ~350ms after typing stops, so the preview
+            // re-renders once per edit rather than once per keystroke.
+            .task(id: liveText) {
+                let text = liveText
+                if !debouncedText.isEmpty || !text.isEmpty {
+                    try? await Task.sleep(for: .milliseconds(350))
+                }
+                guard !Task.isCancelled else { return }
+                debouncedText = text
+            }
         }
     }
 
@@ -175,10 +189,26 @@ struct StudioView: View {
                         .aspectRatio(previewAspect, contentMode: .fit)
                         .overlay {
                             VStack(spacing: 10) {
+                                if renderFailed && !isRendering {
+                                    // A nil render used to leave this panel blank indefinitely with
+                                    // a spinner that never resolved. Name the likely cause instead.
+                                    Image(systemName: "exclamationmark.triangle")
+                                        .font(.system(size: 22))
+                                        .foregroundStyle(.secondary)
+                                    Text("This activity can't be composed")
+                                        .font(.system(.footnote, design: .rounded).weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                    Text("It needs a recorded route. Try another activity, or a style without a map.")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 26)
+                                } else {
                                 ProgressView().tint(config.edition.accent)
                                 Text("Composing…")
                                     .font(.system(.footnote, design: .rounded))
                                     .foregroundStyle(.secondary)
+                                }
                             }
                         }
                         .shadow(color: .black.opacity(0.12), radius: 16, y: 8)
@@ -756,8 +786,10 @@ struct StudioView: View {
          config.galleryDesign.rawValue,
          config.resolvedFrames.map(\.rawValue).joined(separator: ","),
          "\(config.monochrome)", config.orientation.rawValue, config.dataPlacement.rawValue,
-         config.font.rawValue, "\(config.showTitle)", config.title,
-         "\(config.showLocation)", config.location, config.date,
+         // Text fields use their *debounced* mirrors. Typing a title used to re-render the whole
+         // composition — and start a fresh map snapshot — on every keystroke.
+         config.font.rawValue, "\(config.showTitle)", debouncedText,
+         "\(config.showLocation)",
          config.heroMetric.rawValue,
          config.dataSlots.map(\.rawValue).joined(separator: ","),
          "\(config.showElevation)", "\(config.includeWeather)", config.outputSize.rawValue,
@@ -766,10 +798,23 @@ struct StudioView: View {
         ].joined(separator: "|")
     }
 
+    /// The three free-text fields, as one value. Debounced into `debouncedText` so the preview
+    /// re-renders once the user pauses, not once per character.
+    private var liveText: String { [config.title, config.location, config.date].joined(separator: "\u{1F}") }
+
+    /// Preview render scale. The composition is authored 1000pt wide, so scale 1.5 gives a
+    /// 1500px-wide preview — comfortably sharp on any device at a quarter of the pixel work the
+    /// previous `scale: 2` cost. Print export is unaffected; it renders at its own scale.
+    private static let previewScale: CGFloat = 1.5
+
     private func renderPreview() async {
         isRendering = true
         defer { isRendering = false }
-        rendered = await StudioRenderer.image(for: config.request(for: run), scale: 2)
+        let image = await StudioRenderer.image(for: config.request(for: run), scale: Self.previewScale)
+        guard !Task.isCancelled else { return }
+        rendered = image
+        // A nil render used to leave the canvas silently blank forever; say so instead.
+        renderFailed = (image == nil)
     }
 
     /// Appends newly picked library photos to this run (de-duplicated), which persists them on the

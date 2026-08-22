@@ -86,6 +86,13 @@ enum PosterMap {
         let coordinates = run.coordinates
         guard coordinates.count > 1 else { return nil }
 
+        // The Studio editor re-renders the whole composition on every option change — including
+        // every keystroke in a text field — and each render used to start a fresh MKMapSnapshotter.
+        // The panel only depends on the run, the edition, the size and the route tint, so cache it:
+        // typing a title now costs one snapshot, not one per character.
+        let key = panelKey("studio", run: run, size: size, edition: edition, route: routeOverride)
+        if let cached = panelCache.object(forKey: key) { return cached }
+
         let options = MKMapSnapshotter.Options()
         options.region = region(for: run)
         options.size = size
@@ -127,7 +134,7 @@ enum PosterMap {
 
         let route = UIColor(routeOverride ?? edition.route)
 
-        return renderer.image { context in
+        let image = renderer.image { context in
             let cg = context.cgContext
 
             baseImage.draw(in: CGRect(origin: .zero, size: size))
@@ -166,6 +173,8 @@ enum PosterMap {
             if let first = coordinates.first { dot(cg, at: snapshot.point(for: first), fill: startFill, radius: edition.routeWidth) }
             if let last = coordinates.last { dot(cg, at: snapshot.point(for: last), fill: endFill, radius: edition.routeWidth) }
         }
+        panelCache.setObject(image, forKey: key)
+        return image
     }
 
     /// Renders the art panel for the Topographic edition: real terrain contour lines (traced
@@ -177,6 +186,12 @@ enum PosterMap {
                                  ground: Color, route routeOverride: Color? = nil) async -> UIImage? {
         let coordinates = run.coordinates
         guard coordinates.count > 1 else { return nil }
+
+        // Contour panels are the most expensive art in Studio — a network elevation fetch plus a
+        // marching-squares trace — so caching them matters even more than the map panels.
+        let key = panelKey("contour", run: run, size: size, edition: edition,
+                           route: routeOverride, ground: ground)
+        if let cached = panelCache.object(forKey: key) { return cached }
 
         let region = region(for: run)
         let latMax = region.center.latitude + region.span.latitudeDelta / 2
@@ -205,7 +220,7 @@ enum PosterMap {
             )
         }
 
-        return renderer.image { context in
+        let image = renderer.image { context in
             let cg = context.cgContext
 
             groundColor.setFill()
@@ -284,6 +299,34 @@ enum PosterMap {
                 drawLabel(Format.elevation(maxElev), at: p, dy: -36)
             }
         }
+        panelCache.setObject(image, forKey: key)
+        return image
+    }
+
+    // MARK: Panel cache
+
+    /// Rendered Studio art panels (map snapshots and contour fields), keyed by everything that can
+    /// change them. Studio re-renders its whole composition on every option change, so without this
+    /// a single editing session starts hundreds of snapshotters and elevation fetches.
+    private static let panelCache: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 40          // panels are large; bound the set rather than the bytes
+        return cache
+    }()
+
+    private static func panelKey(_ kind: String, run: Run, size: CGSize, edition: StudioEdition,
+                                 route: Color?, ground: Color? = nil) -> NSString {
+        // `updatedAt` is in the key so an edited route re-renders instead of returning a stale panel.
+        let parts = [
+            kind,
+            run.id.uuidString,
+            "\(run.updatedAt.timeIntervalSinceReferenceDate)",
+            edition.id.rawValue,
+            "\(Int(size.width))x\(Int(size.height))",
+            route?.hexString ?? "-",
+            ground?.hexString ?? "-"
+        ]
+        return parts.joined(separator: "|") as NSString
     }
 
     /// The map image attached when an activity is shared. Uses the route-over-map panel when the
