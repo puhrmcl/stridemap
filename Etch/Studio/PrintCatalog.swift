@@ -101,35 +101,33 @@ enum PrintProduct: String, CaseIterable, Identifiable {
     }
 }
 
-/// The frame finishes offered on a Framed Print. Three, chosen to sit under any edition: black for
-/// the dark editions, white for bone grounds, oak as the warm middle.
+/// The frame finishes offered on a Framed Print. Two, per the Operating Plan (§23 ratified):
+/// Black for the dark editions, Natural for bone grounds and everything warm. Two outstanding
+/// options beat three average ones — White was cut.
 enum FrameFinish: String, CaseIterable, Identifiable {
-    case black, white, oak
+    case natural, black
     var id: String { rawValue }
 
     var name: String {
         switch self {
-        case .black: return "Black"
-        case .white: return "White"
-        case .oak:   return "Oak"
+        case .natural: return "Natural"
+        case .black:   return "Black"
         }
     }
 
     /// Prodigi's frame colour attribute value.
     var prodigiAttribute: String {
         switch self {
-        case .black: return "black"
-        case .white: return "white"
-        case .oak:   return "natural"
+        case .natural: return "natural"
+        case .black:   return "black"
         }
     }
 
     /// Approximate moulding colour, for drawing the on-device mockup.
     var mouldingHex: String {
         switch self {
-        case .black: return "#1A1A1C"
-        case .white: return "#F2F0EC"
-        case .oak:   return "#B58A54"
+        case .natural: return "#B58A54"
+        case .black:   return "#1A1A1C"
         }
     }
 }

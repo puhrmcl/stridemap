@@ -16,7 +16,7 @@ struct PrintShopView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var product: PrintProduct = .framed
     @State private var size: PrintSize
-    @State private var finish: FrameFinish = .oak
+    @State private var finish: FrameFinish = .natural
 
     init(subjectTitle: String?, artwork: UIImage? = nil) {
         self.subjectTitle = subjectTitle

@@ -99,6 +99,7 @@ struct StudioHomeView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 30) {
                             intro
+                            momentHero
                             collectionsSection
                             if !keptPosters.isEmpty { keptSection }
                             if !milestones.isEmpty { subjectRow("Milestones", milestones) }
@@ -436,6 +437,85 @@ struct StudioHomeView: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 20)
+    }
+
+    // MARK: The moment hero — Studio knows the user; lead with *their* moment
+
+    @State private var heroPick: CollectionPiece?
+
+    /// The single most commemorable piece in the library: the latest race, else the biggest
+    /// summit. Shown as a full-bleed editorial hero — the user's own place as the shop window,
+    /// per the art-house standard (the artwork leads; chrome recedes).
+    private var heroPiece: CollectionPiece? {
+        StudioCollections.courses(in: runs).first ?? StudioCollections.summits(in: runs).first
+    }
+
+    @ViewBuilder private var momentHero: some View {
+        if let piece = heroPiece {
+            let isRace = piece.run.isRace
+            Button { heroPick = piece } label: {
+                ZStack(alignment: .bottomLeading) {
+                    RouteMapTile(run: piece.run)
+                        .frame(height: 340)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+                    // An ink scrim so the type sits on the image the way a gallery caption does.
+                    LinearGradient(
+                        colors: [.clear, Theme.Palette.ink.opacity(0.25), Theme.Palette.ink.opacity(0.88)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text("MAKE IT PERMANENT")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .tracking(2.4)
+                            .foregroundStyle(isRace ? Theme.Palette.blueBright : Theme.Palette.brass)
+                        // The editorial serif enters here — the artwork's voice, not the app's.
+                        Text("Your \(heroTitle(for: piece))")
+                            .font(.system(size: 30, weight: .semibold, design: .serif))
+                            .foregroundStyle(Theme.Palette.bone)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.7)
+                        Text(heroSubtitle(for: piece))
+                            .font(.system(.subheadline, design: .rounded))
+                            .foregroundStyle(Theme.Palette.bone.opacity(0.7))
+                        HStack(spacing: 6) {
+                            Text("Create your piece")
+                                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 12, weight: .bold))
+                        }
+                        .foregroundStyle(Theme.Palette.bone)
+                        .padding(.top, 6)
+                    }
+                    .padding(22)
+                }
+                .clipShape(.rect(cornerRadius: 22))
+                .contentShape(.rect(cornerRadius: 22))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 20)
+            .accessibilityLabel("Your \(heroTitle(for: piece)). Create your piece in Etch Studio.")
+            .sheet(item: $heroPick) { pick in
+                StudioView(run: pick.run, preset: pick.preset)
+            }
+        }
+    }
+
+    /// "BOSTON 26.2" reads as "Your Boston 26.2"; a summit reads as its trail or climb.
+    private func heroTitle(for piece: CollectionPiece) -> String {
+        if piece.run.isRace {
+            return StudioCollections.artworkTitle(for: piece.run).capitalized
+        }
+        if let iconic = StudioCollections.iconicSummit(for: piece.run) { return iconic.name }
+        return piece.run.displayName
+    }
+
+    private func heroSubtitle(for piece: CollectionPiece) -> String {
+        var parts: [String] = [Format.distance(piece.run.distance)]
+        if let city = piece.run.city, !city.isEmpty {
+            parts.append(piece.run.state.map { "\(city), \($0)" } ?? city)
+        }
+        return parts.joined(separator: " · ")
     }
 
     // MARK: Collections — the curated line
