@@ -333,14 +333,16 @@ struct MapSearchSheet: View {
             .padding(.trailing, isExpanded ? 12 : 14)
             .padding(.vertical, isExpanded ? 10 : 8)
             .background {
-                // A recessed shade rather than a second `regularMaterial`, so the field reads as a
-                // distinct bar sitting on the sheet's single pane of glass without stacking another
-                // live blur behind the search text. Expanded gets a hairline border for extra
-                // definition over the scrolling page; both states share the cheap fill.
                 if isExpanded {
-                    Capsule().fill(.primary.opacity(0.10))
+                    // Expanded, the field pins above the scrolling page, so it carries its own solid,
+                    // well-blurred glass — thick material (more opaque, more blur than the sheet's
+                    // own pane) so the query text stays crisp over whatever scrolls beneath, not a
+                    // see-through tint. A hairline border adds definition against the page.
+                    Capsule().fill(.thickMaterial)
                         .overlay(Capsule().strokeBorder(.separator.opacity(0.35), lineWidth: 0.5))
                 } else {
+                    // Collapsed, a subtle recessed shade so the field reads as a distinct bar sitting
+                    // on the pill's own glass — no second blur layer needed at rest.
                     Capsule().fill(.primary.opacity(0.08))
                 }
             }
