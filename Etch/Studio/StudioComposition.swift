@@ -197,6 +197,9 @@ struct StudioComposition: View {
     /// Multiplies every text (and glyph) point size on the poster, so the user can dial the type
     /// larger or smaller. 1 = the designed size.
     var textScale: CGFloat = 1
+    /// The print shape this artwork is composed into. 2:3 is the primary — it serves 12×18, 16×24
+    /// and 24×36, the entire launch catalogue.
+    var printAspect: PrintAspect = .twoThree
 
     /// A font point size scaled by `textScale` — every `.system(size:)` on the poster runs through
     /// this so one control resizes the whole composition's type together.
@@ -217,17 +220,28 @@ struct StudioComposition: View {
             : CGSize(width: width, height: artHeight)
     }
 
-    /// Nominal poster size — used for print-scale math and preview aspect ratios. The rendered
-    /// footer height is dynamic; the constants below are the across-the-bottom allowances.
-    static func nominalSize(_ orientation: StudioOrientation, _ placement: StudioDataPlacement) -> CGSize {
+    /// The exact canvas an artwork is composed into, in points, for a supported print aspect.
+    /// Portrait uses the aspect directly; landscape inverts it. This is the *authoritative* output
+    /// shape — the composition is framed to it, so the rendered pixels always match a print size.
+    static func canvasSize(_ orientation: StudioOrientation,
+                           _ placement: StudioDataPlacement,
+                           _ aspect: PrintAspect) -> CGSize {
         switch (orientation, placement) {
         case (.portrait, _):
-            return CGSize(width: width, height: artHeight + 620)
+            return CGSize(width: width, height: width / aspect.ratio)
         case (.landscape, .left), (.landscape, .right):
             return CGSize(width: width + landscapeFooterWidth, height: artHeight)
         case (.landscape, .top), (.landscape, .bottom):
-            return CGSize(width: wideArtWidth, height: wideArtHeight + 540)
+            // Landscape: the same ratio, on its side.
+            return CGSize(width: wideArtWidth, height: wideArtWidth * aspect.ratio)
         }
+    }
+
+    /// Nominal poster size — used for print-scale math and preview aspect ratios. Now identical to
+    /// the canvas, so `printImage`'s scale arithmetic describes the pixels it actually produces.
+    static func nominalSize(_ orientation: StudioOrientation, _ placement: StudioDataPlacement,
+                            _ aspect: PrintAspect = .twoThree) -> CGSize {
+        canvasSize(orientation, placement, aspect)
     }
 
     /// Grey version of a colour (luminance), used when the poster is monochrome so the route and
@@ -290,11 +304,15 @@ struct StudioComposition: View {
                     art
                 }
             } else {
+                // Portrait (and landscape-with-bottom-data): a fixed print-shaped canvas. The
+                // footer takes its natural height; the art absorbs the rest.
                 VStack(spacing: 0) {
-                    art
+                    flexArt
                     if hasElevationStrip { elevationBand }
                     footer
                 }
+                .frame(width: Self.canvasSize(orientation, dataPlacement, printAspect).width,
+                       height: Self.canvasSize(orientation, dataPlacement, printAspect).height)
             }
         }
         .background(groundColor)
@@ -596,7 +614,27 @@ struct StudioComposition: View {
 
     // MARK: Art panel
 
+    /// The art panel at its authored size — used by the landscape and side-data layouts, whose
+    /// geometry is unchanged.
     private var art: some View {
+        artBody
+            .frame(width: artDimensions.width, height: artDimensions.height)
+            .clipped()
+    }
+
+    /// The art panel with a flexible height, for the fixed-aspect portrait canvas: the footer takes
+    /// the height it needs and the art absorbs everything left over, so the finished piece lands on
+    /// an exact print ratio no matter how much metadata the user turned on. Previously the canvas
+    /// height was art + a dynamic footer, which produced a 1:1.62 poster that matched no print size
+    /// on sale.
+    private var flexArt: some View {
+        artBody
+            .frame(width: artDimensions.width)
+            .frame(maxHeight: .infinity)
+            .clipped()
+    }
+
+    private var artBody: some View {
         ZStack {
             groundColor
             if edition.isPhoto {
@@ -618,8 +656,6 @@ struct StudioComposition: View {
                     .foregroundStyle(subtleColor)
             }
         }
-        .frame(width: artDimensions.width, height: artDimensions.height)
-        .clipped()
     }
 
     // MARK: Photo panel (Memory)

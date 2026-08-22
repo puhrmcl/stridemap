@@ -56,6 +56,14 @@ enum StudioRenderer {
         var mapPhotoCount: Int = 1
         /// Multiplies every text point size on the poster (user-adjustable). 1 = designed size.
         var textScale: CGFloat = 1
+        /// The print shape the artwork is composed into (2:3 primary, 4:5 secondary).
+        var printAspect: PrintAspect = .twoThree
+    }
+
+    /// The largest print size this device can render at an acceptable DPI. Anything bigger has to
+    /// be rendered server-side — the on-device ceiling is a memory limit, not a choice.
+    static func canRenderOnDevice(_ geometry: PrintGeometry) -> Bool {
+        geometry.isAcceptable(longEdgePixels: maxLongEdgePixels)
     }
 
     /// Largest long edge (px) rendered on-device, to stay within memory limits (~18–20″ at
@@ -150,7 +158,8 @@ enum StudioRenderer {
             galleryDesignRaw: request.galleryDesignRaw,
             mapLayoutRaw: request.mapLayoutRaw,
             mapPhotoCount: request.mapPhotoCount,
-            textScale: request.textScale
+            textScale: request.textScale,
+            printAspect: request.printAspect
         )
         let renderer = ImageRenderer(content: composition)
         renderer.scale = scale
@@ -237,7 +246,8 @@ enum StudioRenderer {
     /// The export image. A `poster` renders at print resolution (~5400 px long edge ≈ 18″ @ 300 DPI);
     /// a social size renders at a lighter digital resolution (the matting happens inside `image`).
     static func printImage(for request: Request, longEdgePixels: CGFloat = 5400) async -> UIImage? {
-        let nominal = StudioComposition.nominalSize(request.orientation, request.dataPlacement)
+        let nominal = StudioComposition.canvasSize(request.orientation, request.dataPlacement,
+                                                   request.printAspect)
         let compositionLongEdge = max(nominal.width, nominal.height)   // nominal points
         // Social exports don't need print DPI; ~2× the composition keeps files light to share.
         guard request.outputSize.aspect == nil else { return await image(for: request, scale: 2) }
