@@ -7,19 +7,18 @@ struct RunRow: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            // A cached, static MapKit *snapshot* of the route — not a live `Map`. A list can show
-            // dozens of these, and a live `RunPreviewMap` per row spins up an MKMapView each, which
-            // both stutters the search sheet during a drag (every row recomposites) and exhausts
-            // MapKit on a broad match. `RouteMapTile` draws a placeholder vector route immediately,
-            // then swaps in a snapshot cached by `PosterMap.tileImage` (keyed by run + size + edit),
-            // so scrolling and dragging stay smooth and repeat views are free.
-            RouteMapTile(run: run)
+            // The "etched" tile: the route as a blue line on a dark vector ground. The earlier map
+            // snapshots rendered light (bone-washed) and glared against the dark sheet — three
+            // bright squares dominating the page. The etched tile matches the sheet's theme, speaks
+            // the brand (ink ground, Etch-Blue line), and is pure vector — no MapKit snapshot at
+            // all, so rows cost nothing beyond decoding the route.
+            RouteThumbnail(run: run)
                 .frame(width: 60, height: 60)
                 .clipShape(.rect(cornerRadius: 14))
                 .allowsHitTesting(false)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(run.name)
+                Text(run.displayName)
                     .font(.system(.subheadline, design: .rounded).weight(.semibold))
                     .lineLimit(1)
                 Text(Format.dateTime(run.startDate))
@@ -35,11 +34,14 @@ struct RunRow: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 3) {
+                // Tabular digits so the metric column aligns optically across rows.
                 Text(Format.distance(run.distance))
                     .font(.system(.subheadline, design: .rounded).weight(.bold))
+                    .monospacedDigit()
                 Text(Format.duration(run.movingTime))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .monospacedDigit()
                 if run.isRace {
                     Label("Race", systemImage: "flag.checkered")
                         .font(.caption2.weight(.semibold))

@@ -6,6 +6,25 @@ import MapKit
 /// stay identical everywhere.
 extension Run {
 
+    /// Importer app prefixes that eat the title before it says anything ("Nike Run Club: 9 Week
+    /// Training…" truncates to "Nike Run Club: 9 We…" in a list row). Only known importer names are
+    /// stripped — a colon in the user's own title is left alone.
+    private static let importerPrefixes = [
+        "Nike Run Club: ", "Nike Training Club: ", "Nike Run Club - ",
+        "Strava: ", "Runkeeper: ", "MapMyRun: ", "Garmin Connect: "
+    ]
+
+    /// The activity's name for list rows: the stored name with any known importer prefix stripped,
+    /// so the line leads with the workout, not the app it came from. The detail view keeps the full
+    /// stored `name`, so the source remains visible where there's room for it.
+    var displayName: String {
+        for prefix in Self.importerPrefixes where name.hasPrefix(prefix) {
+            let trimmed = name.dropFirst(prefix.count).trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty { return trimmed }
+        }
+        return name
+    }
+
     /// A tidy text summary of the activity for the system share sheet (name, date, place, and the
     /// key stats). Races lead with a checkered flag.
     var shareSummary: String {

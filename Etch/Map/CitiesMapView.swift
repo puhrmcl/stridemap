@@ -195,15 +195,25 @@ final class CityClusterView: MKAnnotationView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     func configure(count: Int, total: Int) {
-        let t = total > 1 ? min(1, (Double(count).squareRoot() / Double(total).squareRoot())) : 1
-        let diameter = 30 + 34 * CGFloat(t)
+        // Three fixed size tiers by count (small / medium / large) rather than a continuous sqrt
+        // scale — fixed tiers read as a system, and the label size can be tuned per tier. The disc
+        // is ink *glass* (66%) with an Etch-Blue ring, so the map stays visible through it and the
+        // bubble speaks the brand instead of reading as a generic black blob.
+        _ = total
+        let diameter: CGFloat = count >= 100 ? 58 : (count >= 10 ? 44 : 36)
         bounds = CGRect(x: 0, y: 0, width: diameter, height: diameter)
         layer.cornerRadius = diameter / 2
-        backgroundColor = UIColor(Theme.Palette.ink).withAlphaComponent(0.92)
-        layer.borderColor = UIColor(Theme.Palette.bone).withAlphaComponent(0.9).cgColor
-        layer.borderWidth = 2
+        backgroundColor = UIColor(red: 13/255, green: 20/255, blue: 28/255, alpha: 0.66)
+        layer.borderColor = UIColor(Theme.Palette.blueBright).withAlphaComponent(0.9).cgColor
+        layer.borderWidth = 1.5
+        layer.shadowColor = UIColor.black.cgColor
+        layer.shadowOpacity = 0.35
+        layer.shadowRadius = 5
+        layer.shadowOffset = CGSize(width: 0, height: 2)
         label.frame = bounds
-        label.font = .systemFont(ofSize: diameter > 44 ? 15 : 13, weight: .bold)
+        // Tabular digits so multi-bubble counts align optically at a glance.
+        label.font = .monospacedDigitSystemFont(ofSize: diameter >= 58 ? 19 : (diameter >= 44 ? 15 : 13),
+                                                weight: .bold)
         label.text = count.formatted()
     }
 }

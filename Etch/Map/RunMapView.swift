@@ -63,6 +63,16 @@ struct RunMapView: UIViewRepresentable {
         map.showsCompass = false
         map.showsScale = false
 
+        // MapKit's Apple logo and Legal link are placed against the map's layout margins. The
+        // docked search pill floats over the map's bottom edge and was covering them — and keeping
+        // the attribution visible is a MapKit requirement, not a style choice. Raise the bottom
+        // margin so the attribution sits just above the collapsed pill.
+        map.layoutMargins = UIEdgeInsets(
+            top: 0, left: 8,
+            bottom: SearchSheetInteractionController.collapsedVisibleHeight + 10,
+            right: 8
+        )
+
         map.preferredConfiguration = mapStyle.configuration()
         map.overrideUserInterfaceStyle = mapStyle.forcedInterfaceStyle
         context.coordinator.appliedStyle = mapStyle
@@ -769,6 +779,9 @@ final class RunPinView: MKAnnotationView {
             systemName: symbol,
             withConfiguration: UIImage.SymbolConfiguration(pointSize: compact ? 13 : 15, weight: .bold)
         )
+        // Races and records always draw *above* the count bubbles — a checkered flag half-buried
+        // under a "483" cluster (as happened on dense home turf) defeats the point of marking it.
+        zPriority = (kind == .race || kind == .milestone || kind == .raceMilestone) ? .max : .defaultUnselected
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }

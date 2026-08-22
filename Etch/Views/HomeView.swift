@@ -638,9 +638,10 @@ struct HomeView: View {
 
     /// A hairline separator sized to the pill's row height.
     private var pillDivider: some View {
+        // A true hairline, not a 1pt bar — at 3x it's still crisp, and the pill reads lighter.
         Rectangle()
             .fill(.secondary.opacity(0.3))
-            .frame(width: 1, height: pillColumnHeight)
+            .frame(width: 0.5, height: pillColumnHeight)
     }
 
     /// The activity-type selector on the left of the pill — All Types / Runs / Hikes / Rides /
