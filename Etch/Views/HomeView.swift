@@ -1378,9 +1378,11 @@ private struct SheetLayer<Controls: View>: View {
         ZStack(alignment: .bottom) {
             controls
                 // `metrics.height` is measured from the physical bottom edge (as is this padding,
-                // since the layer ignores the bottom safe area), so this sits the controls a small
-                // Apple-Maps-sized gap directly above the sheet's true top edge.
-                .padding(.bottom, max(20, metrics.height + 14))
+                // since the layer ignores the bottom safe area), so this clears the sheet's true top
+                // edge by a fixed gap. Apple Maps leaves ~20pt between its map controls and the
+                // search bar; the round glass buttons need that much so their curved edges don't
+                // read as touching the pill's rounded corners.
+                .padding(.bottom, max(20, metrics.height + 22))
                 .opacity(1 - t)
                 .allowsHitTesting(t < 0.5)
         }
