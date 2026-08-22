@@ -37,12 +37,12 @@ extension Run {
         return item
     }
 
-    /// Opens the activity's location in Apple Maps — as a dropped place, or with walking directions
+    /// Opens the activity's location in Apple Maps — as a dropped place, or with driving directions
     /// to its start point when `directions` is true. No-op for an activity with no location.
     func openInAppleMaps(directions: Bool = false) {
         guard let item = mapItem else { return }
         let options = directions
-            ? [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking]
+            ? [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving]
             : nil
         item.openInMaps(launchOptions: options)
     }
