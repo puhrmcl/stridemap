@@ -1375,7 +1375,7 @@ private struct SheetLayer<Controls: View>: View {
                 // edge by a fixed gap. Apple Maps leaves ~20pt between its map controls and the
                 // search bar; the round glass buttons need that much so their curved edges don't
                 // read as touching the pill's rounded corners.
-                .padding(.bottom, max(20, metrics.height + 22))
+                .padding(.bottom, max(20, metrics.height + 30))
                 .opacity(1 - t)
                 .allowsHitTesting(t < 0.5)
         }
