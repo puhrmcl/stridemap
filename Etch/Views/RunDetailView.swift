@@ -36,6 +36,10 @@ struct RunDetailView: View {
     @State private var draggingPhoto: String?
     @State private var isFindingPhotos = false
     @State private var showStudio = false
+    /// The recipe Studio opens on when entered from the moment card; nil = the plain default.
+    @State private var studioPreset: PosterConfig?
+    /// Local mirror of the persisted moment dismissal, so the card animates out immediately.
+    @State private var momentDismissed = false
     @State private var showEdit = false
     @State private var showDeleteConfirm = false
     @State private var showLocationPicker = false
@@ -74,13 +78,19 @@ struct RunDetailView: View {
 
                     metrics
 
+                    // The moment of meaning: a race or a bucket-list trail earns a quiet,
+                    // dismissible invitation into its Studio collection — celebration, not upsell.
+                    if let moment = collectionMoment { momentCard(moment) }
+
                     raceToggle
 
                     notesSection
 
                     if run.isRace { shareRaceButton }
 
-                    if run.hasRoute { studioButton }
+                    // The plain Studio button yields to the moment card when one is showing — one
+                    // door into Studio per page, never two competing ones.
+                    if run.hasRoute && collectionMoment == nil { studioButton }
 
                     photosSection
 
@@ -107,7 +117,7 @@ struct RunDetailView: View {
                 Button("Cancel", role: .cancel) {}
             }
             .sheet(isPresented: $showStudio) {
-                StudioView(run: run)
+                StudioView(run: run, preset: studioPreset)
             }
             .sheet(isPresented: $showEdit) {
                 EditRunSheet(run: run)
@@ -146,7 +156,7 @@ struct RunDetailView: View {
                             } label: {
                                 Label("Share Activity", systemImage: "square.and.arrow.up")
                             }
-                            Button { showStudio = true } label: {
+                            Button { studioPreset = nil; showStudio = true } label: {
                                 Label("Create in Studio", systemImage: "photo.artframe")
                             }
                             if run.hasMapLocation {
@@ -511,8 +521,96 @@ struct RunDetailView: View {
         return lines.joined(separator: "\n")
     }
 
+    // MARK: The moment card — "Make it permanent."
+
+    /// What this activity qualifies for: a finisher piece (any race) or a summit piece (a route
+    /// matched to a curated bucket-list trail). Nil once dismissed for this run.
+    private enum CollectionMoment {
+        case course(title: String)
+        case summit(StudioCollections.IconicSummit)
+    }
+
+    private static let momentDismissedKey = "collectionMomentDismissed"
+
+    private var collectionMoment: CollectionMoment? {
+        guard !momentDismissed else { return nil }
+        let dismissed = UserDefaults.standard.stringArray(forKey: Self.momentDismissedKey) ?? []
+        guard !dismissed.contains(run.id.uuidString) else { return nil }
+        if run.isRace { return .course(title: StudioCollections.artworkTitle(for: run)) }
+        if run.hasRoute, let summit = StudioCollections.iconicSummit(for: run) {
+            return .summit(summit)
+        }
+        return nil
+    }
+
+    private func momentCard(_ moment: CollectionMoment) -> some View {
+        let eyebrow: String
+        let line: String
+        let accent: Color
+        let preset: PosterConfig
+        switch moment {
+        case .course(let title):
+            eyebrow = "THE COURSE COLLECTION"
+            line = "\(title), as a finisher piece."
+            accent = Theme.Palette.blueBright
+            preset = StudioCollections.coursePreset(for: run)
+        case .summit(let summit):
+            eyebrow = "THE SUMMIT COLLECTION"
+            line = "\(summit.name), in gold contour on ink."
+            accent = Theme.Palette.brass
+            preset = StudioCollections.summitPreset(for: run, iconic: summit)
+        }
+
+        return Button {
+            studioPreset = preset
+            showStudio = true
+        } label: {
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(eyebrow)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .tracking(2.2)
+                        .foregroundStyle(accent)
+                    Text("Make it permanent.")
+                        .font(.system(.headline, design: .rounded))
+                        .foregroundStyle(Theme.Palette.bone)
+                    Text(line)
+                        .font(.system(.subheadline, design: .rounded))
+                        .foregroundStyle(Theme.Palette.bone.opacity(0.7))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(Theme.Palette.bone.opacity(0.35))
+                    .padding(.top, 22)
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.Palette.ink, in: .rect(cornerRadius: 18))
+            .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(accent.opacity(0.3), lineWidth: 0.75))
+            // A quiet dismiss that remembers — offered once, never nagging.
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    var dismissed = UserDefaults.standard.stringArray(forKey: Self.momentDismissedKey) ?? []
+                    dismissed.append(run.id.uuidString)
+                    UserDefaults.standard.set(dismissed, forKey: Self.momentDismissedKey)
+                    withAnimation(Theme.gentle) { momentDismissed = true }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Theme.Palette.bone.opacity(0.4))
+                        .frame(width: 34, height: 34)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
     private var studioButton: some View {
-        Button { showStudio = true } label: {
+        Button { studioPreset = nil; showStudio = true } label: {
             Label("Create in Etch Studio", systemImage: "photo.artframe")
                 .font(.system(.headline, design: .rounded))
                 .foregroundStyle(Theme.accent)

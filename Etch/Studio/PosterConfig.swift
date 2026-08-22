@@ -277,11 +277,14 @@ struct PosterConfig {
         p.updatedAt = Date()
     }
 
-    /// A fresh recipe for a run, its data slots tuned to the activity.
+    /// A fresh recipe for a run. Four elements by default — title, place, date, one hero metric —
+    /// and nothing else: the route and the memory are the hero, and a first-open poster should
+    /// read as designed wall art, not an activity-stat dashboard. Time/pace/elevation are one
+    /// stepper away in the Data tab for the athlete who wants them.
     static func makeDefault(for run: Run) -> PosterConfig {
         var c = PosterConfig()
-        let defaults = StatMetric.defaults(for: run.activityType)
-        c.dataSlots = defaults.slots
+        c.dataSlots = []
+        _ = run
         return c
     }
 

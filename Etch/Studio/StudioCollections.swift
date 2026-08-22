@@ -81,15 +81,22 @@ enum StudioCollections {
         runs.filter(\.isRace)
             .sorted { $0.startDate > $1.startDate }
             .map { run in
-                var preset = PosterConfig.makeDefault(for: run)
-                preset.mapStyle = .standard
-                preset.font = .editorial
-                preset.heroMetric = .time
-                preset.dataSlots = [.distance, .pace, .none]
-                preset.title = artworkTitle(for: run)
                 let year = Calendar.current.component(.year, from: run.startDate)
-                return CollectionPiece(run: run, preset: preset, subtitle: "Finisher · \(year)")
+                return CollectionPiece(run: run, preset: coursePreset(for: run),
+                                       subtitle: "Finisher · \(year)")
             }
+    }
+
+    /// The finisher-piece recipe: classic Atlas map, the finish time as the hero, the
+    /// licensing-safe title. Shared by the collection browser and the run-detail moment card.
+    static func coursePreset(for run: Run) -> PosterConfig {
+        var preset = PosterConfig.makeDefault(for: run)
+        preset.mapStyle = .standard
+        preset.font = .editorial
+        preset.heroMetric = .time
+        preset.dataSlots = [.distance, .pace]
+        preset.title = artworkTitle(for: run)
+        return preset
     }
 
     /// The licensing-safe default artwork title: CITY + the distance figure. "BOSTON 26.2" says
@@ -160,17 +167,24 @@ enum StudioCollections {
                 return a.0.elevationGain > b.0.elevationGain
             }
             .map { run, iconic in
-                var preset = PosterConfig.makeDefault(for: run)
-                preset.mapStyle = .midnight
-                preset.font = .editorial
-                preset.heroMetric = .elevationGain
-                preset.dataSlots = [.distance, .time, .none]
-                preset.showElevation = true
-                if let iconic { preset.title = iconic.name.uppercased() }
                 let subtitle = iconic.map { "\($0.name) · \($0.park)" }
                     ?? "\(Format.elevationGain(run.elevationGain)) of climb"
-                return CollectionPiece(run: run, preset: preset, subtitle: subtitle)
+                return CollectionPiece(run: run, preset: summitPreset(for: run, iconic: iconic),
+                                       subtitle: subtitle)
             }
+    }
+
+    /// The summit-piece recipe: Midnight Atlas — gold contours on ink — the elevation profile on,
+    /// the climb as the hero. Shared by the collection browser and the run-detail moment card.
+    static func summitPreset(for run: Run, iconic: IconicSummit?) -> PosterConfig {
+        var preset = PosterConfig.makeDefault(for: run)
+        preset.mapStyle = .midnight
+        preset.font = .editorial
+        preset.heroMetric = .elevationGain
+        preset.dataSlots = [.distance, .time]
+        preset.showElevation = true
+        if let iconic { preset.title = iconic.name.uppercased() }
+        return preset
     }
 
     /// The iconic trail this activity belongs to, if its start sits within ~20 km of one.

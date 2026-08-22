@@ -555,10 +555,12 @@ struct StudioHomeView: View {
             Button { showPrints = true } label: {
                 HStack(spacing: 14) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Label("Gallery prints, framed art & canvas", systemImage: "photo.artframe")
+                        // Copy matches the actual catalogue (two products; canvas was cut) —
+                        // advertising a product we don't sell is how premium positioning dies.
+                        Label("Fine-art prints & framed pieces", systemImage: "photo.artframe")
                             .font(.system(.headline, design: .rounded))
                             .foregroundStyle(Theme.accent)
-                        Text("Museum-grade paper, hardwood frames, and canvas — shipped to your door.")
+                        Text("Museum-grade archival paper and hardwood frames — printed to order, shipped to your door.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
