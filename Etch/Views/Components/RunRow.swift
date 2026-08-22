@@ -7,7 +7,13 @@ struct RunRow: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            RunPreviewMap(run: run)
+            // A cached, static MapKit *snapshot* of the route — not a live `Map`. A list can show
+            // dozens of these, and a live `RunPreviewMap` per row spins up an MKMapView each, which
+            // both stutters the search sheet during a drag (every row recomposites) and exhausts
+            // MapKit on a broad match. `RouteMapTile` draws a placeholder vector route immediately,
+            // then swaps in a snapshot cached by `PosterMap.tileImage` (keyed by run + size + edit),
+            // so scrolling and dragging stay smooth and repeat views are free.
+            RouteMapTile(run: run)
                 .frame(width: 60, height: 60)
                 .clipShape(.rect(cornerRadius: 14))
                 .allowsHitTesting(false)

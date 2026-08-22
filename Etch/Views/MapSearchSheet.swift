@@ -12,6 +12,9 @@ struct MapSearchSheet: View {
     let maxHeight: CGFloat
     /// Reported up so the floating map controls can sit just above the sheet's top edge.
     @Binding var height: CGFloat
+    /// The screen's bottom safe-area inset, supplied by the parent so the sheet doesn't have to
+    /// walk the window-scene graph on every drag frame to find it (it never changes during a drag).
+    var bottomSafeArea: CGFloat = 0
 
     @Environment(AppModel.self) private var appModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -115,14 +118,6 @@ struct MapSearchSheet: View {
         return resting * (1 - p2)               // 12 → 0
     }
 
-    /// The screen's bottom safe-area inset, so the float can be measured against the physical
-    /// bottom edge rather than the safe-area line the overlay anchors to.
-    private var bottomSafeArea: CGFloat {
-        UIApplication.shared.connectedScenes
-            .compactMap { ($0 as? UIWindowScene)?.keyWindow }
-            .first?.safeAreaInsets.bottom ?? 0
-    }
-
     /// The floating card sits the *same* distance off the bottom as off the sides — measured from
     /// the physical bottom edge, so it isn't pushed up by the home-indicator safe area.
     private var bottomInset: CGFloat { horizontalInset - bottomSafeArea }
@@ -137,53 +132,60 @@ struct MapSearchSheet: View {
             // The scrolling page sits *behind* the pinned header and slides under it — the header's
             // own material blurs whatever scrolls beneath, so the search bar and avatar stay put at
             // the top while the content moves (Apple Maps' pinned search).
-            if isExpanded {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
-                        if debouncedQuery.isEmpty {
-                            pagesSection
-                            recentSection
-                            studioSection
-                            achievementsSection
-                        } else {
-                            resultsList
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    // Clear the pinned header, then a small gap before the first section.
-                    .padding(.top, headerHeight + 6)
-                    // Generous tail space so the last section (Achievements) can scroll up fully
-                    // into view above the bottom edge.
-                    .padding(.bottom, 160)
-                    // Track whether the page is scrolled to its top, so a downward swipe from the
-                    // top hands off to the sheet (collapse) instead of scrolling.
-                    .background(
-                        GeometryReader { g in
-                            Color.clear.onChange(of: g.frame(in: .named("sheetScroll")).minY) { _, y in
-                                scrollAtTop = y >= -1
-                            }
-                        }
-                    )
-                    // A tap anywhere on the page (including the empty gaps, thanks to the hit shape)
-                    // dismisses the keyboard; tapping a tile still fires the tile's own action.
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        if searchFocused { searchFocused = false }
+            //
+            // The scroll view stays mounted continuously — it is *not* inserted when the finger
+            // crosses a height threshold. Building the whole Explore/Search hierarchy on the first
+            // upward drag caused a visible hitch; instead the content is always present and simply
+            // clipped away by the sheet's own frame while collapsed (it starts below the header,
+            // past the 62pt collapsed height). Only hit-testing is gated so the hidden page can't
+            // intercept touches, and scrolling stays disabled until fully expanded.
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    if debouncedQuery.isEmpty {
+                        pagesSection
+                        recentSection
+                        studioSection
+                        achievementsSection
+                    } else {
+                        resultsList
                     }
                 }
-                // Re-create the scroll view when the sheet drops below full, so it resets to the top
-                // and the Explore buttons show again at the partial rest.
-                .id(scrollResetToken)
-                .coordinateSpace(name: "sheetScroll")
-                // Don't scroll the contents until the page is fully expanded — a swipe up first
-                // drives the sheet to full, then subsequent swipes scroll. Also keep scroll disabled
-                // for the duration of an active sheet drag (dragStart != nil), so the ScrollView
-                // never grabs the gesture as the height crosses `full` — the hand-off that made
-                // dragging up/down feel glitchy.
-                .scrollDisabled(dragStart != nil || height < full - 1)
-                // Scrolling the page dismisses the keyboard so the tiles behind it are visible.
-                .scrollDismissesKeyboard(.immediately)
+                .padding(.horizontal, 16)
+                // Clear the pinned header, then a small gap before the first section.
+                .padding(.top, headerHeight + 6)
+                // Generous tail space so the last section (Achievements) can scroll up fully
+                // into view above the bottom edge.
+                .padding(.bottom, 160)
+                // Track whether the page is scrolled to its top, so a downward swipe from the
+                // top hands off to the sheet (collapse) instead of scrolling.
+                .background(
+                    GeometryReader { g in
+                        Color.clear.onChange(of: g.frame(in: .named("sheetScroll")).minY) { _, y in
+                            scrollAtTop = y >= -1
+                        }
+                    }
+                )
+                // A tap anywhere on the page (including the empty gaps, thanks to the hit shape)
+                // dismisses the keyboard; tapping a tile still fires the tile's own action.
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if searchFocused { searchFocused = false }
+                }
             }
+            // Re-create the scroll view when the sheet drops below full, so it resets to the top
+            // and the Explore buttons show again at the partial rest.
+            .id(scrollResetToken)
+            .coordinateSpace(name: "sheetScroll")
+            // Don't scroll the contents until the page is fully expanded — a swipe up first
+            // drives the sheet to full, then subsequent swipes scroll. Also keep scroll disabled
+            // for the duration of an active sheet drag (dragStart != nil), so the ScrollView
+            // never grabs the gesture as the height crosses `full` — the hand-off that made
+            // dragging up/down feel glitchy.
+            .scrollDisabled(dragStart != nil || height < full - 1)
+            // Scrolling the page dismisses the keyboard so the tiles behind it are visible.
+            .scrollDismissesKeyboard(.immediately)
+            // Collapsed, the page is clipped out of sight; keep it from intercepting touches there.
+            .allowsHitTesting(isExpanded)
             pinnedHeader
         }
         // Top-aligned once expanded (header pinned above the scroll); centred while collapsed so the
@@ -197,7 +199,11 @@ struct MapSearchSheet: View {
             containerShape()
                 .strokeBorder(.separator.opacity(0.4), lineWidth: 0.75)
         )
-        .shadow(color: .black.opacity(0.12), radius: 18, y: 3)
+        // The soft resting shadow is a real GPU cost when it's re-blurred over the live map every
+        // frame as the container's size/shape change. Drop it for the duration of an active drag
+        // (the border keeps the edge defined), and restore the full shadow the moment it settles.
+        .shadow(color: .black.opacity(dragStart == nil ? 0.12 : 0),
+                radius: dragStart == nil ? 18 : 0, y: 3)
         // The whole control is draggable: collapsed it's the pill; expanded, a downward swipe from
         // the top of the page collapses it (the scroll view keeps its own drags otherwise).
         .simultaneousGesture(dragGesture(gated: isExpanded, minimumDistance: isExpanded ? 3 : 8), including: .all)
@@ -327,12 +333,14 @@ struct MapSearchSheet: View {
             .padding(.trailing, isExpanded ? 12 : 14)
             .padding(.vertical, isExpanded ? 10 : 8)
             .background {
+                // A recessed shade rather than a second `regularMaterial`, so the field reads as a
+                // distinct bar sitting on the sheet's single pane of glass without stacking another
+                // live blur behind the search text. Expanded gets a hairline border for extra
+                // definition over the scrolling page; both states share the cheap fill.
                 if isExpanded {
-                    Capsule().fill(.regularMaterial)
+                    Capsule().fill(.primary.opacity(0.10))
                         .overlay(Capsule().strokeBorder(.separator.opacity(0.35), lineWidth: 0.5))
                 } else {
-                    // A subtle recessed shade so the search field reads as a distinct bar sitting on
-                    // the pill, a touch darker/lighter than the pill's own glass.
                     Capsule().fill(.primary.opacity(0.08))
                 }
             }
@@ -519,23 +527,29 @@ struct MapSearchSheet: View {
                 Text("\(cachedResults.count) result\(cachedResults.count == 1 ? "" : "s")")
                     .font(.system(.subheadline, design: .rounded).weight(.semibold))
                     .foregroundStyle(.secondary)
-                // Cap the rendered rows: each row hosts a live map, so a broad match must not
-                // spin up hundreds at once (that exhausts MapKit and crashes the app).
+                // Cap the rendered rows so a very broad match stays a tidy, quick list rather than
+                // thousands of rows. (Row thumbnails are now cached static snapshots, not live
+                // maps, so the cap is about list length, not MapKit pressure.)
                 runList(Array(cachedResults.prefix(50)))
             }
         }
     }
 
     private func runList(_ list: [Run]) -> some View {
-        // LazyVStack so each row's live map is only built as it scrolls into view — a plain
-        // VStack builds them all up front, which overwhelms MapKit and crashes on a big match.
+        // LazyVStack so each row (and its snapshot request) is only realized as it scrolls into
+        // view — a plain VStack would build every row, and kick off every thumbnail snapshot, up
+        // front. Laziness keeps the visible set small and the concurrent snapshot count bounded.
         LazyVStack(spacing: 0) {
             ForEach(Array(list.enumerated()), id: \.element.id) { index, run in
                 if index > 0 { Divider().padding(.leading, 16) }
                 runRow(run)
             }
         }
-        .background(.regularMaterial, in: .rect(cornerRadius: 18))
+        // A cheap fill rather than a second `regularMaterial`. The list already sits on the sheet's
+        // one pane of frosted glass; stacking another live blur here (and, formerly, live maps over
+        // it) meant extra offscreen compositing on every frame the sheet moved. A low-opacity
+        // semantic fill gives the same inset-card read for a fraction of the cost.
+        .background(.primary.opacity(0.05), in: .rect(cornerRadius: 18))
     }
 
     /// A single activity tile: the tappable run row plus a trailing "⋯" overflow menu offering

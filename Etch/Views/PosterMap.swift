@@ -310,7 +310,9 @@ enum PosterMap {
     @MainActor
     static func tileImage(for run: Run, size: CGSize) async -> UIImage? {
         guard size.width > 1, size.height > 1, run.coordinates.count > 1 else { return nil }
-        let key = "\(run.id.uuidString)-\(Int(size.width))x\(Int(size.height))" as NSString
+        // Key on the run's edit stamp too, so an edited route (same id, same tile size) renders a
+        // fresh snapshot instead of returning a stale one.
+        let key = "\(run.id.uuidString)-\(Int(size.width))x\(Int(size.height))-\(run.updatedAt.timeIntervalSinceReferenceDate)" as NSString
         if let cached = tileCache.object(forKey: key) { return cached }
         let image = await routePanel(
             for: run, size: size,

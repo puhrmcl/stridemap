@@ -184,18 +184,19 @@ struct HomeView: View {
             filter: appModel.filter,
             scope: appModel.activityScope,
             runCount: allRuns.count,
-            newestEdit: runEditSignature,
-            showPins: showPins
+            newestEdit: runEditSignature
         )
     }
 
     /// The map's drawable-content inputs, compared as a whole to trigger a single revision bump.
+    /// `showPins` is deliberately *not* here: `RunMapView` owns the pins toggle through its own
+    /// `appliedShowPins` check, so routing it through the content revision as well would rebuild
+    /// the clusters twice for one toggle.
     private struct MapContentInputs: Equatable {
         var filter: RunFilter
         var scope: ActivityScope
         var runCount: Int
         var newestEdit: Double
-        var showPins: Bool
     }
 
     private var stats: RunStatistics { RunStatistics(scopedRuns) }
@@ -360,10 +361,11 @@ struct HomeView: View {
             if !isOverviewMode { appModel.fit(visibleRuns) }
         }
         // Advance the map's content revision on the discrete events that change what it draws —
-        // filter, scope, new/removed activities, a route edit or favorite toggle (same count, new
-        // `updatedAt`), or the pins toggle — folded into one Equatable value so a single `onChange`
-        // covers them all. The route map then rebuilds overlays/clusters only when this changes,
-        // never on an unrelated re-render (a sheet drag), which is the whole point of the revision.
+        // filter, scope, new/removed activities, or a route edit / favorite toggle (same count, new
+        // `updatedAt`) — folded into one Equatable value so a single `onChange` covers them all.
+        // (The pins toggle is handled separately inside RunMapView, so it's not included here.)
+        // The route map then rebuilds overlays/clusters only when this changes, never on an
+        // unrelated re-render (a sheet drag), which is the whole point of the revision.
         .onChange(of: mapContentInputs) { appModel.bumpMapContent() }
         .onAppear {
             // Heal a stored scope that's since been hidden in Settings (e.g. viewing Hikes, then
@@ -1365,7 +1367,7 @@ private struct SheetLayer<Controls: View>: View {
                 .opacity(1 - t)
                 .allowsHitTesting(t < 0.5)
 
-            MapSearchSheet(maxHeight: maxHeight, height: $metrics.height)
+            MapSearchSheet(maxHeight: maxHeight, height: $metrics.height, bottomSafeArea: bottomSafeArea)
         }
         .frame(height: metrics.height + 90, alignment: .bottom)
         .frame(maxWidth: .infinity, alignment: .bottom)
