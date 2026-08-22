@@ -408,7 +408,7 @@ struct HomeView: View {
         // already track, so the map stays completely isolated during a drag.
         .overlay(alignment: .bottom) {
             ZStack(alignment: .bottom) {
-                SheetLayer(metrics: sheetMetrics, maxHeight: sheetMaxHeight, bottomSafeArea: bottomSafeArea) {
+                SheetLayer(metrics: sheetMetrics, maxHeight: sheetMaxHeight) {
                     floatingControls
                 }
                 SearchSheetHost(
@@ -1365,11 +1365,11 @@ private struct SheetFade<Content: View>: View {
 private struct SheetLayer<Controls: View>: View {
     @Bindable var metrics: SheetMetrics
     let maxHeight: CGFloat
-    let bottomSafeArea: CGFloat
     @ViewBuilder var controls: Controls
 
-    /// The sheet's collapsed detent (grabber + search row).
-    private let collapsed: CGFloat = 62
+    /// The sheet's collapsed visible height (the floating pill plus the gap it floats above the
+    /// physical bottom edge).
+    private var collapsed: CGFloat { SearchSheetInteractionController.collapsedVisibleHeight }
 
     var body: some View {
         let mid = max(260, maxHeight * 0.5)
@@ -1377,8 +1377,10 @@ private struct SheetLayer<Controls: View>: View {
         let t = max(0, min(1, (metrics.height - collapsed) / max(1, mid - collapsed)))
         ZStack(alignment: .bottom) {
             controls
-                // Sit a small, Apple-Maps-sized gap above the sheet's true top edge.
-                .padding(.bottom, max(20, metrics.height + 40 - bottomSafeArea))
+                // `metrics.height` is measured from the physical bottom edge (as is this padding,
+                // since the layer ignores the bottom safe area), so this sits the controls a small
+                // Apple-Maps-sized gap directly above the sheet's true top edge.
+                .padding(.bottom, max(20, metrics.height + 14))
                 .opacity(1 - t)
                 .allowsHitTesting(t < 0.5)
         }

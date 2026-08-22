@@ -21,6 +21,18 @@ final class SearchSheetInteractionController: NSObject {
 
     enum Detent: Int { case collapsed, mid, full }
 
+    // MARK: Pill geometry (Apple-Maps-style floating search bar at the collapsed rest)
+
+    /// How far the collapsed pill sits in from the screen's side edges — and, matching Apple Maps,
+    /// the same distance it floats above the physical bottom edge.
+    static let pillInset: CGFloat = 14
+    /// The collapsed pill's own height (grabber + search row).
+    static let pillHeight: CGFloat = 64
+    /// Corner radius of the floating pill (all four corners at rest).
+    static let pillRadius: CGFloat = 28
+    /// The sheet's collapsed *visible* height: the pill plus the gap it floats above the bottom.
+    static var collapsedVisibleHeight: CGFloat { pillHeight + pillInset }
+
     // MARK: Wiring (set by the host)
 
     weak var sheetView: UIView?
@@ -52,6 +64,9 @@ final class SearchSheetInteractionController: NSObject {
 
     private(set) var currentDetent: Detent = .collapsed
     private(set) var isPanning = false
+    /// The currently *visible* (masked) area of the sheet, in the sheet's own coordinates. Touches
+    /// outside it — the map showing around the floating pill — must pass straight through.
+    private(set) var currentVisibleRect: CGRect = .zero
     private var currentTranslation: CGFloat = 0
 
     private var dragStartTranslation: CGFloat = 0
@@ -328,27 +343,71 @@ final class SearchSheetInteractionController: NSObject {
         onHeight(visible)
     }
 
+    /// Morphs the glass surface between an Apple-Maps-style *floating pill* at the collapsed rest
+    /// and a full bottom page:
+    /// - horizontally, inset from the screen edges at rest, edge-to-edge at full;
+    /// - vertically, the pill's bottom floats the same distance off the physical bottom edge as off
+    ///   the sides (so the map shows all the way around it), while the full page runs past the
+    ///   bottom edge into the bleed so no map ever shows beneath it;
+    /// - all four corners rounded as a pill, the bottom corners squaring off as it reaches full.
+    ///
+    /// This is one `CGPath` rebuilt per frame on a masked layer — no SwiftUI layout is involved.
     private func updateSurface(progress: CGFloat) {
-        guard let surfaceView, let maskLayer else { return }
-        let inset = 14 * (1 - progress)
-        let radius = 26 * (1 - progress) + 20 * progress
-        let rect = surfaceView.bounds.insetBy(dx: inset, dy: 0)
-        let path = UIBezierPath(
-            roundedRect: rect,
-            byRoundingCorners: [.topLeft, .topRight],
-            cornerRadii: CGSize(width: radius, height: radius)
+        guard let surfaceView, let maskLayer, full > 0 else { return }
+        let bounds = surfaceView.bounds
+
+        let inset = Self.pillInset * (1 - progress)
+        // The physical bottom edge, expressed in the (translated) sheet's own coordinates.
+        let screenBottom = full - currentTranslation
+        // At rest the pill floats `inset` above that edge; it never shrinks below its own height, so
+        // an over-drag slides it off the bottom rather than squashing the search row.
+        let floatingBottom = max(Self.pillHeight, screenBottom - inset)
+        let bottomY = floatingBottom + (bounds.height - floatingBottom) * progress
+
+        let rect = CGRect(
+            x: bounds.minX + inset,
+            y: bounds.minY,
+            width: max(0, bounds.width - inset * 2),
+            height: max(0, bottomY - bounds.minY)
         )
-        maskLayer.path = path.cgPath
-        borderLayer?.path = path.cgPath
+        let topRadius = Self.pillRadius * (1 - progress) + 20 * progress
+        let bottomRadius = Self.pillRadius * (1 - progress)
+        let path = Self.roundedPath(rect: rect, topRadius: topRadius, bottomRadius: bottomRadius)
+
+        maskLayer.path = path
+        borderLayer?.path = path
+        currentVisibleRect = rect
 
         if let container = sheetView {
             if displayLink == nil && !isPanning && !scrollTakeover {
-                container.layer.shadowPath = path.cgPath
+                container.layer.shadowPath = path
                 container.layer.shadowOpacity = 0.14
             } else {
                 container.layer.shadowOpacity = 0
             }
         }
+    }
+
+    /// A rounded rectangle with independent top and bottom corner radii.
+    private static func roundedPath(rect: CGRect, topRadius: CGFloat, bottomRadius: CGFloat) -> CGPath {
+        let limit = min(rect.width, rect.height) / 2
+        let tr = max(0, min(topRadius, limit))
+        let br = max(0, min(bottomRadius, limit))
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY + tr))
+        path.addArc(tangent1End: CGPoint(x: rect.minX, y: rect.minY),
+                    tangent2End: CGPoint(x: rect.minX + tr, y: rect.minY), radius: tr)
+        path.addLine(to: CGPoint(x: rect.maxX - tr, y: rect.minY))
+        path.addArc(tangent1End: CGPoint(x: rect.maxX, y: rect.minY),
+                    tangent2End: CGPoint(x: rect.maxX, y: rect.minY + tr), radius: tr)
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - br))
+        path.addArc(tangent1End: CGPoint(x: rect.maxX, y: rect.maxY),
+                    tangent2End: CGPoint(x: rect.maxX - br, y: rect.maxY), radius: br)
+        path.addLine(to: CGPoint(x: rect.minX + br, y: rect.maxY))
+        path.addArc(tangent1End: CGPoint(x: rect.minX, y: rect.maxY),
+                    tangent2End: CGPoint(x: rect.minX, y: rect.maxY - br), radius: br)
+        path.closeSubpath()
+        return path
     }
 }
 

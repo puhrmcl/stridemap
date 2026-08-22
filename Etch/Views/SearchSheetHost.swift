@@ -54,14 +54,18 @@ struct SearchSheetHost: UIViewControllerRepresentable {
     }
 }
 
-/// A view that is transparent to touches everywhere except the sheet, so the map and floating
-/// controls beneath the overlay stay interactive.
+/// A view that is transparent to touches everywhere except the sheet's *visible* (masked) area, so
+/// the map and floating controls stay interactive — including in the margins around the collapsed
+/// floating pill, where the sheet's container extends but nothing is drawn.
 final class PassthroughView: UIView {
     weak var sheetView: UIView?
+    /// The visible masked rect, in the sheet's own coordinates.
+    var visibleRect: () -> CGRect = { .zero }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         guard let sheetView, !sheetView.isHidden, sheetView.alpha > 0.01 else { return nil }
         let local = sheetView.convert(point, from: self)
+        guard visibleRect().contains(local) else { return nil }
         return sheetView.hitTest(local, with: event)
     }
 }
@@ -96,6 +100,7 @@ final class SearchSheetContainerViewController: UIViewController {
     override func loadView() {
         let root = PassthroughView()
         root.sheetView = sheetView
+        root.visibleRect = { [weak controller] in controller?.currentVisibleRect ?? .zero }
         root.backgroundColor = .clear
         view = root
     }
@@ -167,7 +172,8 @@ final class SearchSheetContainerViewController: UIViewController {
         // Skip re-laying-out (which momentarily clears the transform) unless the bounds truly
         // changed — never mid-drag, where the bounds are stable.
         guard bounds != lastLaidOutBounds else {
-            controller.configure(full: maxHeight, mid: max(260, maxHeight * 0.5), collapsed: 62)
+            controller.configure(full: maxHeight, mid: max(260, maxHeight * 0.5),
+                             collapsed: SearchSheetInteractionController.collapsedVisibleHeight)
             controller.attachScrollViewIfNeeded()
             return
         }
@@ -185,7 +191,8 @@ final class SearchSheetContainerViewController: UIViewController {
         maskLayer.frame = surfaceView.bounds
         borderLayer.frame = sheetView.bounds
 
-        controller.configure(full: maxHeight, mid: max(260, maxHeight * 0.5), collapsed: 62)
+        controller.configure(full: maxHeight, mid: max(260, maxHeight * 0.5),
+                             collapsed: SearchSheetInteractionController.collapsedVisibleHeight)
         // Attach to the content scroll view's pan as soon as SwiftUI has built it, so the very first
         // content drag at full is handled (accidental-tap cancellation + immediate hand-off).
         controller.attachScrollViewIfNeeded()
