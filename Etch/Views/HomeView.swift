@@ -562,11 +562,11 @@ struct HomeView: View {
     /// The current view's name — used for VoiceOver only (the pill shows an icon, not text): the
     /// map-mode when showing routes, else "Places".
     private var currentViewName: String {
-        showLocations ? "Places" : modeLabel(appModel.filter.mode)
+        showLocations ? locationOverlay.label : modeLabel(appModel.filter.mode)
     }
 
     private var currentViewSymbol: String {
-        showLocations ? "mappin.and.ellipse" : appModel.filter.mode.symbol
+        showLocations ? locationOverlay.symbol : appModel.filter.mode.symbol
     }
 
     /// The current activity type's short name — for VoiceOver.
@@ -726,15 +726,20 @@ struct HomeView: View {
                 accessibilityLabel: "Activity View, \(modeLabel(mode))"
             ) { applyMode(.mode(mode)) }
         }
-        options.append(
+        // The place maps are first-class views here, one tile each — City, State, Country,
+        // Landmark. They used to hide behind a single "Places" tile that then revealed a separate
+        // dropdown under the pill, which made the choropleths hard to reach (and easy to lose). Now
+        // choosing "State" switches the map to the state choropleth in one tap, exactly like
+        // choosing Recent or PRs switches the route view.
+        options.append(contentsOf: LocationOverlay.allCases.map { overlay in
             SelectionOption(
-                id: "places",
-                icon: "mappin.and.ellipse",
-                label: "Places",
-                isSelected: showLocations,
-                accessibilityLabel: "Activity View, Places"
-            ) { applyMode(.locations) }
-        )
+                id: "place-\(overlay.rawValue)",
+                icon: overlay.symbol,
+                label: overlay.label,
+                isSelected: showLocations && locationOverlay == overlay,
+                accessibilityLabel: "Activity View, \(overlay.label)"
+            ) { applyMode(.place(overlay)) }
+        })
         return options
     }
 
@@ -762,7 +767,11 @@ struct HomeView: View {
                 var f = appModel.filter
                 f.mode = mode
                 appModel.setFilter(f)
-            case .locations:
+            case .place(let overlay):
+                // Switch straight to that place map. Setting the overlay before showing it means
+                // the correct choropleth/pin map is the first thing built, with no flash of the
+                // previously-selected one.
+                locationOverlay = overlay
                 showLocations = true
             }
         }
@@ -819,7 +828,7 @@ struct HomeView: View {
     /// overlay (whose specific overlay is chosen by a secondary dropdown). Set via `applyMode`.
     private enum ModeSelection: Hashable {
         case mode(RunFilter.Mode)
-        case locations
+        case place(LocationOverlay)
     }
 
     /// The pins for the active pin-based overlay (cities / landmarks). States and countries are
@@ -832,29 +841,13 @@ struct HomeView: View {
         }
     }
 
-    /// Places: the overlay-type dropdown (Country / State / City / Landmark), each its own list,
-    /// plus a "jump to" menu that zooms the active overlay to a chosen place. Left-aligned under
-    /// the pill.
+    /// Places: a single "jump to" menu that zooms the active place map to a chosen state / country /
+    /// city / landmark. Which place *map* is showing is chosen in the Activity View sheet (one tile
+    /// per place type), so this bar no longer carries a second overlay dropdown — it does the one
+    /// thing the sheet can't: pick a specific place out of a long list.
     private var modeSelector: some View {
-        HStack(spacing: 10) {
-            overlaySelector
-            placesMenu
-        }
-        .padding(.vertical, 3)   // room for the pills' soft shadows
-    }
-
-    /// Secondary dropdown: which Locations overlay to show.
-    private var overlaySelector: some View {
-        Menu {
-            Picker("Overlay", selection: $locationOverlay) {
-                ForEach(LocationOverlay.allCases) { overlay in
-                    Label(overlay.label, systemImage: overlay.symbol).tag(overlay)
-                }
-            }
-        } label: {
-            pill(symbol: locationOverlay.symbol, text: locationOverlay.label)
-        }
-        .buttonStyle(.plain)
+        placesMenu
+            .padding(.vertical, 3)   // room for the pill's soft shadow
     }
 
     /// A "jump to" menu that zooms the active overlay to a chosen place.
