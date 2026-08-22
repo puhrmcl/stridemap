@@ -268,16 +268,16 @@ struct StudioView: View {
     // MARK: Style tab
 
     @ViewBuilder private var styleTab: some View {
+        // Lead with the piece itself, rendered through every curated style. Choosing a finished
+        // look is the first decision; the controls beneath refine it.
+        EditionGalleryStrip(run: run, config: $config)
         if config.family == .map {
-            chipRow("Map", MapStyle.allCases, selection: $config.mapStyle,
-                    label: { $0.name }, icon: { $0.icon })
-            // The layout beneath the map — sits directly under the map type.
+            // The layout beneath the map — sits directly under the style strip.
             chipRow("Layout", MapLayout.allCases, selection: $config.mapLayout,
                     label: { $0.name }, icon: { $0.icon })
             if config.mapLayout == .photo { mapPhotoControls }
         } else {
-            chipRow("Layout", GalleryDesign.allCases, selection: $config.galleryDesign,
-                    label: { $0.name }, icon: { $0.icon })
+            // The style strip above already picks the Gallery design, so no second control for it.
             galleryFramesEditor
             addPhotoButton
         }

@@ -10,9 +10,17 @@ struct PrintSize: Identifiable, Hashable {
     let height: Int
     /// Prodigi's product SKU. The app never calls Prodigi directly — this travels with the order to
     /// the Etch backend, which holds the credentials and creates the order server-side.
+    ///
+    /// ⚠️ UNVERIFIED. These follow Prodigi's published naming convention (GLOBAL-<line>-<size>) but
+    /// have not been confirmed against a live Prodigi catalogue call. The backend must validate
+    /// every SKU against `GET /v4.0/products/{sku}` at startup and refuse to accept orders for any
+    /// that don't resolve — a wrong SKU here is a silently failed order, not a build error.
     let prodigiSKU: String
     /// Retail price in USD cents. Held here so the size list can show a price without a round trip;
     /// the backend re-validates before charging, and its number is authoritative.
+    ///
+    /// ⚠️ PLACEHOLDER. Set from a plausible premium-print position, not from Prodigi cost + margin.
+    /// Reprice against real quotes before launch.
     let priceCents: Int
 
     var id: String { "\(width)x\(height)-\(prodigiSKU)" }
