@@ -1,0 +1,37 @@
+# Phase 1 SKU verification, run in CI because the operator has no local Mac —
+# everything ships via Xcode Cloud / GitHub. The runner calls Prodigi's live API
+# (read-only: product lookups + quotes; no orders, nothing charged) using the
+# PRODIGI_API_KEY repository secret, and prints the results to the job log for
+# the working session to read back and fix PrintCatalog.swift from.
+#
+# The key never appears in output; Actions masks secrets in logs regardless.
+
+name: Verify Prodigi SKUs
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/rebrand-etch]
+    paths:
+      - ".github/workflows/verify-prodigi.yml"
+      - "fulfilment/scripts/**"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify SKUs against the live Prodigi catalog
+        env:
+          PRODIGI_API_KEY: ${{ secrets.PRODIGI_API_KEY }}
+        run: |
+          if [ -z "$PRODIGI_API_KEY" ]; then
+            echo "::error::PRODIGI_API_KEY secret is not set."
+            echo "Add it on your phone: github.com/puhrmcl/stridemap → Settings →"
+            echo "Secrets and variables → Actions → New repository secret →"
+            echo "Name: PRODIGI_API_KEY → paste the key → Add secret. Then re-run."
+            exit 1
+          fi
+          chmod +x fulfilment/scripts/verify-skus.sh
+          ./fulfilment/scripts/verify-skus.sh --live
