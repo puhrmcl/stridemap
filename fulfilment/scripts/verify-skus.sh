@@ -46,10 +46,16 @@ for entry in "${SKUS[@]}"; do
   echo
   echo "━━ $sku"
 
-  # 1) Does the SKU exist at all?
+  # 1) Does the SKU exist at all? (Retries: the live API drops the odd connection —
+  # a transient curl failure must never abort the whole verification.)
   code=$(curl -sS -o /tmp/prodigi-product.json -w "%{http_code}" \
+    --retry 3 --retry-all-errors --max-time 30 \
     -H "X-API-Key: $PRODIGI_API_KEY" \
-    "$BASE/v4.0/products/$sku")
+    "$BASE/v4.0/products/$sku" || echo "000")
+  if [[ "$code" == "000" ]]; then
+    echo "   product: NETWORK ERROR (retried; re-run to confirm)"
+    continue
+  fi
   if [[ "$code" != "200" ]]; then
     echo "   product: MISSING (HTTP $code)"
     cat /tmp/prodigi-product.json 2>/dev/null | head -c 400; echo
@@ -73,7 +79,8 @@ PY
   else
     attributes="{}"
   fi
-  quote=$(curl -sS -H "X-API-Key: $PRODIGI_API_KEY" -H "Content-Type: application/json" \
+  quote=$(curl -sS --retry 3 --retry-all-errors --max-time 30 \
+    -H "X-API-Key: $PRODIGI_API_KEY" -H "Content-Type: application/json" \
     -X POST "$BASE/v4.0/quotes" -d @- <<JSON
 {
   "shippingMethod": "Standard",
@@ -84,7 +91,7 @@ PY
   ]
 }
 JSON
-  )
+  ) || quote='{"curl_error":"network failure after retries"}'
   echo "$quote" | python3 - <<'PY' 2>/dev/null || echo "   quote: $quote" | head -c 500
 import json, sys
 data = json.load(sys.stdin)
