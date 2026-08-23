@@ -30,8 +30,14 @@ SKUS=(
   "GLOBAL-FAP-12X18:"
   "GLOBAL-FAP-16X24:"
   "GLOBAL-FAP-24X36:"
+  # CFPM (mounted/matted) verified but its mat crops the print area to ~1:1.74 —
+  # a 2:3 artwork would lose its sides. CFP (unmounted classic frame) should be
+  # the full-bleed 2:3 framed product; verifying both to compare.
   "GLOBAL-CFPM-12X18:black"
   "GLOBAL-CFPM-16X24:black"
+  "GLOBAL-CFP-12X18:black"
+  "GLOBAL-CFP-16X24:black"
+  "GLOBAL-CFP-24X36:black"
 )
 
 for entry in "${SKUS[@]}"; do
