@@ -11,16 +11,19 @@ struct PrintSize: Identifiable, Hashable {
     /// Prodigi's product SKU. The app never calls Prodigi directly — this travels with the order to
     /// the Etch backend, which holds the credentials and creates the order server-side.
     ///
-    /// ⚠️ UNVERIFIED. These follow Prodigi's published naming convention (GLOBAL-<line>-<size>) but
-    /// have not been confirmed against a live Prodigi catalogue call. The backend must validate
-    /// every SKU against `GET /v4.0/products/{sku}` at startup and refuse to accept orders for any
-    /// that don't resolve — a wrong SKU here is a silently failed order, not a build error.
+    /// ✓ VERIFIED against the live Prodigi catalogue (Verify Prodigi SKUs workflow, 2026-08-23):
+    /// every SKU resolves, print areas are exactly 300 DPI at trim in true 2:3, and the framed
+    /// line is the *unmounted* Classic Frame (full-bleed; the mounted CFPM line's mat crops to
+    /// ~1:1.74 and was rejected for it). The fulfilment worker still re-validates at boot —
+    /// Prodigi retires SKUs.
     let prodigiSKU: String
     /// Retail price in USD cents. Held here so the size list can show a price without a round trip;
-    /// the backend re-validates before charging, and its number is authoritative.
+    /// Shopify's price is authoritative at checkout and the backend re-validates before charging.
     ///
-    /// ⚠️ PLACEHOLDER. Set from a plausible premium-print position, not from Prodigi cost + margin.
-    /// Reprice against real quotes before launch.
+    /// Set against live Prodigi quotes (US, Standard shipping, 2026-08-23). Landed costs:
+    /// prints $26.95 / $27.95 / $37.90; framed (CFP) $69.90 / $75.90 — giving 45–62% contribution
+    /// before payment fees. Framed 12×18 sits at $139 (not $129) to keep its margin above 45%
+    /// once fees and a replacement reserve come out.
     let priceCents: Int
 
     var id: String { "\(width)x\(height)-\(prodigiSKU)" }
@@ -87,9 +90,11 @@ enum PrintProduct: String, CaseIterable, Identifiable {
                 PrintSize(width: 24, height: 36, prodigiSKU: "GLOBAL-FAP-24X36", priceCents: 9900)
             ]
         case .framed:
+            // CFP = Classic Frame, no mount: the full-bleed 2:3 framed product. (CFP-24X36 is
+            // also verified, gated on the server renderer like the unframed 24×36.)
             return [
-                PrintSize(width: 12, height: 18, prodigiSKU: "GLOBAL-CFPM-12X18", priceCents: 12900),
-                PrintSize(width: 16, height: 24, prodigiSKU: "GLOBAL-CFPM-16X24", priceCents: 17900)
+                PrintSize(width: 12, height: 18, prodigiSKU: "GLOBAL-CFP-12X18", priceCents: 13900),
+                PrintSize(width: 16, height: 24, prodigiSKU: "GLOBAL-CFP-16X24", priceCents: 17900)
             ]
         }
     }

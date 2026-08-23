@@ -103,9 +103,9 @@ struct PrintShopView: View {
 
         Group {
             if product == .framed {
+                // Full-bleed in the moulding — the verified product (Classic Frame, no mount) has
+                // no mat, so the mockup doesn't draw one. Honest previews only.
                 sheet
-                    .padding(10)                                   // mat
-                    .background(Color(white: 0.98))
                     .padding(9)                                    // moulding
                     .background(Color(hex: finish.mouldingHex) ?? .black)
                     .shadow(color: .black.opacity(0.30), radius: 16, y: 10)
