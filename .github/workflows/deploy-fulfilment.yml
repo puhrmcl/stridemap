@@ -1,0 +1,180 @@
+# Deploys the Etch Studio fulfilment worker (fulfilment/) to Cloudflare, run in CI
+# because the operator has no local Mac — everything ships via Xcode Cloud / GitHub.
+#
+# The job is a complete, idempotent provisioning pass: it creates the R2 bucket and
+# D1 database if they don't exist, resolves the D1 database_id into wrangler.toml
+# (the committed file carries a placeholder on purpose — the id is account-specific),
+# applies the schema (CREATE TABLE IF NOT EXISTS throughout, safe to re-run), syncs
+# worker secrets from GitHub secrets, and deploys. Re-running it is always safe.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN   API token with: Workers Scripts:Edit, Workers R2 Storage:Edit,
+#                          D1:Edit, Account Settings:Read (create at dash.cloudflare.com →
+#                          My Profile → API Tokens → Create Token).
+#   CLOUDFLARE_ACCOUNT_ID  From the Cloudflare dashboard URL or the account home sidebar.
+#   ETCH_UPLOAD_TOKEN      A long random string you generate (e.g. iOS Passwords app →
+#                          new password). Becomes the worker's UPLOAD_TOKEN: the bearer
+#                          the iOS app uses to upload assets, and the HMAC key for signed
+#                          asset URLs. Changing it later invalidates outstanding links.
+#   PRODIGI_API_KEY        Already set (used by the Verify Prodigi SKUs workflow).
+#   SHOPIFY_WEBHOOK_SECRET Optional until the Shopify store exists; skipped when absent
+#                          (Shopify webhooks then fail HMAC with 401, which is correct).
+#
+# Secrets never appear in output; Actions masks them in logs regardless.
+
+name: Deploy fulfilment worker
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/rebrand-etch]
+    paths:
+      - "fulfilment/src/**"
+      - "fulfilment/schema.sql"
+      - "fulfilment/wrangler.toml"
+      - "fulfilment/package.json"
+      - "fulfilment/package-lock.json"
+      - ".github/workflows/deploy-fulfilment.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: fulfilment
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: fulfilment/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Check Cloudflare credentials
+        run: |
+          missing=""
+          if [ -z "$CLOUDFLARE_API_TOKEN" ];  then missing="$missing CLOUDFLARE_API_TOKEN"; fi
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then missing="$missing CLOUDFLARE_ACCOUNT_ID"; fi
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):$missing"
+            echo "Add them on your phone: github.com/puhrmcl/stridemap → Settings →"
+            echo "Secrets and variables → Actions → New repository secret."
+            echo ""
+            echo "CLOUDFLARE_API_TOKEN: dash.cloudflare.com → My Profile → API Tokens →"
+            echo "  Create Token → Custom token with permissions:"
+            echo "  Account · Workers Scripts · Edit"
+            echo "  Account · Workers R2 Storage · Edit"
+            echo "  Account · D1 · Edit"
+            echo "  Account · Account Settings · Read"
+            echo "CLOUDFLARE_ACCOUNT_ID: dash.cloudflare.com → Workers & Pages →"
+            echo "  right sidebar shows Account ID (32 hex characters)."
+            echo "Then re-run this workflow."
+            exit 1
+          fi
+          if [ -z "${{ secrets.ETCH_UPLOAD_TOKEN }}" ]; then
+            echo "::error::ETCH_UPLOAD_TOKEN secret is not set."
+            echo "Generate a long random string (iOS Passwords app → + → Custom password"
+            echo "works well), then add it as repository secret ETCH_UPLOAD_TOKEN."
+            echo "It becomes the worker's UPLOAD_TOKEN — the iOS app's upload bearer and"
+            echo "the signing key for Prodigi asset URLs. Then re-run this workflow."
+            exit 1
+          fi
+
+      - name: Ensure R2 bucket exists
+        run: |
+          if npx wrangler r2 bucket create etch-production-assets 2>err.log; then
+            echo "Created R2 bucket etch-production-assets."
+          elif grep -qi "already exists" err.log; then
+            echo "R2 bucket etch-production-assets already exists — good."
+          else
+            cat err.log; exit 1
+          fi
+
+      - name: Ensure D1 database exists and resolve its id
+        run: |
+          if npx wrangler d1 create etch-fulfilment 2>err.log; then
+            echo "Created D1 database etch-fulfilment."
+          elif grep -qi "already exists" err.log; then
+            echo "D1 database etch-fulfilment already exists — good."
+          else
+            cat err.log; exit 1
+          fi
+          DB_ID=$(npx wrangler d1 info etch-fulfilment --json | node -e '
+            let s = "";
+            process.stdin.on("data", c => s += c);
+            process.stdin.on("end", () => {
+              const info = JSON.parse(s);
+              process.stdout.write(info.uuid || info.database_id || "");
+            });
+          ')
+          if [ -z "$DB_ID" ]; then
+            echo "::error::Could not resolve the D1 database id for etch-fulfilment."
+            exit 1
+          fi
+          # The committed wrangler.toml carries a placeholder — the id is account-specific
+          # and this workflow is the deploy path, so it's resolved here at deploy time.
+          sed -i "s/REPLACE_AFTER_wrangler_d1_create/$DB_ID/" wrangler.toml
+          echo "Resolved D1 database id into wrangler.toml."
+
+      - name: Apply schema
+        run: npx wrangler d1 execute etch-fulfilment --remote --file=schema.sql --yes
+
+      - name: Sync worker secrets
+        env:
+          PRODIGI_API_KEY: ${{ secrets.PRODIGI_API_KEY }}
+          ETCH_UPLOAD_TOKEN: ${{ secrets.ETCH_UPLOAD_TOKEN }}
+          SHOPIFY_WEBHOOK_SECRET: ${{ secrets.SHOPIFY_WEBHOOK_SECRET }}
+        run: |
+          # `wrangler secret put` on a worker that has never been deployed fails; deploy a
+          # first version if needed so the secrets have somewhere to live.
+          if ! npx wrangler deployments list >/dev/null 2>&1; then
+            npx wrangler deploy
+          fi
+          printf '%s' "$PRODIGI_API_KEY"   | npx wrangler secret put PRODIGI_API_KEY
+          printf '%s' "$ETCH_UPLOAD_TOKEN" | npx wrangler secret put UPLOAD_TOKEN
+          if [ -n "$SHOPIFY_WEBHOOK_SECRET" ]; then
+            printf '%s' "$SHOPIFY_WEBHOOK_SECRET" | npx wrangler secret put SHOPIFY_WEBHOOK_SECRET
+          else
+            # The worker requires the binding to exist; a placeholder keeps Shopify HMAC
+            # verification failing closed (401) until the real secret is set at store launch.
+            printf 'not-configured-yet' | npx wrangler secret put SHOPIFY_WEBHOOK_SECRET
+            echo "SHOPIFY_WEBHOOK_SECRET not set — placeholder installed (fails closed)."
+            echo "Set the real one when the Shopify store exists, then re-run this workflow."
+          fi
+
+      - name: Deploy
+        run: |
+          set -o pipefail
+          npx wrangler deploy | tee deploy.log
+
+      - name: Verify /health and print endpoints
+        run: |
+          URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' deploy.log | head -1)
+          if [ -z "$URL" ]; then
+            echo "::warning::Could not parse the deployed URL from wrangler output."
+            exit 0
+          fi
+          echo "Deployed: $URL"
+          sleep 5
+          code=$(curl -sS -o health.json -w "%{http_code}" --max-time 30 "$URL/health" || echo "000")
+          cat health.json 2>/dev/null; echo
+          if [ "$code" != "200" ]; then
+            echo "::error::/health returned HTTP $code"
+            exit 1
+          fi
+          echo ""
+          echo "── Wire these up (values, not secrets — safe to show):"
+          echo "Prodigi callback URL (Prodigi dashboard → Settings → Webhooks):"
+          echo "  $URL/webhooks/prodigi?token=<your ETCH_UPLOAD_TOKEN value>"
+          echo "Shopify orders/paid webhook (when the store exists):"
+          echo "  $URL/webhooks/shopify"

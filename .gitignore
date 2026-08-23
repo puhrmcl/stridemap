@@ -20,5 +20,10 @@ worker/.wrangler/
 worker/dist/
 .dev.vars
 
+# Cloudflare Worker (Etch Studio fulfilment)
+fulfilment/node_modules/
+fulfilment/.wrangler/
+fulfilment/dist/
+
 # Secrets — if you move Strava keys into an xcconfig, ignore it here.
 Secrets.xcconfig
