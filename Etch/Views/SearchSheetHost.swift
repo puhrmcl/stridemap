@@ -181,15 +181,22 @@ final class SearchSheetContainerViewController: UIViewController {
 
         let bleed = bottomSafeArea + 140
         let topAtFull = bounds.height - maxHeight
+        // The glass surface extends `topBleed` above the content, so at the full detent it runs
+        // behind the status bar to the physical top of the screen (Apple Maps' expanded search) —
+        // the content itself stays below the safe area, and the collapsed pill is untouched.
+        let topBleed = max(0, topAtFull)
         // Set the frame with the transform temporarily cleared, then let the controller reapply the
         // current translation via `configure`.
         sheetView.transform = .identity
         sheetView.frame = CGRect(x: 0, y: topAtFull, width: bounds.width, height: maxHeight + bleed)
-        surfaceView.frame = sheetView.bounds
+        surfaceView.frame = CGRect(x: 0, y: -topBleed,
+                                   width: bounds.width, height: sheetView.bounds.height + topBleed)
         effectView.frame = surfaceView.bounds
-        hostingController.view.frame = surfaceView.bounds
+        hostingController.view.frame = CGRect(x: 0, y: topBleed,
+                                              width: bounds.width, height: sheetView.bounds.height)
         maskLayer.frame = surfaceView.bounds
         borderLayer.frame = sheetView.bounds
+        controller.topBleed = topBleed
 
         controller.configure(full: maxHeight, mid: max(260, maxHeight * 0.5),
                              collapsed: SearchSheetInteractionController.collapsedVisibleHeight)

@@ -44,6 +44,10 @@ final class AppModel {
     /// A saved Studio poster to open directly in the editor (from an explore-page thumbnail).
     var studioPoster: SavedPoster?
 
+    /// A run to open in the Studio editor as a *new* creation (Create in Studio from a row's
+    /// overflow menu). Cleared when the editor sheet closes.
+    var studioRun: UUID?
+
     // MARK: Camera helpers
 
     func focus(on run: Run) {

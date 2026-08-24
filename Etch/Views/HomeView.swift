@@ -469,6 +469,10 @@ struct HomeView: View {
                 if let run = allRuns.first(where: { $0.id == poster.runID }) {
                     StudioView(run: run, poster: poster)
                 }
+            case .studioCreate(let id):
+                if let run = allRuns.first(where: { $0.id == id }) {
+                    StudioView(run: run)
+                }
             }
         }
         // Let the keyboard float over the map and the docked search sheet (Apple Maps behaviour)
@@ -492,12 +496,14 @@ struct HomeView: View {
         case run(UUID)
         case stack([UUID])
         case studioPoster(SavedPoster)
+        case studioCreate(UUID)
         var id: String {
             switch self {
             case .surface(let surface): return "surface-\(surface.rawValue)"
             case .run(let id): return "run-\(id.uuidString)"
             case .stack(let ids): return "stack-\(ids.map(\.uuidString).joined())"
             case .studioPoster(let poster): return "poster-\(poster.id.uuidString)"
+            case .studioCreate(let id): return "studio-create-\(id.uuidString)"
             }
         }
     }
@@ -506,6 +512,7 @@ struct HomeView: View {
         Binding(
             get: {
                 if let poster = appModel.studioPoster { return .studioPoster(poster) }
+                if let id = appModel.studioRun { return .studioCreate(id) }
                 if let surface = appModel.presentedSurface { return .surface(surface) }
                 if let ids = appModel.stackedRunIDs, ids.count > 1 { return .stack(ids) }
                 if let id = appModel.selectedRunID { return .run(id) }
@@ -521,11 +528,14 @@ struct HomeView: View {
                     appModel.stackedRunIDs = ids
                 case .studioPoster(let poster):
                     appModel.studioPoster = poster
+                case .studioCreate(let id):
+                    appModel.studioRun = id
                 case nil:
                     appModel.presentedSurface = nil
                     appModel.selectedRunID = nil
                     appModel.stackedRunIDs = nil
                     appModel.studioPoster = nil
+                    appModel.studioRun = nil
                 }
             }
         )

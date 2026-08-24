@@ -74,6 +74,7 @@ struct SearchSheetContent: View {
                         recentSection
                         studioSection
                         achievementsSection
+                        quickLinksSection
                     } else {
                         resultsList
                     }
@@ -379,6 +380,43 @@ struct SearchSheetContent: View {
         }
     }
 
+    /// Full-width utility rows below the content sections — Apple Maps' "Share My Location /
+    /// Report an Issue" pattern: a leading icon and a centred accent label on a tinted card.
+    private var quickLinksSection: some View {
+        VStack(spacing: 12) {
+            quickLink("Import Activity", icon: "square.and.arrow.down") {
+                appModel.presentedSurface = .addHistory
+            }
+            quickLink("Settings", icon: "gearshape") {
+                appModel.presentedSurface = .settings
+            }
+        }
+    }
+
+    private func quickLink(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button {
+            searchFocused = false
+            action()
+        } label: {
+            ZStack {
+                HStack {
+                    Image(systemName: icon)
+                        .font(.system(size: 19, weight: .semibold))
+                    Spacer(minLength: 0)
+                }
+                .padding(.leading, 22)
+                Text(title)
+                    .font(.system(.headline, design: .rounded).weight(.semibold))
+            }
+            .foregroundStyle(Theme.accent)
+            .frame(maxWidth: .infinity)
+            .frame(height: 54)
+            .background(Theme.accent.opacity(0.12), in: .rect(cornerRadius: 16))
+            .contentShape(.rect(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
+    }
+
     @ViewBuilder
     private var resultsList: some View {
         if cachedResults.isEmpty {
@@ -409,7 +447,7 @@ struct SearchSheetContent: View {
     }
 
     /// A single activity tile: the tappable run row plus a trailing "⋯" overflow menu offering
-    /// Share / Open in Maps / Directions.
+    /// Share / Open in Maps / Create in Studio.
     private func runRow(_ run: Run) -> some View {
         HStack(spacing: 0) {
             Button { open(run) } label: {
@@ -418,16 +456,32 @@ struct SearchSheetContent: View {
             .buttonStyle(.plain)
 
             Menu {
-                ShareLink(item: run.shareSummary) {
+                Button {
+                    // The full activity share — the text summary, a PNG of the map (rendered on
+                    // demand; cached by PosterMap for repeats), and an Apple Maps link — matching
+                    // the detail page's Share Activity.
+                    Task {
+                        var items: [Any] = [run.shareSummary]
+                        if run.hasMapLocation || run.coordinates.count > 1,
+                           let image = await PosterMap.sharePanel(for: run, size: CGSize(width: 1000, height: 1000)) {
+                            items.append(image)
+                        }
+                        if let url = run.appleMapsURL { items.append(url) }
+                        AppShare.present(items)
+                    }
+                } label: {
                     Label("Share", systemImage: "square.and.arrow.up")
                 }
                 if run.hasMapLocation {
                     Button { run.openInAppleMaps() } label: {
                         Label("Open in Maps", systemImage: "map")
                     }
-                    Button { run.openInAppleMaps(directions: true) } label: {
-                        Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond")
-                    }
+                }
+                Button {
+                    searchFocused = false
+                    appModel.studioRun = run.id
+                } label: {
+                    Label("Create in Studio", systemImage: "photo.artframe")
                 }
             } label: {
                 Image(systemName: "ellipsis")
