@@ -109,12 +109,15 @@ jobs:
           else
             cat err.log; exit 1
           fi
-          DB_ID=$(npx wrangler d1 info etch-fulfilment --json | node -e '
+          # `d1 list` queries the account directly; `d1 info <name>` would resolve the name
+          # through wrangler.toml and hit the placeholder database_id.
+          DB_ID=$(npx wrangler d1 list --json | node -e '
             let s = "";
             process.stdin.on("data", c => s += c);
             process.stdin.on("end", () => {
-              const info = JSON.parse(s);
-              process.stdout.write(info.uuid || info.database_id || "");
+              const rows = JSON.parse(s);
+              const db = rows.find(r => r.name === "etch-fulfilment");
+              process.stdout.write(db ? (db.uuid || db.database_id || "") : "");
             });
           ')
           if [ -z "$DB_ID" ]; then
