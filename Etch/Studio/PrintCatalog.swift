@@ -38,6 +38,21 @@ struct PrintSize: Identifiable, Hashable {
     var geometry: PrintGeometry {
         PrintGeometry(trimWidth: Double(width), trimHeight: Double(height))
     }
+
+    /// Whether this device can render the print file at acceptable quality. 24×36 needs a
+    /// 10,800px long edge — beyond the on-device ceiling — so it stays visible but unorderable
+    /// until the server renderer exists.
+    var deviceRenderable: Bool {
+        geometry.isAcceptable(longEdgePixels: PrintGeometry.deviceRenderLongEdge)
+    }
+
+    /// The variant SKU as entered in Shopify — the join key between this catalogue and the
+    /// store. Unframed sizes use the Prodigi SKU verbatim; framed sizes append the finish,
+    /// because in Shopify each finish is its own variant.
+    func shopifySKU(finish: FrameFinish?) -> String {
+        guard let finish else { return prodigiSKU }
+        return "\(prodigiSKU)-\(finish.prodigiAttribute.uppercased())"
+    }
 }
 
 /// The Etch Studio print catalogue.
@@ -77,6 +92,15 @@ enum PrintProduct: String, CaseIterable, Identifiable {
         switch self {
         case .print:  return "doc.richtext"
         case .framed: return "photo.artframe"
+        }
+    }
+
+    /// The product's URL handle in Shopify, used to look up its variants at order time. Must
+    /// match the handle on the store's product page exactly.
+    var shopifyHandle: String {
+        switch self {
+        case .print:  return "fine-art-print"
+        case .framed: return "framed-print"
         }
     }
 

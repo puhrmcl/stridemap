@@ -96,7 +96,10 @@ struct StudioView: View {
             // rather than a placeholder — the whole point of the preview.
             .sheet(isPresented: $showPrints) {
                 PrintShopView(subjectTitle: config.title.isEmpty ? run.name : config.title,
-                              artwork: rendered)
+                              artwork: rendered,
+                              renderRequest: config.request(for: run),
+                              creationID: (savedPosterID ?? run.id).uuidString,
+                              runID: run.id)
             }
             .sheet(isPresented: $showExport) { StudioExportSheet(request: config.request(for: run)) }
             .sheet(isPresented: $showPhotoPicker) {

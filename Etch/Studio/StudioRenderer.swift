@@ -76,7 +76,7 @@ enum StudioRenderer {
 
     /// Largest long edge (px) rendered on-device, to stay within memory limits (~18–20″ at
     /// 300 DPI). Bigger sizes are rendered server-side once Studio Web / the print backend land.
-    static let maxLongEdgePixels: CGFloat = 6000
+    static let maxLongEdgePixels = PrintGeometry.deviceRenderLongEdge
 
     /// The map / contour art panel image. Nil for photo and paper editions.
     static func panelImage(for request: Request, panelPixelWidth: CGFloat) async -> UIImage? {

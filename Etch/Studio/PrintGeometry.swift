@@ -53,6 +53,10 @@ struct PrintGeometry: Equatable, Sendable {
     static let printStandardDPI: Double = 300
     /// Below this, an order should be refused rather than shipped soft.
     static let minimumAcceptableDPI: Double = 200
+    /// Largest long edge (px) the device renders — an iPhone memory ceiling, not a choice.
+    /// `StudioRenderer.maxLongEdgePixels` mirrors this; sizes needing more wait on the
+    /// server renderer.
+    static let deviceRenderLongEdge: CGFloat = 6000
 
     /// The nearest supported aspect for this trim size.
     var aspect: PrintAspect {
