@@ -9,6 +9,10 @@ name: Diagnose search sheet
 
 on:
   workflow_dispatch:
+  push:
+    branches: [claude/rebrand-etch]
+    paths:
+      - ".github/workflows/diagnose-sheet.yml"
 
 jobs:
   diagnose:
