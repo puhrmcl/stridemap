@@ -272,7 +272,9 @@ final class SearchSheetInteractionController: NSObject {
 
         if changed { haptics.impactOccurred(intensity: 0.6) }
 
-        springVelocity = velocity
+        // Cap the velocity fed into the spring: the detent decision already consumed the flick,
+        // and an uncapped 3–5k pt/s gesture velocity turns the settle into a launch.
+        springVelocity = max(-1600, min(1600, velocity))
         reduceMotionStart = currentTranslation
         reduceMotionElapsed = 0
         startSpring()
