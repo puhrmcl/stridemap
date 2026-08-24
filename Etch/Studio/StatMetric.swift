@@ -8,7 +8,7 @@ enum StatMetric: String, CaseIterable, Identifiable {
     /// A deliberately empty slot — renders as blank space on the poster. Selectable for any data
     /// point (headline or slot) so the user can leave gaps in the composition.
     case none
-    case distance, time, pace, speed, elevationGain, startElevation, avgHeartRate, calories, cadence, bib, place, date, weather
+    case distance, time, pace, speed, elevationGain, startElevation, avgHeartRate, calories, cadence, bib, place, coordinates, date, weather
 
     var id: String { rawValue }
 
@@ -27,6 +27,7 @@ enum StatMetric: String, CaseIterable, Identifiable {
         case .cadence:      return "CADENCE"
         case .bib:          return "BIB"
         case .place:        return "PLACE"
+        case .coordinates:  return "COORDINATES"
         case .date:         return "DATE"
         case .weather:      return "WEATHER"
         }
@@ -48,6 +49,7 @@ enum StatMetric: String, CaseIterable, Identifiable {
         case .cadence:       return "metronome"
         case .bib:           return "number"
         case .place:         return "mappin.and.ellipse"
+        case .coordinates:   return "location.north.line"
         case .date:          return "calendar"
         case .weather:       return "cloud.sun.fill"
         }
@@ -62,6 +64,7 @@ enum StatMetric: String, CaseIterable, Identifiable {
         case .startElevation: return "Start elevation"
         case .avgHeartRate:   return "Avg heart rate"
         case .bib:            return "Bib number"
+        case .coordinates:    return "Coordinates"
         default:              return label.capitalized
         }
     }
@@ -115,6 +118,11 @@ enum StatMetric: String, CaseIterable, Identifiable {
         case .place:
             let place = [run.city, run.state].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
             return place.isEmpty ? nil : place
+        case .coordinates:
+            // The race-print coordinates line — "45.515° N  122.678° W" for where it started.
+            guard let lat = run.startLatitude, let lon = run.startLongitude else { return nil }
+            return String(format: "%.3f° %@  %.3f° %@",
+                          abs(lat), lat >= 0 ? "N" : "S", abs(lon), lon >= 0 ? "E" : "W")
         case .date:
             return Format.date(run.startDate)
         case .weather:

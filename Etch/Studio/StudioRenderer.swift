@@ -80,7 +80,11 @@ enum StudioRenderer {
 
     /// The map / contour art panel image. Nil for photo and paper editions.
     static func panelImage(for request: Request, panelPixelWidth: CGFloat) async -> UIImage? {
-        let panelSize = StudioComposition.artSize(request.orientation, request.dataPlacement)
+        // Full Bleed runs the map across the entire sheet, so its panel is snapshotted at the
+        // canvas shape rather than the square art panel — no stretch, no crop surprise.
+        let panelSize = request.mapLayoutRaw == MapLayout.fullBleed.rawValue && request.layout == .classic
+            ? StudioComposition.canvasSize(request.orientation, request.dataPlacement, request.printAspect)
+            : StudioComposition.artSize(request.orientation, request.dataPlacement)
         if request.edition.isContour {
             let ground = request.groundColor ?? request.edition.ground
             return await PosterMap.topographicPanel(for: request.run, size: panelSize,

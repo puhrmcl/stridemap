@@ -10,7 +10,7 @@ import SwiftUI
 struct StudioEdition: Identifiable, Equatable {
 
     enum ID: String, CaseIterable, Identifiable {
-        case gallery, atlas, atlasDark, streets, streetsNoir, satellite, terrain, trailJournal, midnightAtlas, minimal, night, memory
+        case gallery, atlas, atlasDark, streets, streetsNoir, harbor, satellite, terrain, trailJournal, midnightAtlas, minimal, night, memory
         var id: String { rawValue }
     }
 
@@ -76,7 +76,7 @@ struct StudioEdition: Identifiable, Equatable {
 
     // MARK: The collection
 
-    static let all: [StudioEdition] = [.gallery, .atlas, .atlasDark, .streets, .streetsNoir, .satellite, .terrain, .trailJournal, .midnightAtlas, .minimal, .night, .memory]
+    static let all: [StudioEdition] = [.gallery, .atlas, .atlasDark, .streets, .streetsNoir, .harbor, .satellite, .terrain, .trailJournal, .midnightAtlas, .minimal, .night, .memory]
 
     static func edition(_ id: ID) -> StudioEdition { all.first { $0.id == id }! }
 
@@ -139,6 +139,22 @@ struct StudioEdition: Identifiable, Equatable {
         ground: Theme.Palette.ink, mapWash: Theme.Palette.ink, mapWashAlpha: 0.40,
         route: Theme.Palette.bone, casing: Theme.Palette.ink, routeWidth: 11, glow: false,
         ink: Theme.Palette.bone, subtle: Theme.Palette.bone.opacity(0.6), accent: Theme.Palette.bone,
+        panelSaturation: 0
+    )
+
+    /// The Harbor editions' deep slate-navy — between Etch Ink and a nautical chart.
+    private static let harborNavy = Color(red: 0.16, green: 0.20, blue: 0.30)
+
+    /// Harbor — the city in deep navy, the route in gold. The desaturated dark map washed toward
+    /// slate-navy so streets and water read as tonal texture; brass route, bone type. The premium
+    /// marathon-print colourway.
+    static let harbor = StudioEdition(
+        id: .harbor, name: "Harbor",
+        descriptor: "The city in deep navy, the route in gold.",
+        surface: .map(.streetsDark),
+        ground: harborNavy, mapWash: harborNavy, mapWashAlpha: 0.55,
+        route: Theme.Palette.brass, casing: nil, routeWidth: 11, glow: false,
+        ink: Theme.Palette.bone, subtle: Theme.Palette.bone.opacity(0.65), accent: Theme.Palette.brass,
         panelSaturation: 0
     )
 

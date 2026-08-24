@@ -297,7 +297,9 @@ struct StudioComposition: View {
 
     var body: some View {
         Group {
-            if layout == .gallery {
+            if isFullBleedMap {
+                fullBleedComposition
+            } else if layout == .gallery {
                 galleryComposition
             } else if layout == .keepsake {
                 keepsakeComposition
@@ -515,6 +517,109 @@ struct StudioComposition: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
         .clipShape(.rect(cornerRadius: 6))
+    }
+
+    // MARK: Full Bleed — the map runs edge to edge, type set over it, data in the corners.
+
+    /// Map product, Full Bleed layout: no footer panel at all.
+    private var isFullBleedMap: Bool {
+        layout == .classic && MapLayout(rawValue: mapLayoutRaw) == .fullBleed
+    }
+
+    /// The full-bleed sheet: the art fills the exact print canvas; the title (and date) sit at the
+    /// top centre, the headline metric anchors bottom-left, the data slots and place bottom-right —
+    /// all over subtle scrims in the sheet's own ground tone, inside a thin keyline border. The
+    /// race-print archetype: the map *is* the poster.
+    private var fullBleedComposition: some View {
+        let canvas = Self.canvasSize(orientation, dataPlacement, printAspect)
+        return ZStack {
+            Group {
+                if edition.usesImagePanel, let panelImage {
+                    Image(uiImage: panelImage).resizable().scaledToFill()
+                } else {
+                    ZStack {
+                        groundColor
+                        if run.coordinates.count > 1 { routeArt.padding(150) }
+                    }
+                }
+            }
+            .frame(width: canvas.width, height: canvas.height)
+            .clipped()
+
+            // Scrims in the ground tone keep the type legible on light and dark maps alike.
+            LinearGradient(colors: [groundColor.opacity(0.72), groundColor.opacity(0)],
+                           startPoint: .top, endPoint: .center)
+            LinearGradient(colors: [groundColor.opacity(0), groundColor.opacity(0.72)],
+                           startPoint: .center, endPoint: .bottom)
+
+            VStack(spacing: 0) {
+                if showTitle {
+                    Text(titleText.uppercased())
+                        .font(.system(size: ts(54 * titleScale), weight: titleFont.titleWeight,
+                                      design: titleFont.design))
+                        .tracking(6 + titleFont.extraTracking)
+                        .foregroundStyle(inkColor)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.5)
+                        .multilineTextAlignment(.center)
+                }
+                if !dateLine.isEmpty {
+                    Text(dateLine.uppercased())
+                        .font(.system(size: ts(18 * dateScale), weight: .semibold))
+                        .tracking(4)
+                        .foregroundStyle(subtleColor)
+                        .padding(.top, 12)
+                }
+
+                Spacer(minLength: 0)
+
+                HStack(alignment: .bottom) {
+                    if heroMetric != .none {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(heroValue)
+                                .font(.system(size: ts(56 * heroScale), weight: .bold))
+                                .foregroundStyle(inkColor)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.5)
+                            Text(heroCaption)
+                                .font(.system(size: ts(16 * heroScale), weight: .semibold))
+                                .tracking(4)
+                                .foregroundStyle(subtleColor)
+                        }
+                    }
+                    Spacer(minLength: 20)
+                    VStack(alignment: .trailing, spacing: 12) {
+                        ForEach(Array(resolvedStats.enumerated()), id: \.offset) { _, item in
+                            if item.metric != .none {
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text(item.value)
+                                        .font(.system(size: ts(26 * statScale), weight: .bold))
+                                        .foregroundStyle(inkColor)
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.6)
+                                    Text(item.metric.label)
+                                        .font(.system(size: ts(12 * statScale), weight: .semibold))
+                                        .tracking(2)
+                                        .foregroundStyle(subtleColor)
+                                }
+                            }
+                        }
+                        if !placeLine.isEmpty {
+                            Text(placeLine.uppercased())
+                                .font(.system(size: ts(16 * locationScale), weight: .semibold))
+                                .tracking(3)
+                                .foregroundStyle(subtleColor)
+                        }
+                    }
+                }
+            }
+            .padding(92)
+
+            Rectangle().stroke(inkColor.opacity(0.85), lineWidth: 2).padding(48)
+        }
+        .frame(width: canvas.width, height: canvas.height)
+        .clipped()
+        .background(groundColor)
     }
 
     // MARK: Keepsake layout — a full-bleed photo with the data overlaid in white, thin frame.
@@ -790,6 +895,7 @@ struct StudioComposition: View {
                     case .statement: classicFooter
                     case .minimal:   mapMinimalFooter
                     case .photo:     mapPhotoFooter
+                    case .fullBleed: classicFooter   // unreachable — full bleed has no footer
                     }
                 } else {
                     switch layout {

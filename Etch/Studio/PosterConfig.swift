@@ -14,7 +14,7 @@ enum PosterFamily: String, CaseIterable, Identifiable {
 /// the poster's ground, the most restrained look. Each maps onto a curated `StudioEdition` so the
 /// existing render pipeline draws it.
 enum MapStyle: String, CaseIterable, Identifiable {
-    case standard, streets, terrain, satellite, dark, streetsNoir, contour, midnight, none
+    case standard, streets, terrain, satellite, dark, streetsNoir, harbor, contour, midnight, none
     var id: String { rawValue }
     var name: String {
         switch self {
@@ -24,6 +24,7 @@ enum MapStyle: String, CaseIterable, Identifiable {
         case .satellite: return "Satellite"
         case .dark:      return "Dark"
         case .streetsNoir: return "Streets Noir"
+        case .harbor:    return "Harbor"
         case .contour:   return "Trail Journal"
         case .midnight:  return "Midnight Atlas"
         case .none:      return "No Map"
@@ -37,6 +38,7 @@ enum MapStyle: String, CaseIterable, Identifiable {
         case .satellite: return "globe.americas.fill"
         case .dark:      return "moon.stars"
         case .streetsNoir: return "road.lanes.curved.right"
+        case .harbor:    return "water.waves"
         case .contour:   return "square.stack.3d.down.right"
         case .midnight:  return "sparkles"
         case .none:      return "scribble.variable"
@@ -54,6 +56,7 @@ enum MapStyle: String, CaseIterable, Identifiable {
         case .satellite: return .satellite
         case .dark:      return .atlasDark
         case .streetsNoir: return .streetsNoir
+        case .harbor:    return .harbor
         case .contour:   return .trailJournal
         case .midnight:  return .midnightAtlas
         case .none:      return .minimal
@@ -63,15 +66,17 @@ enum MapStyle: String, CaseIterable, Identifiable {
 
 /// A Map poster's layout — how the area beneath the map is composed. `statement` is the full
 /// editorial footer (title, big headline, place, data, date); `minimal` reduces it to just the
-/// title and date under the map; `photo` fills the data area with 1–3 photos.
+/// title and date under the map; `photo` fills the data area with 1–3 photos; `fullBleed` runs
+/// the map edge to edge with the type set over it and the data anchored in the corners.
 enum MapLayout: String, CaseIterable, Identifiable {
-    case statement, minimal, photo
+    case statement, minimal, photo, fullBleed
     var id: String { rawValue }
     var name: String {
         switch self {
         case .statement: return "Statement"
         case .minimal:   return "Minimal"
         case .photo:     return "Photo"
+        case .fullBleed: return "Full Bleed"
         }
     }
     var icon: String {
@@ -79,6 +84,7 @@ enum MapLayout: String, CaseIterable, Identifiable {
         case .statement: return "doc.richtext"
         case .minimal:   return "textformat"
         case .photo:     return "photo.on.rectangle"
+        case .fullBleed: return "rectangle.inset.filled"
         }
     }
 }
