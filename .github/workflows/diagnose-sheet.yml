@@ -49,6 +49,8 @@ jobs:
           APP=$(find dd/Build/Products -name "Etch.app" -maxdepth 2 | head -1)
           echo "Installing $APP"
           xcrun simctl install "$UDID" "$APP"
+          # Skip first-run onboarding so the home map (and the search sheet) mounts.
+          xcrun simctl spawn "$UDID" defaults write com.nwagtech.etch didCompleteOnboarding -bool true
           # NSLog goes to the unified system log, not the launch pty — stream it directly.
           xcrun simctl spawn "$UDID" log stream --style compact \
             --predicate 'eventMessage CONTAINS "ETCHDIAG"' > sys.log 2>&1 &
