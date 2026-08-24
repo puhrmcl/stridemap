@@ -183,10 +183,10 @@ final class SearchSheetContainerViewController: UIViewController {
         surfaceView.addSubview(hostingController.view)
         hostingController.didMove(toParent: self)
 
+        // No border stroke: Apple Maps' sheet has no outline — the glass edge is defined by the
+        // soft shadow alone. The layer stays wired (harmlessly) but is never added.
         borderLayer.fillColor = UIColor.clear.cgColor
-        borderLayer.strokeColor = UIColor.separator.withAlphaComponent(0.4).cgColor
-        borderLayer.lineWidth = 0.75
-        sheetView.layer.addSublayer(borderLayer)
+        borderLayer.strokeColor = UIColor.clear.cgColor
 
         let pan = UIPanGestureRecognizer(
             target: controller,
