@@ -1,7 +1,24 @@
 {
-  "images" : [
-    { "filename" : "etch-light.png", "idiom" : "universal" },
-    { "appearances" : [ { "appearance" : "luminosity", "value" : "dark" } ], "filename" : "etch-dark.png", "idiom" : "universal" }
+  "images": [
+    {
+      "filename": "brand-light@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
+    },
+    {
+      "appearances": [
+        {
+          "appearance": "luminosity",
+          "value": "dark"
+        }
+      ],
+      "filename": "brand-dark@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
+    }
   ],
-  "info" : { "author" : "xcode", "version" : 1 }
+  "info": {
+    "author": "xcode",
+    "version": 1
+  }
 }
