@@ -148,11 +148,14 @@ struct SearchSheetContent: View {
     }
 
     private var grabber: some View {
+        // A finer bar, centred in the gap between the pill's top edge and the search bar — the
+        // collapsed pill is 64pt with a ~38pt search row, so 13pt sits above the row and the 4pt
+        // bar splits it (4.5 / 4 / 4.5), which also leaves the row itself vertically centred.
         Capsule()
             .fill(.secondary.opacity(0.4))
-            .frame(width: 36, height: 5)
-            .padding(.top, 7)
-            .padding(.bottom, 5)
+            .frame(width: 34, height: 4)
+            .padding(.top, 4.5)
+            .padding(.bottom, 4.5)
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
             // Tap the grabber to peek the explore page (no keyboard); tap again to collapse. The
@@ -225,8 +228,9 @@ struct SearchSheetContent: View {
         // field a margin inside the pill — matching Apple Maps. Constant, so the header never
         // relayouts as the sheet moves.
         .padding(.horizontal, 30)
-        // Gap before the scroll content when expanded; a little breathing room in the collapsed pill.
-        .padding(.bottom, isExpanded ? 10 : 8)
+        // Gap before the scroll content when expanded; collapsed, the bottom inset mirrors the
+        // grabber block above (13pt) so the search row sits dead-centre in the pill.
+        .padding(.bottom, isExpanded ? 10 : 13)
     }
 
     // MARK: Idle content
@@ -247,7 +251,7 @@ struct SearchSheetContent: View {
     ]
 
     /// A row of circular page shortcuts (Timeline, Achievements, Studio, Filter), sitting above
-    /// Recent like Apple Maps' quick actions — Etch-blue-to-ink circles with white glyphs.
+    /// Recent like Apple Maps' quick actions — flat Etch-blue circles with white glyphs.
     private var pagesSection: some View {
         HStack(spacing: 0) {
             ForEach(pageShortcuts) { item in
@@ -260,13 +264,7 @@ struct SearchSheetContent: View {
                             .font(.system(size: 22, weight: .semibold))
                             .foregroundStyle(.white)
                             .frame(width: 58, height: 58)
-                            .background(
-                                LinearGradient(
-                                    colors: [Theme.accent, Theme.Palette.ink],
-                                    startPoint: .top, endPoint: .bottom
-                                ),
-                                in: .circle
-                            )
+                            .background(Theme.accent, in: .circle)
                         Text(item.title)
                             .font(.system(.caption, design: .rounded).weight(.medium))
                             .foregroundStyle(.primary)

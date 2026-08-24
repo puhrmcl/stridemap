@@ -46,6 +46,10 @@ struct RunMapView: UIViewRepresentable {
     /// Receives the map's current center as it pans, so callers (e.g. the Look Around binoculars)
     /// can act on it without the churn of a `@State` update on every frame.
     var centerBox: MapCenterBox? = nil
+    /// Set true while the camera is close enough that 3D content (buildings, terrain relief) is
+    /// worth offering — gates the floating 3D button. Written only when the threshold is crossed,
+    /// so panning at a steady zoom costs no SwiftUI updates.
+    var zoomedInFor3D: Binding<Bool>? = nil
     /// A monotonic revision of the map's drawable content, owned by `AppModel`. The overlay/pin/
     /// cluster rebuild runs only when this integer advances — an O(1) compare — so a search-sheet
     /// drag (or any unrelated parent re-render) never iterates the run set here. The parent bumps
@@ -552,6 +556,14 @@ struct RunMapView: UIViewRepresentable {
         /// the map as the user pans and zooms.
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
             parent.centerBox?.coordinate = mapView.centerCoordinate
+            // ~6.6 km of latitude in view or less: close enough that tilting into 3D shows real
+            // buildings/terrain rather than a skewed flat map. Only a crossing writes the binding.
+            if let binding = parent.zoomedInFor3D {
+                let zoomed = mapView.region.span.latitudeDelta < 0.06
+                if binding.wrappedValue != zoomed {
+                    DispatchQueue.main.async { binding.wrappedValue = zoomed }
+                }
+            }
             if parent.renderStyle == .history { updateHeatmap() }
             else { rebuildClusters(force: false) }
         }

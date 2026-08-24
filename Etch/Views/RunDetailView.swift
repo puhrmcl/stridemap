@@ -45,6 +45,8 @@ struct RunDetailView: View {
     @State private var showLocationPicker = false
     /// Notes start folded; expand to read or edit them.
     @State private var notesExpanded = false
+    /// Local draft of the notes field — committed to the model when typing pauses, not per keystroke.
+    @State private var notesDraft = ""
     /// A rendered PNG of the run's route over a map, prepared in the background so "Share Activity"
     /// can attach it alongside the text summary. Nil until ready (or for a route-less run).
     @State private var routeShareImage: UIImage?
@@ -451,9 +453,13 @@ struct RunDetailView: View {
 
     /// A foldable Notes section: collapsed it shows a one-line preview (or a prompt to add one);
     /// expanded it reveals an editable field. Notes come from Strava/TCX imports or your own edits.
+    ///
+    /// Edits land in a local draft and commit ~1s after typing stops (and when leaving the page) —
+    /// the field used to write to the model and `context.save()` on every keystroke, which also
+    /// bumped `updatedAt` per character and invalidated every cache keyed on it.
     private var notesSection: some View {
         DisclosureGroup(isExpanded: $notesExpanded) {
-            TextField("Add a note…", text: notesBinding, axis: .vertical)
+            TextField("Add a note…", text: $notesDraft, axis: .vertical)
                 .lineLimit(3...10)
                 .font(.system(.subheadline, design: .rounded))
                 .textFieldStyle(.plain)
@@ -475,18 +481,23 @@ struct RunDetailView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .background(.regularMaterial, in: .rect(cornerRadius: 16))
+        .task(id: run.id) { notesDraft = run.notes ?? "" }
+        .task(id: notesDraft) {
+            guard notesDraft != (run.notes ?? "") else { return }
+            try? await Task.sleep(for: .milliseconds(1000))
+            guard !Task.isCancelled else { return }
+            commitNotes()
+        }
+        .onDisappear { commitNotes() }
     }
 
-    private var notesBinding: Binding<String> {
-        Binding(
-            get: { run.notes ?? "" },
-            set: { newValue in
-                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                run.notes = trimmed.isEmpty ? nil : newValue
-                run.updatedAt = Date()
-                try? context.save()
-            }
-        )
+    /// Writes the notes draft to the model, once, if it actually changed.
+    private func commitNotes() {
+        guard notesDraft != (run.notes ?? "") else { return }
+        let trimmed = notesDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        run.notes = trimmed.isEmpty ? nil : notesDraft
+        run.updatedAt = Date()
+        try? context.save()
     }
 
     /// Share a race's key details as a tidy text summary (times, pace, place) via the system share

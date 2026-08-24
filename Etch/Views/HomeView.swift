@@ -79,6 +79,9 @@ struct HomeView: View {
     @State private var sheetMetrics = SheetMetrics()
     /// Route map tilt: false = flat 2D, true = tilted 3D.
     @State private var is3D = false
+    /// True while the map is zoomed close enough for 3D content to be worth offering — gates the
+    /// floating 3D button. Written by the map only when the threshold is crossed.
+    @State private var mapZoomedIn = false
     /// Measured map height, for sizing the sheet's detents.
     @State private var screenHeight: CGFloat = 800
 
@@ -310,6 +313,7 @@ struct HomeView: View {
                     showPins: showPins,
                     is3D: is3D,
                     centerBox: centerBox,
+                    zoomedInFor3D: $mapZoomedIn,
                     contentRevision: appModel.mapContentRevision
                 )
             }
@@ -578,7 +582,7 @@ struct HomeView: View {
     /// middle (tap to open the map-view dropdown), and the filter button on the right (opens the
     /// full Filters as a bottom sheet). Each side element is sized to the totals' height.
     private var totalsPill: some View {
-        HStack(spacing: 7) {
+        HStack(spacing: 9) {
             // The activity-type selector only appears when there's more than one type to choose
             // between; with a single type the pill leads with the totals.
             if !isSingleActivity {
@@ -601,9 +605,9 @@ struct HomeView: View {
         }
         .onPreferenceChange(PillColumnHeightKey.self) { if $0 > 0 { pillColumnHeight = $0 } }
         .fixedSize(horizontal: true, vertical: false)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
-        .glassBackground(cornerRadius: 17)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 10)
+        .glassBackground(cornerRadius: 21)
         .background(
             GeometryReader { geo in
                 Color.clear.preference(key: PillWidthKey.self, value: geo.size.width)
@@ -671,13 +675,13 @@ struct HomeView: View {
     /// (it would just duplicate the activity-type icon on the pill's left).
     private var metricsRow: some View {
         // Align the two numbers on one baseline; each unit label stacks beneath its own number.
-        HStack(alignment: .firstTextBaseline, spacing: 7) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             metric(
                 value: shownStats.totalRuns.formatted(),
                 unit: effectiveScope.countNoun
             )
             Text("·")
-                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                .font(.system(.body, design: .rounded).weight(.bold))
                 .foregroundStyle(.secondary)
             metric(
                 value: Format.distanceValue(shownStats.totalDistanceMeters)
@@ -813,12 +817,12 @@ struct HomeView: View {
     private func metric(value: String, unit: String) -> some View {
         VStack(spacing: 0) {
             Text(value)
-                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                .font(.system(size: 19, weight: .bold, design: .rounded))
                 // Monospaced digits so the count/distance don't jitter the pill as they tick.
                 .monospacedDigit()
                 .contentTransition(.numericText())
             Text(unit)
-                .font(.system(.caption2, design: .rounded).weight(.medium))
+                .font(.system(.caption, design: .rounded).weight(.medium))
                 .foregroundStyle(.secondary)
         }
         .lineLimit(1)
@@ -1051,13 +1055,20 @@ struct HomeView: View {
     /// The map's action buttons, grouped in a single vertical capsule (Apple Maps style): base-map
     /// style, show/hide pins, recenter-to-fit, and current location. In the Locations overview the
     /// pins toggle is dropped and recenter reframes the overlay.
-    /// The map's floating controls: the 2D/3D toggle on the *left* (where Look Around's binoculars
-    /// used to sit), the action capsule on the right.
+    /// The map's floating controls, stacked on the right (Apple Maps style): the 2D/3D toggle
+    /// floats above the action capsule, and only when the camera is close enough for 3D content
+    /// to be worth offering (or 3D is already on, so it can always be exited).
     private var floatingControls: some View {
         HStack(alignment: .bottom, spacing: 0) {
-            if !showLocations { dimensionButton }
             Spacer(minLength: 0)
-            actionCapsule
+            VStack(spacing: 10) {
+                if !showLocations && (mapZoomedIn || is3D) {
+                    dimensionButton
+                        .transition(.opacity.combined(with: .scale(scale: 0.85)))
+                }
+                actionCapsule
+            }
+            .animation(Theme.spring, value: mapZoomedIn)
         }
         .padding(.horizontal, MapControl.edgeInset)
         .frame(maxWidth: .infinity)

@@ -7,12 +7,10 @@ struct RunRow: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            // The "etched" tile: the route as a blue line on a dark vector ground. The earlier map
-            // snapshots rendered light (bone-washed) and glared against the dark sheet — three
-            // bright squares dominating the page. The etched tile matches the sheet's theme, speaks
-            // the brand (ink ground, Etch-Blue line), and is pure vector — no MapKit snapshot at
-            // all, so rows cost nothing beyond decoding the route.
-            RouteThumbnail(run: run)
+            // A real map behind the route (brand-tinted MapKit snapshot, cached per run + size by
+            // PosterMap.tileImage). The vector "etched" tile stands in while the snapshot renders
+            // and permanently for indoor runs.
+            RouteMapTile(run: run)
                 .frame(width: 60, height: 60)
                 .clipShape(.rect(cornerRadius: 14))
                 .allowsHitTesting(false)
