@@ -209,8 +209,11 @@ struct StudioComposition: View {
 
     static let width: CGFloat = 1000
     static let artHeight: CGFloat = 1000
-    /// Footer column width in landscape when the data sits beside the art.
-    static let landscapeFooterWidth: CGFloat = 640
+    /// Footer column width in landscape when the data sits beside the art. Derived, not chosen:
+    /// the canvas must land on the exact print shape (3:2 on its side), so with a square art
+    /// panel the column gets what's left — 1000 ÷ (2/3) − 1000. The old 640 made a 1.64:1 sheet
+    /// that matched no size Prodigi sells.
+    static let landscapeFooterWidth: CGFloat = artHeight / PrintAspect.twoThree.ratio - width
     /// Wide art size when landscape sets the data across the bottom.
     static let wideArtWidth: CGFloat = 1640
     static let wideArtHeight: CGFloat = 920
@@ -232,6 +235,7 @@ struct StudioComposition: View {
         case (.portrait, _):
             return CGSize(width: width, height: width / aspect.ratio)
         case (.landscape, .left), (.landscape, .right):
+            // Square art + derived footer column = the print ratio on its side, exactly.
             return CGSize(width: width + landscapeFooterWidth, height: artHeight)
         case (.landscape, .top), (.landscape, .bottom):
             // Landscape: the same ratio, on its side.
@@ -291,6 +295,7 @@ struct StudioComposition: View {
             } else if layout == .keepsake {
                 keepsakeComposition
             } else if isSideLayout {
+                // Square art beside the derived-width footer column: exactly the print shape.
                 HStack(spacing: 0) {
                     if dataPlacement == .left {
                         footer
@@ -300,11 +305,16 @@ struct StudioComposition: View {
                         footer
                     }
                 }
+                .frame(width: Self.canvasSize(orientation, dataPlacement, printAspect).width,
+                       height: Self.canvasSize(orientation, dataPlacement, printAspect).height)
             } else if orientation == .landscape && dataPlacement == .top {
+                // Same fixed print-shaped canvas as the bottom-data branch, footer first.
                 VStack(spacing: 0) {
-                    footer
-                    art
+                    footer.fixedSize(horizontal: false, vertical: true)
+                    flexArt
                 }
+                .frame(width: Self.canvasSize(orientation, dataPlacement, printAspect).width,
+                       height: Self.canvasSize(orientation, dataPlacement, printAspect).height)
             } else {
                 // Portrait (and landscape-with-bottom-data): a fixed print-shaped canvas. The
                 // footer takes its natural height; the art absorbs the rest. `fixedSize` pins the
@@ -358,21 +368,33 @@ struct StudioComposition: View {
     private var galleryWidth: CGFloat { orientation == .portrait ? Self.width : Self.wideArtWidth }
     private var galleryArtHeight: CGFloat { orientation == .portrait ? 620 : 460 }
 
+    /// The Gallery sheet's canvas — the exact print shape, portrait or on its side. Previously the
+    /// sheet took its natural height (frames + masthead + stats), landing on whatever aspect the
+    /// content added up to — which matched no size Prodigi sells and would have meant cropping
+    /// every gallery print.
+    private var galleryCanvas: CGSize {
+        orientation == .portrait
+            ? CGSize(width: Self.width, height: Self.width / printAspect.ratio)
+            : CGSize(width: Self.wideArtWidth, height: Self.wideArtWidth * printAspect.ratio)
+    }
+
     private var galleryComposition: some View {
         VStack(spacing: 40) {
+            // The frames absorb whatever height the fixed canvas has left after the masthead and
+            // data rows take their natural height — mirroring how the Map product's art flexes.
             galleryFramesView
-                .frame(height: galleryArtHeight)
+                .frame(maxHeight: .infinity)
 
-            galleryMasthead
+            galleryMasthead.fixedSize(horizontal: false, vertical: true)
 
             if !resolvedStats.isEmpty { galleryStatRow }
 
             if showElevationProfile && elevationSamples.count > 1 {
-                elevationProfileContent
+                elevationProfileContent.fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(80)
-        .frame(width: galleryWidth)
+        .frame(width: galleryCanvas.width, height: galleryCanvas.height)
         .background(groundColor)
     }
 
