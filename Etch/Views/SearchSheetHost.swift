@@ -226,10 +226,17 @@ final class SearchSheetContainerViewController: UIViewController {
     /// a sliver of map above). The SwiftUI-passed `maxHeight` is only a fallback — its screen
     /// measurement excludes safe areas, which left the page ~90pt short of a real sheet's top.
     private var fullHeight: CGFloat {
+        // Derive from the WINDOW, never from this view's own bounds: when the keyboard appears,
+        // SwiftUI inflates this (bottom-anchored) container far beyond the screen — the diagnosis
+        // run caught it at 2402pt on an 874pt screen, which shot the container's top 1456pt above
+        // the screen with the sheet inside. The window's height and safe area are immune. The
+        // bottom-anchored frame math (`bounds.height - fullHeight`) then places the sheet's top at
+        // the same on-screen position whether or not the container is inflated.
         let bounds = view.bounds
-        let topInset = view.safeAreaInsets.top
-        let topGap = (topInset > 0 ? topInset : max(0, bounds.height - maxHeight)) + 10
-        return max(260, bounds.height - topGap)
+        let screenHeight = view.window?.bounds.height ?? bounds.height
+        let topInset = view.window?.safeAreaInsets.top ?? view.safeAreaInsets.top
+        let topGap = (topInset > 0 ? topInset : max(0, screenHeight - maxHeight)) + 10
+        return max(260, min(bounds.height, screenHeight) - topGap)
     }
 
     override func viewDidLayoutSubviews() {
