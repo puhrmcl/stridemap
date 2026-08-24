@@ -38,6 +38,11 @@ SKUS=(
   "GLOBAL-CFP-12X18:black"
   "GLOBAL-CFP-16X24:black"
   "GLOBAL-CFP-24X36:black"
+  # Hahnemühle German Etching (310gsm mould-made) — candidate premium paper for the
+  # unframed line. Verifying existence + landed cost before any catalog decision.
+  "GLOBAL-HGE-12X18:"
+  "GLOBAL-HGE-16X24:"
+  "GLOBAL-HGE-24X36:"
 )
 
 for entry in "${SKUS[@]}"; do
