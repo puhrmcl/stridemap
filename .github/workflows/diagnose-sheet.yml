@@ -53,13 +53,13 @@ jobs:
           xcrun simctl spawn "$UDID" log stream --style compact \
             --predicate 'eventMessage CONTAINS "ETCHDIAG"' > sys.log 2>&1 &
           STREAM_PID=$!
-          SIMCTL_CHILD_ETCH_DIAG=1 xcrun simctl launch --console-pty "$UDID" com.nwagtech.etch > app.log 2>&1 &
-          LAUNCH_PID=$!
-          sleep 9
+          # Plain launch — --console-pty hangs on CI runners and the app never starts.
+          SIMCTL_CHILD_ETCH_DIAG=1 xcrun simctl launch "$UDID" com.nwagtech.etch | tee app.log
+          sleep 7
           xcrun simctl io "$UDID" screenshot before-focus.png || true
-          sleep 8
+          sleep 9
           xcrun simctl io "$UDID" screenshot after-focus.png || true
-          kill $LAUNCH_PID $STREAM_PID 2>/dev/null || true
+          kill $STREAM_PID 2>/dev/null || true
           echo ""
           echo "── ETCHDIAG geometry log:"
           grep "ETCHDIAG" sys.log app.log || echo "(no ETCHDIAG lines captured)"
