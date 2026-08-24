@@ -399,8 +399,14 @@ enum PosterMap {
         return UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
     }
 
-    /// In-memory cache + tile-sized renderer for the Timeline's month tiles.
-    private static let tileCache = NSCache<NSString, UIImage>()
+    /// In-memory cache + tile-sized renderer for row/tile thumbnails. Bounded: every activity
+    /// row now carries a map tile, so an unbounded cache over a large library (1,000+ activities
+    /// across search, timeline and achievements) grows without limit until the app is killed.
+    private static let tileCache: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 400
+        return cache
+    }()
 
     @MainActor
     static func tileImage(for run: Run, size: CGSize) async -> UIImage? {

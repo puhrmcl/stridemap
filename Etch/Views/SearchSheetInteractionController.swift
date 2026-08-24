@@ -202,13 +202,15 @@ final class SearchSheetInteractionController: NSObject {
     private func rubberBanded(_ t: CGFloat) -> CGFloat {
         let lower: CGFloat = 0
         let upper = maxTranslation
-        if t < lower { return -resist(lower - t) }
-        if t > upper { return upper + resist(t - upper) }
+        // Above full the ceiling is tight: the full detent already sits a standard-sheet gap
+        // (~59–69pt) below the screen top, so the old 120pt allowance let a hard fling carry the
+        // whole page off the top of the screen. 28pt reads as resistance and always stays on-screen.
+        if t < lower { return -resist(lower - t, dim: 28) }
+        if t > upper { return upper + resist(t - upper, dim: 120) }
         return t
     }
-    private func resist(_ x: CGFloat) -> CGFloat {
-        let dim: CGFloat = 120
-        return (1 - 1 / (x / dim * 0.55 + 1)) * dim
+    private func resist(_ x: CGFloat, dim: CGFloat) -> CGFloat {
+        (1 - 1 / (x / dim * 0.55 + 1)) * dim
     }
 
     // MARK: Detent selection (forgiving, adjacent-only)
