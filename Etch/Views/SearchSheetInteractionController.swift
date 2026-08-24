@@ -45,9 +45,6 @@ final class SearchSheetInteractionController: NSObject {
     var onHeight: (CGFloat) -> Void = { _ in }
     var model: SearchSheetModel?
     var reduceMotion = false
-    /// How far the glass surface extends *above* the content (the top safe-area gap), so the full
-    /// page can run behind the status bar to the physical screen top. 0 disables the effect.
-    var topBleed: CGFloat = 0
 
     // MARK: Geometry (translation space; 0 = full, positive = translated down)
 
@@ -361,41 +358,30 @@ final class SearchSheetInteractionController: NSObject {
         let bounds = surfaceView.bounds
 
         let inset = Self.pillInset * (1 - progress)
-        // Content coordinates start `topBleed` down in the surface (the glass extends that far
-        // above the content). The pill's top sits at the content top; approaching full, the glass
-        // top rises to the surface top — the physical top of the screen, behind the status bar.
-        let contentTop = topBleed * (1 - progress)
-        // The physical bottom edge, expressed in the (translated) surface's own coordinates.
-        let screenBottom = topBleed + full - currentTranslation
+        // The physical bottom edge, expressed in the (translated) sheet's own coordinates.
+        let screenBottom = full - currentTranslation
         // At rest the pill floats `inset` above that edge; it never shrinks below its own height, so
         // an over-drag slides it off the bottom rather than squashing the search row.
-        let floatingBottom = max(contentTop + Self.pillHeight, screenBottom - inset)
+        let floatingBottom = max(Self.pillHeight, screenBottom - inset)
         let bottomY = floatingBottom + (bounds.height - floatingBottom) * progress
 
         let rect = CGRect(
             x: bounds.minX + inset,
-            y: contentTop,
+            y: bounds.minY,
             width: max(0, bounds.width - inset * 2),
-            height: max(0, bottomY - contentTop)
+            height: max(0, bottomY - bounds.minY)
         )
-        var topRadius = Self.pillRadius * (1 - progress) + 20 * progress
-        // Square the top corners off over the last stretch to full, where the glass meets the
-        // physical screen top (a rounded corner there would notch the display's own corners).
-        if topBleed > 0 { topRadius *= min(1, (1 - progress) / 0.15) }
+        let topRadius = Self.pillRadius * (1 - progress) + 20 * progress
         let bottomRadius = Self.pillRadius * (1 - progress)
         let path = Self.roundedPath(rect: rect, topRadius: topRadius, bottomRadius: bottomRadius)
 
         maskLayer.path = path
-        // The border and shadow live on the sheet's layer, whose origin sits `topBleed` below the
-        // surface's — shift the path into sheet coordinates for them (and for hit-testing).
-        var shift = CGAffineTransform(translationX: 0, y: -topBleed)
-        let sheetPath = path.copy(using: &shift) ?? path
-        borderLayer?.path = sheetPath
-        currentVisibleRect = rect.offsetBy(dx: 0, dy: -topBleed)
+        borderLayer?.path = path
+        currentVisibleRect = rect
 
         if let container = sheetView {
             if displayLink == nil && !isPanning && !scrollTakeover {
-                container.layer.shadowPath = sheetPath
+                container.layer.shadowPath = path
                 container.layer.shadowOpacity = 0.14
             } else {
                 container.layer.shadowOpacity = 0

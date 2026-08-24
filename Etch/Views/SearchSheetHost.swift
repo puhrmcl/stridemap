@@ -88,6 +88,9 @@ final class SearchSheetContainerViewController: UIViewController {
     var maxHeight: CGFloat = 0
     var bottomSafeArea: CGFloat = 0
     private var lastLaidOutBounds: CGRect = .zero
+    /// The full-detent height the frames were last laid out for — safe-area insets can land a
+    /// layout pass after the first, changing `fullHeight` with the bounds unchanged.
+    private var lastLaidOutFull: CGFloat = 0
 
     init(model: SearchSheetModel, rootView: AnyView) {
         self.model = model
@@ -165,40 +168,46 @@ final class SearchSheetContainerViewController: UIViewController {
         view.setNeedsLayout()
     }
 
+    /// The full detent's height, from the host's *own* geometry: the sheet tops out a standard
+    /// presented-sheet's distance below the status bar (matching the Timeline/Profile sheets, with
+    /// a sliver of map above). The SwiftUI-passed `maxHeight` is only a fallback — its screen
+    /// measurement excludes safe areas, which left the page ~90pt short of a real sheet's top.
+    private var fullHeight: CGFloat {
+        let bounds = view.bounds
+        let topInset = view.safeAreaInsets.top
+        let topGap = (topInset > 0 ? topInset : max(0, bounds.height - maxHeight)) + 10
+        return max(260, bounds.height - topGap)
+    }
+
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         let bounds = view.bounds
         guard maxHeight > 1 else { return }
-        // Skip re-laying-out (which momentarily clears the transform) unless the bounds truly
+        let full = fullHeight
+        // Skip re-laying-out (which momentarily clears the transform) unless the geometry truly
         // changed — never mid-drag, where the bounds are stable.
-        guard bounds != lastLaidOutBounds else {
-            controller.configure(full: maxHeight, mid: max(260, maxHeight * 0.5),
+        guard bounds != lastLaidOutBounds || full != lastLaidOutFull else {
+            controller.configure(full: full, mid: max(260, full * 0.5),
                              collapsed: SearchSheetInteractionController.collapsedVisibleHeight)
             controller.attachScrollViewIfNeeded()
             return
         }
         lastLaidOutBounds = bounds
+        lastLaidOutFull = full
 
         let bleed = bottomSafeArea + 140
-        let topAtFull = bounds.height - maxHeight
-        // The glass surface extends `topBleed` above the content, so at the full detent it runs
-        // behind the status bar to the physical top of the screen (Apple Maps' expanded search) —
-        // the content itself stays below the safe area, and the collapsed pill is untouched.
-        let topBleed = max(0, topAtFull)
+        let topAtFull = bounds.height - full
         // Set the frame with the transform temporarily cleared, then let the controller reapply the
         // current translation via `configure`.
         sheetView.transform = .identity
-        sheetView.frame = CGRect(x: 0, y: topAtFull, width: bounds.width, height: maxHeight + bleed)
-        surfaceView.frame = CGRect(x: 0, y: -topBleed,
-                                   width: bounds.width, height: sheetView.bounds.height + topBleed)
+        sheetView.frame = CGRect(x: 0, y: topAtFull, width: bounds.width, height: full + bleed)
+        surfaceView.frame = sheetView.bounds
         effectView.frame = surfaceView.bounds
-        hostingController.view.frame = CGRect(x: 0, y: topBleed,
-                                              width: bounds.width, height: sheetView.bounds.height)
+        hostingController.view.frame = surfaceView.bounds
         maskLayer.frame = surfaceView.bounds
         borderLayer.frame = sheetView.bounds
-        controller.topBleed = topBleed
 
-        controller.configure(full: maxHeight, mid: max(260, maxHeight * 0.5),
+        controller.configure(full: full, mid: max(260, full * 0.5),
                              collapsed: SearchSheetInteractionController.collapsedVisibleHeight)
         // Attach to the content scroll view's pan as soon as SwiftUI has built it, so the very first
         // content drag at full is handled (accidental-tap cancellation + immediate hand-off).
