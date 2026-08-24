@@ -49,16 +49,34 @@ jobs:
           APP=$(find dd/Build/Products -name "Etch.app" -maxdepth 2 | head -1)
           echo "Installing $APP"
           xcrun simctl install "$UDID" "$APP"
+          # NSLog goes to the unified system log, not the launch pty — stream it directly.
+          xcrun simctl spawn "$UDID" log stream --style compact \
+            --predicate 'eventMessage CONTAINS "ETCHDIAG"' > sys.log 2>&1 &
+          STREAM_PID=$!
           SIMCTL_CHILD_ETCH_DIAG=1 xcrun simctl launch --console-pty "$UDID" com.nwagtech.etch > app.log 2>&1 &
           LAUNCH_PID=$!
           sleep 9
           xcrun simctl io "$UDID" screenshot before-focus.png || true
           sleep 8
           xcrun simctl io "$UDID" screenshot after-focus.png || true
-          kill $LAUNCH_PID 2>/dev/null || true
+          kill $LAUNCH_PID $STREAM_PID 2>/dev/null || true
           echo ""
           echo "── ETCHDIAG geometry log:"
-          grep "ETCHDIAG" app.log || echo "(no ETCHDIAG lines captured)"
+          grep "ETCHDIAG" sys.log app.log || echo "(no ETCHDIAG lines captured)"
+          echo ""
+          echo "── app.log head (launch errors, if any):"
+          head -30 app.log || true
+          echo ""
+          # Embed small screenshots in the job log so the working session can view them
+          # without artifact-download access: 300px wide, base64 between markers.
+          for shot in before-focus after-focus; do
+            if [ -f "$shot.png" ]; then
+              sips -Z 480 "$shot.png" --out "$shot-small.png" >/dev/null
+              echo "── BEGIN-B64 $shot"
+              base64 -i "$shot-small.png"
+              echo "── END-B64 $shot"
+            fi
+          done
 
       - name: Upload screenshots
         if: always()
