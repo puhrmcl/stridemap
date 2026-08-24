@@ -163,8 +163,16 @@ struct PosterConfig {
     var mapLayout: MapLayout = .statement
     /// Map Photo layout: how many photos to show (1–3).
     var mapPhotoCount: Int = 1
-    /// Poster text size multiplier (0.85 = Small … 1.3 = XL). 1 = the designed size.
+    /// Poster text size multiplier (0.85 = Small … 1.3 = XL). 1 = the designed size. Applies to
+    /// every text element, multiplied by the per-element scales below.
     var textScale: CGFloat = 1
+    /// Per-element size multipliers, so each piece of type can be dialled independently of the
+    /// global size: the three text lines, the big headline block, and the data rows.
+    var titleScale: CGFloat = 1
+    var locationScale: CGFloat = 1
+    var dateScale: CGFloat = 1
+    var heroScale: CGFloat = 1
+    var statScale: CGFloat = 1
     var galleryDesign: GalleryDesign = .portfolio
     /// Media shown in each Gallery frame, in order. Trimmed/padded to the design's frame count.
     var galleryFrames: [GalleryTileKind] = [.photo, .map, .route, .elevation]
@@ -239,6 +247,11 @@ struct PosterConfig {
         r.mapLayoutRaw = mapLayout.rawValue
         r.mapPhotoCount = mapPhotoCount
         r.textScale = textScale
+        r.titleScale = titleScale
+        r.locationScale = locationScale
+        r.dateScale = dateScale
+        r.heroScale = heroScale
+        r.statScale = statScale
         return r
     }
 
@@ -252,6 +265,11 @@ struct PosterConfig {
         p.mapLayoutRaw = mapLayout.rawValue
         p.mapPhotoCount = mapPhotoCount
         p.textScale = Double(textScale)
+        p.titleScale = Double(titleScale)
+        p.locationScale = Double(locationScale)
+        p.dateScale = Double(dateScale)
+        p.heroScale = Double(heroScale)
+        p.statScale = Double(statScale)
         p.galleryDesignRaw = galleryDesign.rawValue
         p.galleryFramesRaw = galleryFrames.map(\.rawValue)
         p.monochrome = monochrome
@@ -303,6 +321,11 @@ struct PosterConfig {
         mapLayout = MapLayout(rawValue: p.mapLayoutRaw) ?? .statement
         mapPhotoCount = max(1, min(3, p.mapPhotoCount))
         textScale = p.textScale > 0 ? CGFloat(p.textScale) : 1
+        titleScale = p.titleScale > 0 ? CGFloat(p.titleScale) : 1
+        locationScale = p.locationScale > 0 ? CGFloat(p.locationScale) : 1
+        dateScale = p.dateScale > 0 ? CGFloat(p.dateScale) : 1
+        heroScale = p.heroScale > 0 ? CGFloat(p.heroScale) : 1
+        statScale = p.statScale > 0 ? CGFloat(p.statScale) : 1
         galleryDesign = GalleryDesign(rawValue: p.galleryDesignRaw) ?? .portfolio
         galleryFrames = p.galleryFramesRaw.compactMap { GalleryTileKind(rawValue: $0) }
         if galleryFrames.isEmpty { galleryFrames = [.photo, .map, .route, .elevation] }

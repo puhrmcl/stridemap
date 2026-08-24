@@ -199,6 +199,13 @@ struct StudioComposition: View {
     /// Multiplies every text (and glyph) point size on the poster, so the user can dial the type
     /// larger or smaller. 1 = the designed size.
     var textScale: CGFloat = 1
+    /// Per-element size multipliers layered on `textScale`, so each piece of type — the three
+    /// text lines, the headline block, the data rows — can be dialled independently.
+    var titleScale: CGFloat = 1
+    var locationScale: CGFloat = 1
+    var dateScale: CGFloat = 1
+    var heroScale: CGFloat = 1
+    var statScale: CGFloat = 1
     /// The print shape this artwork is composed into. 2:3 is the primary — it serves 12×18, 16×24
     /// and 24×36, the entire launch catalogue.
     var printAspect: PrintAspect = .twoThree
@@ -434,7 +441,7 @@ struct StudioComposition: View {
         VStack(spacing: 14) {
             if showTitle {
                 Text(titleText.uppercased())
-                    .font(.system(size: ts(44), weight: titleFont.titleWeight, design: titleFont.design))
+                    .font(.system(size: ts(44 * titleScale), weight: titleFont.titleWeight, design: titleFont.design))
                     .tracking(8 + titleFont.extraTracking)
                     .foregroundStyle(inkColor)
                     .lineLimit(2)
@@ -443,7 +450,7 @@ struct StudioComposition: View {
             }
             if !placeLine.isEmpty {
                 Text(placeLine.uppercased())
-                    .font(.system(size: ts(18), weight: .regular, design: titleFont.design))
+                    .font(.system(size: ts(18 * locationScale), weight: .regular, design: titleFont.design))
                     .tracking(5)
                     .foregroundStyle(subtleColor)
             }
@@ -523,7 +530,7 @@ struct StudioComposition: View {
             VStack(spacing: 0) {
                 HStack(alignment: .top) {
                     Text(dateLine.uppercased())
-                        .font(.system(size: ts(15), weight: .semibold)).tracking(3)
+                        .font(.system(size: ts(15 * dateScale), weight: .semibold)).tracking(3)
                     Spacer()
                     if !coordsText.isEmpty {
                         Text(coordsText).font(.system(size: ts(15), weight: .semibold)).tracking(2)
@@ -534,12 +541,12 @@ struct StudioComposition: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(titleText.uppercased())
-                            .font(.system(size: ts(60), weight: .heavy))
+                            .font(.system(size: ts(60 * titleScale), weight: .heavy))
                             .foregroundStyle(.white)
                             .lineLimit(2).minimumScaleFactor(0.5)
                         if !placeLine.isEmpty {
                             Text(placeLine.uppercased())
-                                .font(.system(size: ts(16), weight: .semibold)).tracking(4)
+                                .font(.system(size: ts(16 * locationScale), weight: .semibold)).tracking(4)
                                 .foregroundStyle(.white.opacity(0.85))
                         }
                     }
@@ -575,9 +582,9 @@ struct StudioComposition: View {
             Color.clear.frame(maxWidth: .infinity)   // blank column
         } else {
             VStack(spacing: 6) {
-                Image(systemName: metric.icon).font(.system(size: ts(15), weight: .semibold))
-                Text(value).font(.system(size: ts(26), weight: .bold)).minimumScaleFactor(0.5).lineLimit(1)
-                Text(metric.label).font(.system(size: ts(12), weight: .semibold)).tracking(1.5)
+                Image(systemName: metric.icon).font(.system(size: ts(15 * statScale), weight: .semibold))
+                Text(value).font(.system(size: ts(26 * statScale), weight: .bold)).minimumScaleFactor(0.5).lineLimit(1)
+                Text(metric.label).font(.system(size: ts(12 * statScale), weight: .semibold)).tracking(1.5)
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
@@ -800,13 +807,13 @@ struct StudioComposition: View {
         VStack(spacing: 20) {
             title(leading: false)
             heroBlock(leading: false)
-            if !placeLine.isEmpty { metaLine([placeLine], leading: false) }
+            if !placeLine.isEmpty { metaLine([(placeLine, locationScale)], leading: false) }
             if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: false) }
             if !resolvedStats.isEmpty {
                 Rectangle().fill(subtleColor.opacity(0.4)).frame(width: 90, height: 2).padding(.vertical, 6)
                 statRow
             }
-            if !dateLine.isEmpty { metaLine([dateLine], leading: false).padding(.top, 6) }
+            if !dateLine.isEmpty { metaLine([(dateLine, dateScale)], leading: false).padding(.top, 6) }
         }
     }
 
@@ -815,7 +822,7 @@ struct StudioComposition: View {
         VStack(spacing: 16) {
             title(leading: false)
             heroBlock(leading: false)
-            metaLine([placeLine, dateLine], leading: false)
+            metaLine([(placeLine, locationScale), (dateLine, dateScale)], leading: false)
         }
     }
 
@@ -823,7 +830,7 @@ struct StudioComposition: View {
     private var mapMinimalFooter: some View {
         VStack(spacing: 12) {
             title(leading: false)
-            if !dateLine.isEmpty { metaLine([dateLine], leading: false) }
+            if !dateLine.isEmpty { metaLine([(dateLine, dateScale)], leading: false) }
         }
     }
 
@@ -833,7 +840,7 @@ struct StudioComposition: View {
             title(leading: false)
             mapPhotoStrip
             if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: false) }
-            metaLine([placeLine, dateLine], leading: false).padding(.top, 2)
+            metaLine([(placeLine, locationScale), (dateLine, dateScale)], leading: false).padding(.top, 2)
         }
     }
 
@@ -888,7 +895,7 @@ struct StudioComposition: View {
                     }
                 }
                 if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: true) }
-                metaLine([placeLine, dateLine], leading: true)
+                metaLine([(placeLine, locationScale), (dateLine, dateScale)], leading: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -915,7 +922,7 @@ struct StudioComposition: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 300)
                 .padding(.vertical, 4)
-            if !placeLine.isEmpty { metaLine([placeLine], leading: false) }
+            if !placeLine.isEmpty { metaLine([(placeLine, locationScale)], leading: false) }
             Rectangle().fill(subtleColor.opacity(0.4)).frame(width: 90, height: 2).padding(.vertical, 4)
             HStack(alignment: .top, spacing: 0) {
                 ForEach(Array(fourStats.enumerated()), id: \.offset) { index, item in
@@ -924,7 +931,7 @@ struct StudioComposition: View {
                 }
             }
             if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: false) }
-            if !dateLine.isEmpty { metaLine([dateLine], leading: false).padding(.top, 4) }
+            if !dateLine.isEmpty { metaLine([(dateLine, dateScale)], leading: false).padding(.top, 4) }
         }
     }
 
@@ -933,7 +940,7 @@ struct StudioComposition: View {
     private var gridFooter: some View {
         VStack(spacing: 18) {
             title(leading: false)
-            if !placeLine.isEmpty { metaLine([placeLine], leading: false) }
+            if !placeLine.isEmpty { metaLine([(placeLine, locationScale)], leading: false) }
             Rectangle().fill(subtleColor.opacity(0.4)).frame(width: 90, height: 2).padding(.vertical, 4)
             HStack(alignment: .top, spacing: 0) {
                 ForEach(Array(fourStats.enumerated()), id: \.offset) { index, item in
@@ -942,7 +949,7 @@ struct StudioComposition: View {
                 }
             }
             if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: false) }
-            if !dateLine.isEmpty { metaLine([dateLine], leading: false).padding(.top, 4) }
+            if !dateLine.isEmpty { metaLine([(dateLine, dateScale)], leading: false).padding(.top, 4) }
         }
     }
 
@@ -974,15 +981,15 @@ struct StudioComposition: View {
         } else {
             VStack(spacing: 6) {
                 Image(systemName: metric.icon)
-                    .font(.system(size: ts(15), weight: .semibold))
+                    .font(.system(size: ts(15 * statScale), weight: .semibold))
                     .foregroundStyle(accentColor)
                 Text(value)
-                    .font(.system(size: ts(26), weight: .bold))
+                    .font(.system(size: ts(26 * statScale), weight: .bold))
                     .foregroundStyle(inkColor)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
                 Text(metric.label)
-                    .font(.system(size: ts(13), weight: .semibold))
+                    .font(.system(size: ts(13 * statScale), weight: .semibold))
                     .tracking(1.5)
                     .foregroundStyle(subtleColor)
                     .lineLimit(1)
@@ -1011,7 +1018,7 @@ struct StudioComposition: View {
     private func title(leading: Bool) -> some View {
         if showTitle {
             Text(titleText.uppercased())
-                .font(.system(size: ts(26), weight: titleFont.titleWeight, design: titleFont.design))
+                .font(.system(size: ts(26 * titleScale), weight: titleFont.titleWeight, design: titleFont.design))
                 .tracking(4 + titleFont.extraTracking)
                 .foregroundStyle(subtleColor)
                 .lineLimit(2)
@@ -1023,13 +1030,13 @@ struct StudioComposition: View {
     private func heroBlock(leading: Bool) -> some View {
         VStack(alignment: leading ? .leading : .center, spacing: 6) {
             Text(heroValue)
-                .font(.system(size: ts(150), weight: .bold))
+                .font(.system(size: ts(150 * heroScale), weight: .bold))
                 .tracking(-2)
                 .foregroundStyle(inkColor)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
             Text(heroCaption)
-                .font(.system(size: ts(24), weight: .semibold))
+                .font(.system(size: ts(24 * heroScale), weight: .semibold))
                 .tracking(8)
                 .foregroundStyle(accentColor)
         }
@@ -1072,12 +1079,12 @@ struct StudioComposition: View {
         } else {
             VStack(spacing: 8) {
                 Text(value)
-                    .font(.system(size: ts(32), weight: .bold))
+                    .font(.system(size: ts(32 * statScale), weight: .bold))
                     .foregroundStyle(inkColor)
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
                 Text(metric.label)
-                    .font(.system(size: ts(15), weight: .semibold))
+                    .font(.system(size: ts(15 * statScale), weight: .semibold))
                     .tracking(2)
                     .foregroundStyle(subtleColor)
             }
@@ -1093,16 +1100,16 @@ struct StudioComposition: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Image(systemName: metric.icon)
-                        .font(.system(size: ts(13), weight: .semibold))
+                        .font(.system(size: ts(13 * statScale), weight: .semibold))
                         .foregroundStyle(accentColor)
                     Text(value)
-                        .font(.system(size: ts(30), weight: .bold))
+                        .font(.system(size: ts(30 * statScale), weight: .bold))
                         .foregroundStyle(inkColor)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                 }
                 Text(metric.label)
-                    .font(.system(size: ts(14), weight: .semibold))
+                    .font(.system(size: ts(14 * statScale), weight: .semibold))
                     .tracking(2)
                     .foregroundStyle(subtleColor)
             }
@@ -1121,12 +1128,20 @@ struct StudioComposition: View {
             .frame(maxWidth: .infinity, alignment: leading ? .leading : .center)
     }
 
-    /// A wide-tracked uppercase caption from the non-empty parts, joined by "·".
-    private func metaLine(_ parts: [String], leading: Bool) -> some View {
-        let text = parts.filter { !$0.isEmpty }.joined(separator: "  ·  ")
-        return Text(text.uppercased())
-            .font(.system(size: ts(19), weight: .semibold))
-            .tracking(3)
+    /// A wide-tracked uppercase caption from the non-empty parts, joined by "·". Each part carries
+    /// its own size multiplier, so a combined "place · date" line honours independent location and
+    /// date sizes — the segments concatenate into one flowing Text.
+    private func metaLine(_ parts: [(text: String, scale: CGFloat)], leading: Bool) -> some View {
+        let visible = parts.filter { !$0.text.isEmpty }
+        var combined = Text(verbatim: "")
+        for (i, part) in visible.enumerated() {
+            let font = Font.system(size: ts(19 * part.scale), weight: .semibold)
+            if i > 0 {
+                combined = combined + Text("  ·  ").font(font).tracking(3)
+            }
+            combined = combined + Text(part.text.uppercased()).font(font).tracking(3)
+        }
+        return combined
             .foregroundStyle(subtleColor)
             .multilineTextAlignment(leading ? .leading : .center)
             .frame(maxWidth: .infinity, alignment: leading ? .leading : .center)

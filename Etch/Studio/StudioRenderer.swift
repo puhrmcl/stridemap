@@ -58,6 +58,12 @@ enum StudioRenderer {
         var mapPhotoCount: Int = 1
         /// Multiplies every text point size on the poster (user-adjustable). 1 = designed size.
         var textScale: CGFloat = 1
+        /// Per-element size multipliers layered on `textScale`.
+        var titleScale: CGFloat = 1
+        var locationScale: CGFloat = 1
+        var dateScale: CGFloat = 1
+        var heroScale: CGFloat = 1
+        var statScale: CGFloat = 1
         /// The print shape the artwork is composed into (2:3 primary, 4:5 secondary).
         var printAspect: PrintAspect = .twoThree
     }
@@ -162,6 +168,11 @@ enum StudioRenderer {
             mapLayoutRaw: request.mapLayoutRaw,
             mapPhotoCount: request.mapPhotoCount,
             textScale: request.textScale,
+            titleScale: request.titleScale,
+            locationScale: request.locationScale,
+            dateScale: request.dateScale,
+            heroScale: request.heroScale,
+            statScale: request.statScale,
             printAspect: request.printAspect
         )
         let renderer = ImageRenderer(content: composition)

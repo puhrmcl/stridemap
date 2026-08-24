@@ -65,6 +65,12 @@ final class SavedPoster {
     var mapPhotoCount: Int = 1
     /// Poster text size multiplier (1 = the designed size).
     var textScale: Double = 1
+    /// Per-element size multipliers layered on `textScale` (1 = the designed size).
+    var titleScale: Double = 1
+    var locationScale: Double = 1
+    var dateScale: Double = 1
+    var heroScale: Double = 1
+    var statScale: Double = 1
 
     /// A bare poster for a run; `PosterConfig.write(into:run:)` fills in the recipe.
     convenience init(runID: UUID, runName: String) {

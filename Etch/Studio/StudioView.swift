@@ -409,14 +409,19 @@ struct StudioView: View {
 
     @ViewBuilder private var textTab: some View {
         // Three free lines, named for what they are — each defaults to the run's title / place /
-        // date but is fully editable, and each can be hidden.
-        toggleFieldRow("Text 1", show: $config.showTitle, text: $config.title, placeholder: run.name)
+        // date but is fully editable, can be hidden, and carries its own size.
+        toggleFieldRow("Text 1", show: $config.showTitle, text: $config.title,
+                       placeholder: run.name, scale: $config.titleScale)
         toggleFieldRow("Text 2", show: $config.showLocation, text: $config.location,
-                       placeholder: derivedPlace)
+                       placeholder: derivedPlace, scale: $config.locationScale)
         toggleFieldRow("Text 3", show: $config.showDate, text: $config.date,
-                       placeholder: Format.date(run.startDate))
+                       placeholder: Format.date(run.startDate), scale: $config.dateScale)
         fontPicker
-        textSizePicker
+        // Size, at every altitude: each line has its own Aa menu above; these rows size the big
+        // headline block and the data rows, and All Text scales everything together.
+        scaleRow("Headline", $config.heroScale)
+        scaleRow("Data", $config.statScale)
+        scaleRow("All Text", $config.textScale)
         colorRow("Text", selection: $config.textColor, swatches: textSwatches, fallback: config.edition.ink)
         colorRow("Panel", selection: $config.groundColor, swatches: groundSwatches, fallback: config.edition.ground)
         colorRow("Path", selection: $config.routeColor, swatches: pathSwatches, fallback: config.edition.route)
@@ -426,14 +431,14 @@ struct StudioView: View {
         [run.city, run.state].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
     }
 
-    /// Scales all of the poster's type up or down together (Small … XL).
-    private var textSizePicker: some View {
+    /// A size row for one text element (S … XL as a multiplier on the designed size).
+    private func scaleRow(_ title: String, _ scale: Binding<CGFloat>) -> some View {
         HStack(spacing: 10) {
-            Text("Size")
+            Text(title)
                 .font(.system(.caption, design: .rounded).weight(.semibold))
                 .foregroundStyle(.secondary)
                 .frame(width: 62, alignment: .leading)
-            Picker("Text size", selection: $config.textScale) {
+            Picker(title, selection: scale) {
                 Text("S").tag(CGFloat(0.85))
                 Text("M").tag(CGFloat(1.0))
                 Text("L").tag(CGFloat(1.15))
@@ -442,6 +447,35 @@ struct StudioView: View {
             .pickerStyle(.segmented)
         }
         .frame(maxWidth: 340)
+    }
+
+    /// The curated per-line size steps — a wider range than the row pickers, since a single line
+    /// (a date, say) can go genuinely small or genuinely large without unbalancing the piece.
+    private static let lineScaleSteps: [(name: String, value: CGFloat)] = [
+        ("Extra Small", 0.7), ("Small", 0.85), ("Medium", 1.0),
+        ("Large", 1.15), ("Extra Large", 1.3), ("Huge", 1.5)
+    ]
+
+    /// A compact Aa menu choosing one text line's size.
+    private func lineSizeMenu(_ scale: Binding<CGFloat>) -> some View {
+        Menu {
+            ForEach(Self.lineScaleSteps, id: \.value) { step in
+                Button { scale.wrappedValue = step.value } label: {
+                    if abs(scale.wrappedValue - step.value) < 0.01 {
+                        Label(step.name, systemImage: "checkmark")
+                    } else {
+                        Text(step.name)
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "textformat.size")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+                .frame(width: 28, height: 28)
+                .background(Theme.accent.opacity(0.10), in: .rect(cornerRadius: 8))
+        }
+        .menuStyle(.borderlessButton)
     }
 
     private var fontPicker: some View {
@@ -636,8 +670,10 @@ struct StudioView: View {
         .frame(maxWidth: 340)
     }
 
-    /// A field row with a show/hide toggle at the front — the Text 1–3 lines.
-    private func toggleFieldRow(_ title: String, show: Binding<Bool>, text: Binding<String>, placeholder: String) -> some View {
+    /// A field row with a show/hide toggle at the front and a size menu at the end — the Text 1–3
+    /// lines.
+    private func toggleFieldRow(_ title: String, show: Binding<Bool>, text: Binding<String>,
+                                placeholder: String, scale: Binding<CGFloat>) -> some View {
         HStack(spacing: 8) {
             Button { show.wrappedValue.toggle() } label: {
                 Image(systemName: show.wrappedValue ? "checkmark.circle.fill" : "circle")
@@ -661,6 +697,9 @@ struct StudioView: View {
                 }
                 .buttonStyle(.plain)
             }
+            lineSizeMenu(scale)
+                .disabled(!show.wrappedValue)
+                .opacity(show.wrappedValue ? 1 : 0.4)
         }
         .frame(maxWidth: 340)
     }
@@ -775,6 +814,7 @@ struct StudioView: View {
         [config.family.rawValue, config.mapStyle.rawValue,
          config.mapLayout.rawValue, "\(config.mapPhotoCount)", "\(run.photoReferences.count)",
          "\(config.textScale)",
+         "\(config.titleScale)|\(config.locationScale)|\(config.dateScale)|\(config.heroScale)|\(config.statScale)",
          config.galleryDesign.rawValue,
          config.resolvedFrames.map(\.rawValue).joined(separator: ","),
          "\(config.monochrome)", config.orientation.rawValue, config.dataPlacement.rawValue,
