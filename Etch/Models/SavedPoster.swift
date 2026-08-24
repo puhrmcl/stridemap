@@ -56,6 +56,7 @@ final class SavedPoster {
     var fontRaw: String = "editorial"
     var showTitle: Bool = true
     var showLocation: Bool = true
+    var showDate: Bool = true
     /// Location override; empty falls back to the run's city/state.
     var locationText: String = ""
     /// Map product layout — "statement" (full data), "minimal" (title + date), or "photo".

@@ -408,10 +408,13 @@ struct StudioView: View {
     // MARK: Text tab
 
     @ViewBuilder private var textTab: some View {
-        toggleFieldRow("Title", show: $config.showTitle, text: $config.title, placeholder: run.name)
-        toggleFieldRow("Location", show: $config.showLocation, text: $config.location,
+        // Three free lines, named for what they are — each defaults to the run's title / place /
+        // date but is fully editable, and each can be hidden.
+        toggleFieldRow("Text 1", show: $config.showTitle, text: $config.title, placeholder: run.name)
+        toggleFieldRow("Text 2", show: $config.showLocation, text: $config.location,
                        placeholder: derivedPlace)
-        textFieldRow("Date", text: $config.date, placeholder: Format.date(run.startDate))
+        toggleFieldRow("Text 3", show: $config.showDate, text: $config.date,
+                       placeholder: Format.date(run.startDate))
         fontPicker
         textSizePicker
         colorRow("Text", selection: $config.textColor, swatches: textSwatches, fallback: config.edition.ink)
@@ -633,27 +636,7 @@ struct StudioView: View {
         .frame(maxWidth: 340)
     }
 
-    private func textFieldRow(_ title: String, text: Binding<String>, placeholder: String) -> some View {
-        HStack(spacing: 10) {
-            Text(title)
-                .font(.system(.caption, design: .rounded).weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 62, alignment: .leading)
-            TextField(placeholder, text: text)
-                .font(.system(.subheadline, design: .rounded))
-                .textInputAutocapitalization(.words)
-                .submitLabel(.done)
-            if !text.wrappedValue.isEmpty {
-                Button { text.wrappedValue = "" } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .frame(maxWidth: 340)
-    }
-
-    /// A field row with a show/hide toggle at the front — for Title and Location.
+    /// A field row with a show/hide toggle at the front — the Text 1–3 lines.
     private func toggleFieldRow(_ title: String, show: Binding<Bool>, text: Binding<String>, placeholder: String) -> some View {
         HStack(spacing: 8) {
             Button { show.wrappedValue.toggle() } label: {
@@ -798,7 +781,7 @@ struct StudioView: View {
          // Text fields use their *debounced* mirrors. Typing a title used to re-render the whole
          // composition — and start a fresh map snapshot — on every keystroke.
          config.font.rawValue, "\(config.showTitle)", debouncedText,
-         "\(config.showLocation)",
+         "\(config.showLocation)", "\(config.showDate)",
          config.heroMetric.rawValue,
          config.dataSlots.map(\.rawValue).joined(separator: ","),
          "\(config.showElevation)", "\(config.includeWeather)", config.outputSize.rawValue,

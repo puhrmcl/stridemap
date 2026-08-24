@@ -46,6 +46,8 @@ enum StudioRenderer {
         var showTitle: Bool = true
         /// Whether the location line is drawn.
         var showLocation: Bool = true
+        /// Whether the date line is drawn.
+        var showDate: Bool = true
         /// Location override; nil falls back to the run's city/state.
         var locationOverride: String? = nil
         /// Gallery product: which of the five curated art layouts to compose.
@@ -154,6 +156,7 @@ enum StudioRenderer {
             titleFont: request.titleFont,
             showTitle: request.showTitle,
             showLocation: request.showLocation,
+            showDate: request.showDate,
             locationOverride: request.locationOverride,
             galleryDesignRaw: request.galleryDesignRaw,
             mapLayoutRaw: request.mapLayoutRaw,

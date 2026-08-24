@@ -178,6 +178,7 @@ struct PosterConfig {
     var showLocation: Bool = true
     /// Location override; empty falls back to the run's city/state.
     var location: String = ""
+    var showDate: Bool = true
     /// Date override; empty falls back to the run's date.
     var date: String = ""
     /// The big headline metric (distance by default) — chosen from the same set as the slots.
@@ -232,6 +233,7 @@ struct PosterConfig {
         r.titleFont = font
         r.showTitle = showTitle
         r.showLocation = showLocation
+        r.showDate = showDate
         r.locationOverride = location.isEmpty ? nil : location
         r.galleryDesignRaw = galleryDesign.rawValue
         r.mapLayoutRaw = mapLayout.rawValue
@@ -261,6 +263,7 @@ struct PosterConfig {
         p.customTitle = title
         p.showLocation = showLocation
         p.locationText = location
+        p.showDate = showDate
         p.customDate = date
         p.statSlotsRaw = dataSlots.map(\.rawValue)
         p.heroMetricRaw = heroMetric.rawValue
@@ -312,6 +315,7 @@ struct PosterConfig {
         title = p.customTitle
         showLocation = p.showLocation
         location = p.locationText
+        showDate = p.showDate
         date = p.customDate
         heroMetric = StatMetric(rawValue: p.heroMetricRaw) ?? .distance
         let slots = p.statSlotsRaw.compactMap { StatMetric(rawValue: $0) }

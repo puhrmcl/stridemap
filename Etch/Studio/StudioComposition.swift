@@ -186,6 +186,8 @@ struct StudioComposition: View {
     var showTitle: Bool = true
     /// Whether the location line is drawn.
     var showLocation: Bool = true
+    /// Whether the date line is drawn.
+    var showDate: Bool = true
     /// Location override; nil falls back to the run's city/state.
     var locationOverride: String? = nil
     /// Which of the five Gallery art layouts to compose (Gallery product only).
@@ -305,11 +307,15 @@ struct StudioComposition: View {
                 }
             } else {
                 // Portrait (and landscape-with-bottom-data): a fixed print-shaped canvas. The
-                // footer takes its natural height; the art absorbs the rest.
+                // footer takes its natural height; the art absorbs the rest. `fixedSize` pins the
+                // band and footer at that natural height — without it the fixed-height canvas
+                // negotiates the shortfall out of the *footer* (its scale-to-fit texts read as
+                // compressible), clipping the stat row and date off the bottom of the artwork
+                // while the art panel keeps more than its share.
                 VStack(spacing: 0) {
                     flexArt
-                    if hasElevationStrip { elevationBand }
-                    footer
+                    if hasElevationStrip { elevationBand.fixedSize(horizontal: false, vertical: true) }
+                    footer.fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(width: Self.canvasSize(orientation, dataPlacement, printAspect).width,
                        height: Self.canvasSize(orientation, dataPlacement, printAspect).height)
@@ -494,7 +500,7 @@ struct StudioComposition: View {
 
             VStack(spacing: 0) {
                 HStack(alignment: .top) {
-                    Text(dateText.uppercased())
+                    Text(dateLine.uppercased())
                         .font(.system(size: ts(15), weight: .semibold)).tracking(3)
                     Spacer()
                     if !coordsText.isEmpty {
@@ -778,7 +784,7 @@ struct StudioComposition: View {
                 Rectangle().fill(subtleColor.opacity(0.4)).frame(width: 90, height: 2).padding(.vertical, 6)
                 statRow
             }
-            metaLine([dateText], leading: false).padding(.top, 6)
+            if !dateLine.isEmpty { metaLine([dateLine], leading: false).padding(.top, 6) }
         }
     }
 
@@ -787,7 +793,7 @@ struct StudioComposition: View {
         VStack(spacing: 16) {
             title(leading: false)
             heroBlock(leading: false)
-            metaLine([placeLine, dateText], leading: false)
+            metaLine([placeLine, dateLine], leading: false)
         }
     }
 
@@ -795,7 +801,7 @@ struct StudioComposition: View {
     private var mapMinimalFooter: some View {
         VStack(spacing: 12) {
             title(leading: false)
-            metaLine([dateText], leading: false)
+            if !dateLine.isEmpty { metaLine([dateLine], leading: false) }
         }
     }
 
@@ -805,7 +811,7 @@ struct StudioComposition: View {
             title(leading: false)
             mapPhotoStrip
             if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: false) }
-            metaLine([placeLine, dateText], leading: false).padding(.top, 2)
+            metaLine([placeLine, dateLine], leading: false).padding(.top, 2)
         }
     }
 
@@ -823,6 +829,15 @@ struct StudioComposition: View {
                         .font(.system(size: ts(88), weight: .semibold))
                         .foregroundStyle(subtleColor)
                 )
+        } else if photos.count == 1 {
+            // A single photo shows whole — fitted, not centre-cropped, which was cutting heads
+            // off portrait shots. The band height caps a tall photo; the ground breathes around
+            // whatever width the photo's own aspect gives it.
+            Image(uiImage: photos[0])
+                .resizable()
+                .scaledToFit()
+                .clipShape(.rect(cornerRadius: 14))
+                .frame(maxWidth: .infinity, maxHeight: 430)
         } else {
             HStack(spacing: 14) {
                 ForEach(photos.indices, id: \.self) { i in
@@ -851,7 +866,7 @@ struct StudioComposition: View {
                     }
                 }
                 if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: true) }
-                metaLine([placeLine, dateText], leading: true)
+                metaLine([placeLine, dateLine], leading: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -887,7 +902,7 @@ struct StudioComposition: View {
                 }
             }
             if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: false) }
-            metaLine([dateText], leading: false).padding(.top, 4)
+            if !dateLine.isEmpty { metaLine([dateLine], leading: false).padding(.top, 4) }
         }
     }
 
@@ -905,7 +920,7 @@ struct StudioComposition: View {
                 }
             }
             if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: false) }
-            metaLine([dateText], leading: false).padding(.top, 4)
+            if !dateLine.isEmpty { metaLine([dateLine], leading: false).padding(.top, 4) }
         }
     }
 
@@ -966,6 +981,9 @@ struct StudioComposition: View {
         if let dateOverride, !dateOverride.isEmpty { return dateOverride }
         return Format.date(run.startDate)
     }
+    /// The date as it appears on the poster — empty when toggled off, so every layout that folds
+    /// it into a meta line drops it the same way `placeLine` drops a hidden location.
+    private var dateLine: String { showDate ? dateText : "" }
 
     @ViewBuilder
     private func title(leading: Bool) -> some View {
