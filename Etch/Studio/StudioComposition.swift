@@ -317,7 +317,9 @@ struct StudioComposition: View {
             } else if orientation == .landscape && dataPlacement == .top {
                 // Same fixed print-shaped canvas as the bottom-data branch, footer first.
                 VStack(spacing: 0) {
-                    footer.fixedSize(horizontal: false, vertical: true)
+                    footer
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
                     flexArt
                 }
                 .frame(width: Self.canvasSize(orientation, dataPlacement, printAspect).width,
@@ -331,8 +333,14 @@ struct StudioComposition: View {
                 // while the art panel keeps more than its share.
                 VStack(spacing: 0) {
                     flexArt
-                    if hasElevationStrip { elevationBand.fixedSize(horizontal: false, vertical: true) }
-                    footer.fixedSize(horizontal: false, vertical: true)
+                    if hasElevationStrip {
+                        elevationBand
+                            .fixedSize(horizontal: false, vertical: true)
+                            .layoutPriority(1)
+                    }
+                    footer
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
                 }
                 .frame(width: Self.canvasSize(orientation, dataPlacement, printAspect).width,
                        height: Self.canvasSize(orientation, dataPlacement, printAspect).height)
