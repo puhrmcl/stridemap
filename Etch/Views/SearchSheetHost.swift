@@ -44,6 +44,12 @@ struct SearchSheetHost: UIViewControllerRepresentable {
             SearchSheetContent(model: model, bottomSafeArea: bottomSafeArea)
                 .environment(appModel)
                 .modelContainer(modelContainer)
+                // The sheet must NEVER keyboard-avoid: it moves via a CA transform, which UIKit's
+                // keyboard geometry doesn't see — so focusing the search field in the bottom pill
+                // made the hosting controller shove the entire hosted page hundreds of points up
+                // (and leave it there). The field sits at the top of the full page by design;
+                // the sheet's own detent motion is all the "avoidance" there is.
+                .ignoresSafeArea(.keyboard)
         )
     }
 
@@ -127,6 +133,12 @@ final class SearchSheetContainerViewController: UIViewController {
 
         addChild(hostingController)
         hostingController.view.backgroundColor = .clear
+        // Belt to the rootView's `.ignoresSafeArea(.keyboard)` braces: strip the keyboard from
+        // the hosting controller's safe-area propagation entirely, so no future content change
+        // can reintroduce the transform-blind keyboard shift.
+        if #available(iOS 16.4, *) {
+            hostingController.safeAreaRegions = SafeAreaRegions.container
+        }
         surfaceView.addSubview(hostingController.view)
         hostingController.didMove(toParent: self)
 
