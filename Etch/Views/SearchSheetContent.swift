@@ -113,6 +113,13 @@ struct SearchSheetContent: View {
         }
         // Build the explore derivations once now, then only when the run / poster sets change.
         .onAppear { recomputeDerived(); recomputeResults() }
+        // CI diagnostics (ETCH_DIAG=1): focus the search field unattended a few seconds after
+        // launch, so a simulator run can reproduce the tap-to-search flow and log its geometry.
+        .task {
+            guard ProcessInfo.processInfo.environment["ETCH_DIAG"] == "1" else { return }
+            try? await Task.sleep(for: .seconds(4))
+            searchFocused = true
+        }
         .onChange(of: runs.count) { recomputeDerived(); recomputeResults() }
         .onChange(of: savedPosters.count) { recomputeDerived() }
         // Debounce typing: restart a short timer on each keystroke, then commit and refilter once.

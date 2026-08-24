@@ -114,8 +114,49 @@ final class SearchSheetContainerViewController: UIViewController {
         view = root
     }
 
+    /// CI diagnostics (ETCH_DIAG=1): logs the geometry of every layer twice a second so a
+    /// simulator run can pin exactly which layer is displaced when the sheet misbehaves.
+    private var diagTimer: Timer?
+    private var diagKeyboardFrame: CGRect = .zero
+
+    private func startDiagnosticsIfRequested() {
+        guard ProcessInfo.processInfo.environment["ETCH_DIAG"] == "1" else { return }
+        NotificationCenter.default.addObserver(
+            forName: UIResponder.keyboardDidShowNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            let frame = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue ?? .zero
+            Task { @MainActor [weak self] in self?.diagKeyboardFrame = frame }
+        }
+        diagTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.logDiagnostics() }
+        }
+    }
+
+    private func logDiagnostics() {
+        let sheetWin = sheetView.superview?.convert(sheetView.frame, to: nil) ?? .zero
+        let hostWin = hostingController.view.convert(hostingController.view.bounds, to: nil)
+        let surfWin = surfaceView.convert(surfaceView.bounds, to: nil)
+        var fieldWin = CGRect.zero
+        var queue: [UIView] = [hostingController.view]
+        while !queue.isEmpty {
+            let v = queue.removeFirst()
+            if v is UITextField { fieldWin = v.convert(v.bounds, to: nil); break }
+            queue.append(contentsOf: v.subviews)
+        }
+        let sv = findScrollView()
+        NSLog("ETCHDIAG boundsH=%.0f safeTop=%.0f sheetFrameY=%.0f ty=%.0f sheetWinY=%.0f surfWinY=%.0f hostWinY=%.0f hostH=%.0f fieldWinY=%.0f scrollOff=%.0f scrollInsetTop=%.0f kbdY=%.0f detent=%d",
+              view.bounds.height, view.safeAreaInsets.top,
+              sheetView.frame.origin.y, sheetView.transform.ty,
+              sheetWin.origin.y, surfWin.origin.y, hostWin.origin.y, hostWin.height,
+              fieldWin.origin.y,
+              sv?.contentOffset.y ?? -9999, sv?.adjustedContentInset.top ?? -9999,
+              diagKeyboardFrame.origin.y,
+              controller.currentDetent.rawValue)
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        startDiagnosticsIfRequested()
 
         sheetView.backgroundColor = .clear
         sheetView.layer.shadowColor = UIColor.black.cgColor
