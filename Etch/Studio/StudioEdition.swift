@@ -10,7 +10,7 @@ import SwiftUI
 struct StudioEdition: Identifiable, Equatable {
 
     enum ID: String, CaseIterable, Identifiable {
-        case gallery, atlas, atlasDark, satellite, terrain, trailJournal, midnightAtlas, minimal, night, memory
+        case gallery, atlas, atlasDark, streets, streetsNoir, satellite, terrain, trailJournal, midnightAtlas, minimal, night, memory
         var id: String { rawValue }
     }
 
@@ -56,6 +56,10 @@ struct StudioEdition: Identifiable, Equatable {
     /// Overrides the contour-line colour on `.contour` editions (e.g. gold on Midnight Atlas).
     /// Nil derives it from the ground — ink on a light ground, bone on a dark one.
     var contourTint: Color? = nil
+    /// When set, the map snapshot is desaturated to this level (0 = full monochrome) before the
+    /// wash — the "just streets, very minimal" city-print treatment. Nil leaves the map's own
+    /// colour (satellite has its own fixed desaturation).
+    var panelSaturation: CGFloat? = nil
 
     /// The art panel is a pre-rendered image (map snapshot, photo, or contour field), not a plain
     /// vector ground.
@@ -72,7 +76,7 @@ struct StudioEdition: Identifiable, Equatable {
 
     // MARK: The collection
 
-    static let all: [StudioEdition] = [.gallery, .atlas, .atlasDark, .satellite, .terrain, .trailJournal, .midnightAtlas, .minimal, .night, .memory]
+    static let all: [StudioEdition] = [.gallery, .atlas, .atlasDark, .streets, .streetsNoir, .satellite, .terrain, .trailJournal, .midnightAtlas, .minimal, .night, .memory]
 
     static func edition(_ id: ID) -> StudioEdition { all.first { $0.id == id }! }
 
@@ -112,6 +116,30 @@ struct StudioEdition: Identifiable, Equatable {
         ground: Theme.Palette.ink, mapWash: .clear, mapWashAlpha: 0,
         route: Theme.Palette.blue, casing: .white, routeWidth: 11, glow: false,
         ink: Theme.Palette.bone, subtle: Theme.Palette.bone.opacity(0.6), accent: Theme.Palette.blue
+    )
+
+    /// Streets — the classic city print: streets alone in the palest grey on paper, everything
+    /// else silent, the route inked over in near-black. Fully monochrome, made to be framed.
+    static let streets = StudioEdition(
+        id: .streets, name: "Streets",
+        descriptor: "Just the streets, in pale grey — the route inked over.",
+        surface: .map(.streetsLight),
+        ground: Theme.Palette.bone, mapWash: Theme.Palette.bone, mapWashAlpha: 0.45,
+        route: Theme.Palette.ink, casing: .white, routeWidth: 11, glow: false,
+        ink: Theme.Palette.ink, subtle: Theme.Palette.ink.opacity(0.55), accent: Theme.Palette.ink,
+        panelSaturation: 0
+    )
+
+    /// Streets Noir — the same city print after dark: faint streets on near-black, the route in
+    /// bone white. The pair to Streets, for dark walls.
+    static let streetsNoir = StudioEdition(
+        id: .streetsNoir, name: "Streets Noir",
+        descriptor: "Faint streets on near-black, the route in white.",
+        surface: .map(.streetsDark),
+        ground: Theme.Palette.ink, mapWash: Theme.Palette.ink, mapWashAlpha: 0.40,
+        route: Theme.Palette.bone, casing: Theme.Palette.ink, routeWidth: 11, glow: false,
+        ink: Theme.Palette.bone, subtle: Theme.Palette.bone.opacity(0.6), accent: Theme.Palette.bone,
+        panelSaturation: 0
     )
 
     /// Satellite — the route over real aerial imagery, gently deepened so the Etch Blue route

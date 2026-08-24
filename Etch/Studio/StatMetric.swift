@@ -8,7 +8,7 @@ enum StatMetric: String, CaseIterable, Identifiable {
     /// A deliberately empty slot — renders as blank space on the poster. Selectable for any data
     /// point (headline or slot) so the user can leave gaps in the composition.
     case none
-    case distance, time, pace, speed, elevationGain, startElevation, avgHeartRate, calories, cadence, place, date, weather
+    case distance, time, pace, speed, elevationGain, startElevation, avgHeartRate, calories, cadence, bib, place, date, weather
 
     var id: String { rawValue }
 
@@ -25,6 +25,7 @@ enum StatMetric: String, CaseIterable, Identifiable {
         case .avgHeartRate: return "AVG HR"
         case .calories:     return "CALORIES"
         case .cadence:      return "CADENCE"
+        case .bib:          return "BIB"
         case .place:        return "PLACE"
         case .date:         return "DATE"
         case .weather:      return "WEATHER"
@@ -45,6 +46,7 @@ enum StatMetric: String, CaseIterable, Identifiable {
         case .avgHeartRate:  return "heart.fill"
         case .calories:      return "flame.fill"
         case .cadence:       return "metronome"
+        case .bib:           return "number"
         case .place:         return "mappin.and.ellipse"
         case .date:          return "calendar"
         case .weather:       return "cloud.sun.fill"
@@ -59,6 +61,7 @@ enum StatMetric: String, CaseIterable, Identifiable {
         case .elevationGain:  return "Elevation gain"
         case .startElevation: return "Start elevation"
         case .avgHeartRate:   return "Avg heart rate"
+        case .bib:            return "Bib number"
         default:              return label.capitalized
         }
     }
@@ -105,6 +108,10 @@ enum StatMetric: String, CaseIterable, Identifiable {
         case .cadence:
             guard let spm = run.averageCadence, spm > 0 else { return nil }
             return "\(Int(spm.rounded())) SPM"
+        case .bib:
+            let bib = run.bibNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !bib.isEmpty else { return nil }
+            return bib.hasPrefix("#") ? bib : "#\(bib)"
         case .place:
             let place = [run.city, run.state].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
             return place.isEmpty ? nil : place

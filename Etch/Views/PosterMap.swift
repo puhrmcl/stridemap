@@ -123,9 +123,17 @@ enum PosterMap {
         guard let snapshot else { return nil }
 
         // Satellite is a photograph; desaturate it so the terrain reads as muted relief, not a
-        // holiday snap — keeping the route the hero, per the brand's "mute geography".
-        let baseImage = kind == .satellite
-            ? desaturated(snapshot.image, saturation: 0.42) : snapshot.image
+        // holiday snap — keeping the route the hero, per the brand's "mute geography". Editions
+        // with `panelSaturation` (the Streets city prints) drive their own level — 0 turns the
+        // map fully monochrome so only the street pattern remains.
+        let baseImage: UIImage
+        if kind == .satellite {
+            baseImage = desaturated(snapshot.image, saturation: 0.42)
+        } else if let saturation = edition.panelSaturation {
+            baseImage = desaturated(snapshot.image, saturation: saturation)
+        } else {
+            baseImage = snapshot.image
+        }
 
         let format = UIGraphicsImageRendererFormat()
         format.scale = options.scale

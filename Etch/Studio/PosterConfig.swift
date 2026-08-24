@@ -14,14 +14,16 @@ enum PosterFamily: String, CaseIterable, Identifiable {
 /// the poster's ground, the most restrained look. Each maps onto a curated `StudioEdition` so the
 /// existing render pipeline draws it.
 enum MapStyle: String, CaseIterable, Identifiable {
-    case standard, terrain, satellite, dark, contour, midnight, none
+    case standard, streets, terrain, satellite, dark, streetsNoir, contour, midnight, none
     var id: String { rawValue }
     var name: String {
         switch self {
         case .standard:  return "Standard"
+        case .streets:   return "Streets"
         case .terrain:   return "Terrain"
         case .satellite: return "Satellite"
         case .dark:      return "Dark"
+        case .streetsNoir: return "Streets Noir"
         case .contour:   return "Trail Journal"
         case .midnight:  return "Midnight Atlas"
         case .none:      return "No Map"
@@ -30,9 +32,11 @@ enum MapStyle: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .standard:  return "map"
+        case .streets:   return "road.lanes"
         case .terrain:   return "mountain.2"
         case .satellite: return "globe.americas.fill"
         case .dark:      return "moon.stars"
+        case .streetsNoir: return "road.lanes.curved.right"
         case .contour:   return "square.stack.3d.down.right"
         case .midnight:  return "sparkles"
         case .none:      return "scribble.variable"
@@ -45,9 +49,11 @@ enum MapStyle: String, CaseIterable, Identifiable {
     var edition: StudioEdition {
         switch self {
         case .standard:  return .atlas
+        case .streets:   return .streets
         case .terrain:   return .terrain
         case .satellite: return .satellite
         case .dark:      return .atlasDark
+        case .streetsNoir: return .streetsNoir
         case .contour:   return .trailJournal
         case .midnight:  return .midnightAtlas
         case .none:      return .minimal

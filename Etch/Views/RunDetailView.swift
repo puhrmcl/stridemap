@@ -823,12 +823,14 @@ private struct EditRunSheet: View {
     @State private var title: String
     @State private var date: Date
     @State private var type: ActivityType
+    @State private var bib: String
 
     init(run: Run) {
         self.run = run
         _title = State(initialValue: run.name)
         _date = State(initialValue: run.startDate)
         _type = State(initialValue: run.activityType)
+        _bib = State(initialValue: run.bibNumber)
     }
 
     /// Run/Hike/Ride/Walk, plus the current type if it's something else (Ski, Swim, …) so the
@@ -862,6 +864,15 @@ private struct EditRunSheet: View {
                 } header: {
                     Text("Activity type")
                 }
+                Section {
+                    TextField("e.g. 9478", text: $bib)
+                        .textInputAutocapitalization(.characters)
+                        .autocorrectionDisabled()
+                } header: {
+                    Text("Bib number")
+                } footer: {
+                    Text("Shown on Studio posters as a data point — the way race prints carry the runner's number.")
+                }
             }
             .navigationTitle("Edit Activity")
             .navigationBarTitleDisplayMode(.inline)
@@ -885,6 +896,7 @@ private struct EditRunSheet: View {
         }
         run.startDate = date
         run.activityType = type
+        run.bibNumber = bib.trimmingCharacters(in: .whitespacesAndNewlines)
         run.updatedAt = Date()
         try? context.save()
         dismiss()

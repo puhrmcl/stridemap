@@ -143,6 +143,9 @@ final class Run {
 
     var gear: String?
     var notes: String?
+    /// Race bib number, hand-entered in the activity's Edit sheet ("9478", "A123"). Shown on
+    /// posters as a data point when set. Defaulted so existing runs migrate cleanly.
+    var bibNumber: String = ""
     var isFavorite: Bool
     var tags: [String]
     /// Reserved for a future photos feature — stored as opaque references.
