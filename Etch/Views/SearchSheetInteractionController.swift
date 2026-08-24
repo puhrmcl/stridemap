@@ -327,6 +327,10 @@ final class SearchSheetInteractionController: NSObject {
     // MARK: Presentation
 
     private func applyPresentation(_ t: CGFloat) {
+        // Absolute bounds, regardless of which gesture/spring/layout path produced the value:
+        // the sheet can never sit more than 40pt above its full detent (which itself sits just
+        // below the status bar), and never fully below the screen. Belt for every braces.
+        let t = max(-40, min(t, maxTranslation + 160))
         currentTranslation = t
         sheetView?.transform = CGAffineTransform(translationX: 0, y: t)
 
