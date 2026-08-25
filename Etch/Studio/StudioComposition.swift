@@ -534,44 +534,56 @@ struct StudioComposition: View {
         .frame(maxWidth: 680)
     }
 
-    @ViewBuilder private func galleryTileView(_ tile: GalleryTile) -> some View {
-        Group {
-            switch tile {
-            case .photo(let i):
-                if i < photoImages.count {
-                    Image(uiImage: photoImages[i]).resizable().scaledToFill()
-                } else {
-                    groundColor
-                }
-            case .map:
-                if edition.usesImagePanel, let panelImage {
-                    Image(uiImage: panelImage).resizable().scaledToFill()
-                } else {
+    /// One gallery frame. The *box* is the layout element — a fully flexible clear rectangle, so
+    /// every design's stacks divide the art area into equal, consistent cells regardless of what
+    /// each cell shows. The asset then paints into its box as an overlay: images fill and crop to
+    /// the cell, vector art (route, elevation) draws inside it. Previously the `scaledToFill`
+    /// images *were* the layout elements, so a tall photo's aspect leaked into the stack
+    /// negotiation and cells came out at arbitrary, unequal sizes.
+    private func galleryTileView(_ tile: GalleryTile) -> some View {
+        Color.clear
+            .overlay {
+                switch tile {
+                case .photo(let i):
+                    if i < photoImages.count {
+                        Image(uiImage: photoImages[i]).resizable().scaledToFill()
+                    } else {
+                        // An unfilled photo cell reads as a quiet placeholder awaiting a photo —
+                        // still exactly the size the photo will be.
+                        ZStack {
+                            subtleColor.opacity(0.08)
+                            Image(systemName: "photo")
+                                .font(.system(size: ts(40), weight: .semibold))
+                                .foregroundStyle(subtleColor.opacity(0.45))
+                        }
+                    }
+                case .map:
+                    if edition.usesImagePanel, let panelImage {
+                        Image(uiImage: panelImage).resizable().scaledToFill()
+                    } else {
+                        ZStack {
+                            groundColor
+                            if run.coordinates.count > 1 { routeArt.padding(24) }
+                        }
+                    }
+                case .route:
                     ZStack {
                         groundColor
                         if run.coordinates.count > 1 { routeArt.padding(24) }
                     }
-                }
-            case .route:
-                ZStack {
-                    groundColor
-                    if run.coordinates.count > 1 { routeArt.padding(24) }
-                }
-            case .elevation:
-                ZStack {
-                    groundColor
-                    if elevationSamples.count > 1 {
-                        ElevationLineShape(samples: elevationSamples)
-                            .stroke(subtleColor,
-                                    style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-                            .padding(24)
+                case .elevation:
+                    ZStack {
+                        groundColor
+                        if elevationSamples.count > 1 {
+                            ElevationLineShape(samples: elevationSamples)
+                                .stroke(subtleColor,
+                                        style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                                .padding(24)
+                        }
                     }
                 }
             }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipped()
-        .clipShape(.rect(cornerRadius: 6))
+            .clipShape(.rect(cornerRadius: 6))
     }
 
     // MARK: Full Bleed — the map runs edge to edge, type set over it, data in the corners.
