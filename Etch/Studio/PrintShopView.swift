@@ -29,6 +29,9 @@ struct PrintShopView: View {
     @State private var size: PrintSize
     @State private var finish: FrameFinish = .natural
 
+    /// Full-screen look at the product — tap the mockup to inspect the piece in its frame.
+    @State private var showProductPreview = false
+
     /// Non-nil while the pre-checkout pipeline runs; drives the button's progress narration.
     @State private var orderPhase: PrintOrderService.Phase?
     @State private var orderError: String?
@@ -143,19 +146,28 @@ struct PrintShopView: View {
     /// wall, sized relative to the other options so the size choice is felt rather than read.
     private var mockup: some View {
         VStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 18)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(white: 0.93), Color(white: 0.87)],
-                            startPoint: .top, endPoint: .bottom
+            Button {
+                if artwork != nil { showProductPreview = true }
+            } label: {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 18)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(white: 0.93), Color(white: 0.87)],
+                                startPoint: .top, endPoint: .bottom
+                            )
                         )
-                    )
-                framedPiece
-                    .padding(.vertical, 26)
+                    framedPiece
+                        .padding(.vertical, 26)
+                }
+                .frame(height: 320)
+                .clipShape(.rect(cornerRadius: 18))
             }
-            .frame(height: 320)
-            .clipShape(.rect(cornerRadius: 18))
+            .buttonStyle(.plain)
+            .accessibilityLabel("View full screen")
+            .fullScreenCover(isPresented: $showProductPreview) {
+                ArtworkPreviewView(image: productPreviewImage())
+            }
 
             if let subjectTitle {
                 Text(subjectTitle)
@@ -202,6 +214,39 @@ struct PrintShopView: View {
         .scaleEffect(0.55 + 0.45 * relative, anchor: .center)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: size)
         .animation(.easeInOut(duration: 0.2), value: finish)
+    }
+
+    /// The product as one flat image for the full-screen viewer: the artwork inside its chosen
+    /// moulding for a framed print, or the bare sheet for fine art. Composed at tap time from the
+    /// current finish, so what's inspected is exactly what's configured.
+    private func productPreviewImage() -> UIImage? {
+        guard let artwork else { return nil }
+        guard product == .framed else { return artwork }
+
+        // Moulding proportion matches the real Classic frame (~4% of the long edge), drawn in the
+        // chosen finish with a shadow-line where the moulding lips over the sheet.
+        let moulding = max(artwork.size.width, artwork.size.height) * 0.04
+        let canvas = CGSize(width: artwork.size.width + moulding * 2,
+                            height: artwork.size.height + moulding * 2)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = artwork.scale
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: canvas, format: format)
+        return renderer.image { context in
+            let mouldingColor = UIColor(Color(hex: finish.mouldingHex) ?? .black)
+            mouldingColor.setFill()
+            context.fill(CGRect(origin: .zero, size: canvas))
+
+            let sheet = CGRect(x: moulding, y: moulding,
+                               width: artwork.size.width, height: artwork.size.height)
+            artwork.draw(in: sheet)
+
+            // The rebate shadow: a thin dark line where the frame overlaps the print.
+            UIColor.black.withAlphaComponent(0.28).setStroke()
+            let edge = UIBezierPath(rect: sheet)
+            edge.lineWidth = max(1, moulding * 0.08)
+            edge.stroke()
+        }
     }
 
     // MARK: Choices
