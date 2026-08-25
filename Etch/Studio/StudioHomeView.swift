@@ -142,10 +142,9 @@ struct StudioHomeView: View {
                         }
                     }
                     ToolbarItem(placement: .principal) {
-                        // Studio is the app's home here, so lead with the Etch brand mark — larger
-                        // in this primary role so the wordmark reads clearly.
-                        Image("BrandLogo").resizable().scaledToFit().frame(height: 30)
-                            .accessibilityLabel("Etch")
+                        // Studio is the app's home here, so lead with the studio's own wordmark.
+                        Image("StudioLogo").resizable().scaledToFit().frame(height: 26)
+                            .accessibilityLabel("Etched Studio")
                     }
                     ToolbarItem(placement: .topBarTrailing) { mapThumbnailButton }
                 }
@@ -262,9 +261,9 @@ struct StudioHomeView: View {
             // Sheet mode: the wordmark leads the page, large enough to read and free of any button
             // chrome (a toolbar item would wrap it in a glass circle).
             if !isHome {
-                Image("BrandLogo")
-                    .resizable().scaledToFit().frame(height: 44)
-                    .accessibilityLabel("Etch Studio")
+                Image("StudioLogo")
+                    .resizable().scaledToFit().frame(height: 40)
+                    .accessibilityLabel("Etched Studio")
             }
             VStack(alignment: .leading, spacing: 6) {
                 Text("Leave your mark.")
