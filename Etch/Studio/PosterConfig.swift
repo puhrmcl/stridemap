@@ -206,6 +206,7 @@ struct PosterConfig {
     /// 0–4 "complication" slots shown beneath the headline.
     var dataSlots: [StatMetric] = [.time, .pace, .elevationGain]
     var showElevation: Bool = false
+    var showPace: Bool = false
     var includeWeather: Bool = false
     var photoLayout: StudioPhotoLayout = .single
     var routeColor: Color?
@@ -258,6 +259,7 @@ struct PosterConfig {
         r.galleryDesignRaw = galleryDesign.rawValue
         r.mapLayoutRaw = mapLayout.rawValue
         r.mapPhotoCount = mapPhotoCount
+        r.showPaceProfile = showPace
         r.textScale = textScale
         r.titleScale = titleScale
         r.locationScale = locationScale
@@ -298,6 +300,7 @@ struct PosterConfig {
         p.statSlotsRaw = dataSlots.map(\.rawValue)
         p.heroMetricRaw = heroMetric.rawValue
         p.showElevationProfile = showElevation
+        p.showPaceProfile = showPace
         p.includeWeather = includeWeather
         p.routeColorHex = routeColor?.hexString
         p.textColorHex = textColor?.hexString
@@ -356,6 +359,7 @@ struct PosterConfig {
         let slots = p.statSlotsRaw.compactMap { StatMetric(rawValue: $0) }
         dataSlots = slots
         showElevation = p.showElevationProfile
+        showPace = p.showPaceProfile
         includeWeather = p.includeWeather
         routeColor = Color(hex: p.routeColorHex)
         textColor = Color(hex: p.textColorHex)

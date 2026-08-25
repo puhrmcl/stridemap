@@ -29,6 +29,7 @@ struct RouteFileAttacher: ViewModifier {
         var coordinates: [CLLocationCoordinate2D]
         var encoded: String?
         var elevations: [Double]
+        var paces: [Double]
         var distance: Double
         var startDate: Date
     }
@@ -109,6 +110,7 @@ struct RouteFileAttacher: ViewModifier {
                 coordinates: best.coordinates,
                 encoded: best.encodedPolyline,
                 elevations: best.elevationSeries,
+                paces: best.paceSeries,
                 distance: best.distance,
                 startDate: best.startDate
             )
@@ -137,10 +139,14 @@ struct RouteFileAttacher: ViewModifier {
         let ingestor = ActivityIngestor(context: context)
         ingestor.applyRoute(
             candidate.coordinates, source: .imported, to: run,
-            encoded: candidate.encoded, elevations: candidate.elevations
+            encoded: candidate.encoded, elevations: candidate.elevations,
+            paces: candidate.paces
         )
         if !candidate.elevations.isEmpty {
             run.elevationSeries = candidate.elevations
+        }
+        if !candidate.paces.isEmpty {
+            run.paceSeries = candidate.paces
         }
         if run.elevationGain == 0 {
             run.elevationGain = RouteMetrics.elevationGain(of: candidate.elevations)

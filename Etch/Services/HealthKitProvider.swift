@@ -55,7 +55,8 @@ final class HealthKitProvider: ActivityProvider {
     /// The result of trying to fetch a workout's GPS route — kept distinct so callers (and
     /// logs) can tell "the source wrote no route" from "the query failed".
     enum RouteOutcome: Sendable {
-        case coordinates([CLLocationCoordinate2D], elevations: [Double]) // route present
+        /// Route present: coordinates plus the recorded elevation and pace profiles.
+        case coordinates([CLLocationCoordinate2D], elevations: [Double], paces: [Double])
         case noRoute                                // 0 HKWorkoutRoute objects (Scenario B)
         case failed                                 // query errored (Scenario C)
     }
@@ -98,14 +99,14 @@ final class HealthKitProvider: ActivityProvider {
                 HealthKitLog.route("\(base) routes=0 gps=0 status=NO_ROUTE_IN_HEALTHKIT")
                 return .noRoute
             }
-            let (coordinates, elevations) = try await route(from: samples)
+            let (coordinates, elevations, paces) = try await route(from: samples)
             guard !coordinates.isEmpty else {
                 HealthKitLog.route("\(base) routes=\(samples.count) gps=0 status=ROUTE_OBJECT_EMPTY")
                 return .noRoute
             }
             HealthKitLog.route("\(base) routes=\(samples.count) gps=\(coordinates.count)"
                 + " ele=\(elevations.count) first=\(format(coordinates.first)) last=\(format(coordinates.last)) status=SUCCESS")
-            return .coordinates(coordinates, elevations: elevations)
+            return .coordinates(coordinates, elevations: elevations, paces: paces)
         } catch {
             HealthKitLog.route("\(base) routes=? gps=0 status=QUERY_FAILURE error=\(error.localizedDescription)")
             return .failed
@@ -184,10 +185,11 @@ final class HealthKitProvider: ActivityProvider {
     /// recorded altitude (metres) aligned to each kept point, so the run stores the exact
     /// elevation profile the device recorded rather than terrain data.
     private func route(from routes: [HKWorkoutRoute]) async throws
-        -> (coordinates: [CLLocationCoordinate2D], elevations: [Double]) {
+        -> (coordinates: [CLLocationCoordinate2D], elevations: [Double], paces: [Double]) {
         let orderedRoutes = routes.sorted { $0.startDate < $1.startDate }
         var coordinates: [CLLocationCoordinate2D] = []
         var altitudes: [Double?] = []
+        var timestamps: [Date] = []
         for route in orderedRoutes {
             let locations = try await locations(for: route)
             for location in locations {
@@ -199,9 +201,11 @@ final class HealthKitProvider: ActivityProvider {
                 coordinates.append(coordinate)
                 // `verticalAccuracy < 0` marks an invalid altitude — keep it as a gap to fill.
                 altitudes.append(location.verticalAccuracy >= 0 ? location.altitude : nil)
+                timestamps.append(location.timestamp)
             }
         }
-        return (coordinates, Self.cleanAltitudes(altitudes))
+        let paces = PaceSeries.compute(coordinates: coordinates, times: timestamps)
+        return (coordinates, Self.cleanAltitudes(altitudes), paces)
     }
 
     /// Turns per-point optional altitudes into a usable series: empty when too sparse to trust,

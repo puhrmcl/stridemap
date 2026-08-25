@@ -40,6 +40,9 @@ struct ImportedActivity {
     /// TCX `AltitudeMeters`, FIT altitude, HealthKit route altitude). Stored on the `Run` so its
     /// detail can draw the exact recorded profile instead of terrain-sampled data.
     var elevationSeries: [Double] = []
+    /// Pace profile (seconds/km, uniform-distance samples via `PaceSeries`), when the source's
+    /// track carried per-point timestamps (HealthKit routes, GPX). Empty otherwise.
+    var paceSeries: [Double] = []
 
     // Rich metrics (HealthKit / device sources).
     var averageHeartRate: Double? = nil

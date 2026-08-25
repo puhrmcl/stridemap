@@ -671,6 +671,17 @@ struct StudioView: View {
         .tint(Theme.accent)
         .frame(maxWidth: 300)
 
+        // Pace band needs per-point timing — only offered when this activity recorded it
+        // (HealthKit routes and GPX imports carry it; older imports may not).
+        if run.hasPaceSeries {
+            Toggle(isOn: $config.showPace) {
+                Label("Pace profile", systemImage: "speedometer")
+                    .font(.system(.subheadline, design: .rounded))
+            }
+            .tint(Theme.accent)
+            .frame(maxWidth: 300)
+        }
+
         if run.hasWeather {
             Toggle(isOn: $config.includeWeather) {
                 Label("Include weather", systemImage: "cloud.sun")
@@ -958,7 +969,7 @@ struct StudioView: View {
          "\(config.showLocation)", "\(config.showDate)",
          config.heroMetric.rawValue,
          config.dataSlots.map(\.rawValue).joined(separator: ","),
-         "\(config.showElevation)", "\(config.includeWeather)", config.outputSize.rawValue,
+         "\(config.showElevation)", "\(config.showPace)", "\(config.includeWeather)", config.outputSize.rawValue,
          config.routeColor?.hexString ?? "-", config.textColor?.hexString ?? "-",
          config.groundColor?.hexString ?? "-"
         ].joined(separator: "|")

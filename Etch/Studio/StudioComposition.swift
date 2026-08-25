@@ -166,6 +166,9 @@ struct StudioComposition: View {
     /// Terrain elevations along the route (metres) for the profile silhouette; empty = no strip.
     var elevationSamples: [Double] = []
     var showElevationProfile: Bool = false
+    /// Recorded pace along the route (seconds/km, uniform-distance samples); empty = no strip.
+    var paceSamples: [Double] = []
+    var showPaceProfile: Bool = false
     /// Gallery layout only: use the route map as one of the tiles (with map background on a map
     /// edition, or the bare route line on a paper edition).
     var galleryShowMapTile: Bool = false
@@ -295,6 +298,17 @@ struct StudioComposition: View {
         showElevationProfile && elevationSamples.count > 1 && orientation == .portrait
     }
 
+    private var hasPaceStrip: Bool {
+        showPaceProfile && paceSamples.count > 1 && orientation == .portrait
+    }
+
+    /// Pace plotted with *faster up* — the way athletes read a pace chart — by inverting the
+    /// seconds/km series against its slowest sample.
+    private var paceDisplaySamples: [Double] {
+        guard let slowest = paceSamples.max() else { return [] }
+        return paceSamples.map { slowest - $0 }
+    }
+
     var body: some View {
         Group {
             if isFullBleedMap {
@@ -337,6 +351,11 @@ struct StudioComposition: View {
                     flexArt
                     if hasElevationStrip {
                         elevationBand
+                            .fixedSize(horizontal: false, vertical: true)
+                            .layoutPriority(1)
+                    }
+                    if hasPaceStrip {
+                        paceBand
                             .fixedSize(horizontal: false, vertical: true)
                             .layoutPriority(1)
                     }
@@ -408,6 +427,9 @@ struct StudioComposition: View {
 
             if showElevationProfile && elevationSamples.count > 1 {
                 elevationProfileContent.fixedSize(horizontal: false, vertical: true)
+            }
+            if showPaceProfile && paceSamples.count > 1 {
+                paceProfileContent.fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(80)
@@ -711,17 +733,26 @@ struct StudioComposition: View {
     /// + mile/km ticks). Fills its container's width, so it works in the portrait band and inside
     /// a landscape footer column alike.
     private var elevationProfileContent: some View {
+        profileContent(title: "ELEVATION  ·  \(UnitSystem.current.label.uppercased())",
+                       samples: elevationSamples)
+    }
+
+    private var paceProfileContent: some View {
+        profileContent(title: "PACE", samples: paceDisplaySamples)
+    }
+
+    private func profileContent(title: String, samples: [Double]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("ELEVATION  ·  \(UnitSystem.current.label.uppercased())")
+            Text(title)
                 .font(.system(size: ts(15), weight: .semibold))
                 .tracking(3)
                 .foregroundStyle(subtleColor)
 
             ZStack {
-                ElevationProfileShape(samples: elevationSamples)
+                ElevationProfileShape(samples: samples)
                     .fill(LinearGradient(colors: [subtleColor.opacity(0.38), subtleColor.opacity(0.05)],
                                          startPoint: .top, endPoint: .bottom))
-                ElevationLineShape(samples: elevationSamples)
+                ElevationLineShape(samples: samples)
                     .stroke(subtleColor.opacity(0.85),
                             style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
                 GeometryReader { geo in
@@ -754,10 +785,23 @@ struct StudioComposition: View {
             .background(groundColor)
     }
 
+    private var paceBand: some View {
+        paceProfileContent
+            .padding(.horizontal, 70)
+            .padding(.top, 26)
+            .padding(.bottom, 10)
+            .frame(width: Self.width)
+            .background(groundColor)
+    }
+
     /// Whether to show the profile inside the footer (landscape, where there's no room between
     /// the art and the footer for a band).
     private var footerElevation: Bool {
         showElevationProfile && elevationSamples.count > 1 && orientation == .landscape
+    }
+
+    private var footerPace: Bool {
+        showPaceProfile && paceSamples.count > 1 && orientation == .landscape
     }
 
     // MARK: Art panel
@@ -909,6 +953,7 @@ struct StudioComposition: View {
                 }
             }
             if footerElevation { elevationProfileContent }
+            if footerPace { paceProfileContent }
         }
         .padding(70)
         .frame(width: isSideLayout ? Self.landscapeFooterWidth : artDimensions.width,

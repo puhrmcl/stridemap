@@ -78,11 +78,15 @@ final class ActivityIngestor {
         if run.weatherConditionRaw == nil { run.weatherConditionRaw = activity.weatherCondition }
         if !run.hasRoute, !activity.coordinates.isEmpty {
             applyRoute(activity.coordinates, source: .healthKit, to: run,
-                       encoded: activity.encodedPolyline, elevations: activity.elevationSeries)
+                       encoded: activity.encodedPolyline, elevations: activity.elevationSeries,
+                       paces: activity.paceSeries)
         }
         if run.elevationGain == 0, let gain = activity.elevationGain { run.elevationGain = gain }
         if !run.hasElevationSeries, !activity.elevationSeries.isEmpty {
             run.elevationSeries = activity.elevationSeries
+        }
+        if !run.hasPaceSeries, !activity.paceSeries.isEmpty {
+            run.paceSeries = activity.paceSeries
         }
         run.updatedAt = Date()
     }
@@ -149,11 +153,14 @@ final class ActivityIngestor {
         // Fill route/elevation only if HealthKit didn't provide them.
         if !run.hasRoute, let polyline = activity.encodedPolyline, !polyline.isEmpty {
             applyRoute(activity.coordinates, source: .strava, to: run, encoded: polyline,
-                       elevations: activity.elevationSeries)
+                       elevations: activity.elevationSeries, paces: activity.paceSeries)
         }
         if run.elevationGain == 0, let gain = activity.elevationGain { run.elevationGain = gain }
         if !run.hasElevationSeries, !activity.elevationSeries.isEmpty {
             run.elevationSeries = activity.elevationSeries
+        }
+        if !run.hasPaceSeries, !activity.paceSeries.isEmpty {
+            run.paceSeries = activity.paceSeries
         }
         run.updatedAt = Date()
     }
@@ -217,6 +224,9 @@ final class ActivityIngestor {
         if !run.hasElevationSeries, !activity.elevationSeries.isEmpty {
             run.elevationSeries = activity.elevationSeries
         }
+        if !run.hasPaceSeries, !activity.paceSeries.isEmpty {
+            run.paceSeries = activity.paceSeries
+        }
         run.updatedAt = Date()
     }
 
@@ -270,6 +280,7 @@ final class ActivityIngestor {
         run.weatherConditionRaw = activity.weatherCondition
         run.maxSpeed = activity.maxSpeed
         if !activity.elevationSeries.isEmpty { run.elevationSeries = activity.elevationSeries }
+        if !activity.paceSeries.isEmpty { run.paceSeries = activity.paceSeries }
         applyGeometry(activity.coordinates, to: run)
         return run
     }
@@ -293,12 +304,14 @@ final class ActivityIngestor {
         source: RouteSource,
         to run: Run,
         encoded: String? = nil,
-        elevations: [Double] = []
+        elevations: [Double] = [],
+        paces: [Double] = []
     ) {
         guard !coordinates.isEmpty else { return }
         run.summaryPolyline = encoded ?? PolylineDecoder.encode(coordinates)
         applyGeometry(coordinates, to: run)
         if !elevations.isEmpty, !run.hasElevationSeries { run.elevationSeries = elevations }
+        if !paces.isEmpty, !run.hasPaceSeries { run.paceSeries = paces }
         run.routeStatus = .available
         run.routeSource = source
         run.updatedAt = Date()

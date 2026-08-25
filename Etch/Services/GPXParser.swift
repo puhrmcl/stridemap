@@ -140,6 +140,15 @@ struct GPXParser: ActivityFileParser {
             activity.name = name
             activity.elevationGain = RouteMetrics.elevationGain(of: elevations)
             activity.elevationSeries = elevations
+            // Pace needs per-point timing on (nearly) every point — a file with sparse <time>
+            // tags can't support an honest profile.
+            if times.count >= coordinates.count * 9 / 10 {
+                let timed = points.filter { $0.time != nil }
+                activity.paceSeries = PaceSeries.compute(
+                    coordinates: timed.map(\.coordinate),
+                    times: timed.compactMap(\.time)
+                )
+            }
             if !heartRates.isEmpty {
                 activity.averageHeartRate = heartRates.reduce(0, +) / Double(heartRates.count)
                 activity.maxHeartRate = heartRates.max()

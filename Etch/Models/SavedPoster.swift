@@ -35,6 +35,8 @@ final class SavedPoster {
     var showEditorialPhoto: Bool
     var showMemoryRoute: Bool
     var showElevationProfile: Bool
+    /// Draw the recorded pace band. Defaulted for clean migration.
+    var showPaceProfile: Bool = false
     var includeWeather: Bool
     /// Hex (#RRGGBB) of the user's colour picks; nil means "Auto" — the edition's own colour.
     var routeColorHex: String?

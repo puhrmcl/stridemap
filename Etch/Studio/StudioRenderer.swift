@@ -28,6 +28,8 @@ enum StudioRenderer {
         var heroMetric: StatMetric = .distance
         var statSlots: [StatMetric] = [.time, .pace, .elevationGain]
         var showElevationProfile: Bool = false
+        /// Draw the recorded pace band (only meaningful when the run carries a pace series).
+        var showPaceProfile: Bool = false
         var galleryShowMapTile: Bool = false
         var galleryCellsRaw: [String] = []
         var includeWeather: Bool = false
@@ -158,6 +160,8 @@ enum StudioRenderer {
             statSlots: request.statSlots,
             elevationSamples: profile,
             showElevationProfile: request.showElevationProfile,
+            paceSamples: request.showPaceProfile ? request.run.paceSeries : [],
+            showPaceProfile: request.showPaceProfile,
             galleryShowMapTile: request.galleryShowMapTile,
             galleryCellsRaw: request.galleryCellsRaw,
             routeOverride: request.routeColor, textOverride: request.textColor,

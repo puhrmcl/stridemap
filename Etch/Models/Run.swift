@@ -57,6 +57,12 @@ final class Run {
     /// so existing runs migrate cleanly.
     var elevationSeriesRaw: String = ""
 
+    /// The recorded pace profile (seconds per km, uniform-distance samples), stored compactly
+    /// like the elevation series. Empty when the source carried no per-point timing — only
+    /// sources with timestamped tracks (HealthKit routes, GPX files) can produce one, and only
+    /// imports made after this field existed carry it. Defaulted for clean migration.
+    var paceSeriesRaw: String = ""
+
     // MARK: Route synchronisation state
 
     /// Tracks the route independently of the workout. A HealthKit workout can exist in Etch
@@ -315,6 +321,15 @@ extension Run {
         get { ElevationSeries.decode(elevationSeriesRaw) }
         set { elevationSeriesRaw = ElevationSeries.encode(newValue) }
     }
+
+    /// The recorded pace profile (seconds/km along the route), decoded from storage. Empty when
+    /// the source carried no per-point timing.
+    var paceSeries: [Double] {
+        get { ElevationSeries.decode(paceSeriesRaw) }
+        set { paceSeriesRaw = ElevationSeries.encode(newValue) }
+    }
+
+    var hasPaceSeries: Bool { !paceSeriesRaw.isEmpty }
 
     /// Whether this run carries a source-recorded elevation profile (vs. needing terrain data).
     var hasElevationSeries: Bool { !elevationSeriesRaw.isEmpty }
