@@ -258,19 +258,26 @@ struct StudioHomeView: View {
 
     private var intro: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Sheet mode: the wordmark leads the page, large enough to read and free of any button
-            // chrome (a toolbar item would wrap it in a glass circle).
+            // Sheet mode: the wordmark IS the masthead — modest, with one quiet supporting line.
+            // Stacking it over a second bold headline read as two competing headers, so the
+            // tagline treatment belongs only to the home variant (whose toolbar mark is small).
             if !isHome {
-                Image("StudioLogo")
-                    .resizable().scaledToFit().frame(height: 40)
-                    .accessibilityLabel("Etched Studio")
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Leave your mark.")
-                    .font(.system(.title, design: .rounded).weight(.bold))
-                Text("Turn a run, a race, or a favorite into gallery-grade art.")
-                    .font(.system(.body, design: .rounded))
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 8) {
+                    Image("StudioLogo")
+                        .resizable().scaledToFit().frame(height: 28)
+                        .accessibilityLabel("Etched Studio")
+                    Text("Turn a run, a race, or a favorite into gallery-grade art.")
+                        .font(.system(.subheadline, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Leave your mark.")
+                        .font(.system(.title, design: .rounded).weight(.bold))
+                    Text("Turn a run, a race, or a favorite into gallery-grade art.")
+                        .font(.system(.body, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
             }
 
             // Filter Studio by activity — only when there's more than one type — sits above the
