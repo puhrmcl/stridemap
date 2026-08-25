@@ -32,3 +32,19 @@ jobs:
             -scheme Etch \
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO
+
+      # Xcode Cloud disables automatic SPM resolution and refuses to build unless
+      # Package.resolved is committed. This runner just resolved for real, so print
+      # the exact file between markers for the working session to commit verbatim.
+      - name: Print Package.resolved for Xcode Cloud
+        if: always()
+        run: |
+          RESOLVED="Etch.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          if [ -f "$RESOLVED" ]; then
+            echo "── BEGIN-PACKAGE-RESOLVED"
+            cat "$RESOLVED"
+            echo "── END-PACKAGE-RESOLVED"
+          else
+            echo "No Package.resolved generated at $RESOLVED"
+            find Etch.xcodeproj -name "Package.resolved" -print 2>/dev/null || true
+          fi
