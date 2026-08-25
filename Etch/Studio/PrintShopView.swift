@@ -103,7 +103,7 @@ struct PrintShopView: View {
     private var canOrderHere: Bool { renderRequest != nil && PrintOrderService.isConfigured }
 
     private func beginOrder() {
-        guard let renderRequest, orderPhase == nil else { return }
+        guard let renderRequest, orderPhase == nil, renderRequest.edition.printReady else { return }
         let creation = creationID ?? runID?.uuidString ?? UUID().uuidString
         Task {
             do {
@@ -321,7 +321,12 @@ struct PrintShopView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if canOrderHere {
-                if size.deviceRenderable {
+                if let edition = renderRequest?.edition, !edition.printReady {
+                    // Apple-snapshot editions are licensed for screens, not merchandise. Honest
+                    // gate rather than a failed order; lifts when our own cartography lands.
+                    unavailableNote("This style is coming to print",
+                                    detail: "Map styles are being remade with our own cartography for print. Contour, paper, and photo styles are ready to order today.")
+                } else if size.deviceRenderable {
                     Button(action: beginOrder) {
                         Group {
                             if let orderPhase {

@@ -83,7 +83,7 @@ enum PrintProduct: String, CaseIterable, Identifiable {
 
     var material: String {
         switch self {
-        case .print:  return "Giclée on 200gsm archival fine-art paper"
+        case .print:  return "Giclée on Hahnemühle German Etching, 310gsm mould-made paper"
         case .framed: return "Giclée archival print · solid hardwood frame · shatterproof glazing"
         }
     }
@@ -104,14 +104,16 @@ enum PrintProduct: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Curated 2:3 sizes. SKUs are Prodigi's Global Fine Art / Classic Frame lines.
+    /// Curated 2:3 sizes. SKUs are Prodigi's German Etching / Classic Frame lines.
     var sizes: [PrintSize] {
         switch self {
         case .print:
+            // HGE = Hahnemühle German Etching, the decided premium unframed paper (verified
+            // drop-in for FAP: identical 300-DPI 2:3 print areas; landed $29.95/$32.95/$56.90).
             return [
-                PrintSize(width: 12, height: 18, prodigiSKU: "GLOBAL-FAP-12X18", priceCents: 4900),
-                PrintSize(width: 16, height: 24, prodigiSKU: "GLOBAL-FAP-16X24", priceCents: 6900),
-                PrintSize(width: 24, height: 36, prodigiSKU: "GLOBAL-FAP-24X36", priceCents: 9900)
+                PrintSize(width: 12, height: 18, prodigiSKU: "GLOBAL-HGE-12X18", priceCents: 5900),
+                PrintSize(width: 16, height: 24, prodigiSKU: "GLOBAL-HGE-16X24", priceCents: 7900),
+                PrintSize(width: 24, height: 36, prodigiSKU: "GLOBAL-HGE-24X36", priceCents: 10900)
             ]
         case .framed:
             // CFP = Classic Frame, no mount: the full-bleed 2:3 framed product. (CFP-24X36 is

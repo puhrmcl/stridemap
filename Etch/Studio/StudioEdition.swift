@@ -67,6 +67,11 @@ struct StudioEdition: Identifiable, Equatable {
         switch surface { case .map, .photo, .contour: return true; case .paper: return false }
     }
     var mapKind: MapKind? { if case .map(let kind) = surface { return kind }; return nil }
+    /// Whether this edition's artwork may be sold as a print. Editions whose panel is an Apple
+    /// Maps snapshot are display-only: Apple licenses map data for in-app use, not for
+    /// merchandise. They return to the shop when the self-owned OSM cartography replaces the
+    /// snapshot source; contour, paper, and photo panels are ours end to end.
+    var printReady: Bool { mapKind == nil }
     var isPhoto: Bool { surface == .photo }
     var isContour: Bool { surface == .contour }
     var isDark: Bool { mapKind == .streetsDark || mapKind == .standardDark }

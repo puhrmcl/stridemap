@@ -27,22 +27,26 @@ echo "── Prodigi SKU verification · $BASE"
 # The catalog as currently shipped in Etch/Studio/PrintCatalog.swift (UNVERIFIED).
 # Framed SKUs quote with a frame colour attribute; prints don't.
 SKUS=(
-  "GLOBAL-FAP-12X18:"
-  "GLOBAL-FAP-16X24:"
-  "GLOBAL-FAP-24X36:"
-  # CFPM (mounted/matted) verified but its mat crops the print area to ~1:1.74 —
-  # a 2:3 artwork would lose its sides. CFP (unmounted classic frame) should be
-  # the full-bleed 2:3 framed product; verifying both to compare.
-  "GLOBAL-CFPM-12X18:black"
-  "GLOBAL-CFPM-16X24:black"
-  "GLOBAL-CFP-12X18:black"
-  "GLOBAL-CFP-16X24:black"
-  "GLOBAL-CFP-24X36:black"
-  # Hahnemühle German Etching (310gsm mould-made) — candidate premium paper for the
-  # unframed line. Verifying existence + landed cost before any catalog decision.
+  # The decided unframed line: Hahnemühle German Etching (310gsm mould-made).
   "GLOBAL-HGE-12X18:"
   "GLOBAL-HGE-16X24:"
   "GLOBAL-HGE-24X36:"
+  # Candidate entry size for both lines (sub-$100 framed gift rung).
+  "GLOBAL-HGE-8X12:"
+  "GLOBAL-CFP-8X12:black"
+  # The framed line (Classic Frame, no mount, full-bleed 2:3). The product-detail
+  # attributes dump is the authority on valid frame colour values; the white /
+  # dark grey quotes below probe the exact attribute strings for the two new
+  # finishes before they enter FrameFinish.
+  "GLOBAL-CFP-12X18:black"
+  "GLOBAL-CFP-16X24:black"
+  "GLOBAL-CFP-16X24:white"
+  "GLOBAL-CFP-16X24:dark grey"
+  "GLOBAL-CFP-24X36:black"
+  # Gallery squares (multi-tile compositions on square classic frames, Q1).
+  "GLOBAL-CFP-12X12:black"
+  "GLOBAL-CFP-20X20:black"
+  "GLOBAL-CFP-24X24:black"
 )
 
 for entry in "${SKUS[@]}"; do
