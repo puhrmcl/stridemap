@@ -51,7 +51,7 @@ struct PrintSize: Identifiable, Hashable {
     /// because in Shopify each finish is its own variant.
     func shopifySKU(finish: FrameFinish?) -> String {
         guard let finish else { return prodigiSKU }
-        return "\(prodigiSKU)-\(finish.prodigiAttribute.uppercased())"
+        return "\(prodigiSKU)-\(finish.skuSuffix)"
     }
 }
 
@@ -132,33 +132,52 @@ enum PrintProduct: String, CaseIterable, Identifiable {
     }
 }
 
-/// The frame finishes offered on a Framed Print. Two, per the Operating Plan (§23 ratified):
-/// Black for the dark editions, Natural for bone grounds and everything warm. Two outstanding
-/// options beat three average ones — White was cut.
+/// The frame finishes offered on a Framed Print. Four of Prodigi's eight, curated: Black for
+/// the dark editions, Natural for bone grounds and everything warm, White for light/minimal
+/// walls, Dark Grey for the modern-industrial buyer. Gold, silver, brown, and light grey were
+/// cut — period-decor undertones that fight a modern map aesthetic, or too close to White.
+/// Colours cost no new print files (same artwork, a frame attribute at order time); the
+/// attribute values below are ✓ VERIFIED against the live catalog (2026-08-25).
 enum FrameFinish: String, CaseIterable, Identifiable {
-    case natural, black
+    case natural, black, white, darkGrey
     var id: String { rawValue }
 
     var name: String {
         switch self {
-        case .natural: return "Natural"
-        case .black:   return "Black"
+        case .natural:  return "Natural"
+        case .black:    return "Black"
+        case .white:    return "White"
+        case .darkGrey: return "Dark Grey"
         }
     }
 
-    /// Prodigi's frame colour attribute value.
+    /// Prodigi's frame colour attribute value (exact strings from the live catalog).
     var prodigiAttribute: String {
         switch self {
-        case .natural: return "natural"
-        case .black:   return "black"
+        case .natural:  return "natural"
+        case .black:    return "black"
+        case .white:    return "white"
+        case .darkGrey: return "dark grey"
+        }
+    }
+
+    /// The finish's suffix in the Shopify variant SKU (no spaces — SKUs stay machine-safe).
+    var skuSuffix: String {
+        switch self {
+        case .natural:  return "NATURAL"
+        case .black:    return "BLACK"
+        case .white:    return "WHITE"
+        case .darkGrey: return "DARKGREY"
         }
     }
 
     /// Approximate moulding colour, for drawing the on-device mockup.
     var mouldingHex: String {
         switch self {
-        case .natural: return "#B58A54"
-        case .black:   return "#1A1A1C"
+        case .natural:  return "#B58A54"
+        case .black:    return "#1A1A1C"
+        case .white:    return "#F1EEE8"
+        case .darkGrey: return "#4A4C50"
         }
     }
 }
