@@ -27,6 +27,8 @@ enum StudioRenderer {
         var showMemoryRoute: Bool = false
         var heroMetric: StatMetric = .distance
         var statSlots: [StatMetric] = [.time, .pace, .elevationGain]
+        /// Whether the small caption labels under data values (and the headline's unit) are drawn.
+        var showStatLabels: Bool = true
         var showElevationProfile: Bool = false
         /// Draw the recorded pace band (only meaningful when the run carries a pace series).
         var showPaceProfile: Bool = false
@@ -184,6 +186,7 @@ enum StudioRenderer {
             showMemoryRoute: request.showMemoryRoute,
             heroMetric: request.heroMetric,
             statSlots: request.statSlots,
+            showStatLabels: request.showStatLabels,
             elevationSamples: profile,
             showElevationProfile: request.showElevationProfile,
             paceSamples: request.showPaceProfile ? request.run.paceSeries : [],

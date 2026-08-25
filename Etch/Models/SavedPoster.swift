@@ -56,6 +56,8 @@ final class SavedPoster {
     var galleryFramesRaw: [String] = []
     /// Which photo fills each Gallery frame (parallel to `galleryFramesRaw`; -1 = automatic).
     var galleryPhotoPicks: [Int] = []
+    /// Whether the small caption labels under data values are drawn.
+    var showStatLabels: Bool = true
     var monochrome: Bool = false
     var fontRaw: String = "editorial"
     var showTitle: Bool = true

@@ -163,6 +163,9 @@ struct StudioComposition: View {
     var heroMetric: StatMetric = .distance
     /// The footer's metric slots, in order — "complications" the user can retune.
     var statSlots: [StatMetric] = [.time, .pace, .elevationGain]
+    /// Whether the small caption labels (TIME, PACE — and the headline's unit) are drawn under
+    /// the data values. Off gives the bare-numbers minimal look.
+    var showStatLabels: Bool = true
     /// Terrain elevations along the route (metres) for the profile silhouette; empty = no strip.
     var elevationSamples: [Double] = []
     var showElevationProfile: Bool = false
@@ -473,7 +476,7 @@ struct StudioComposition: View {
 
             galleryMasthead.fixedSize(horizontal: false, vertical: true)
 
-            if !resolvedStats.isEmpty { galleryStatRow }
+            if hasVisibleStats { galleryStatRow }
 
             if showElevationProfile && elevationSamples.count > 1 {
                 elevationProfileContent.fixedSize(horizontal: false, vertical: true)
@@ -669,10 +672,12 @@ struct StudioComposition: View {
                                 .foregroundStyle(inkColor)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.5)
-                            Text(heroCaption)
-                                .font(.system(size: ts(16 * heroScale), weight: .semibold))
-                                .tracking(4)
-                                .foregroundStyle(subtleColor)
+                            if showStatLabels && !heroCaption.isEmpty {
+                                Text(heroCaption)
+                                    .font(.system(size: ts(16 * heroScale), weight: .semibold))
+                                    .tracking(4)
+                                    .foregroundStyle(subtleColor)
+                            }
                         }
                     }
                     Spacer(minLength: 20)
@@ -685,10 +690,12 @@ struct StudioComposition: View {
                                         .foregroundStyle(inkColor)
                                         .lineLimit(1)
                                         .minimumScaleFactor(0.6)
-                                    Text(item.metric.label)
-                                        .font(.system(size: ts(12 * statScale), weight: .semibold))
-                                        .tracking(2)
-                                        .foregroundStyle(subtleColor)
+                                    if showStatLabels {
+                                        Text(item.metric.label)
+                                            .font(.system(size: ts(12 * statScale), weight: .semibold))
+                                            .tracking(2)
+                                            .foregroundStyle(subtleColor)
+                                    }
                                 }
                             }
                         }
@@ -785,7 +792,9 @@ struct StudioComposition: View {
             VStack(spacing: 6) {
                 Image(systemName: metric.icon).font(.system(size: ts(15 * statScale), weight: .semibold))
                 Text(value).font(.system(size: ts(26 * statScale), weight: .bold)).minimumScaleFactor(0.5).lineLimit(1)
-                Text(metric.label).font(.system(size: ts(12 * statScale), weight: .semibold)).tracking(1.5)
+                if showStatLabels {
+                    Text(metric.label).font(.system(size: ts(12 * statScale), weight: .semibold)).tracking(1.5)
+                }
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
@@ -1062,7 +1071,7 @@ struct StudioComposition: View {
             heroBlock(leading: false)
             if !placeLine.isEmpty { metaLine([(placeLine, locationScale)], leading: false) }
             if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: false) }
-            if !resolvedStats.isEmpty {
+            if hasVisibleStats {
                 Rectangle().fill(subtleColor.opacity(0.4)).frame(width: 90, height: 2).padding(.vertical, sp(6))
                 statRow
             }
@@ -1241,12 +1250,14 @@ struct StudioComposition: View {
                     .foregroundStyle(inkColor)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
-                Text(metric.label)
-                    .font(.system(size: ts(13 * statScale), weight: .semibold))
-                    .tracking(1.5)
-                    .foregroundStyle(subtleColor)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                if showStatLabels {
+                    Text(metric.label)
+                        .font(.system(size: ts(13 * statScale), weight: .semibold))
+                        .tracking(1.5)
+                        .foregroundStyle(subtleColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
             }
             .frame(maxWidth: .infinity)
         }
@@ -1280,20 +1291,27 @@ struct StudioComposition: View {
         }
     }
 
+    /// The big headline. A blank headline (`.none`) emits nothing at all — an empty Text still
+    /// occupies its full line height, which left a conspicuous hole where the number would be.
+    @ViewBuilder
     private func heroBlock(leading: Bool) -> some View {
-        VStack(alignment: leading ? .leading : .center, spacing: 6) {
-            Text(heroValue)
-                .font(.system(size: ts(150 * heroScale), weight: .bold))
-                .tracking(-2)
-                .foregroundStyle(inkColor)
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-            Text(heroCaption)
-                .font(.system(size: ts(24 * heroScale), weight: .semibold))
-                .tracking(8)
-                .foregroundStyle(accentColor)
+        if heroMetric != .none {
+            VStack(alignment: leading ? .leading : .center, spacing: 6) {
+                Text(heroValue)
+                    .font(.system(size: ts(150 * heroScale), weight: .bold))
+                    .tracking(-2)
+                    .foregroundStyle(inkColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                if showStatLabels && !heroCaption.isEmpty {
+                    Text(heroCaption)
+                        .font(.system(size: ts(24 * heroScale), weight: .semibold))
+                        .tracking(8)
+                        .foregroundStyle(accentColor)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: leading ? .leading : .center)
         }
-        .frame(maxWidth: .infinity, alignment: leading ? .leading : .center)
     }
 
     /// The headline value. None leaves it blank; Distance keeps the signature bare number ("26.22");
@@ -1316,6 +1334,12 @@ struct StudioComposition: View {
         statSlots.map { (metric: $0, value: metricValue($0) ?? "—") }
     }
 
+    /// Whether the stat row has anything to say — slots exist and at least one isn't blank. A row
+    /// of nothing but blanks (and its divider) is dropped entirely, leaving no orphaned space.
+    private var hasVisibleStats: Bool {
+        resolvedStats.contains { $0.metric != .none }
+    }
+
     private var statRow: some View {
         HStack(alignment: .top, spacing: 0) {
             ForEach(Array(resolvedStats.enumerated()), id: \.offset) { index, item in
@@ -1336,10 +1360,12 @@ struct StudioComposition: View {
                     .foregroundStyle(inkColor)
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
-                Text(metric.label)
-                    .font(.system(size: ts(15 * statScale), weight: .semibold))
-                    .tracking(2)
-                    .foregroundStyle(subtleColor)
+                if showStatLabels {
+                    Text(metric.label)
+                        .font(.system(size: ts(15 * statScale), weight: .semibold))
+                        .tracking(2)
+                        .foregroundStyle(subtleColor)
+                }
             }
             .frame(maxWidth: .infinity)
         }
@@ -1361,10 +1387,12 @@ struct StudioComposition: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                 }
-                Text(metric.label)
-                    .font(.system(size: ts(14 * statScale), weight: .semibold))
-                    .tracking(2)
-                    .foregroundStyle(subtleColor)
+                if showStatLabels {
+                    Text(metric.label)
+                        .font(.system(size: ts(14 * statScale), weight: .semibold))
+                        .tracking(2)
+                        .foregroundStyle(subtleColor)
+                }
             }
         }
     }
@@ -1383,9 +1411,21 @@ struct StudioComposition: View {
 
     /// A wide-tracked uppercase caption from the non-empty parts, joined by "·". Each part carries
     /// its own size multiplier, so a combined "place · date" line honours independent location and
-    /// date sizes — the segments concatenate into one flowing Text.
+    /// date sizes — the segments concatenate into one flowing Text. With every part hidden the
+    /// line emits nothing at all, so no blank line-height gap is left behind.
+    @ViewBuilder
     private func metaLine(_ parts: [(text: String, scale: CGFloat)], leading: Bool) -> some View {
+        if let combined = metaLineText(parts) {
+            combined
+                .foregroundStyle(subtleColor)
+                .multilineTextAlignment(leading ? .leading : .center)
+                .frame(maxWidth: .infinity, alignment: leading ? .leading : .center)
+        }
+    }
+
+    private func metaLineText(_ parts: [(text: String, scale: CGFloat)]) -> Text? {
         let visible = parts.filter { !$0.text.isEmpty }
+        guard !visible.isEmpty else { return nil }
         var combined = Text(verbatim: "")
         for (i, part) in visible.enumerated() {
             let font = Font.system(size: ts(19 * part.scale), weight: .semibold)
@@ -1395,9 +1435,6 @@ struct StudioComposition: View {
             combined = combined + Text(part.text.uppercased()).font(font).tracking(3)
         }
         return combined
-            .foregroundStyle(subtleColor)
-            .multilineTextAlignment(leading ? .leading : .center)
-            .frame(maxWidth: .infinity, alignment: leading ? .leading : .center)
     }
 
     // MARK: Content

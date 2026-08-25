@@ -770,6 +770,15 @@ struct StudioView: View {
         }
         .frame(maxWidth: 340)
 
+        // The small captions under the numbers (TIME, PACE, the headline's MILES). Off gives the
+        // bare-numbers minimal look — the values speak for themselves.
+        Toggle(isOn: $config.showStatLabels) {
+            Label("Data labels", systemImage: "textformat.abc")
+                .font(.system(.subheadline, design: .rounded))
+        }
+        .tint(Theme.accent)
+        .frame(maxWidth: 300)
+
         Toggle(isOn: $config.showElevation) {
             Label("Elevation profile", systemImage: "mountain.2")
                 .font(.system(.subheadline, design: .rounded))
@@ -1076,6 +1085,7 @@ struct StudioView: View {
          "\(config.showLocation)", "\(config.showDate)",
          config.heroMetric.rawValue,
          config.dataSlots.map(\.rawValue).joined(separator: ","),
+         "\(config.showStatLabels)",
          "\(config.showElevation)", "\(config.showPace)", "\(config.includeWeather)", config.outputSize.rawValue,
          config.routeColor?.hexString ?? "-", config.textColor?.hexString ?? "-",
          config.groundColor?.hexString ?? "-"

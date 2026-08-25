@@ -208,6 +208,9 @@ struct PosterConfig {
     var heroMetric: StatMetric = .distance
     /// 0–4 "complication" slots shown beneath the headline.
     var dataSlots: [StatMetric] = [.time, .pace, .elevationGain]
+    /// Whether the small caption labels under data values (TIME, PACE — and the headline's unit)
+    /// are drawn. Off gives the bare-numbers minimal look.
+    var showStatLabels: Bool = true
     var showElevation: Bool = false
     var showPace: Bool = false
     var includeWeather: Bool = false
@@ -255,6 +258,7 @@ struct PosterConfig {
             titleOverride: title.isEmpty ? nil : title,
             dateOverride: date.isEmpty ? nil : date,
             heroMetric: heroMetric, statSlots: dataSlots,
+            showStatLabels: showStatLabels,
             showElevationProfile: showElevation,
             galleryCellsRaw: resolvedFrames.map(\.rawValue),
             includeWeather: includeWeather,
@@ -312,6 +316,7 @@ struct PosterConfig {
         p.customDate = date
         p.statSlotsRaw = dataSlots.map(\.rawValue)
         p.heroMetricRaw = heroMetric.rawValue
+        p.showStatLabels = showStatLabels
         p.showElevationProfile = showElevation
         p.showPaceProfile = showPace
         p.includeWeather = includeWeather
@@ -372,6 +377,7 @@ struct PosterConfig {
         heroMetric = StatMetric(rawValue: p.heroMetricRaw) ?? .distance
         let slots = p.statSlotsRaw.compactMap { StatMetric(rawValue: $0) }
         dataSlots = slots
+        showStatLabels = p.showStatLabels
         showElevation = p.showElevationProfile
         showPace = p.showPaceProfile
         includeWeather = p.includeWeather
