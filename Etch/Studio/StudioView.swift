@@ -113,6 +113,19 @@ struct StudioView: View {
                 AssetPhotoPicker(selectionLimit: 4) { ids in addPhotos(ids) }
                     .ignoresSafeArea()
             }
+            .sheet(item: $editingSlot) { target in
+                MetricPickerSheet(
+                    run: run,
+                    current: currentMetric(for: target),
+                    allowRemove: { if case .slot = target { return true }; return false }(),
+                    onPick: { applyMetric($0, to: target) },
+                    onRemove: {
+                        if case .slot(let i) = target, config.dataSlots.indices.contains(i) {
+                            config.dataSlots.remove(at: i)
+                        }
+                    }
+                )
+            }
             .task(id: renderKey) { await renderPreview() }
             // Debounce the free-text fields: commit them ~350ms after typing stops, so the preview
             // re-renders once per edit rather than once per keystroke.
@@ -602,67 +615,54 @@ struct StudioView: View {
 
     // MARK: Data tab
 
-    @ViewBuilder private var dataTab: some View {
-        // The big headline metric, chosen from the same set as the data slots.
-        HStack(spacing: 10) {
-            Text("Headline")
-                .font(.system(.caption, design: .rounded).weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 66, alignment: .leading)
-            Menu {
-                ForEach(StatMetric.allCases) { metric in
-                    Button {
-                        config.heroMetric = metric
-                    } label: {
-                        if metric == config.heroMetric {
-                            Label(metric.menuName, systemImage: "checkmark")
-                        } else {
-                            Text(metric.menuName)
-                        }
-                    }
-                    .disabled(!metric.isAvailable(for: run))
-                }
-            } label: {
-                slotChip(config.heroMetric)
+    /// Which data slot is being retuned in the complication picker.
+    private enum SlotTarget: Identifiable {
+        case hero
+        case slot(Int)
+        case add
+        var id: String {
+            switch self {
+            case .hero: return "hero"
+            case .slot(let i): return "slot-\(i)"
+            case .add: return "add"
             }
-            .menuStyle(.borderlessButton)
-            Spacer(minLength: 0)
+        }
+    }
+    @State private var editingSlot: SlotTarget?
+
+    @ViewBuilder private var dataTab: some View {
+        // The complication model: a headline slot and up to four data slots, each tap-retuned
+        // from everything this activity tracked — the watch-face pattern, on paper.
+        VStack(spacing: 6) {
+            Text("HEADLINE")
+                .font(.system(size: 11, weight: .semibold)).tracking(1.5)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button { editingSlot = .hero } label: { slotChip(config.heroMetric) }
+                .buttonStyle(.plain)
         }
         .frame(maxWidth: 340)
 
-        VStack(spacing: 8) {
-            Stepper("Data points: \(config.dataSlots.count)", value: slotCount, in: 0...4)
-                .font(.system(.subheadline, design: .rounded))
-                .frame(maxWidth: 300)
-            if config.dataSlots.isEmpty {
-                Text("No data shown — just the art and title.")
-                    .font(.system(.caption, design: .rounded))
-                    .foregroundStyle(.secondary)
-            } else {
-                HStack(spacing: 8) {
-                    ForEach(config.dataSlots.indices, id: \.self) { i in
-                        Menu {
-                            ForEach(StatMetric.allCases) { metric in
-                                Button {
-                                    config.dataSlots[i] = metric
-                                } label: {
-                                    if metric == config.dataSlots[i] {
-                                        Label(metric.menuName, systemImage: "checkmark")
-                                    } else {
-                                        Text(metric.menuName)
-                                    }
-                                }
-                                .disabled(!metric.isAvailable(for: run))
-                            }
-                        } label: {
-                            slotChip(config.dataSlots[i])
-                        }
-                        .menuStyle(.borderlessButton)
+        VStack(spacing: 6) {
+            Text("DATA POINTS")
+                .font(.system(size: 11, weight: .semibold)).tracking(1.5)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 8) {
+                ForEach(0..<4, id: \.self) { i in
+                    if i < config.dataSlots.count {
+                        Button { editingSlot = .slot(i) } label: { slotChip(config.dataSlots[i]) }
+                            .buttonStyle(.plain)
+                    } else if i == config.dataSlots.count {
+                        Button { editingSlot = .add } label: { addSlotTile }
+                            .buttonStyle(.plain)
+                    } else {
+                        emptySlotTile
                     }
                 }
-                .frame(maxWidth: 340)
             }
         }
+        .frame(maxWidth: 340)
 
         Toggle(isOn: $config.showElevation) {
             Label("Elevation profile", systemImage: "mountain.2")
@@ -681,17 +681,55 @@ struct StudioView: View {
         }
     }
 
-    private var slotCount: Binding<Int> {
-        Binding(
-            get: { config.dataSlots.count },
-            set: { n in
-                var slots = config.dataSlots
-                let pool: [StatMetric] = [.time, .pace, .elevationGain, .speed, .avgHeartRate, .calories]
-                while slots.count < n { slots.append(pool.first { !slots.contains($0) } ?? .time) }
-                while slots.count > n { slots.removeLast() }
-                config.dataSlots = slots
-            }
-        )
+    /// The "+" tile — appends the next sensible unused metric or opens the gallery directly.
+    private var addSlotTile: some View {
+        VStack(spacing: 2) {
+            Image(systemName: "plus")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(Theme.accent)
+            Text("ADD")
+                .font(.system(size: 9, weight: .semibold)).tracking(1)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 6)
+        .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10)
+            .strokeBorder(Theme.accent.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+    }
+
+    /// A future slot position, visible but inert — the composition holds four at most.
+    private var emptySlotTile: some View {
+        RoundedRectangle(cornerRadius: 10)
+            .strokeBorder(Color.secondary.opacity(0.18), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+            .frame(maxWidth: .infinity)
+            .frame(height: 48)
+    }
+
+    private func currentMetric(for target: SlotTarget) -> StatMetric {
+        switch target {
+        case .hero:
+            return config.heroMetric
+        case .slot(let i):
+            return config.dataSlots.indices.contains(i) ? config.dataSlots[i] : .none
+        case .add:
+            return .none
+        }
+    }
+
+    /// Applies a complication-picker choice to the targeted slot.
+    private func applyMetric(_ metric: StatMetric, to target: SlotTarget) {
+        switch target {
+        case .hero:
+            config.heroMetric = metric
+        case .slot(let i):
+            guard config.dataSlots.indices.contains(i) else { return }
+            config.dataSlots[i] = metric
+        case .add:
+            guard config.dataSlots.count < 4 else { return }
+            config.dataSlots.append(metric)
+        }
     }
 
     // MARK: Export tab
