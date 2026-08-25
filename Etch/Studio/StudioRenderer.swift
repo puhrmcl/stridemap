@@ -32,6 +32,8 @@ enum StudioRenderer {
         var showPaceProfile: Bool = false
         var galleryShowMapTile: Bool = false
         var galleryCellsRaw: [String] = []
+        /// Gallery: which photo fills each cell (parallel to `galleryCellsRaw`; -1 = automatic).
+        var galleryPhotoPicks: [Int] = []
         var includeWeather: Bool = false
         var routeColor: Color? = nil
         var textColor: Color? = nil
@@ -99,16 +101,19 @@ enum StudioRenderer {
     }
 
     /// Loads the Memory edition's photos, cover-first, at a resolution matched to how many cells
-    /// share the panel. Empty for non-photo editions. `panelPixelWidth` is the full panel width;
-    /// grid cells need only a fraction of it, keeping memory in check.
-    static func photoImages(for request: Request, panelPixelWidth: CGFloat) async -> [UIImage] {
+    /// share the panel — plus each photo's saliency focus point, so gallery cells crop toward the
+    /// subject. Empty for non-photo editions. `panelPixelWidth` is the full panel width; grid
+    /// cells need only a fraction of it, keeping memory in check.
+    static func photoImages(for request: Request,
+                            panelPixelWidth: CGFloat) async -> ([UIImage], [CGPoint]) {
         // Memory fills the panel (single or grid); the Editorial layout may show one cover photo
         // beside the text.
         let ids: [String]
         if request.edition.isPhoto {
             ids = Array(request.run.photoReferences.prefix(request.photoLayout.maxPhotos))
         } else if request.layout == .gallery {
-            ids = Array(request.run.photoReferences.prefix(4))
+            // Gallery loads a deeper pool so any of the run's first photos can be picked per cell.
+            ids = Array(request.run.photoReferences.prefix(6))
         } else if request.layout == .keepsake {
             ids = Array(request.run.photoReferences.prefix(1))
         } else if request.mapLayoutRaw == MapLayout.photo.rawValue {
@@ -119,17 +124,19 @@ enum StudioRenderer {
         } else {
             ids = []
         }
-        guard !ids.isEmpty else { return [] }
+        guard !ids.isEmpty else { return ([], []) }
         // In a grid the cell is at most half the panel; a single fills it.
         let cellWidth = ids.count > 1 ? panelPixelWidth / 2 : panelPixelWidth
         let target = max(cellWidth, 1200)
         var images: [UIImage] = []
+        var focuses: [CGPoint] = []
         for id in ids {
             if let image = await PhotoLibrary.image(for: id, targetSize: CGSize(width: target, height: target)) {
                 images.append(image)
+                focuses.append(await PhotoFocus.focusPoint(id: id, image: image))
             }
         }
-        return images
+        return (images, focuses)
     }
 
     /// Renders the composition at the given `ImageRenderer` scale.
@@ -138,16 +145,20 @@ enum StudioRenderer {
         async let panelTask = panelImage(for: request, panelPixelWidth: pixelWidth)
         async let photosTask = photoImages(for: request, panelPixelWidth: pixelWidth)
         async let profileTask = elevationProfile(for: request)
-        var (panel, photos, profile) = await (panelTask, photosTask, profileTask)
+        let (panelRaw, photoPack, profile) = await (panelTask, photosTask, profileTask)
+        var panel = panelRaw
+        var photos = photoPack.0
+        let focuses = photoPack.1
         // Black & white: desaturate the raster panels here (ImageRenderer can't apply a colour
         // filter to a live map/photo), and let the composition tone its vector colours to grey.
         if request.monochrome {
             panel = panel.map { $0.desaturated() }
             photos = photos.map { $0.desaturated() }
         }
-        let fit = fittedScale(for: request, photos: photos, profile: profile)
-        let composition = composition(for: request, panel: panel, photos: photos,
-                                      profile: profile, fitScale: fit, measuring: false)
+        let plan = fitPlan(for: request, photos: photos, profile: profile)
+        let composition = composition(for: request, panel: panel, photos: photos, focuses: focuses,
+                                      profile: profile, fitScale: plan.scale, measuring: false,
+                                      artHeight: plan.artHeight)
         let renderer = ImageRenderer(content: composition)
         renderer.scale = scale
         guard let base = renderer.uiImage else { return nil }
@@ -158,8 +169,8 @@ enum StudioRenderer {
     /// Builds the composition view for a request — the one construction site, shared by the real
     /// render and the measurement pass so the two can never drift apart.
     private static func composition(for request: Request, panel: UIImage?, photos: [UIImage],
-                                    profile: [Double], fitScale: CGFloat,
-                                    measuring: Bool) -> StudioComposition {
+                                    focuses: [CGPoint] = [], profile: [Double], fitScale: CGFloat,
+                                    measuring: Bool, artHeight: CGFloat? = nil) -> StudioComposition {
         StudioComposition(
             run: request.run, edition: request.edition, panelImage: panel,
             photoImages: photos,
@@ -198,47 +209,66 @@ enum StudioRenderer {
             statScale: request.statScale,
             fitScale: fitScale,
             measuring: measuring,
+            galleryPhotoPicks: request.galleryPhotoPicks,
+            photoFocusPoints: focuses,
+            artHeightOverride: artHeight,
             printAspect: request.printAspect
         )
     }
 
-    /// The auto-fit pass: measures the fixed content's natural height (type, bands, footer) at
-    /// the canvas width and, when it would push the art below its design floor — or off the sheet
-    /// entirely — returns a uniform shrink factor for the composition to fold into its type and
-    /// spacing. Print-canvas layouts have a hard height; without this, an ambitious combination
-    /// of options (every text line XL, both profile bands, weather on) clips the bottom rows off
-    /// the artwork. Measured, not estimated: the probe is the same SwiftUI view the render draws,
-    /// with the flexible art collapsed to its floor, so the number is exact. Converges in one or
-    /// two passes since type dominates the fixed height; floored at 0.5 — a sheet that still
-    /// overflows at half size is not a layout problem the renderer should paper over.
-    private static func fittedScale(for request: Request, photos: [UIImage],
-                                    profile: [Double]) -> CGFloat {
+    /// The auto-fit pass: measures the fixed content's natural height (type, bands, footer) and
+    /// returns both a uniform shrink factor (applied when the content would push the art below
+    /// its design floor or off the sheet) and the art panel's *exact* height — canvas minus the
+    /// measured fixed content — so the composition sizes the art explicitly instead of trusting
+    /// the stack negotiation, which could hand the art more than its share and clip the bottom
+    /// data rows off the sheet.
+    ///
+    /// Measured with `ImageRenderer` — the same engine that draws the real render — on a probe of
+    /// the same composition with the flexible art collapsed to its floor, so the numbers are
+    /// exact by construction. The shrink converges in a pass or two since type dominates the
+    /// fixed height; floored at 0.5 — a sheet that still overflows at half size is not a layout
+    /// problem the renderer should paper over.
+    private static func fitPlan(for request: Request, photos: [UIImage],
+                                profile: [Double]) -> (scale: CGFloat, artHeight: CGFloat?) {
         // Overlay compositions (full-bleed map, keepsake) set type *over* the art between
         // spacers — they always fit.
         let isFullBleed = request.layout == .classic
             && request.mapLayoutRaw == MapLayout.fullBleed.rawValue
-        guard request.layout != .keepsake, !isFullBleed else { return 1 }
+        guard request.layout != .keepsake, !isFullBleed else { return (1, nil) }
 
         let canvas = StudioComposition.canvasSize(request.orientation, request.dataPlacement,
                                                   request.printAspect)
         let floor = StudioComposition.artFloor(request.orientation, request.dataPlacement,
                                                layout: request.layout, aspect: request.printAspect)
         let budget = canvas.height - floor
-        guard budget > 0 else { return 1 }
+        guard budget > 0 else { return (1, nil) }
 
-        var scale: CGFloat = 1
-        for _ in 0..<3 {
+        // The probe renders at a light raster scale purely to read its laid-out height in points.
+        func fixedHeight(at scale: CGFloat) -> CGFloat? {
             let probe = composition(for: request, panel: nil, photos: photos, profile: profile,
                                     fitScale: scale, measuring: true)
-            let host = UIHostingController(rootView: probe)
-            let natural = host.sizeThatFits(in: CGSize(width: canvas.width,
-                                                       height: .greatestFiniteMagnitude))
-            let fixed = natural.height - floor
-            guard fixed > budget + 1 else { break }
-            scale = max(0.5, scale * budget / fixed)
-            if scale <= 0.5 { break }
+            let renderer = ImageRenderer(content: probe)
+            renderer.scale = 0.5
+            guard let image = renderer.uiImage else { return nil }
+            return image.size.height - floor
         }
-        return scale
+
+        guard var fixed = fixedHeight(at: 1) else { return (1, nil) }
+        var scale: CGFloat = 1
+        var passes = 0
+        while fixed > budget + 1, scale > 0.5, passes < 3 {
+            scale = max(0.5, scale * budget / fixed)
+            guard let remeasured = fixedHeight(at: scale) else { break }
+            fixed = remeasured
+            passes += 1
+        }
+
+        // The side-column landscape has no flexing art — its square panel is the sheet height —
+        // so only the shrink applies there.
+        if request.orientation == .landscape && request.dataPlacement.isSide {
+            return (scale, nil)
+        }
+        return (scale, max(1, canvas.height - fixed))
     }
 
     /// Frames the finished poster as a print on a mat, sized to the target social aspect. The mat is

@@ -188,6 +188,9 @@ struct PosterConfig {
     var galleryDesign: GalleryDesign = .portfolio
     /// Media shown in each Gallery frame, in order. Trimmed/padded to the design's frame count.
     var galleryFrames: [GalleryTileKind] = [.photo, .map, .route, .elevation]
+    /// Which of the run's photos fills each Gallery frame (parallel to `galleryFrames`; -1 or
+    /// missing = automatic order — the k-th photo frame shows the k-th photo).
+    var galleryPhotoPicks: [Int] = []
     var monochrome: Bool = false
     var orientation: StudioOrientation = .portrait
     var dataPlacement: StudioDataPlacement = .right
@@ -235,6 +238,14 @@ struct PosterConfig {
         return Array(frames.prefix(n))
     }
 
+    /// Photo picks trimmed/padded to the current design's frame count (-1 = automatic).
+    var resolvedPhotoPicks: [Int] {
+        let n = galleryDesign.frameCount
+        var picks = galleryPhotoPicks
+        while picks.count < n { picks.append(-1) }
+        return Array(picks.prefix(n))
+    }
+
     /// The render request for a run, threading every option (including the ones the renderer
     /// gained for the remodel) through to the composition.
     func request(for run: Run) -> StudioRenderer.Request {
@@ -257,6 +268,7 @@ struct PosterConfig {
         r.showDate = showDate
         r.locationOverride = location.isEmpty ? nil : location
         r.galleryDesignRaw = galleryDesign.rawValue
+        r.galleryPhotoPicks = resolvedPhotoPicks
         r.mapLayoutRaw = mapLayout.rawValue
         r.mapPhotoCount = mapPhotoCount
         r.showPaceProfile = showPace
@@ -286,6 +298,7 @@ struct PosterConfig {
         p.statScale = Double(statScale)
         p.galleryDesignRaw = galleryDesign.rawValue
         p.galleryFramesRaw = galleryFrames.map(\.rawValue)
+        p.galleryPhotoPicks = galleryPhotoPicks
         p.monochrome = monochrome
         p.orientationRaw = orientation.rawValue
         p.dataPlacementRaw = dataPlacement.rawValue
@@ -344,6 +357,7 @@ struct PosterConfig {
         galleryDesign = GalleryDesign(rawValue: p.galleryDesignRaw) ?? .portfolio
         galleryFrames = p.galleryFramesRaw.compactMap { GalleryTileKind(rawValue: $0) }
         if galleryFrames.isEmpty { galleryFrames = [.photo, .map, .route, .elevation] }
+        galleryPhotoPicks = p.galleryPhotoPicks
         monochrome = p.monochrome
         orientation = StudioOrientation(rawValue: p.orientationRaw) ?? .portrait
         dataPlacement = StudioDataPlacement.from(raw: p.dataPlacementRaw)

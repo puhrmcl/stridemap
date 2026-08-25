@@ -551,11 +551,19 @@ struct StudioView: View {
                                 Label(kind.name, systemImage: kind.icon).tag(kind)
                             }
                         }
+                        // A photo frame with several photos on the run: choose which one it shows.
+                        if frameKind(i) == .photo, run.photoReferences.count > 1 {
+                            Picker("Photo", selection: photoPickBinding(i)) {
+                                ForEach(0..<min(run.photoReferences.count, 6), id: \.self) { p in
+                                    Label("Photo \(p + 1)", systemImage: "photo").tag(p)
+                                }
+                            }
+                        }
                     } label: {
                         let kind = frameKind(i)
                         VStack(spacing: 3) {
                             Image(systemName: kind.icon).font(.system(size: 15, weight: .semibold))
-                            Text(kind.name).font(.system(size: 10, weight: .semibold))
+                            Text(frameLabel(i, kind)).font(.system(size: 10, weight: .semibold))
                         }
                         .foregroundStyle(Theme.accent)
                         .frame(maxWidth: .infinity)
@@ -572,6 +580,32 @@ struct StudioView: View {
     private func frameKind(_ i: Int) -> GalleryTileKind {
         let frames = config.resolvedFrames
         return i < frames.count ? frames[i] : .photo
+    }
+
+    /// The frame chip's caption — photo frames name which photo they show once there's a choice.
+    private func frameLabel(_ i: Int, _ kind: GalleryTileKind) -> String {
+        guard kind == .photo, run.photoReferences.count > 1 else { return kind.name }
+        return "Photo \(effectivePhotoPick(i) + 1)"
+    }
+
+    /// The photo index frame `i` currently shows: its explicit pick, or automatic order (the k-th
+    /// photo frame shows the k-th photo).
+    private func effectivePhotoPick(_ i: Int) -> Int {
+        let picks = config.resolvedPhotoPicks
+        if i < picks.count, picks[i] >= 0 { return picks[i] }
+        return config.resolvedFrames.prefix(i).filter { $0 == .photo }.count
+    }
+
+    private func photoPickBinding(_ i: Int) -> Binding<Int> {
+        Binding(
+            get: { effectivePhotoPick(i) },
+            set: { newValue in
+                var picks = config.resolvedPhotoPicks
+                guard picks.indices.contains(i) else { return }
+                picks[i] = newValue
+                config.galleryPhotoPicks = picks
+            }
+        )
     }
 
     private func frameBinding(_ i: Int) -> Binding<GalleryTileKind> {
@@ -1034,6 +1068,7 @@ struct StudioView: View {
          "\(config.titleScale)|\(config.locationScale)|\(config.dateScale)|\(config.heroScale)|\(config.statScale)",
          config.galleryDesign.rawValue,
          config.resolvedFrames.map(\.rawValue).joined(separator: ","),
+         config.resolvedPhotoPicks.map(String.init).joined(separator: ","),
          "\(config.monochrome)", config.orientation.rawValue, config.dataPlacement.rawValue,
          // Text fields use their *debounced* mirrors. Typing a title used to re-render the whole
          // composition — and start a fresh map snapshot — on every keystroke.

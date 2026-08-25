@@ -215,8 +215,18 @@ struct StudioComposition: View {
     /// sheet margins never shrink: they are the print-safe border.
     var fitScale: CGFloat = 1
     /// Measurement mode: the flexible art collapses to its floor and the canvas takes its natural
-    /// height, so a hosting measurement reports how tall the fixed content really is. Never drawn.
+    /// height, so a probe render reports how tall the fixed content really is. Never shown.
     var measuring: Bool = false
+    /// Gallery: which of the run's photos fills each cell, parallel to `galleryCellsRaw` (-1 or
+    /// missing = automatic order — the k-th photo cell shows the k-th photo).
+    var galleryPhotoPicks: [Int] = []
+    /// Per-photo focus centre (normalized, top-left origin), parallel to `photoImages` — where the
+    /// subject is, so cells crop toward it. Empty = centre crops.
+    var photoFocusPoints: [CGPoint] = []
+    /// The art panel's exact height, computed by the renderer as canvas minus the *measured* fixed
+    /// content — sizing the art explicitly instead of letting the stack negotiate, which could
+    /// hand the art more than its share and push the bottom data rows off the sheet. nil = flex.
+    var artHeightOverride: CGFloat? = nil
     /// The print shape this artwork is composed into. 2:3 is the primary — it serves 12×18, 16×24
     /// and 24×36, the entire launch catalogue.
     var printAspect: PrintAspect = .twoThree
@@ -409,9 +419,14 @@ struct StudioComposition: View {
         if !galleryCellsRaw.isEmpty {
             var photoIndex = 0
             var tiles: [GalleryTile] = []
-            for raw in galleryCellsRaw {
+            for (cell, raw) in galleryCellsRaw.enumerated() {
                 switch GalleryTileKind(rawValue: raw) {
-                case .photo: tiles.append(.photo(photoIndex)); photoIndex += 1
+                case .photo:
+                    // An explicit pick for this cell wins; otherwise automatic order.
+                    let pick = cell < galleryPhotoPicks.count && galleryPhotoPicks[cell] >= 0
+                        ? galleryPhotoPicks[cell] : photoIndex
+                    tiles.append(.photo(pick))
+                    photoIndex += 1
                 case .map: tiles.append(.map)
                 case .route: tiles.append(.route)
                 case .elevation: tiles.append(.elevation)
@@ -449,6 +464,8 @@ struct StudioComposition: View {
             // data rows take their natural height — mirroring how the Map product's art flexes.
             if measuring {
                 Color.clear.frame(height: artFloorHeight)
+            } else if let artHeightOverride {
+                galleryFramesView.frame(height: max(artHeightOverride, 1))
             } else {
                 galleryFramesView
                     .frame(maxHeight: .infinity)
@@ -546,7 +563,11 @@ struct StudioComposition: View {
                 switch tile {
                 case .photo(let i):
                     if i < photoImages.count {
-                        Image(uiImage: photoImages[i]).resizable().scaledToFill()
+                        FocusFillImage(
+                            image: photoImages[i],
+                            focus: i < photoFocusPoints.count ? photoFocusPoints[i]
+                                                              : CGPoint(x: 0.5, y: 0.5)
+                        )
                     } else {
                         // An unfilled photo cell reads as a quiet placeholder awaiting a photo —
                         // still exactly the size the photo will be.
@@ -876,6 +897,10 @@ struct StudioComposition: View {
     @ViewBuilder private var measurableFlexArt: some View {
         if measuring {
             Color.clear.frame(width: artDimensions.width, height: artFloorHeight)
+        } else if let artHeightOverride {
+            artBody
+                .frame(width: artDimensions.width, height: max(artHeightOverride, 1))
+                .clipped()
         } else {
             flexArt
         }
@@ -1385,6 +1410,32 @@ struct StudioComposition: View {
         guard showLocation else { return "" }
         if let locationOverride, !locationOverride.isEmpty { return locationOverride }
         return [run.city, run.state].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
+    }
+}
+
+/// Fills its container with an image cropped toward a *focus point* (normalized, top-left origin)
+/// rather than the geometric centre — the smart crop behind gallery cells. The container is the
+/// layout element; the image paints inside it, scaled to cover the box and panned so the focus
+/// sits as close to the cell's centre as the crop allows.
+struct FocusFillImage: View {
+    let image: UIImage
+    var focus: CGPoint = CGPoint(x: 0.5, y: 0.5)
+
+    var body: some View {
+        GeometryReader { geo in
+            let iw = max(image.size.width, 1), ih = max(image.size.height, 1)
+            let scale = max(geo.size.width / iw, geo.size.height / ih)
+            let w = iw * scale, h = ih * scale
+            // Top-left of the drawn image: focus at the box's centre, clamped so the image always
+            // covers the box.
+            let x = min(max(geo.size.width / 2 - focus.x * w, geo.size.width - w), 0)
+            let y = min(max(geo.size.height / 2 - focus.y * h, geo.size.height - h), 0)
+            Image(uiImage: image)
+                .resizable()
+                .frame(width: w, height: h)
+                .position(x: x + w / 2, y: y + h / 2)
+        }
+        .clipped()
     }
 }
 

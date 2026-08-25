@@ -54,6 +54,8 @@ final class SavedPoster {
     var mapStyleRaw: String = "standard"
     var galleryDesignRaw: String = "portfolio"
     var galleryFramesRaw: [String] = []
+    /// Which photo fills each Gallery frame (parallel to `galleryFramesRaw`; -1 = automatic).
+    var galleryPhotoPicks: [Int] = []
     var monochrome: Bool = false
     var fontRaw: String = "editorial"
     var showTitle: Bool = true
