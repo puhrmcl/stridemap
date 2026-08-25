@@ -43,6 +43,8 @@ struct RunDetailView: View {
     @State private var showEdit = false
     @State private var showDeleteConfirm = false
     @State private var showLocationPicker = false
+    /// Presents the route-file picker from the "No map data" card.
+    @State private var showRouteImporter = false
     /// Notes start folded; expand to read or edit them.
     @State private var notesExpanded = false
     /// Local draft of the notes field — committed to the model when typing pauses, not per keystroke.
@@ -199,31 +201,44 @@ struct RunDetailView: View {
     }
 
     /// Stands in for the map on a route-less run (indoor/treadmill, or a GPS-less import) that
-    /// hasn't been placed yet — a clean card the user can tap to drop it onto the map by hand.
+    /// hasn't been placed yet — offering both recoveries: drop it onto the map by hand, or
+    /// attach the route from a file the runner has (e.g. a Strava GPX export).
     private var unmappedCard: some View {
-        Button { showLocationPicker = true } label: {
-            ZStack {
-                LinearGradient(colors: [Theme.Palette.stone, Theme.Palette.mist],
-                               startPoint: .top, endPoint: .bottom)
-                VStack(spacing: 10) {
-                    Image(systemName: run.isIndoor ? IndoorGlyph.symbol : "mappin.slash")
-                        .font(.system(size: 46, weight: .semibold))
-                        .foregroundStyle(Theme.Palette.ink.opacity(0.55))
-                    Text(run.isIndoor ? "Indoor Run" : "No map data")
-                        .font(.system(.headline, design: .rounded))
-                        .foregroundStyle(Theme.Palette.ink.opacity(0.7))
-                    Label("Add location on map", systemImage: "mappin.and.ellipse")
-                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                        .foregroundStyle(Theme.accent)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(.regularMaterial, in: .capsule)
-                        .padding(.top, 4)
+        ZStack {
+            LinearGradient(colors: [Theme.Palette.stone, Theme.Palette.mist],
+                           startPoint: .top, endPoint: .bottom)
+            VStack(spacing: 10) {
+                Image(systemName: run.isIndoor ? IndoorGlyph.symbol : "mappin.slash")
+                    .font(.system(size: 42, weight: .semibold))
+                    .foregroundStyle(Theme.Palette.ink.opacity(0.55))
+                Text(run.isIndoor ? "Indoor Run" : "No map data")
+                    .font(.system(.headline, design: .rounded))
+                    .foregroundStyle(Theme.Palette.ink.opacity(0.7))
+                unmappedAction("Add location on map", symbol: "mappin.and.ellipse") {
+                    showLocationPicker = true
+                }
+                .padding(.top, 2)
+                if !run.isIndoor {
+                    unmappedAction("Import route file", symbol: "square.and.arrow.down") {
+                        showRouteImporter = true
+                    }
                 }
             }
-            .frame(height: 240)
-            .frame(maxWidth: .infinity)
-            .clipShape(.rect(cornerRadius: Theme.cardRadius))
+        }
+        .frame(height: 240)
+        .frame(maxWidth: .infinity)
+        .clipShape(.rect(cornerRadius: Theme.cardRadius))
+        .routeFileAttacher(run: run, isPresented: $showRouteImporter)
+    }
+
+    private func unmappedAction(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .foregroundStyle(Theme.accent)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(.regularMaterial, in: .capsule)
         }
         .buttonStyle(.plain)
     }
@@ -836,24 +851,10 @@ private struct EditRunSheet: View {
     @State private var type: ActivityType
     @State private var bib: String
 
-    // Route attachment: add or replace this activity's map from a GPX/TCX/FIT file — the
-    // escape hatch for workouts whose source never delivered a route (Nike, treadmill GPS
-    // gaps, HealthKit races) when the runner has the file from elsewhere (e.g. Strava export).
+    // Route attachment: add or replace this activity's map from a GPX/TCX/FIT file. The whole
+    // flow lives in RouteFileAttacher, shared with the detail page's "No map data" card.
     @State private var routePickerPresented = false
-    @State private var routeCandidate: RouteCandidate?
-    @State private var routeError: String?
     @State private var routeAttached = false
-    @State private var isReadingRoute = false
-
-    /// A parsed route awaiting the user's confirmation before it's written to the activity.
-    private struct RouteCandidate: Identifiable {
-        let id = UUID()
-        var coordinates: [CLLocationCoordinate2D]
-        var encoded: String?
-        var elevations: [Double]
-        var distance: Double
-        var startDate: Date
-    }
 
     init(run: Run) {
         self.run = run
@@ -911,39 +912,19 @@ private struct EditRunSheet: View {
                             Label(run.hasRoute ? "Replace Route from File" : "Add Route from File",
                                   systemImage: "map")
                             Spacer()
-                            if isReadingRoute { ProgressView() }
-                            else if routeAttached {
+                            if routeAttached {
                                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                             }
                         }
                     }
-                    .disabled(isReadingRoute)
                 } header: {
                     Text("Route")
                 } footer: {
                     Text("Attach a GPX, TCX, or FIT file — for example, exported from Strava — to add or replace this activity's map. Recorded stats stay unchanged.")
                 }
             }
-            .fileImporter(
-                isPresented: $routePickerPresented,
-                allowedContentTypes: Self.routeFileTypes,
-                allowsMultipleSelection: false,
-                onCompletion: handleRouteFile
-            )
-            .alert("Attach this route?", isPresented: .init(
-                get: { routeCandidate != nil }, set: { if !$0 { routeCandidate = nil } }
-            ), presenting: routeCandidate) { candidate in
-                Button("Attach") { attach(candidate) }
-                Button("Cancel", role: .cancel) {}
-            } message: { candidate in
-                Text(routeSummary(candidate))
-            }
-            .alert("Couldn't read that file", isPresented: .init(
-                get: { routeError != nil }, set: { if !$0 { routeError = nil } }
-            )) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(routeError ?? "")
+            .routeFileAttacher(run: run, isPresented: $routePickerPresented) {
+                routeAttached = true
             }
             .navigationTitle("Edit Activity")
             .navigationBarTitleDisplayMode(.inline)
@@ -973,91 +954,6 @@ private struct EditRunSheet: View {
         dismiss()
     }
 
-    // MARK: Route attachment
-
-    /// GPX/TCX/FIT carry no registered UTI on iOS — `.data`/`.xml` keep them selectable; the
-    /// parser validates the actual contents.
-    private static let routeFileTypes: [UTType] = {
-        var types = [
-            UTType(filenameExtension: "gpx", conformingTo: .xml),
-            UTType(filenameExtension: "tcx", conformingTo: .xml),
-            UTType(filenameExtension: "fit", conformingTo: .data)
-        ].compactMap { $0 }
-        types.append(.data)
-        types.append(.xml)
-        return types
-    }()
-
-    private func handleRouteFile(_ result: Result<[URL], Error>) {
-        guard case .success(let urls) = result, let url = urls.first else { return }
-        isReadingRoute = true
-        let target = run.startDate
-        Task {
-            defer { isReadingRoute = false }
-            let parsed: [ImportedActivity]
-            do {
-                parsed = try await Task.detached(priority: .userInitiated) {
-                    let scoped = url.startAccessingSecurityScopedResource()
-                    defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                    let data = try Data(contentsOf: url)
-                    return try ActivityFileParsing.parse(data: data, fileName: url.lastPathComponent)
-                }.value
-            } catch {
-                routeError = error.localizedDescription
-                return
-            }
-            // A file can hold several activities; the one closest in time to this activity is
-            // the intended route. Only tracks with actual GPS points qualify.
-            let withRoute = parsed.filter { !$0.coordinates.isEmpty }
-            guard let best = withRoute.min(by: {
-                abs($0.startDate.timeIntervalSince(target)) < abs($1.startDate.timeIntervalSince(target))
-            }) else {
-                routeError = "That file has no GPS points in it."
-                return
-            }
-            routeCandidate = RouteCandidate(
-                coordinates: best.coordinates,
-                encoded: best.encodedPolyline,
-                elevations: best.elevationSeries,
-                distance: best.distance,
-                startDate: best.startDate
-            )
-        }
-    }
-
-    private func routeSummary(_ candidate: RouteCandidate) -> String {
-        let miles = candidate.distance / 1609.344
-        var lines = [
-            String(format: "%.1f mi · %d GPS points", miles, candidate.coordinates.count),
-            candidate.startDate.formatted(date: .abbreviated, time: .shortened),
-        ]
-        if abs(candidate.startDate.timeIntervalSince(run.startDate)) > 6 * 3600 {
-            lines.append("Note: the file's date differs from this activity's.")
-        }
-        if run.hasRoute {
-            lines.append("This replaces the current route.")
-        }
-        return lines.joined(separator: "\n")
-    }
-
-    /// Writes the route through the same central path every import uses, then overrides the
-    /// elevation series explicitly — on a replace, the attached file's data wins.
-    private func attach(_ candidate: RouteCandidate) {
-        let ingestor = ActivityIngestor(context: context)
-        ingestor.applyRoute(
-            candidate.coordinates, source: .imported, to: run,
-            encoded: candidate.encoded, elevations: candidate.elevations
-        )
-        if !candidate.elevations.isEmpty {
-            run.elevationSeries = candidate.elevations
-        }
-        if run.elevationGain == 0 {
-            run.elevationGain = RouteMetrics.elevationGain(of: candidate.elevations)
-        }
-        try? context.save()
-        routeAttached = true
-        routeCandidate = nil
-    }
 }
 
 /// Reorders the run's photos as one is dragged over another. Moving reorders `photos`, whose
