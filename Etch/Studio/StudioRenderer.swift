@@ -145,7 +145,22 @@ enum StudioRenderer {
             panel = panel.map { $0.desaturated() }
             photos = photos.map { $0.desaturated() }
         }
-        let composition = StudioComposition(
+        let fit = fittedScale(for: request, photos: photos, profile: profile)
+        let composition = composition(for: request, panel: panel, photos: photos,
+                                      profile: profile, fitScale: fit, measuring: false)
+        let renderer = ImageRenderer(content: composition)
+        renderer.scale = scale
+        guard let base = renderer.uiImage else { return nil }
+        guard let aspect = request.outputSize.aspect else { return base }
+        return matted(base, aspect: aspect, ground: request.groundColor ?? request.edition.ground)
+    }
+
+    /// Builds the composition view for a request — the one construction site, shared by the real
+    /// render and the measurement pass so the two can never drift apart.
+    private static func composition(for request: Request, panel: UIImage?, photos: [UIImage],
+                                    profile: [Double], fitScale: CGFloat,
+                                    measuring: Bool) -> StudioComposition {
+        StudioComposition(
             run: request.run, edition: request.edition, panelImage: panel,
             photoImages: photos,
             includeWeather: request.includeWeather, layout: request.layout,
@@ -181,13 +196,49 @@ enum StudioRenderer {
             dateScale: request.dateScale,
             heroScale: request.heroScale,
             statScale: request.statScale,
+            fitScale: fitScale,
+            measuring: measuring,
             printAspect: request.printAspect
         )
-        let renderer = ImageRenderer(content: composition)
-        renderer.scale = scale
-        guard let base = renderer.uiImage else { return nil }
-        guard let aspect = request.outputSize.aspect else { return base }
-        return matted(base, aspect: aspect, ground: request.groundColor ?? request.edition.ground)
+    }
+
+    /// The auto-fit pass: measures the fixed content's natural height (type, bands, footer) at
+    /// the canvas width and, when it would push the art below its design floor — or off the sheet
+    /// entirely — returns a uniform shrink factor for the composition to fold into its type and
+    /// spacing. Print-canvas layouts have a hard height; without this, an ambitious combination
+    /// of options (every text line XL, both profile bands, weather on) clips the bottom rows off
+    /// the artwork. Measured, not estimated: the probe is the same SwiftUI view the render draws,
+    /// with the flexible art collapsed to its floor, so the number is exact. Converges in one or
+    /// two passes since type dominates the fixed height; floored at 0.5 — a sheet that still
+    /// overflows at half size is not a layout problem the renderer should paper over.
+    private static func fittedScale(for request: Request, photos: [UIImage],
+                                    profile: [Double]) -> CGFloat {
+        // Overlay compositions (full-bleed map, keepsake) set type *over* the art between
+        // spacers — they always fit.
+        let isFullBleed = request.layout == .classic
+            && request.mapLayoutRaw == MapLayout.fullBleed.rawValue
+        guard request.layout != .keepsake, !isFullBleed else { return 1 }
+
+        let canvas = StudioComposition.canvasSize(request.orientation, request.dataPlacement,
+                                                  request.printAspect)
+        let floor = StudioComposition.artFloor(request.orientation, request.dataPlacement,
+                                               layout: request.layout, aspect: request.printAspect)
+        let budget = canvas.height - floor
+        guard budget > 0 else { return 1 }
+
+        var scale: CGFloat = 1
+        for _ in 0..<3 {
+            let probe = composition(for: request, panel: nil, photos: photos, profile: profile,
+                                    fitScale: scale, measuring: true)
+            let host = UIHostingController(rootView: probe)
+            let natural = host.sizeThatFits(in: CGSize(width: canvas.width,
+                                                       height: .greatestFiniteMagnitude))
+            let fixed = natural.height - floor
+            guard fixed > budget + 1 else { break }
+            scale = max(0.5, scale * budget / fixed)
+            if scale <= 0.5 { break }
+        }
+        return scale
     }
 
     /// Frames the finished poster as a print on a mat, sized to the target social aspect. The mat is

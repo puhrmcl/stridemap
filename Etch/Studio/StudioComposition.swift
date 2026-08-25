@@ -209,13 +209,26 @@ struct StudioComposition: View {
     var dateScale: CGFloat = 1
     var heroScale: CGFloat = 1
     var statScale: CGFloat = 1
+    /// Uniform shrink applied to the fixed (non-art) content — type, spacings, band heights — when
+    /// its natural height would crowd the art below its floor or run off the sheet. Computed by the
+    /// renderer from a measurement pass; 1 means the content fits at its designed size. The outer
+    /// sheet margins never shrink: they are the print-safe border.
+    var fitScale: CGFloat = 1
+    /// Measurement mode: the flexible art collapses to its floor and the canvas takes its natural
+    /// height, so a hosting measurement reports how tall the fixed content really is. Never drawn.
+    var measuring: Bool = false
     /// The print shape this artwork is composed into. 2:3 is the primary — it serves 12×18, 16×24
     /// and 24×36, the entire launch catalogue.
     var printAspect: PrintAspect = .twoThree
 
     /// A font point size scaled by `textScale` — every `.system(size:)` on the poster runs through
-    /// this so one control resizes the whole composition's type together.
-    private func ts(_ size: CGFloat) -> CGFloat { size * textScale }
+    /// this so one control resizes the whole composition's type together. `fitScale` folds in so an
+    /// overfull sheet shrinks all of its type uniformly rather than clipping the bottom rows.
+    private func ts(_ size: CGFloat) -> CGFloat { size * textScale * fitScale }
+
+    /// A spacing / fixed-height constant scaled by `fitScale`, so the gaps between elements shrink
+    /// in step with the type when the sheet is squeezed for room.
+    private func sp(_ size: CGFloat) -> CGFloat { size * fitScale }
 
     static let width: CGFloat = 1000
     static let artHeight: CGFloat = 1000
@@ -258,6 +271,22 @@ struct StudioComposition: View {
     static func nominalSize(_ orientation: StudioOrientation, _ placement: StudioDataPlacement,
                             _ aspect: PrintAspect = .twoThree) -> CGSize {
         canvasSize(orientation, placement, aspect)
+    }
+
+    /// The least height the art panel may be squeezed to on a fixed print canvas — the design
+    /// floor beneath which the piece stops reading as art with data and starts reading as a data
+    /// sheet. The renderer measures the fixed content against `canvas − floor` and shrinks it to
+    /// fit. The side-column landscape has no flexing art (its square panel is the full sheet
+    /// height), so its floor is nominal — there the budget is simply the column's height.
+    static func artFloor(_ orientation: StudioOrientation, _ placement: StudioDataPlacement,
+                         layout: StudioLayout, aspect: PrintAspect) -> CGFloat {
+        if orientation == .landscape && placement.isSide { return 1 }
+        let height = canvasSize(orientation, placement, aspect).height
+        return height * (layout == .gallery ? 0.34 : 0.40)
+    }
+
+    private var artFloorHeight: CGFloat {
+        Self.artFloor(orientation, dataPlacement, layout: layout, aspect: printAspect)
     }
 
     /// Grey version of a colour (luminance), used when the poster is monochrome so the route and
@@ -322,24 +351,24 @@ struct StudioComposition: View {
                 HStack(spacing: 0) {
                     if dataPlacement == .left {
                         footer
-                        art
+                        measurableArt
                     } else {
-                        art
+                        measurableArt
                         footer
                     }
                 }
                 .frame(width: Self.canvasSize(orientation, dataPlacement, printAspect).width,
-                       height: Self.canvasSize(orientation, dataPlacement, printAspect).height)
+                       height: measuring ? nil : Self.canvasSize(orientation, dataPlacement, printAspect).height)
             } else if orientation == .landscape && dataPlacement == .top {
                 // Same fixed print-shaped canvas as the bottom-data branch, footer first.
                 VStack(spacing: 0) {
                     footer
                         .fixedSize(horizontal: false, vertical: true)
                         .layoutPriority(1)
-                    flexArt
+                    measurableFlexArt
                 }
                 .frame(width: Self.canvasSize(orientation, dataPlacement, printAspect).width,
-                       height: Self.canvasSize(orientation, dataPlacement, printAspect).height)
+                       height: measuring ? nil : Self.canvasSize(orientation, dataPlacement, printAspect).height)
             } else {
                 // Portrait (and landscape-with-bottom-data): a fixed print-shaped canvas. The
                 // footer takes its natural height; the art absorbs the rest. `fixedSize` pins the
@@ -348,7 +377,7 @@ struct StudioComposition: View {
                 // compressible), clipping the stat row and date off the bottom of the artwork
                 // while the art panel keeps more than its share.
                 VStack(spacing: 0) {
-                    flexArt
+                    measurableFlexArt
                     if hasElevationStrip {
                         elevationBand
                             .fixedSize(horizontal: false, vertical: true)
@@ -364,7 +393,7 @@ struct StudioComposition: View {
                         .layoutPriority(1)
                 }
                 .frame(width: Self.canvasSize(orientation, dataPlacement, printAspect).width,
-                       height: Self.canvasSize(orientation, dataPlacement, printAspect).height)
+                       height: measuring ? nil : Self.canvasSize(orientation, dataPlacement, printAspect).height)
             }
         }
         .background(groundColor)
@@ -415,11 +444,15 @@ struct StudioComposition: View {
     }
 
     private var galleryComposition: some View {
-        VStack(spacing: 40) {
+        VStack(spacing: sp(40)) {
             // The frames absorb whatever height the fixed canvas has left after the masthead and
             // data rows take their natural height — mirroring how the Map product's art flexes.
-            galleryFramesView
-                .frame(maxHeight: .infinity)
+            if measuring {
+                Color.clear.frame(height: artFloorHeight)
+            } else {
+                galleryFramesView
+                    .frame(maxHeight: .infinity)
+            }
 
             galleryMasthead.fixedSize(horizontal: false, vertical: true)
 
@@ -433,7 +466,7 @@ struct StudioComposition: View {
             }
         }
         .padding(80)
-        .frame(width: galleryCanvas.width, height: galleryCanvas.height)
+        .frame(width: galleryCanvas.width, height: measuring ? nil : galleryCanvas.height)
         .background(groundColor)
     }
 
@@ -470,7 +503,7 @@ struct StudioComposition: View {
 
     /// Title + location beneath the frames, in the chosen face.
     @ViewBuilder private var galleryMasthead: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: sp(14)) {
             if showTitle {
                 Text(titleText.uppercased())
                     .font(.system(size: ts(44 * titleScale), weight: titleFont.titleWeight, design: titleFont.design))
@@ -742,7 +775,7 @@ struct StudioComposition: View {
     }
 
     private func profileContent(title: String, samples: [Double]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: sp(10)) {
             Text(title)
                 .font(.system(size: ts(15), weight: .semibold))
                 .tracking(3)
@@ -770,7 +803,7 @@ struct StudioComposition: View {
                     }
                 }
             }
-            .frame(height: 130)
+            .frame(height: sp(130))
         }
         .frame(maxWidth: .infinity)
     }
@@ -779,8 +812,8 @@ struct StudioComposition: View {
     private var elevationBand: some View {
         elevationProfileContent
             .padding(.horizontal, 70)
-            .padding(.top, 26)
-            .padding(.bottom, 10)
+            .padding(.top, sp(26))
+            .padding(.bottom, sp(10))
             .frame(width: Self.width)
             .background(groundColor)
     }
@@ -788,8 +821,8 @@ struct StudioComposition: View {
     private var paceBand: some View {
         paceProfileContent
             .padding(.horizontal, 70)
-            .padding(.top, 26)
-            .padding(.bottom, 10)
+            .padding(.top, sp(26))
+            .padding(.bottom, sp(10))
             .frame(width: Self.width)
             .background(groundColor)
     }
@@ -824,6 +857,26 @@ struct StudioComposition: View {
             .frame(width: artDimensions.width)
             .frame(maxHeight: .infinity)
             .clipped()
+    }
+
+    /// In measurement mode the flexible art collapses to its design floor, so the composition's
+    /// natural height is floor + the fixed content — what the renderer's fit pass reads.
+    @ViewBuilder private var measurableFlexArt: some View {
+        if measuring {
+            Color.clear.frame(width: artDimensions.width, height: artFloorHeight)
+        } else {
+            flexArt
+        }
+    }
+
+    /// Side-column landscape: the square art panel *is* the sheet height, so measurement collapses
+    /// it to a sliver and the HStack's natural height becomes the footer column's natural height.
+    @ViewBuilder private var measurableArt: some View {
+        if measuring {
+            Color.clear.frame(width: Self.width, height: artFloorHeight)
+        } else {
+            art
+        }
     }
 
     private var artBody: some View {
@@ -928,7 +981,7 @@ struct StudioComposition: View {
     // MARK: Footer — arranged by layout
 
     private var footer: some View {
-        VStack(spacing: 22) {
+        VStack(spacing: sp(22)) {
             Group {
                 if memoryRouteInFooter && layout != .editorial {
                     // Route takes the hero slot; the four metrics run across beneath it.
@@ -955,30 +1008,34 @@ struct StudioComposition: View {
             if footerElevation { elevationProfileContent }
             if footerPace { paceProfileContent }
         }
-        .padding(70)
+        // The horizontal margin never shrinks — it is the print-safe border. The vertical padding
+        // gives ground with the rest of the content when the sheet is squeezed, but keeps a floor
+        // so the type never sits against the trim edge.
+        .padding(.horizontal, 70)
+        .padding(.vertical, max(44, sp(70)))
         .frame(width: isSideLayout ? Self.landscapeFooterWidth : artDimensions.width,
-               height: isSideLayout ? artDimensions.height : nil)
+               height: (isSideLayout && !measuring) ? artDimensions.height : nil)
         .background(groundColor)
     }
 
     /// Centred, full: title, big distance, place, sparse stat row, date.
     private var classicFooter: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: sp(20)) {
             title(leading: false)
             heroBlock(leading: false)
             if !placeLine.isEmpty { metaLine([(placeLine, locationScale)], leading: false) }
             if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: false) }
             if !resolvedStats.isEmpty {
-                Rectangle().fill(subtleColor.opacity(0.4)).frame(width: 90, height: 2).padding(.vertical, 6)
+                Rectangle().fill(subtleColor.opacity(0.4)).frame(width: 90, height: 2).padding(.vertical, sp(6))
                 statRow
             }
-            if !dateLine.isEmpty { metaLine([(dateLine, dateScale)], leading: false).padding(.top, 6) }
+            if !dateLine.isEmpty { metaLine([(dateLine, dateScale)], leading: false).padding(.top, sp(6)) }
         }
     }
 
     /// The most restrained: just the statement and one quiet caption line.
     private var minimalFooter: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: sp(16)) {
             title(leading: false)
             heroBlock(leading: false)
             metaLine([(placeLine, locationScale), (dateLine, dateScale)], leading: false)
@@ -987,7 +1044,7 @@ struct StudioComposition: View {
 
     /// Map "Minimal": the quietest map poster — just the title and the date beneath the map.
     private var mapMinimalFooter: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: sp(12)) {
             title(leading: false)
             if !dateLine.isEmpty { metaLine([(dateLine, dateScale)], leading: false) }
         }
@@ -995,7 +1052,7 @@ struct StudioComposition: View {
 
     /// Map "Photo": a strip of 1–3 photos fills the data area, over the title and a place · date line.
     private var mapPhotoFooter: some View {
-        VStack(spacing: 22) {
+        VStack(spacing: sp(22)) {
             title(leading: false)
             mapPhotoStrip
             if includeWeather, let weather = run.weatherLine() { weatherText(weather, leading: false) }
@@ -1011,7 +1068,7 @@ struct StudioComposition: View {
         if photos.isEmpty {
             RoundedRectangle(cornerRadius: 14)
                 .fill(subtleColor.opacity(0.12))
-                .frame(height: 360)
+                .frame(height: sp(360))
                 .overlay(
                     Image(systemName: "photo")
                         .font(.system(size: ts(88), weight: .semibold))
@@ -1025,7 +1082,7 @@ struct StudioComposition: View {
                 .resizable()
                 .scaledToFit()
                 .clipShape(.rect(cornerRadius: 14))
-                .frame(maxWidth: .infinity, maxHeight: 430)
+                .frame(maxWidth: .infinity, maxHeight: sp(430))
         } else {
             HStack(spacing: 14) {
                 ForEach(photos.indices, id: \.self) { i in
@@ -1033,7 +1090,7 @@ struct StudioComposition: View {
                         .resizable()
                         .scaledToFill()
                         .frame(maxWidth: .infinity)
-                        .frame(height: 360)
+                        .frame(height: sp(360))
                         .clipped()
                         .clipShape(.rect(cornerRadius: 14))
                 }
@@ -1075,11 +1132,11 @@ struct StudioComposition: View {
     /// Memory with the route option, non-editorial layouts: the route sits where the big headline
     /// would, and the four metrics run across beneath it.
     private var memoryRouteFooter: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: sp(20)) {
             title(leading: false)
             routeGraphic(width: 8)
                 .frame(maxWidth: .infinity)
-                .frame(height: 300)
+                .frame(height: sp(300))
                 .padding(.vertical, 4)
             if !placeLine.isEmpty { metaLine([(placeLine, locationScale)], leading: false) }
             Rectangle().fill(subtleColor.opacity(0.4)).frame(width: 90, height: 2).padding(.vertical, 4)
@@ -1097,7 +1154,7 @@ struct StudioComposition: View {
     /// Four equal stats across — no big headline. The chosen Headline metric leads, followed by
     /// the three slot metrics.
     private var gridFooter: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: sp(18)) {
             title(leading: false)
             if !placeLine.isEmpty { metaLine([(placeLine, locationScale)], leading: false) }
             Rectangle().fill(subtleColor.opacity(0.4)).frame(width: 90, height: 2).padding(.vertical, 4)

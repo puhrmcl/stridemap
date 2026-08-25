@@ -39,6 +39,9 @@ struct StudioView: View {
         }
     }
     @State private var tab: Tab = .style
+    /// The editor opens clean — just the artwork and the primary actions. Customize reveals the
+    /// control tray for the 20% who want to go deeper; everyone else shares or orders in two taps.
+    @State private var isCustomizing = false
 
     @State private var showPrints = false
     @State private var showExport = false
@@ -115,9 +118,13 @@ struct StudioView: View {
     private func editor(for family: PosterFamily) -> some View {
         VStack(spacing: 0) {
             preview
-            Divider()
-            trayTabBar
-            tray
+            if isCustomizing {
+                Divider()
+                trayTabBar
+                tray
+            } else {
+                actionBar
+            }
         }
         .background(Color(.systemGroupedBackground))
         .navigationTitle(family == .map ? "Map Studio" : "Gallery Studio")
@@ -352,6 +359,48 @@ struct StudioView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    // MARK: Action bar — the clean editor's whole surface: order, share, or open the tray.
+
+    private var actionBar: some View {
+        VStack(spacing: 10) {
+            Button { showPrints = true } label: {
+                Label("Order Print", systemImage: "bag")
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(Theme.accent, in: .capsule)
+            }
+            .buttonStyle(.plain)
+
+            HStack(spacing: 10) {
+                Button { withAnimation(.easeInOut(duration: 0.22)) { isCustomizing = true } } label: {
+                    Label("Customize", systemImage: "slider.horizontal.3")
+                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(Theme.accent.opacity(0.12), in: .capsule)
+                }
+                .buttonStyle(.plain)
+
+                Button { showExport = true } label: {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(Theme.accent.opacity(0.12), in: .capsule)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 12)
+        .padding(.bottom, 10)
+        .background(.regularMaterial)
+    }
+
     // MARK: Tray
 
     private var trayTabBar: some View {
@@ -368,6 +417,15 @@ struct StudioView: View {
                 }
                 .buttonStyle(.plain)
             }
+            // Back to the clean view — the tray folds away and the action bar returns.
+            Button { withAnimation(.easeInOut(duration: 0.22)) { isCustomizing = false } } label: {
+                Image(systemName: "chevron.down.circle.fill")
+                    .font(.system(size: 22))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Hide controls")
         }
         .padding(.horizontal, 12)
         .padding(.top, 6)
