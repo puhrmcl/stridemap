@@ -262,7 +262,7 @@ struct StudioHomeView: View {
             // Sheet mode: the wordmark leads the page, large enough to read and free of any button
             // chrome (a toolbar item would wrap it in a glass circle).
             if !isHome {
-                Image("StudioLogo")
+                Image("BrandLogo")
                     .resizable().scaledToFit().frame(height: 44)
                     .accessibilityLabel("Etch Studio")
             }
