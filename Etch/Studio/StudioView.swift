@@ -42,6 +42,8 @@ struct StudioView: View {
 
     @State private var showPrints = false
     @State private var showExport = false
+    /// Full-screen look at the artwork — tap the preview to open, pinch to inspect.
+    @State private var showFullScreenPreview = false
     /// Presenting the library picker to add a photo to this run.
     @State private var showPhotoPicker = false
     /// The kept poster this composition is linked to, once saved — so a second Save updates the
@@ -98,45 +100,6 @@ struct StudioView: View {
                 .navigationDestination(for: PosterFamily.self) { family in
                     editor(for: family)
                 }
-            .overlay(alignment: .top) { savedConfirmation }
-            // Hand the composed artwork to the shop so the frame mockup shows the user's own piece
-            // rather than a placeholder — the whole point of the preview.
-            .sheet(isPresented: $showPrints) {
-                PrintShopView(subjectTitle: config.title.isEmpty ? run.name : config.title,
-                              artwork: rendered,
-                              renderRequest: config.request(for: run),
-                              creationID: (savedPosterID ?? run.id).uuidString,
-                              runID: run.id)
-            }
-            .sheet(isPresented: $showExport) { StudioExportSheet(request: config.request(for: run)) }
-            .sheet(isPresented: $showPhotoPicker) {
-                AssetPhotoPicker(selectionLimit: 4) { ids in addPhotos(ids) }
-                    .ignoresSafeArea()
-            }
-            .sheet(item: $editingSlot) { target in
-                MetricPickerSheet(
-                    run: run,
-                    current: currentMetric(for: target),
-                    allowRemove: { if case .slot = target { return true }; return false }(),
-                    onPick: { applyMetric($0, to: target) },
-                    onRemove: {
-                        if case .slot(let i) = target, config.dataSlots.indices.contains(i) {
-                            config.dataSlots.remove(at: i)
-                        }
-                    }
-                )
-            }
-            .task(id: renderKey) { await renderPreview() }
-            // Debounce the free-text fields: commit them ~350ms after typing stops, so the preview
-            // re-renders once per edit rather than once per keystroke.
-            .task(id: liveText) {
-                let text = liveText
-                if !debouncedText.isEmpty || !text.isEmpty {
-                    try? await Task.sleep(for: .milliseconds(350))
-                }
-                guard !Task.isCancelled else { return }
-                debouncedText = text
-            }
         }
     }
 
@@ -144,6 +107,11 @@ struct StudioView: View {
 
     /// One product's editor. The family is decided before arriving here — the tray, the style
     /// strip, and every control belong to this product alone.
+    ///
+    /// The render tasks and every editor-owned sheet live *here*, on the pushed screen — not on
+    /// the navigation root. A pushed destination covers the root and SwiftUI cancels the covered
+    /// view's `task(id:)`s, so a root-attached render task goes quiet the moment the editor
+    /// appears and no edit ever re-renders the preview.
     private func editor(for family: PosterFamily) -> some View {
         VStack(spacing: 0) {
             preview
@@ -156,6 +124,48 @@ struct StudioView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbarContent }
         .onAppear { if config.family != family { config.family = family } }
+        .overlay(alignment: .top) { savedConfirmation }
+        // Hand the composed artwork to the shop so the frame mockup shows the user's own piece
+        // rather than a placeholder — the whole point of the preview.
+        .sheet(isPresented: $showPrints) {
+            PrintShopView(subjectTitle: config.title.isEmpty ? run.name : config.title,
+                          artwork: rendered,
+                          renderRequest: config.request(for: run),
+                          creationID: (savedPosterID ?? run.id).uuidString,
+                          runID: run.id)
+        }
+        .sheet(isPresented: $showExport) { StudioExportSheet(request: config.request(for: run)) }
+        .sheet(isPresented: $showPhotoPicker) {
+            AssetPhotoPicker(selectionLimit: 4) { ids in addPhotos(ids) }
+                .ignoresSafeArea()
+        }
+        .sheet(item: $editingSlot) { target in
+            MetricPickerSheet(
+                run: run,
+                current: currentMetric(for: target),
+                allowRemove: { if case .slot = target { return true }; return false }(),
+                onPick: { applyMetric($0, to: target) },
+                onRemove: {
+                    if case .slot(let i) = target, config.dataSlots.indices.contains(i) {
+                        config.dataSlots.remove(at: i)
+                    }
+                }
+            )
+        }
+        .fullScreenCover(isPresented: $showFullScreenPreview) {
+            ArtworkPreviewView(image: rendered)
+        }
+        .task(id: renderKey) { await renderPreview() }
+        // Debounce the free-text fields: commit them ~350ms after typing stops, so the preview
+        // re-renders once per edit rather than once per keystroke.
+        .task(id: liveText) {
+            let text = liveText
+            if !debouncedText.isEmpty || !text.isEmpty {
+                try? await Task.sleep(for: .milliseconds(350))
+            }
+            guard !Task.isCancelled else { return }
+            debouncedText = text
+        }
     }
 
     // MARK: Product chooser
@@ -296,11 +306,15 @@ struct StudioView: View {
             Spacer(minLength: 0)
             Group {
                 if let rendered {
-                    Image(uiImage: rendered)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .clipShape(.rect(cornerRadius: 10))
-                        .shadow(color: .black.opacity(0.22), radius: 20, y: 10)
+                    Button { showFullScreenPreview = true } label: {
+                        Image(uiImage: rendered)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .clipShape(.rect(cornerRadius: 10))
+                            .shadow(color: .black.opacity(0.22), radius: 20, y: 10)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("View full screen")
                 } else {
                     RoundedRectangle(cornerRadius: 10)
                         .fill(config.groundColor ?? config.edition.ground)
