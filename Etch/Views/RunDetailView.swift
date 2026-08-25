@@ -836,6 +836,25 @@ private struct EditRunSheet: View {
     @State private var type: ActivityType
     @State private var bib: String
 
+    // Route attachment: add or replace this activity's map from a GPX/TCX/FIT file — the
+    // escape hatch for workouts whose source never delivered a route (Nike, treadmill GPS
+    // gaps, HealthKit races) when the runner has the file from elsewhere (e.g. Strava export).
+    @State private var routePickerPresented = false
+    @State private var routeCandidate: RouteCandidate?
+    @State private var routeError: String?
+    @State private var routeAttached = false
+    @State private var isReadingRoute = false
+
+    /// A parsed route awaiting the user's confirmation before it's written to the activity.
+    private struct RouteCandidate: Identifiable {
+        let id = UUID()
+        var coordinates: [CLLocationCoordinate2D]
+        var encoded: String?
+        var elevations: [Double]
+        var distance: Double
+        var startDate: Date
+    }
+
     init(run: Run) {
         self.run = run
         _title = State(initialValue: run.name)
@@ -884,6 +903,47 @@ private struct EditRunSheet: View {
                 } footer: {
                     Text("Shown on Studio posters as a data point — the way race prints carry the runner's number.")
                 }
+                Section {
+                    Button {
+                        routePickerPresented = true
+                    } label: {
+                        HStack {
+                            Label(run.hasRoute ? "Replace Route from File" : "Add Route from File",
+                                  systemImage: "map")
+                            Spacer()
+                            if isReadingRoute { ProgressView() }
+                            else if routeAttached {
+                                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                            }
+                        }
+                    }
+                    .disabled(isReadingRoute)
+                } header: {
+                    Text("Route")
+                } footer: {
+                    Text("Attach a GPX, TCX, or FIT file — for example, exported from Strava — to add or replace this activity's map. Recorded stats stay unchanged.")
+                }
+            }
+            .fileImporter(
+                isPresented: $routePickerPresented,
+                allowedContentTypes: Self.routeFileTypes,
+                allowsMultipleSelection: false,
+                onCompletion: handleRouteFile
+            )
+            .alert("Attach this route?", isPresented: .init(
+                get: { routeCandidate != nil }, set: { if !$0 { routeCandidate = nil } }
+            ), presenting: routeCandidate) { candidate in
+                Button("Attach") { attach(candidate) }
+                Button("Cancel", role: .cancel) {}
+            } message: { candidate in
+                Text(routeSummary(candidate))
+            }
+            .alert("Couldn't read that file", isPresented: .init(
+                get: { routeError != nil }, set: { if !$0 { routeError = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(routeError ?? "")
             }
             .navigationTitle("Edit Activity")
             .navigationBarTitleDisplayMode(.inline)
@@ -911,6 +971,92 @@ private struct EditRunSheet: View {
         run.updatedAt = Date()
         try? context.save()
         dismiss()
+    }
+
+    // MARK: Route attachment
+
+    /// GPX/TCX/FIT carry no registered UTI on iOS — `.data`/`.xml` keep them selectable; the
+    /// parser validates the actual contents.
+    private static let routeFileTypes: [UTType] = {
+        var types = [
+            UTType(filenameExtension: "gpx", conformingTo: .xml),
+            UTType(filenameExtension: "tcx", conformingTo: .xml),
+            UTType(filenameExtension: "fit", conformingTo: .data)
+        ].compactMap { $0 }
+        types.append(.data)
+        types.append(.xml)
+        return types
+    }()
+
+    private func handleRouteFile(_ result: Result<[URL], Error>) {
+        guard case .success(let urls) = result, let url = urls.first else { return }
+        isReadingRoute = true
+        let target = run.startDate
+        Task {
+            defer { isReadingRoute = false }
+            let parsed: [ImportedActivity]
+            do {
+                parsed = try await Task.detached(priority: .userInitiated) {
+                    let scoped = url.startAccessingSecurityScopedResource()
+                    defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                    let data = try Data(contentsOf: url)
+                    return try ActivityFileParsing.parse(data: data, fileName: url.lastPathComponent)
+                }.value
+            } catch {
+                routeError = error.localizedDescription
+                return
+            }
+            // A file can hold several activities; the one closest in time to this activity is
+            // the intended route. Only tracks with actual GPS points qualify.
+            let withRoute = parsed.filter { !$0.coordinates.isEmpty }
+            guard let best = withRoute.min(by: {
+                abs($0.startDate.timeIntervalSince(target)) < abs($1.startDate.timeIntervalSince(target))
+            }) else {
+                routeError = "That file has no GPS points in it."
+                return
+            }
+            routeCandidate = RouteCandidate(
+                coordinates: best.coordinates,
+                encoded: best.encodedPolyline,
+                elevations: best.elevationSeries,
+                distance: best.distance,
+                startDate: best.startDate
+            )
+        }
+    }
+
+    private func routeSummary(_ candidate: RouteCandidate) -> String {
+        let miles = candidate.distance / 1609.344
+        var lines = [
+            String(format: "%.1f mi · %d GPS points", miles, candidate.coordinates.count),
+            candidate.startDate.formatted(date: .abbreviated, time: .shortened),
+        ]
+        if abs(candidate.startDate.timeIntervalSince(run.startDate)) > 6 * 3600 {
+            lines.append("Note: the file's date differs from this activity's.")
+        }
+        if run.hasRoute {
+            lines.append("This replaces the current route.")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// Writes the route through the same central path every import uses, then overrides the
+    /// elevation series explicitly — on a replace, the attached file's data wins.
+    private func attach(_ candidate: RouteCandidate) {
+        let ingestor = ActivityIngestor(context: context)
+        ingestor.applyRoute(
+            candidate.coordinates, source: .imported, to: run,
+            encoded: candidate.encoded, elevations: candidate.elevations
+        )
+        if !candidate.elevations.isEmpty {
+            run.elevationSeries = candidate.elevations
+        }
+        if run.elevationGain == 0 {
+            run.elevationGain = RouteMetrics.elevationGain(of: candidate.elevations)
+        }
+        try? context.save()
+        routeAttached = true
+        routeCandidate = nil
     }
 }
 
