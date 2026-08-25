@@ -146,6 +146,10 @@ final class Run {
     /// Race bib number, hand-entered in the activity's Edit sheet ("9478", "A123"). Shown on
     /// posters as a data point when set. Defaulted so existing runs migrate cleanly.
     var bibNumber: String = ""
+    /// Where the runner finished — free text so "127", "4th", or "3rd F35-39" all work. Shown as
+    /// a poster data point; a bare number renders as an ordinal ("127th"). Defaulted so existing
+    /// runs migrate cleanly.
+    var finishPlace: String = ""
     var isFavorite: Bool
     var tags: [String]
     /// Reserved for a future photos feature — stored as opaque references.

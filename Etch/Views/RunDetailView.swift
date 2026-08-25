@@ -850,6 +850,7 @@ private struct EditRunSheet: View {
     @State private var date: Date
     @State private var type: ActivityType
     @State private var bib: String
+    @State private var finishPlace: String
 
     // Route attachment: add or replace this activity's map from a GPX/TCX/FIT file. The whole
     // flow lives in RouteFileAttacher, shared with the detail page's "No map data" card.
@@ -862,6 +863,7 @@ private struct EditRunSheet: View {
         _date = State(initialValue: run.startDate)
         _type = State(initialValue: run.activityType)
         _bib = State(initialValue: run.bibNumber)
+        _finishPlace = State(initialValue: run.finishPlace)
     }
 
     /// Run/Hike/Ride/Walk, plus the current type if it's something else (Ski, Swim, …) so the
@@ -896,13 +898,25 @@ private struct EditRunSheet: View {
                     Text("Activity type")
                 }
                 Section {
-                    TextField("e.g. 9478", text: $bib)
-                        .textInputAutocapitalization(.characters)
-                        .autocorrectionDisabled()
+                    HStack {
+                        Text("Bib")
+                            .foregroundStyle(.secondary)
+                            .frame(width: 60, alignment: .leading)
+                        TextField("e.g. 9478", text: $bib)
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled()
+                    }
+                    HStack {
+                        Text("Finish")
+                            .foregroundStyle(.secondary)
+                            .frame(width: 60, alignment: .leading)
+                        TextField("e.g. 127, or 3rd F35-39", text: $finishPlace)
+                            .autocorrectionDisabled()
+                    }
                 } header: {
-                    Text("Bib number")
+                    Text("Race details")
                 } footer: {
-                    Text("Shown on Studio posters as a data point — the way race prints carry the runner's number.")
+                    Text("Both appear as Studio poster data points — the way race prints carry the runner's number and finish. A bare number shows as an ordinal (127 → 127th).")
                 }
                 Section {
                     Button {
@@ -949,6 +963,7 @@ private struct EditRunSheet: View {
         run.startDate = date
         run.activityType = type
         run.bibNumber = bib.trimmingCharacters(in: .whitespacesAndNewlines)
+        run.finishPlace = finishPlace.trimmingCharacters(in: .whitespacesAndNewlines)
         run.updatedAt = Date()
         try? context.save()
         dismiss()

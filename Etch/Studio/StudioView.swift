@@ -57,18 +57,27 @@ struct StudioView: View {
     /// True when the last render came back nil, so the canvas can explain itself.
     @State private var renderFailed = false
 
+    /// The navigation spine: the product chooser is the root; picking Map or Gallery pushes the
+    /// editor for that product. A saved poster or curated preset skips the chooser — its family
+    /// is part of its identity — by seeding the path.
+    @State private var path: [PosterFamily]
+
     init(run: Run, poster: SavedPoster? = nil, preset: PosterConfig? = nil) {
         self.run = run
         self.existingPoster = poster
         if let poster {
-            _config = State(initialValue: PosterConfig(poster: poster))
+            let config = PosterConfig(poster: poster)
+            _config = State(initialValue: config)
             _savedPosterID = State(initialValue: poster.id)
+            _path = State(initialValue: [config.family])
         } else if let preset {
             // A curated entry (a Studio collection) opens on its authored recipe — the piece
             // already looks finished; the tray refines it.
             _config = State(initialValue: preset)
+            _path = State(initialValue: [preset.family])
         } else {
             _config = State(initialValue: PosterConfig.makeDefault(for: run))
+            _path = State(initialValue: [])
         }
     }
 
@@ -79,18 +88,16 @@ struct StudioView: View {
     private let groundSwatches: [Color] = [Theme.Palette.bone, Theme.Palette.ink, Theme.Palette.forest]
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                productPicker
-                preview
-                Divider()
-                trayTabBar
-                tray
-            }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("Etch Studio")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { toolbarContent }
+        NavigationStack(path: $path) {
+            productChooser
+                .navigationTitle("Studio")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
+                }
+                .navigationDestination(for: PosterFamily.self) { family in
+                    editor(for: family)
+                }
             .overlay(alignment: .top) { savedConfirmation }
             // Hand the composed artwork to the shop so the frame mockup shows the user's own piece
             // rather than a placeholder — the whole point of the preview.
@@ -120,10 +127,110 @@ struct StudioView: View {
         }
     }
 
+    // MARK: Editor
+
+    /// One product's editor. The family is decided before arriving here — the tray, the style
+    /// strip, and every control belong to this product alone.
+    private func editor(for family: PosterFamily) -> some View {
+        VStack(spacing: 0) {
+            preview
+            Divider()
+            trayTabBar
+            tray
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(family == .map ? "Map Studio" : "Gallery Studio")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { toolbarContent }
+        .onAppear { if config.family != family { config.family = family } }
+    }
+
+    // MARK: Product chooser
+
+    /// The fork: Map or Gallery, chosen before any editing — two different objects, two different
+    /// editors. Each card is this activity already rendered as that product.
+    private var productChooser: some View {
+        VStack(spacing: 22) {
+            Spacer(minLength: 0)
+            Text("What are we making?")
+                .font(.system(.title2, design: .rounded).weight(.bold))
+            HStack(spacing: 16) {
+                productCard(
+                    .map, name: "Map",
+                    line: "Your route over real geography — the signature piece."
+                )
+                productCard(
+                    .gallery, name: "Gallery",
+                    line: "Photos, map, route, and elevation — composed as one."
+                )
+            }
+            .padding(.horizontal, 24)
+            Spacer(minLength: 0)
+        }
+        .background(Color(.systemGroupedBackground))
+        .task { await renderChooserThumbnails() }
+    }
+
+    @State private var chooserThumbs: [PosterFamily: UIImage] = [:]
+
+    private func productCard(_ family: PosterFamily, name: String, line: String) -> some View {
+        Button {
+            config.family = family
+            path.append(family)
+        } label: {
+            VStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12).fill(Theme.Palette.bone)
+                    if let image = chooserThumbs[family] {
+                        Image(uiImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .clipShape(.rect(cornerRadius: 12))
+                            .transition(.opacity)
+                    } else {
+                        Image(systemName: family.icon)
+                            .font(.system(size: 30))
+                            .foregroundStyle(Theme.Palette.ink.opacity(0.3))
+                    }
+                }
+                .aspectRatio(2.0 / 3.0, contentMode: .fit)
+                .clipShape(.rect(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5))
+                .shadow(color: .black.opacity(0.14), radius: 12, y: 6)
+
+                VStack(spacing: 3) {
+                    Text(name)
+                        .font(.system(.headline, design: .rounded))
+                        .foregroundStyle(.primary)
+                    Text(line)
+                        .font(.system(.caption, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// The two cards are the activity itself as each product — the chooser is a preview, not an
+    /// abstraction. Sequential, cached for the session.
+    private func renderChooserThumbnails() async {
+        for family in PosterFamily.allCases where chooserThumbs[family] == nil {
+            if Task.isCancelled { return }
+            var recipe = config
+            recipe.family = family
+            recipe.outputSize = .poster
+            let image = await StudioRenderer.image(for: recipe.request(for: run), scale: 0.4)
+            if Task.isCancelled { return }
+            withAnimation(.easeIn(duration: 0.2)) { chooserThumbs[family] = image }
+        }
+    }
+
     // MARK: Toolbar
 
     @ToolbarContentBuilder private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
                 if savedPosterID == nil {
@@ -160,20 +267,6 @@ struct StudioView: View {
                 .padding(.top, 8)
                 .transition(.move(edge: .top).combined(with: .opacity))
         }
-    }
-
-    // MARK: Product picker
-
-    private var productPicker: some View {
-        Picker("Product", selection: $config.family) {
-            ForEach(PosterFamily.allCases) { family in
-                Label(family.name, systemImage: family.icon).tag(family)
-            }
-        }
-        .pickerStyle(.segmented)
-        .padding(.horizontal, 20)
-        .padding(.top, 12)
-        .padding(.bottom, 8)
     }
 
     // MARK: Preview

@@ -235,7 +235,31 @@ enum StudioRenderer {
             UIColor.black.withAlphaComponent(0.06).setStroke()
             card.lineWidth = max(1, longEdge * 0.0016)
             card.stroke()
+
+            // The social signature: the etch. wordmark, quiet in the bottom mat. Shared images
+            // are the brand's only ad; prints and poster exports stay unbranded — the wall art
+            // carries no logo, ever.
+            let trait = UITraitCollection(userInterfaceStyle: isDark(mat) ? .dark : .light)
+            if let logo = UIImage(named: "BrandLogo", in: nil, compatibleWith: trait) {
+                let logoWidth = longEdge * 0.075
+                let logoHeight = logoWidth * (logo.size.height / logo.size.width)
+                let bandTop = origin.y + size.height
+                let bandHeight = canvas.height - bandTop
+                let logoRect = CGRect(
+                    x: (canvas.width - logoWidth) / 2,
+                    y: bandTop + (bandHeight - logoHeight) / 2,
+                    width: logoWidth, height: logoHeight
+                )
+                logo.draw(in: logoRect, blendMode: .normal, alpha: 0.55)
+            }
         }
+    }
+
+    /// Perceived-luminance check for picking the wordmark variant against the mat.
+    private static func isDark(_ color: UIColor) -> Bool {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        color.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return (0.299 * r + 0.587 * g + 0.114 * b) < 0.5
     }
 
     /// A mat tone derived from the poster's ground but shifted toward the opposite luminance, so the

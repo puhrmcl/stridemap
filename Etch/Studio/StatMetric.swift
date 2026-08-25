@@ -8,7 +8,7 @@ enum StatMetric: String, CaseIterable, Identifiable {
     /// A deliberately empty slot — renders as blank space on the poster. Selectable for any data
     /// point (headline or slot) so the user can leave gaps in the composition.
     case none
-    case distance, time, pace, speed, elevationGain, startElevation, avgHeartRate, calories, cadence, bib, place, coordinates, date, weather
+    case distance, time, pace, speed, elevationGain, startElevation, avgHeartRate, calories, cadence, bib, finish, place, coordinates, date, weather
 
     var id: String { rawValue }
 
@@ -26,6 +26,7 @@ enum StatMetric: String, CaseIterable, Identifiable {
         case .calories:     return "CALORIES"
         case .cadence:      return "CADENCE"
         case .bib:          return "BIB"
+        case .finish:       return "FINISH"
         case .place:        return "PLACE"
         case .coordinates:  return "COORDINATES"
         case .date:         return "DATE"
@@ -48,6 +49,7 @@ enum StatMetric: String, CaseIterable, Identifiable {
         case .calories:      return "flame.fill"
         case .cadence:       return "metronome"
         case .bib:           return "number"
+        case .finish:        return "trophy"
         case .place:         return "mappin.and.ellipse"
         case .coordinates:   return "location.north.line"
         case .date:          return "calendar"
@@ -64,6 +66,7 @@ enum StatMetric: String, CaseIterable, Identifiable {
         case .startElevation: return "Start elevation"
         case .avgHeartRate:   return "Avg heart rate"
         case .bib:            return "Bib number"
+        case .finish:         return "Finish place"
         case .coordinates:    return "Coordinates"
         default:              return label.capitalized
         }
@@ -115,6 +118,16 @@ enum StatMetric: String, CaseIterable, Identifiable {
             let bib = run.bibNumber.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !bib.isEmpty else { return nil }
             return bib.hasPrefix("#") ? bib : "#\(bib)"
+        case .finish:
+            // "127" reads as "127th"; anything richer ("3rd F35-39") passes through verbatim.
+            let raw = run.finishPlace.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !raw.isEmpty else { return nil }
+            if let n = Int(raw), n > 0 {
+                let formatter = NumberFormatter()
+                formatter.numberStyle = .ordinal
+                return formatter.string(from: NSNumber(value: n)) ?? raw
+            }
+            return raw
         case .place:
             let place = [run.city, run.state].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
             return place.isEmpty ? nil : place

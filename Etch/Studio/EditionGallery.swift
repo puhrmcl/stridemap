@@ -33,34 +33,39 @@ struct StudioStyle: Identifiable, Equatable {
         }
     }
 
-    /// The curated set, in the order they're offered. Map styles lead — the route over real
-    /// geography is the house look — with the two contour editions placed where they'll be seen,
-    /// and the photo-led Gallery designs after.
-    static func all(for run: Run) -> [StudioStyle] {
-        var styles: [StudioStyle] = MapStyle.allCases.map { style in
-            StudioStyle(
-                id: "map-\(style.rawValue)",
-                name: style.name,
-                descriptor: style.edition.descriptor,
-                family: .map,
-                mapStyle: style,
-                galleryDesign: nil
-            )
-        }
-        // Gallery designs need photographs to be worth offering.
-        if !run.photoReferences.isEmpty {
-            styles.append(contentsOf: GalleryDesign.allCases.map { design in
+    /// The curated set for ONE product family — the fork happens before the editor, so a Map
+    /// session never sees Gallery designs and vice versa. The two are different objects with
+    /// different requirements; mixing their styles in one strip was the cross-contamination the
+    /// overhaul removes.
+    static func all(for run: Run, family: PosterFamily) -> [StudioStyle] {
+        switch family {
+        case .map:
+            return MapStyle.allCases.map { style in
+                StudioStyle(
+                    id: "map-\(style.rawValue)",
+                    name: style.name,
+                    descriptor: style.edition.descriptor,
+                    family: .map,
+                    mapStyle: style,
+                    galleryDesign: nil
+                )
+            }
+        case .gallery:
+            // Gallery works without photographs too — frames can show the map, the route line,
+            // and the elevation profile; photos join whenever the run has them.
+            return GalleryDesign.allCases.map { design in
                 StudioStyle(
                     id: "gallery-\(design.rawValue)",
                     name: design.name,
-                    descriptor: "Your photographs, the route, and the map, composed.",
+                    descriptor: run.photoReferences.isEmpty
+                        ? "The map, the route, and the elevation, composed."
+                        : "Your photographs, the route, and the map, composed.",
                     family: .gallery,
                     mapStyle: nil,
                     galleryDesign: design
                 )
-            })
+            }
         }
-        return styles
     }
 }
 
@@ -98,8 +103,8 @@ struct EditionGalleryStrip: View {
                 .padding(.vertical, 3)
             }
         }
-        .onAppear { if styles.isEmpty { styles = StudioStyle.all(for: run) } }
-        .task(id: run.id) { await renderThumbnails() }
+        .onAppear { if styles.isEmpty { styles = StudioStyle.all(for: run, family: config.family) } }
+        .task(id: "\(run.id)-\(config.family.rawValue)") { await renderThumbnails() }
     }
 
     private func card(for style: StudioStyle) -> some View {
@@ -155,8 +160,8 @@ struct EditionGalleryStrip: View {
     /// the user is looking. Sequential on purpose — eight simultaneous map snapshots is exactly the
     /// thundering herd the caching work was meant to prevent.
     private func renderThumbnails() async {
-        let all = StudioStyle.all(for: run)
-        if styles.isEmpty { styles = all }
+        let all = StudioStyle.all(for: run, family: config.family)
+        styles = all
         let ordered = all.sorted { a, _ in a.matches(config) }
         for style in ordered {
             if Task.isCancelled { return }
