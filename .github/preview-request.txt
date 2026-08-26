@@ -6,7 +6,9 @@
 #
 # screens:    studio, home, archive, course, summit, yearbook, prints, wall-art,
 #             map-studio, gallery-studio, detail
+#             wall-art accepts a style: wall-art:ridgeline, wall-art:rings,
+#             wall-art:pulse, wall-art:bloom, wall-art:constellation, wall-art:grid
 # appearance: light, dark, or both
 
-screens=studio,archive,map-studio,yearbook
+screens=wall-art:ridgeline,wall-art:rings,wall-art:pulse,wall-art:bloom,yearbook
 appearance=light

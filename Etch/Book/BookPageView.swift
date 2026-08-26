@@ -38,35 +38,46 @@ struct BookPageView: View {
 
     // MARK: Cover
 
+    /// The route sits in its own band between the eyebrow and the year block rather than behind
+    /// them: stacked, not layered, so the line can never cross the type — the same rule the
+    /// poster fit engine enforces.
     private func coverPage(_ year: Int) -> some View {
-        ZStack {
-            ground
+        VStack(spacing: 0) {
+            Text("A YEAR IN MOTION")
+                .font(.system(size: 22, weight: .semibold))
+                .tracking(10)
+                .foregroundStyle(subtle)
+                .padding(.top, margin + 8)
+
             // The year's longest mapped route as the cover art — the person's own line.
-            if let hero = plan.runs.filter({ $0.coordinates.count > 1 }).max(by: { $0.distance < $1.distance }) {
-                RouteShape(coordinates: hero.coordinates)
-                    .stroke(accent, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
-                    .padding(180)
-            }
-            VStack {
-                Text("A YEAR IN MOTION")
-                    .font(.system(size: 22, weight: .semibold))
-                    .tracking(10)
-                    .foregroundStyle(subtle)
-                    .padding(.top, margin + 8)
-                Spacer()
-                VStack(spacing: 6) {
-                    Text(String(year))
-                        .font(.system(size: 120, weight: .regular, design: .serif))
-                        .tracking(6)
-                        .foregroundStyle(ink)
-                    Text(totalDistanceLine.uppercased())
-                        .font(.system(size: 18, weight: .semibold))
-                        .tracking(6)
-                        .foregroundStyle(subtle)
+            Group {
+                if let hero = plan.runs.filter({ $0.coordinates.count > 1 })
+                    .max(by: { $0.distance < $1.distance }) {
+                    RouteShape(coordinates: hero.coordinates)
+                        .stroke(accent, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
+                } else {
+                    Color.clear
                 }
-                .padding(.bottom, margin + 8)
             }
+            .padding(.horizontal, 150)
+            .padding(.vertical, 34)
+            .frame(maxHeight: .infinity)
+
+            VStack(spacing: 6) {
+                Text(String(year))
+                    .font(.system(size: 120, weight: .regular, design: .serif))
+                    .tracking(6)
+                    .foregroundStyle(ink)
+                Text(totalDistanceLine.uppercased())
+                    .font(.system(size: 18, weight: .semibold))
+                    .tracking(6)
+                    .foregroundStyle(subtle)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.bottom, margin + 8)
         }
+        .frame(maxWidth: .infinity)
+        .background(ground)
     }
 
     // MARK: Title

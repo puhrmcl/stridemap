@@ -136,7 +136,10 @@ struct PreviewHarnessView: View {
                 case "summit":          CollectionBrowserView(collection: .summit, runs: allRuns)
                 case "yearbook":        YearBookView()
                 case "prints":          PrintShopView(subjectTitle: subject?.name)
-                case "wall-art":        MapPrintView(runs: allRuns, kind: .artMap)
+                // "wall-art:ridgeline" opens that style full size — the Archive's thumbnails
+                // are too small to judge a composition by.
+                case let name where name.hasPrefix("wall-art"):
+                    MapPrintView(runs: allRuns, kind: .artMap, artStyle: artStyle(from: name))
                 case "map-studio":      studio(family: .map)
                 case "gallery-studio":  studio(family: .gallery)
                 case "detail":          detail
@@ -161,6 +164,13 @@ struct PreviewHarnessView: View {
         } else {
             Color(.systemBackground)
         }
+    }
+
+    /// The style named after the colon in `wall-art:<style>`, defaulting to Grid.
+    private func artStyle(from name: String) -> MapArtStyle {
+        let parts = name.split(separator: ":", maxSplits: 1)
+        guard parts.count == 2 else { return .grid }
+        return MapArtStyle(rawValue: String(parts[1])) ?? .grid
     }
 
     /// Opens the editor straight on the requested product, past the Map/Gallery chooser.
