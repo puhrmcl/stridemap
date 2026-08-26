@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "ordering": {
+    "enabled": true,
+    "closedTitle": "Ordering opens soon",
+    "closedDetail": "Printed to order on archival paper and shipped to your door. Secure checkout with Apple Pay."
+  },
+  "prices": {
+    "bySKU": {
+      "GLOBAL-HGE-12X18": 5900,
+      "GLOBAL-HGE-16X24": 7900,
+      "GLOBAL-HGE-24X36": 10900,
+      "GLOBAL-CFP-12X18": 13900,
+      "GLOBAL-CFP-16X24": 17900
+    },
+    "yearBookCents": 11900
+  },
+  "archive": {
+    "gridMinRoutedRuns": 20,
+    "ridgelineMinProfiles": 12,
+    "ringsMinRuns": 30,
+    "pulseMinRuns": 30,
+    "constellationMinCells": 4,
+    "bloomMinRoutedRuns": 50
+  },
+  "seasonal": null
+}

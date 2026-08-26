@@ -377,6 +377,9 @@ struct SettingsView: View {
     private var aboutSection: some View {
         Section {
             LabeledContent("Version", value: AppInfo.label)
+            // Which served configuration this device is running — so a support conversation
+            // about a price or availability can establish that in one question.
+            LabeledContent("Catalogue", value: "c\(EtchConfig.current.version)")
             NavigationLink {
                 PrivacyView()
             } label: {

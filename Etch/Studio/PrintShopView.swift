@@ -103,7 +103,11 @@ struct PrintShopView: View {
 
     // MARK: Ordering
 
-    private var canOrderHere: Bool { renderRequest != nil && PrintOrderService.isConfigured }
+    /// Ordering also honours the served kill switch, so a fulfilment problem can be contained
+    /// without an App Store release.
+    private var canOrderHere: Bool {
+        renderRequest != nil && PrintOrderService.isConfigured && EtchConfig.current.ordering.enabled
+    }
 
     private func beginOrder() {
         guard let renderRequest, orderPhase == nil, renderRequest.edition.printReady else { return }
@@ -350,6 +354,16 @@ struct PrintShopView: View {
 
     private var orderPanel: some View {
         VStack(spacing: 12) {
+            // Served, dated copy — the Christmas shipping deadline being the case that matters,
+            // since the date moves and a stale one is worse than none at all.
+            if let seasonal = EtchConfig.current.seasonal, seasonal.isActive {
+                Label(seasonal.message, systemImage: "shippingbox")
+                    .font(.system(.footnote, design: .rounded).weight(.semibold))
+                    .foregroundStyle(Theme.accent)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+                    .background(Theme.accent.opacity(0.10), in: .rect(cornerRadius: 10))
+            }
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(size.price)
@@ -401,12 +415,14 @@ struct PrintShopView: View {
                     unavailableNote("This size is coming soon",
                                     detail: "\(size.label) prints need our studio renderer — it's on the way. The other sizes are ready to order today.")
                 }
-            } else if PrintOrderService.isConfigured {
+            } else if PrintOrderService.isConfigured && EtchConfig.current.ordering.enabled {
                 unavailableNote("Order from a piece",
                                 detail: "Open one of your pieces in Studio and tap Prints there — your own artwork is what gets printed.")
             } else {
-                unavailableNote("Ordering opens soon",
-                                detail: "Printed to order on archival paper and shipped to your door. Secure checkout with Apple Pay.")
+                // Copy is served, so the reason ordering is closed can be stated accurately
+                // (opening soon / paused / back in the new year) without a release.
+                unavailableNote(EtchConfig.current.ordering.closedTitle,
+                                detail: EtchConfig.current.ordering.closedDetail)
             }
         }
         .padding(16)

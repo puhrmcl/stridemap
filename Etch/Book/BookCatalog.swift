@@ -30,6 +30,11 @@ enum BookCatalog {
     static let pdfPageRect = CGRect(x: 0, y: 0, width: 841.89, height: 595.28)
 
     /// Retail (locked): standard to ~30 pages; extended tier held until the per-page cost
-    /// schedule is confirmed.
-    static let price = "$119"
+    /// schedule is confirmed. Served remotely so a cost change or a seasonal price ships
+    /// without an App Store release.
+    static var priceCents: Int { EtchConfig.current.prices.yearBookCents }
+
+    static var price: String {
+        (Double(priceCents) / 100).formatted(.currency(code: "USD").precision(.fractionLength(0)))
+    }
 }

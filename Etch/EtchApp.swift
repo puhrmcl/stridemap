@@ -22,6 +22,10 @@ struct EtchApp: App {
             defaults.set(defaults.bool(forKey: "didCompleteOnboarding"), forKey: "didCompleteSetup")
         }
 
+        // Adopt the last-known-good served configuration before the first view renders, so
+        // prices and availability never flash a compiled value and then correct themselves.
+        RemoteConfigService.loadCached()
+
         do {
             let container = try ModelContainer(for: Run.self, SavedPoster.self)
             self.modelContainer = container
@@ -48,6 +52,9 @@ struct EtchApp: App {
                 .environment(sync)
                 .preferredColorScheme(Appearance(rawValue: appearance)?.colorScheme)
                 .tint(Theme.accent)
+                // Refresh the served configuration each launch; a failure silently keeps the
+                // cached (or compiled) document.
+                .task { await RemoteConfigService.refresh() }
         }
         .modelContainer(modelContainer)
     }

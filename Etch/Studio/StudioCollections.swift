@@ -203,17 +203,23 @@ enum StudioCollections {
     /// of twelve glyphs looks unfinished; a constellation of one city is a blob; a bloom needs
     /// volume to read as a form. Home Turf is deliberately not offered here: the heat-tangle is
     /// the most commodity look in the market, the opposite of what the Archive is for.
+    /// Thresholds come from the served configuration (compiled defaults when there's none), so
+    /// they can be tuned against real histories without an App Store release — they're guesses
+    /// until users prove otherwise.
     static func archiveStyles(for runs: [Run]) -> [MapArtStyle] {
+        let gates = EtchConfig.current.archive
         let routed = runs.filter(\.hasRoute)
         var styles: [MapArtStyle] = []
-        if routed.count >= 20 { styles.append(.grid) }
+        if routed.count >= gates.gridMinRoutedRuns { styles.append(.grid) }
         // Ridgeline needs recorded elevation profiles; Rings and Pulse need only dates and
         // distances, so they open the Archive to treadmill-heavy histories too.
-        if runs.filter({ $0.elevationSeries.count > 4 }).count >= 12 { styles.append(.ridgeline) }
-        if runs.count >= 30 { styles.append(.rings) }
-        if runs.count >= 30 { styles.append(.pulse) }
-        if geographicCells(of: runs) >= 4 { styles.append(.constellation) }
-        if routed.count >= 50 { styles.append(.bloom) }
+        if runs.filter({ $0.elevationSeries.count > 4 }).count >= gates.ridgelineMinProfiles {
+            styles.append(.ridgeline)
+        }
+        if runs.count >= gates.ringsMinRuns { styles.append(.rings) }
+        if runs.count >= gates.pulseMinRuns { styles.append(.pulse) }
+        if geographicCells(of: runs) >= gates.constellationMinCells { styles.append(.constellation) }
+        if routed.count >= gates.bloomMinRoutedRuns { styles.append(.bloom) }
         return styles
     }
 

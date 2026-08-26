@@ -29,8 +29,15 @@ struct PrintSize: Identifiable, Hashable {
     var id: String { "\(width)x\(height)-\(prodigiSKU)" }
     var label: String { "\(width) × \(height)″" }
 
+    /// The price actually charged: the served configuration's value for this SKU when there is
+    /// one, else the compiled default above. Lets a cost change or a promotion ship without an
+    /// App Store release. Shopify remains authoritative at checkout.
+    var resolvedPriceCents: Int {
+        EtchConfig.priceCents(sku: prodigiSKU, default: priceCents)
+    }
+
     var price: String {
-        let dollars = Double(priceCents) / 100
+        let dollars = Double(resolvedPriceCents) / 100
         return dollars.formatted(.currency(code: "USD").precision(.fractionLength(0)))
     }
 

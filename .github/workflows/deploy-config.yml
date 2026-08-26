@@ -1,0 +1,76 @@
+# The app's remote configuration, deployed by editing a file.
+#
+# Edit fulfilment/config/app.json (GitHub's web editor works fine from a phone),
+# commit, and this pushes it to the worker — live on every device's next launch,
+# no build, no App Store review. Prices, whether ordering is open, the Archive
+# curation thresholds, and seasonal copy all live in that document.
+#
+# Bump "version" on every edit: the app shows it in Settings as "Catalogue cN",
+# so support can establish which document a device is actually running.
+
+name: Deploy app config
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/rebrand-etch]
+    paths:
+      - "fulfilment/config/app.json"
+      - ".github/workflows/deploy-config.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate the document
+        run: |
+          set -e
+          python3 - <<'EOF'
+          import json, sys
+          config = json.load(open('fulfilment/config/app.json'))
+          # The app tolerates missing keys (it falls back), but a typo in a price is a
+          # real-money mistake, so check shape and sanity here rather than in production.
+          assert isinstance(config.get('version'), int), "version must be an integer"
+          ordering = config['ordering']
+          assert isinstance(ordering['enabled'], bool), "ordering.enabled must be a boolean"
+          prices = config['prices']
+          assert isinstance(prices['yearBookCents'], int), "yearBookCents must be cents (integer)"
+          for sku, cents in prices['bySKU'].items():
+              assert isinstance(cents, int), f"{sku}: price must be cents (integer)"
+              assert 500 <= cents <= 100000, f"{sku}: {cents} cents looks wrong"
+          for key, value in config['archive'].items():
+              assert isinstance(value, int) and value >= 0, f"archive.{key} must be a count"
+          seasonal = config.get('seasonal')
+          if seasonal:
+              assert seasonal.get('message'), "seasonal.message cannot be empty"
+          print(f"config v{config['version']} valid — {len(prices['bySKU'])} priced SKUs")
+          EOF
+
+      - name: Deploy to the worker
+        env:
+          UPLOAD_TOKEN: ${{ secrets.ETCH_UPLOAD_TOKEN }}
+        run: |
+          if [ -z "$UPLOAD_TOKEN" ]; then
+            echo "::error::ETCH_UPLOAD_TOKEN secret is not set."
+            echo "Add it on your phone: github.com/puhrmcl/stridemap → Settings →"
+            echo "Secrets and variables → Actions → New repository secret →"
+            echo "Name: ETCH_UPLOAD_TOKEN → paste the worker's UPLOAD_TOKEN value → Add secret."
+            exit 1
+          fi
+          code=$(curl -sS -o /tmp/response.json -w "%{http_code}" \
+            --retry 3 --retry-all-errors --max-time 30 \
+            -X PUT "https://etch-fulfilment.clintpuhrmann.workers.dev/admin/config" \
+            -H "Authorization: Bearer $UPLOAD_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data-binary @fulfilment/config/app.json)
+          echo "worker responded $code"
+          cat /tmp/response.json; echo
+          [ "$code" = "200" ] || exit 1
+
+      - name: Read it back
+        run: |
+          echo "── live configuration:"
+          curl -sS "https://etch-fulfilment.clintpuhrmann.workers.dev/config" | python3 -m json.tool

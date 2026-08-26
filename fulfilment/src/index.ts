@@ -28,6 +28,9 @@
  *   POST /webhooks/prodigi?token=      Prodigi order-status callbacks.
  *   GET  /orders/by-shopify/:id        Normalized status for the app.
  *   POST /admin/retry/:etchNumber      Bearer UPLOAD_TOKEN; re-submit a failed order.
+ *   GET  /config                       The app's remote configuration (prices, ordering
+ *                                      switch, Archive gates, seasonal copy). Data only.
+ *   PUT  /admin/config                 Bearer UPLOAD_TOKEN; replaces that document.
  *   POST /admin/verify-skus            Bearer UPLOAD_TOKEN; body {skus:[…]} — checks each
  *                                      against the live Prodigi catalog (the Phase 1 gate:
  *                                      the SKUs in the app are UNVERIFIED until this passes).
@@ -61,6 +64,13 @@ export default {
     try {
       if (request.method === "GET" && path === "/health") {
         return json({ ok: true });
+      }
+      if (request.method === "GET" && path === "/config") {
+        return await serveConfig(env);
+      }
+      if (request.method === "PUT" && path === "/admin/config") {
+        requireBearer(request, env);
+        return await putConfig(request, env);
       }
       if (request.method === "PUT" && path.startsWith("/assets/")) {
         return await uploadAsset(request, env, path.slice("/assets/".length));
@@ -96,6 +106,68 @@ export default {
 
 class HttpError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
+}
+
+/* ─────────────────────────── Remote configuration ───────────────────────────
+ * The values the app reads at launch instead of compiling in: prices, whether
+ * ordering is open, the Archive curation thresholds, and seasonal copy. Data
+ * only — Apple forbids shipping code this way, and none of this is code.
+ *
+ * Stored as a single JSON object in R2 so editing it is one PUT, and the app
+ * keeps a compiled fallback for when this is unreachable.
+ */
+const CONFIG_KEY = "config/app.json";
+
+/** Served when nothing has been written yet — matches the app's compiled defaults. */
+const DEFAULT_CONFIG = {
+  version: 1,
+  ordering: {
+    enabled: true,
+    closedTitle: "Ordering opens soon",
+    closedDetail:
+      "Printed to order on archival paper and shipped to your door. Secure checkout with Apple Pay.",
+  },
+  prices: { bySKU: {}, yearBookCents: 11900 },
+  archive: {
+    gridMinRoutedRuns: 20,
+    ridgelineMinProfiles: 12,
+    ringsMinRuns: 30,
+    pulseMinRuns: 30,
+    constellationMinCells: 4,
+    bloomMinRoutedRuns: 50,
+  },
+  seasonal: null,
+};
+
+async function serveConfig(env: Env): Promise<Response> {
+  const object = await env.ASSETS.get(CONFIG_KEY);
+  const body = object ? await object.text() : JSON.stringify(DEFAULT_CONFIG);
+  return new Response(body, {
+    headers: {
+      ...JSON_HEADERS,
+      // Short cache: an edit should reach devices in minutes, not on next launch only.
+      "Cache-Control": "public, max-age=300",
+    },
+  });
+}
+
+async function putConfig(request: Request, env: Env): Promise<Response> {
+  const text = await request.text();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new HttpError(400, "invalid_json");
+  }
+  if (typeof parsed !== "object" || parsed === null) throw new HttpError(400, "invalid_config");
+  // Require a version so a device can report which document it's running.
+  if (typeof (parsed as { version?: unknown }).version !== "number") {
+    throw new HttpError(400, "missing_version");
+  }
+  await env.ASSETS.put(CONFIG_KEY, JSON.stringify(parsed), {
+    httpMetadata: { contentType: "application/json" },
+  });
+  return json({ ok: true, version: (parsed as { version: number }).version });
 }
 
 function json(body: unknown, status = 200): Response {
