@@ -74,7 +74,6 @@ struct StudioHomeView: View {
     }
 
     private var scopedRuns: [Run] { runs.scoped(to: scope) }
-    private var stats: RunStatistics { RunStatistics(scopedRuns) }
     /// Only runs with a route make good art.
     private var mapped: [Run] { scopedRuns.filter(\.hasRoute) }
 
@@ -96,22 +95,18 @@ struct StudioHomeView: View {
                         }
                     }
                 } else {
+                    // A storefront, in the order a shop is read: one editorial hero, then the
+                    // products, then the curated line, then your own work — and the utilities
+                    // last, quiet. What used to be four shelves of run thumbnails now lives
+                    // inside choosing a product, which is where picking a subject belongs.
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 30) {
+                        VStack(alignment: .leading, spacing: 38) {
                             intro
                             momentHero
+                            productGrid
                             collectionsSection
                             if !keptPosters.isEmpty { keptSection }
-                            if !milestones.isEmpty { subjectRow("Milestones", milestones) }
-                            let races = mapped.filter(\.isRace)
-                            if !races.isEmpty { subjectRow("Races", races.map { ($0, nil) }) }
-                            let favorites = mapped.filter(\.isFavorite)
-                            if !favorites.isEmpty { subjectRow("Favorites", favorites.map { ($0, nil) }) }
-                            subjectRow("Recent", Array(mapped.prefix(12)).map { ($0, nil) })
-                            mapPrintsSection
-                            yearBookBand
-                            if hasPhotos { photoWallBand }
-                            printsBand
+                            utilityFooter
                         }
                         .padding(.vertical, 14)
                     }
@@ -284,18 +279,10 @@ struct StudioHomeView: View {
                 }
             }
 
-            // Filter Studio by activity — only when there's more than one type — sits above the
-            // entry points so the choice frames what "Add"/"Import" act on.
+            // Filter Studio by activity — only when there's more than one type. Bringing
+            // activities in now lives at the foot of the page: a storefront opens with what it
+            // sells, not with its filing cabinet.
             if !isSingleActivity { scopeFilter }
-
-            HStack(spacing: 10) {
-                // "Add a race" is a running concept — only for Runs or All Activities.
-                if showsAddRace {
-                    actionCapsule("Add a race", "trophy") { showAddRace = true }
-                }
-                actionCapsule("Import an activity", "square.and.arrow.down") { showImportPicker = true }
-            }
-            .padding(.top, 4)
         }
         .padding(.horizontal, 20)
     }
@@ -348,142 +335,182 @@ struct StudioHomeView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: Subject rows
+    // MARK: The storefront — what you can make
 
-    /// The standout runs, each with a small label — the most Studio-worthy subjects. Ordered so
-    /// the marquee superlatives lead, then benchmark-distance bests, then the firsts/edges. Any
-    /// run that qualifies twice keeps its first (highest-priority) label.
-    private var milestones: [(Run, String?)] {
-        var out: [(Run, String?)] = []
-        if let r = stats.longestRun, r.hasRoute { out.append((r, "Furthest")) }
-        // Pace-based superlatives only make sense for runs (a hike's "fastest" is meaningless).
-        if scope.usesPace, let r = stats.fastestRun, r.hasRoute { out.append((r, "Fastest")) }
-        if let r = stats.highestClimb, r.hasRoute { out.append((r, "Highest")) }
-
-        // Best effort at each marquee race distance — a personal record worth a poster (runs only).
-        if scope.usesPace {
-            let prByLabel = Dictionary(uniqueKeysWithValues: stats.personalRecords.map { ($0.label, $0.run) })
-            for label in ["Marathon", "Half Marathon", "10K", "5K"] {
-                if let r = prByLabel[label], r.hasRoute { out.append((r, label)) }
-            }
-        }
-
-        if let r = mapped.min(by: { $0.startDate < $1.startDate }) { out.append((r, "First")) }
-        if let r = stats.northernmostRun, r.hasRoute { out.append((r, "Northernmost")) }
-        if let r = stats.southernmostRun, r.hasRoute { out.append((r, "Southernmost")) }
-
-        var seen = Set<UUID>()
-        return out.filter { seen.insert($0.0.id).inserted }
-    }
-
-    private func subjectRow(_ title: String, _ items: [(Run, String?)]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.system(.title3, design: .rounded).weight(.bold))
-                .padding(.horizontal, 20)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(items, id: \.0.id) { run, caption in
-                        Button { studioRun = run } label: { card(run, caption: caption) }
-                            .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 20)
-            }
-        }
-    }
-
-    private func card(_ run: Run, caption: String?) -> some View {
-        RunMonthTile(run: run, corner: 16)
-            .frame(width: 168, height: 210)
-            .overlay(alignment: .topLeading) {
-                if let caption {
-                    Text(caption.uppercased())
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .tracking(1)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 4)
-                        .background(Theme.accent, in: .capsule)
-                        .padding(10)
-                }
-            }
-    }
-
-    // MARK: Photo wall
-
-    /// Whether any scoped run carries a cover photo — gates the photo-wall entry point.
+    /// Whether any scoped run carries a cover photo — gates the Photo Wall utility row.
     private var hasPhotos: Bool { scopedRuns.contains { !$0.photoReferences.isEmpty } }
-
-    /// Entry to the photo-wall poster: a contact sheet of every run's cover photo, filterable.
     @State private var showYearBook = false
 
-    /// The Year Book — a year of activity as a layflat hardcover, self-composed. The Q4 hero.
-    private var yearBookBand: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Year Book")
-                .font(.system(.title3, design: .rounded).weight(.bold))
-            Button { showYearBook = true } label: {
-                HStack(spacing: 14) {
-                    Image(systemName: "book.pages")
-                        .font(.system(size: 26, weight: .semibold))
-                        .foregroundStyle(Theme.accent)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Your whole year, printed")
-                            .font(.system(.headline, design: .rounded))
-                            .foregroundStyle(Theme.accent)
-                        Text("A layflat hardcover that composes itself — every month, every race, every line you ran.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right").font(.footnote.weight(.bold)).foregroundStyle(.tertiary)
+    /// Which product's activity picker is open.
+    @State private var pickingFor: StudioProduct?
+    /// Live previews of each product, rendered from this user's own history.
+    @State private var productPreviews: [StudioProduct: UIImage] = [:]
+
+    /// The four objects Etch makes, as a shop presents them: a large image of the thing itself,
+    /// its name, one line, and a price. Two columns, generous air — the grid does the selling,
+    /// so nothing below it has to shout.
+    private var productGrid: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            sectionTitle("What would you like to make?")
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)],
+                      spacing: 20) {
+                ForEach(StudioProduct.allCases) { product in
+                    Button { open(product) } label: { productCard(product) }
+                        .buttonStyle(.plain)
                 }
-                .padding(18)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 18))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18).strokeBorder(Theme.accent.opacity(0.18), lineWidth: 1)
-                )
             }
-            .buttonStyle(.plain)
-            .sheet(isPresented: $showYearBook) { YearBookView() }
         }
         .padding(.horizontal, 20)
+        .task(id: mapped.count) { await renderProductPreviews() }
+        .sheet(item: $pickingFor) { product in
+            ActivityPickerSheet(runs: runs, scope: scope) { run in
+                // The picker dismisses itself; give it a beat before the editor rises.
+                let family = product.family
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    studioPreset = StudioSubjectPick(run: run, family: family)
+                }
+            }
+        }
+        .sheet(item: $studioPreset) { pick in
+            StudioView(run: pick.run, preset: preset(pick.family, for: pick.run))
+        }
     }
 
-    private var photoWallBand: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Photo Wall")
-                .font(.system(.title3, design: .rounded).weight(.bold))
-            Button { showPhotoWall = true } label: {
-                HStack(spacing: 14) {
-                    Image(systemName: "photo.on.rectangle.angled")
-                        .font(.system(size: 26, weight: .semibold))
-                        .foregroundStyle(Theme.accent)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("A wall of your run photos")
-                            .font(.system(.headline, design: .rounded))
-                            .foregroundStyle(Theme.accent)
-                        Text("Every run's cover photo as one poster — sort and filter by year or place.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right").font(.footnote.weight(.bold)).foregroundStyle(.tertiary)
+    /// A chosen subject waiting to open in the editor on a particular product.
+    struct StudioSubjectPick: Identifiable {
+        let run: Run
+        let family: PosterFamily
+        var id: UUID { run.id }
+    }
+    @State private var studioPreset: StudioSubjectPick?
+
+    private func preset(_ family: PosterFamily, for run: Run) -> PosterConfig {
+        var config = PosterConfig.makeDefault(for: run)
+        config.family = family
+        return config
+    }
+
+    private func open(_ product: StudioProduct) {
+        switch product {
+        case .mapPoster, .galleryPoster: pickingFor = product
+        case .yearBook:                  showYearBook = true
+        case .wallArt:                   mapPrintKind = .artMap
+        }
+    }
+
+    private func productCard(_ product: StudioProduct) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14).fill(Theme.Palette.bone)
+                if let image = productPreviews[product] {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .transition(.opacity)
+                } else {
+                    Image(systemName: product == .yearBook ? "book.pages" : "photo.artframe")
+                        .font(.system(size: 26))
+                        .foregroundStyle(Theme.Palette.ink.opacity(0.22))
                 }
-                .padding(18)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 18))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18).strokeBorder(Theme.accent.opacity(0.18), lineWidth: 1)
-                )
             }
-            .buttonStyle(.plain)
+            .aspectRatio(product == .yearBook ? 1.25 : 0.72, contentMode: .fit)
+            .frame(maxWidth: .infinity)
+            .clipShape(.rect(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.12), radius: 10, y: 5)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(product.name)
+                    .font(.system(.headline, design: .rounded))
+                    .foregroundStyle(.primary)
+                Text(product.line)
+                    .font(.system(.caption, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(product.priceLine)
+                    .font(.system(.caption, design: .rounded).weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 1)
+            }
+        }
+    }
+
+    /// Each tile shows the buyer's own history in that product — a stock sample would be a
+    /// different shop's promise. Sequential and cached, so the page settles once.
+    private func renderProductPreviews() async {
+        guard let subject = heroPiece?.run ?? mapped.first else { return }
+        for product in StudioProduct.allCases where productPreviews[product] == nil {
+            if Task.isCancelled { return }
+            let image: UIImage?
+            switch product {
+            case .mapPoster, .galleryPoster:
+                var recipe = PosterConfig.makeDefault(for: subject)
+                recipe.family = product.family
+                image = await StudioRenderer.image(for: recipe.request(for: subject), scale: 0.34)
+            case .yearBook:
+                let year = Calendar.current.component(.year, from: subject.startDate)
+                let plan = BookPlan.make(year: year, runs: runs)
+                image = await BookRenderer.pageImage(plan: plan, page: 0, scale: 0.34)
+            case .wallArt:
+                var request = MapPrintRequest.make(kind: .artMap, runs: mapped)
+                request.artStyle = .grid
+                image = await MapPrintRenderer.image(for: request, scale: 0.2)
+            }
+            if Task.isCancelled { return }
+            if let image {
+                withAnimation(.easeIn(duration: 0.2)) { productPreviews[product] = image }
+            }
+        }
+    }
+
+    private func sectionTitle(_ text: String) -> some View {
+        Text(text)
+            .font(.system(.title3, design: .rounded).weight(.bold))
+    }
+
+    // MARK: The utilities, kept quiet at the foot of the page
+
+    /// Everything that isn't a product: bringing activities in, the photo wall, and browsing the
+    /// print catalogue on its own. Present, findable, and deliberately not competing with the
+    /// storefront above.
+    private var utilityFooter: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Divider().padding(.bottom, 4)
+            if showsAddRace {
+                utilityRow("Add a race", "trophy") { showAddRace = true }
+            }
+            utilityRow("Import an activity", "square.and.arrow.down") { showImportPicker = true }
+            if hasPhotos {
+                utilityRow("Photo Wall", "photo.on.rectangle.angled") { showPhotoWall = true }
+            }
+            utilityRow("Browse prints & frames", "bag") { showPrints = true }
         }
         .padding(.horizontal, 20)
+        .sheet(isPresented: $showPrints) { PrintShopView(subjectTitle: nil) }
+        .sheet(isPresented: $showYearBook) { YearBookView() }
+    }
+
+    private func utilityRow(_ title: String, _ symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: symbol)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 24)
+                Text(title)
+                    .font(.system(.subheadline, design: .rounded))
+                    .foregroundStyle(.primary)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.vertical, 11)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: The moment hero — Studio knows the user; lead with *their* moment
@@ -633,81 +660,6 @@ struct StudioHomeView: View {
         )
     }
 
-    // MARK: Full-map prints (the whole history as one poster)
-
-    private var mapPrintsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Full-Map Prints")
-                .font(.system(.title3, design: .rounded).weight(.bold))
-                .padding(.horizontal, 20)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(MapPrintKind.allCases) { kind in
-                        Button { mapPrintKind = kind } label: { mapPrintCard(kind) }
-                            .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 20)
-            }
-        }
-    }
-
-    private func mapPrintCard(_ kind: MapPrintKind) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: kind.symbol)
-                .font(.system(size: 26, weight: .semibold))
-                .foregroundStyle(Theme.accent)
-            Spacer(minLength: 0)
-            Text(kind.name)
-                .font(.system(.headline, design: .rounded))
-                .foregroundStyle(.primary)
-            Text(kind.descriptor)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(16)
-        .frame(width: 200, height: 180, alignment: .leading)
-        .background(Theme.accent.opacity(0.06), in: .rect(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Theme.accent.opacity(0.15), lineWidth: 1))
-    }
-
-    // MARK: Prints (entry point — fulfillment lands with the Prodigi backend)
-
-    private var printsBand: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Prints")
-                .font(.system(.title3, design: .rounded).weight(.bold))
-            Button { showPrints = true } label: {
-                HStack(spacing: 14) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        // Copy matches the actual catalogue (two products; canvas was cut) —
-                        // advertising a product we don't sell is how premium positioning dies.
-                        Label("Fine-art prints & framed pieces", systemImage: "photo.artframe")
-                            .font(.system(.headline, design: .rounded))
-                            .foregroundStyle(Theme.accent)
-                        Text("Museum-grade archival paper and hardwood frames — printed to order, shipped to your door.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right").font(.footnote.weight(.bold)).foregroundStyle(.tertiary)
-                }
-                .padding(18)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 18))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18)
-                        .strokeBorder(Theme.accent.opacity(0.18), lineWidth: 1)
-                )
-            }
-            .buttonStyle(.plain)
-            .sheet(isPresented: $showPrints) { PrintShopView(subjectTitle: nil) }
-        }
-        .padding(.horizontal, 20)
-    }
 }
 
 /// A kept poster on the Studio home shelf — its actual composition re-rendered at preview
