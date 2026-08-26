@@ -166,6 +166,12 @@ def main():
     rows = parse()
     if rows is None:
         return 1
+    if "--json" in sys.argv:
+        import json
+        for r in rows:
+            r["distanceLabel"] = distance_label(r["distance"])
+        print(json.dumps(rows, ensure_ascii=False))
+        return 0
     text = render(rows)
     check = "--check" in sys.argv
     existing = open(DOC, encoding="utf-8").read() if os.path.exists(DOC) else None
