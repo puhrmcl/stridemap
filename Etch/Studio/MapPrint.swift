@@ -132,6 +132,13 @@ enum StateMetric: String, CaseIterable, Identifiable {
 enum MapArtStyle: String, CaseIterable, Identifiable {
     /// A contact sheet — each run its own normalized glyph in its own cell.
     case grid
+    /// Every run's elevation profile stacked as overlapping ridgelines — a mountain chain of
+    /// the whole history.
+    case ridgeline
+    /// The years as tree rings — every run a tick placed by its day in the year.
+    case rings
+    /// The history as a waveform — every activity a beat, its amplitude the distance.
+    case pulse
     /// Every route re-centred to a common origin, radiating outward.
     case bloom
     /// The densest-cluster tangle (home turf), rendered as heat.
@@ -142,6 +149,9 @@ enum MapArtStyle: String, CaseIterable, Identifiable {
     var name: String {
         switch self {
         case .grid:          return "Grid"
+        case .ridgeline:     return "Ridgeline"
+        case .rings:         return "Rings"
+        case .pulse:         return "Pulse"
         case .bloom:         return "Bloom"
         case .homeTurf:      return "Home Turf"
         case .constellation: return "Constellation"
@@ -150,6 +160,9 @@ enum MapArtStyle: String, CaseIterable, Identifiable {
     var descriptor: String {
         switch self {
         case .grid:          return "Every run as its own glyph, in a grid."
+        case .ridgeline:     return "Every climb stacked — your elevations as one mountain chain."
+        case .rings:         return "Your years as tree rings — every run a mark in its season."
+        case .pulse:         return "Your history as a waveform — every day's miles, beating."
         case .bloom:         return "Every route radiating from one centre."
         case .homeTurf:      return "The dense tangle of your home turf."
         case .constellation: return "Your runs as a constellation of points."

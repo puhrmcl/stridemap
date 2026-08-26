@@ -207,6 +207,11 @@ enum StudioCollections {
         let routed = runs.filter(\.hasRoute)
         var styles: [MapArtStyle] = []
         if routed.count >= 20 { styles.append(.grid) }
+        // Ridgeline needs recorded elevation profiles; Rings and Pulse need only dates and
+        // distances, so they open the Archive to treadmill-heavy histories too.
+        if runs.filter({ $0.elevationSeries.count > 4 }).count >= 12 { styles.append(.ridgeline) }
+        if runs.count >= 30 { styles.append(.rings) }
+        if runs.count >= 30 { styles.append(.pulse) }
         if geographicCells(of: runs) >= 4 { styles.append(.constellation) }
         if routed.count >= 50 { styles.append(.bloom) }
         return styles
@@ -311,7 +316,12 @@ struct CollectionBrowserView: View {
         .contentShape(.rect)
     }
 
-    /// The Archive's rows are styles, not runs — each is the whole history rendered one way.
+    /// The Archive's rows are styles, not runs — each is the whole history rendered one way,
+    /// led by a live thumbnail of *this* user's data in that style (a text row asked the buyer
+    /// to imagine the product; the thumbnail is the product).
+    @State private var archiveThumbs: [MapArtStyle: UIImage] = [:]
+    @State private var showYearBook = false
+
     private var archiveList: some View {
         VStack(spacing: 0) {
             let styles = StudioCollections.archiveStyles(for: runs)
@@ -319,6 +329,7 @@ struct CollectionBrowserView: View {
                 if index > 0 { Divider().padding(.leading, 20) }
                 Button { archivePick = style } label: {
                     HStack(spacing: 14) {
+                        archiveThumbnail(style)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(style.name)
                                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
@@ -331,12 +342,80 @@ struct CollectionBrowserView: View {
                             .font(.footnote.weight(.bold))
                             .foregroundStyle(.tertiary)
                     }
-                    .padding(16)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
                     .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
             }
+
+            // The Archive's other object: the whole year as a layflat hardcover.
+            Divider().padding(.leading, 20)
+            Button { showYearBook = true } label: {
+                HStack(spacing: 14) {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Theme.Palette.bone)
+                        .frame(width: 56, height: 84)
+                        .overlay {
+                            Image(systemName: "book.pages")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundStyle(Theme.accent)
+                        }
+                        .overlay(RoundedRectangle(cornerRadius: 6)
+                            .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("The Year Book")
+                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        Text("A year of it, bound — layflat hardcover, composed from your months and races.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.bold))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .sheet(isPresented: $showYearBook) { YearBookView() }
         }
         .background(.primary.opacity(0.05), in: .rect(cornerRadius: 18))
+        .task(id: runs.count) { await renderArchiveThumbnails() }
+    }
+
+    @ViewBuilder private func archiveThumbnail(_ style: MapArtStyle) -> some View {
+        Group {
+            if let image = archiveThumbs[style] {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                Theme.Palette.bone
+            }
+        }
+        .frame(width: 56, height: 84)
+        .clipShape(.rect(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6)
+            .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
+    }
+
+    /// Renders each offered style's poster at thumbnail scale — the user's own history, not a
+    /// stock sample. Sequential, cached for the sheet's lifetime.
+    private func renderArchiveThumbnails() async {
+        guard collection == .archive else { return }
+        for style in StudioCollections.archiveStyles(for: runs) where archiveThumbs[style] == nil {
+            if Task.isCancelled { return }
+            var request = MapPrintRequest.make(kind: .artMap, runs: runs)
+            request.artStyle = style
+            if style == .homeTurf, let region = MapPrintRequest.homeTurfRegion(runs: runs) {
+                request.region = region
+            }
+            if let image = await MapPrintRenderer.image(for: request, scale: 0.14) {
+                archiveThumbs[style] = image
+            }
+        }
     }
 }

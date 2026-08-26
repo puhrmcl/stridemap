@@ -173,21 +173,15 @@ enum MapPrintRenderer {
             let weight = request.artWeight.multiplier
             switch request.artStyle {
             case .grid:          drawGrid(runs, size: size, line: line, unit: unit, weight: weight)
+            case .ridgeline:     drawRidgeline(runs, size: size, line: line, ground: ground, unit: unit, weight: weight)
+            case .rings:         drawRings(runs, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark, weight: weight)
+            case .pulse:         drawPulse(runs, size: size, line: line, unit: unit, weight: weight)
             case .bloom:         drawBloom(runs, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark, weight: weight, zoom: request.artZoom)
             case .homeTurf:      drawHomeTurf(runs, region: request.region, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark, weight: weight)
             case .constellation: drawConstellation(runs, region: request.region, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark, weight: weight)
             }
-
-            // Gallery finish: a subtle vignette for depth.
-            let center = CGPoint(x: size.width / 2, y: size.height / 2)
-            let maxDim = max(size.width, size.height)
-            let colors = [UIColor.clear.cgColor, UIColor.black.withAlphaComponent(0.16).cgColor] as CFArray
-            if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
-                                         colors: colors, locations: [0, 1]) {
-                cg.drawRadialGradient(gradient, startCenter: center, startRadius: maxDim * 0.32,
-                                      endCenter: center, endRadius: maxDim * 0.72,
-                                      options: .drawsAfterEndLocation)
-            }
+            // No vignette or gradient finish: the ink on its ground *is* the piece — any overlay
+            // reads as a filter, not a print.
         }
     }
 
@@ -359,36 +353,161 @@ enum MapPrintRenderer {
 
     // MARK: Constellation — points placed by geography, sized by distance
 
+    /// A clean starfield: no connecting thread (it read as clutter, not narrative), every point
+    /// with a soft same-tone halo so the field has depth, and races ringed like named stars.
     private static func drawConstellation(_ runs: [Run], region: MKCoordinateRegion, size: CGSize,
                                           line: UIColor, unit: CGFloat, cg: CGContext, dark: Bool, weight: CGFloat) {
         let project = geoProjector(region: region, size: size)
-        let sorted = runs.sorted { $0.startDate < $1.startDate }
-
-        // A quiet chronological thread linking the runs.
-        let thread = UIBezierPath()
-        var started = false
-        for run in sorted {
-            guard let start = run.startCoordinate else { continue }
-            let p = project(start)
-            if started { thread.addLine(to: p) } else { thread.move(to: p); started = true }
-        }
-        line.withAlphaComponent(0.16).setStroke()
-        thread.lineWidth = 1 * unit * weight
-        thread.stroke()
-
-        // Points sized by distance.
         let maxDist = runs.map(\.distance).max() ?? 1
-        for run in runs {
+        for run in runs.sorted(by: { $0.distance < $1.distance }) {
             guard let start = run.startCoordinate else { continue }
             let p = project(start)
             let t = maxDist > 0 ? CGFloat(run.distance / maxDist) : 0
-            let radius = (3 + 10 * t.squareRoot()) * unit * weight
+            let radius = (2.6 + 9 * t.squareRoot()) * unit * weight
             let rect = CGRect(x: p.x - radius, y: p.y - radius, width: radius * 2, height: radius * 2)
             cg.saveGState()
-            if dark { cg.setShadow(offset: .zero, blur: radius * 1.5, color: line.cgColor) }
+            cg.setShadow(offset: .zero, blur: radius * (dark ? 1.8 : 1.1), color: line.cgColor)
             line.withAlphaComponent(0.9).setFill()
             UIBezierPath(ovalIn: rect).fill()
             cg.restoreGState()
+            // Races read as named stars — a fine open ring around the point.
+            if run.isRace {
+                let ring = UIBezierPath(ovalIn: rect.insetBy(dx: -radius * 0.9, dy: -radius * 0.9))
+                line.withAlphaComponent(0.65).setStroke()
+                ring.lineWidth = 1.4 * unit * weight
+                ring.stroke()
+            }
+        }
+    }
+
+    // MARK: Ridgeline — every elevation profile stacked as one mountain chain
+
+    /// The joy of stacked ridges: each run's elevation profile is a ridge, oldest at the top,
+    /// each newer ridge filled with the ground before it's stroked so it occludes the chain
+    /// behind it. Runs without an elevation series simply aren't ridges.
+    private static func drawRidgeline(_ runs: [Run], size: CGSize, line: UIColor, ground: UIColor,
+                                      unit: CGFloat, weight: CGFloat) {
+        let ridged = runs.filter { $0.elevationSeries.count > 4 }
+            .sorted { $0.startDate < $1.startDate }
+            .suffix(48)
+        guard !ridged.isEmpty else { return }
+
+        let marginX = size.width * 0.12
+        let marginY = size.height * 0.16
+        let drawableHeight = size.height - marginY * 2
+        let rowSpacing = ridged.count > 1 ? drawableHeight / CGFloat(ridged.count - 1) : 0
+        let amplitude = max(rowSpacing * 2.6, drawableHeight * 0.08)
+        let width = size.width - marginX * 2
+
+        for (row, run) in ridged.enumerated() {
+            let baseline = marginY + (ridged.count > 1 ? CGFloat(row) * rowSpacing : drawableHeight / 2)
+            let samples = run.elevationSeries
+            let minV = samples.min() ?? 0
+            let span = max((samples.max() ?? 0) - minV, 1)
+
+            let ridge = UIBezierPath()
+            ridge.move(to: CGPoint(x: marginX, y: baseline))
+            for (i, sample) in samples.enumerated() {
+                let x = marginX + width * CGFloat(i) / CGFloat(samples.count - 1)
+                let norm = CGFloat((sample - minV) / span)
+                ridge.addLine(to: CGPoint(x: x, y: baseline - norm * amplitude))
+            }
+            ridge.addLine(to: CGPoint(x: marginX + width, y: baseline))
+
+            // Fill with the ground first: the newer ridge occludes the peaks behind it.
+            let fill = ridge.copy() as! UIBezierPath
+            fill.close()
+            ground.setFill()
+            fill.fill()
+
+            line.withAlphaComponent(0.92).setStroke()
+            ridge.lineWidth = 1.7 * unit * weight
+            ridge.lineJoinStyle = .round
+            ridge.lineCapStyle = .round
+            ridge.stroke()
+        }
+    }
+
+    // MARK: Rings — the years as tree rings
+
+    /// One ring per year, every run a radial tick at its day-of-year angle, tick length by
+    /// distance. Races strike through at full strength — the year's landmarks.
+    private static func drawRings(_ runs: [Run], size: CGSize, line: UIColor, unit: CGFloat,
+                                  cg: CGContext, dark: Bool, weight: CGFloat) {
+        let calendar = Calendar.current
+        let byYear = Dictionary(grouping: runs) { calendar.component(.year, from: $0.startDate) }
+        let years = byYear.keys.sorted()
+        guard !years.isEmpty else { return }
+
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let maxRadius = min(size.width, size.height) * 0.42
+        let innerRadius = maxRadius * (years.count > 1 ? 0.34 : 0.62)
+        let band = years.count > 1 ? (maxRadius - innerRadius) / CGFloat(years.count - 1) : 0
+        let maxDist = runs.map(\.distance).max() ?? 1
+
+        if dark { cg.setBlendMode(.plusLighter) }
+        for (index, year) in years.enumerated() {
+            let radius = years.count > 1 ? innerRadius + band * CGFloat(index) : innerRadius
+            // The year's faint orbit.
+            let orbit = UIBezierPath(arcCenter: center, radius: radius,
+                                     startAngle: 0, endAngle: .pi * 2, clockwise: true)
+            line.withAlphaComponent(0.14).setStroke()
+            orbit.lineWidth = 1 * unit
+            orbit.stroke()
+
+            for run in byYear[year] ?? [] {
+                let day = calendar.ordinality(of: .day, in: .year, for: run.startDate) ?? 1
+                let angle = CGFloat(day) / 366 * 2 * .pi - .pi / 2
+                let t = maxDist > 0 ? CGFloat(run.distance / maxDist) : 0
+                let halfLength = (5 + 24 * t.squareRoot()) * unit * weight / 2
+                let direction = CGPoint(x: cos(angle), y: sin(angle))
+                let tick = UIBezierPath()
+                tick.move(to: CGPoint(x: center.x + direction.x * (radius - halfLength),
+                                      y: center.y + direction.y * (radius - halfLength)))
+                tick.addLine(to: CGPoint(x: center.x + direction.x * (radius + halfLength),
+                                         y: center.y + direction.y * (radius + halfLength)))
+                line.withAlphaComponent(run.isRace ? 1.0 : 0.5).setStroke()
+                tick.lineWidth = (run.isRace ? 2.8 : 1.5) * unit * weight
+                tick.lineCapStyle = .round
+                tick.stroke()
+            }
+        }
+        cg.setBlendMode(.normal)
+    }
+
+    // MARK: Pulse — the history as a waveform
+
+    /// Every activity is a beat: a vertical bar at its moment in time, amplitude by distance,
+    /// mirrored around the midline so the whole reads as a waveform of the running life.
+    private static func drawPulse(_ runs: [Run], size: CGSize, line: UIColor, unit: CGFloat, weight: CGFloat) {
+        let sorted = runs.sorted { $0.startDate < $1.startDate }
+        guard let first = sorted.first?.startDate, let last = sorted.last?.startDate else { return }
+        let span = max(last.timeIntervalSince(first), 1)
+        let marginX = size.width * 0.09
+        let width = size.width - marginX * 2
+        let midY = size.height / 2
+        let maxAmplitude = size.height * 0.32
+        let maxDist = sorted.map(\.distance).max() ?? 1
+
+        // The quiet midline the beats hang from.
+        let baseline = UIBezierPath()
+        baseline.move(to: CGPoint(x: marginX, y: midY))
+        baseline.addLine(to: CGPoint(x: marginX + width, y: midY))
+        line.withAlphaComponent(0.16).setStroke()
+        baseline.lineWidth = 1 * unit
+        baseline.stroke()
+
+        for run in sorted {
+            let x = marginX + width * CGFloat(run.startDate.timeIntervalSince(first) / span)
+            let t = maxDist > 0 ? CGFloat(run.distance / maxDist) : 0
+            let amplitude = max(maxAmplitude * t.squareRoot(), 5 * unit)
+            let bar = UIBezierPath()
+            bar.move(to: CGPoint(x: x, y: midY - amplitude))
+            bar.addLine(to: CGPoint(x: x, y: midY + amplitude))
+            line.withAlphaComponent(run.isRace ? 1.0 : 0.62).setStroke()
+            bar.lineWidth = (run.isRace ? 3.2 : 2.0) * unit * weight
+            bar.lineCapStyle = .round
+            bar.stroke()
         }
     }
 

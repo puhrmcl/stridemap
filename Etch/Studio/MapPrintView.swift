@@ -209,7 +209,11 @@ struct MapPrintView: View {
                 }
             }
             .sheet(isPresented: $showExport) { MapPrintExportSheet(request: request) }
-            .sheet(isPresented: $showPrints) { PrintShopView(subjectTitle: request.title) }
+            // Hand the current render to the shop so the frame mockup shows *this* piece —
+            // without it the mockup fell back to the placeholder sheet.
+            .sheet(isPresented: $showPrints) {
+                PrintShopView(subjectTitle: request.title, artwork: rendered[currentKey])
+            }
             .task(id: currentKey) { await renderIfNeeded(currentKey) }
             .onChange(of: kind) { focusName = nil; stateTitle = ""; artFilter = .all; statesUSAOnly = false; resetFrame() }
             .onChange(of: focusName) { stateTitle = ""; resetFrame() }
