@@ -13,6 +13,11 @@ on:
     branches: [claude/rebrand-etch]
     paths:
       - ".github/workflows/diagnose-map.yml"
+      - "Etch/Views/HomeView.swift"
+      - "Etch/Map/StatesMapView.swift"
+      - "Etch/Map/CitiesMapView.swift"
+      - "Etch/Map/CountriesMapView.swift"
+      - "Etch/Map/RunMapView.swift"
 
 jobs:
   diagnose:

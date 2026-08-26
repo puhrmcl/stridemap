@@ -272,6 +272,7 @@ struct HomeView: View {
         Group {
             if showLocations {
                 if locationOverlay == .states {
+                    let _ = Self.diagLog("canvas → States branch")
                     StatesMapView(
                         intensities: stateIntensities,
                         mapStyle: mapStyle,
@@ -284,6 +285,7 @@ struct HomeView: View {
                     )
                     .id("states-\(locationRecenterToken)")
                 } else if locationOverlay == .countries {
+                    let _ = Self.diagLog("canvas → Countries branch")
                     CountriesMapView(
                         intensities: countryIntensities,
                         mapStyle: mapStyle,
@@ -292,6 +294,7 @@ struct HomeView: View {
                     )
                     .id("countries-\(locationRecenterToken)")
                 } else {
+                    let _ = Self.diagLog("canvas → Cities/Landmarks branch")
                     CitiesMapView(
                         cities: overlayPlaces,
                         selectedRunID: $appModel.selectedRunID,
@@ -318,6 +321,12 @@ struct HomeView: View {
                 )
             }
         }
+        // Force the whole map subtree's identity to follow the chosen view. Switching to a place
+        // view flipped the state (the chip and the choropleth computations followed) but SwiftUI
+        // kept the route map's representable alive instead of swapping in the place map — the
+        // "State / City / Country / Landmark do nothing" bug, reproduced in the diagnose-map rig.
+        // A per-mode id makes the swap an identity change, which SwiftUI cannot elide.
+        .id("map-mode-\(showLocations ? locationOverlay.rawValue : "routes")")
         .ignoresSafeArea()
         // Tap anywhere on the map to dismiss the open mode dropdown (it sits above this layer).
         .overlay {
@@ -1003,6 +1012,13 @@ struct HomeView: View {
     private var runStartPoints: [RunMapPoint] {
         scopedRuns.compactMap { run in
             run.startCoordinate.map { RunMapPoint(id: run.id, coordinate: $0) }
+        }
+    }
+
+    /// CI diagnostics (ETCH_DIAG_MAP=1): logs which map branch the body actually builds.
+    static func diagLog(_ message: String) {
+        if ProcessInfo.processInfo.environment["ETCH_DIAG_MAP"] == "1" {
+            NSLog("ETCHDIAG map: %@", message)
         }
     }
 
