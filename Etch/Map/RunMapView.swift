@@ -58,6 +58,12 @@ struct RunMapView: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
+    static func dismantleUIView(_ uiView: MKMapView, coordinator: Coordinator) {
+        if ProcessInfo.processInfo.environment["ETCH_DIAG_MAP"] == "1" {
+            NSLog("ETCHDIAG map: RunMapView dismantled")
+        }
+    }
+
     func makeUIView(context: Context) -> MKMapView {
         if ProcessInfo.processInfo.environment["ETCH_DIAG_MAP"] == "1" {
             NSLog("ETCHDIAG map: RunMapView made")
@@ -113,6 +119,9 @@ struct RunMapView: UIViewRepresentable {
     }
 
     func updateUIView(_ map: MKMapView, context: Context) {
+        if ProcessInfo.processInfo.environment["ETCH_DIAG_MAP"] == "1" {
+            NSLog("ETCHDIAG map: RunMapView update")
+        }
         context.coordinator.parent = self
 
         // Reapply the base configuration — and re-assert the tilt — when the style changes or 3D

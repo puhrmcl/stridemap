@@ -27,7 +27,12 @@ struct StatesMapView: UIViewRepresentable {
     /// Tapping a stack of co-located run pins surfaces them as a pick-list.
     var stackedRunIDs: Binding<[UUID]?> = .constant(nil)
 
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
+    func makeCoordinator() -> Coordinator {
+        if ProcessInfo.processInfo.environment["ETCH_DIAG_MAP"] == "1" {
+            NSLog("ETCHDIAG map: StatesMapView coordinator init")
+        }
+        return Coordinator(self)
+    }
 
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView()

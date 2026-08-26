@@ -1022,6 +1022,34 @@ struct HomeView: View {
         }
     }
 
+    /// CI diagnostics: what the UIKit side actually has mounted — every window, its root and
+    /// presented view controllers, and every MKMapView's visibility. The SwiftUI side logs that
+    /// it *built* the States branch; this shows whether the platform hierarchy ever changed.
+    @MainActor
+    private static func mapHierarchySummary() -> String {
+        var lines: [String] = []
+        func walk(_ view: UIView) {
+            if let map = view as? MKMapView {
+                lines.append("MKMapView frame=\(Int(map.frame.width))x\(Int(map.frame.height)) hidden=\(map.isHidden) alpha=\(map.alpha) overlays=\(map.overlays.count) inWindow=\(map.window != nil)")
+            }
+            for sub in view.subviews { walk(sub) }
+        }
+        for scene in UIApplication.shared.connectedScenes {
+            guard let windowScene = scene as? UIWindowScene else { continue }
+            for window in windowScene.windows {
+                var chain = window.rootViewController.map { String(describing: type(of: $0)) } ?? "nil"
+                var vc = window.rootViewController
+                while let presented = vc?.presentedViewController {
+                    chain += " > \(String(describing: type(of: presented)))"
+                    vc = presented
+                }
+                lines.append("window \(String(describing: type(of: window))) key=\(window.isKeyWindow) vc=[\(chain)]")
+                walk(window)
+            }
+        }
+        return lines.joined(separator: " | ")
+    }
+
     /// CI diagnostics (ETCH_DIAG_MAP=1): the scripted repro of "the place views do nothing" —
     /// seed runs in three states, switch to the States view the way the Activity View sheet
     /// does, then select Arizona the way the jump menu does, logging counts at each stage.
@@ -1059,6 +1087,7 @@ struct HomeView: View {
         NSLog("ETCHDIAG map: after switch — showLocations=%d overlay=%@ intensities=%d ranked=%d",
               showLocations ? 1 : 0, locationOverlay.rawValue,
               stateIntensities.count, stateRanked.count)
+        NSLog("ETCHDIAG map: hierarchy %@", Self.mapHierarchySummary())
         selectedStateName = "Arizona"
         focusStateName = "Arizona"
         selectedPlaceLabel = "Arizona"
