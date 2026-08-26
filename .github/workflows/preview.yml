@@ -105,16 +105,23 @@ jobs:
               SCREEN=$(echo "$SCREEN" | xargs)   # trim
               [ -z "$SCREEN" ] && continue
               echo "── capturing $SCREEN ($MODE)"
+              # "studio@products" photographs that section of a long page — the screen only
+              # holds one screenful, and reviewing a storefront needs more than its top.
+              TARGET="${SCREEN%%@*}"
+              ANCHOR=""
+              [ "$SCREEN" != "$TARGET" ] && ANCHOR="${SCREEN#*@}"
               xcrun simctl terminate "$UDID" com.nwagtech.etch 2>/dev/null || true
-              SIMCTL_CHILD_ETCH_PREVIEW="$SCREEN" xcrun simctl launch "$UDID" com.nwagtech.etch >/dev/null
+              SIMCTL_CHILD_ETCH_PREVIEW="$TARGET" \
+              SIMCTL_CHILD_ETCH_PREVIEW_SCROLL="$ANCHOR" \
+                xcrun simctl launch "$UDID" com.nwagtech.etch >/dev/null
               # Seeding and the first compositions need a moment; anything backed by an Apple
               # map snapshot needs considerably longer on a CI runner.
               case "$SCREEN" in
                 home|map-studio|gallery-studio|detail) sleep 30 ;;
                 *) sleep 16 ;;
               esac
-              # ':' picks a variant (wall-art:ridgeline); keep it out of the filename.
-              SHOT="$(echo "$SCREEN-$MODE" | tr ':' '-')"
+              # ':' picks a variant and '@' a section; keep both out of the filename.
+              SHOT="$(echo "$SCREEN-$MODE" | tr ':@' '--')"
               xcrun simctl io "$UDID" screenshot "$SHOT.png" || true
             done
           done

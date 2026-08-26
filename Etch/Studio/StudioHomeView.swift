@@ -97,16 +97,27 @@ struct StudioHomeView: View {
                     // products, then the curated line, then your own work — and the utilities
                     // last, quiet. What used to be four shelves of run thumbnails now lives
                     // inside choosing a product, which is where picking a subject belongs.
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 38) {
-                            intro
-                            momentHero
-                            productGrid
-                            collectionsSection
-                            if !keptPosters.isEmpty { keptSection }
-                            utilityFooter
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 38) {
+                                intro.id("intro")
+                                momentHero.id("hero")
+                                productGrid.id("products")
+                                collectionsSection.id("collections")
+                                if !keptPosters.isEmpty { keptSection.id("kept") }
+                                utilityFooter.id("utilities")
+                            }
+                            .padding(.vertical, 14)
                         }
-                        .padding(.vertical, 14)
+                        // CI preview only: jump to a named section so a long page can be
+                        // photographed a screenful at a time. Inert without the variable.
+                        .onAppear {
+                            guard let anchor = ProcessInfo.processInfo
+                                .environment["ETCH_PREVIEW_SCROLL"], !anchor.isEmpty else { return }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                                proxy.scrollTo(anchor, anchor: .top)
+                            }
+                        }
                     }
                 }
             }
