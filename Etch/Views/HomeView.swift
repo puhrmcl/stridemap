@@ -937,7 +937,9 @@ struct HomeView: View {
     /// The Cities jump-to list, grouped into a section per state (most-visited state first), with
     /// the bare city name under each — so a big travel history reads as a tidy state-by-state index.
     @ViewBuilder private var citiesByStateMenu: some View {
-        let grouped = Dictionary(grouping: overlayPlaces) { $0.runs.first?.state ?? "" }
+        let grouped = Dictionary(grouping: overlayPlaces) {
+            PlaceNames.canonicalState($0.runs.first?.state) ?? ""
+        }
         let orderedStates = grouped.keys.sorted { a, b in
             let ca = grouped[a]?.reduce(0) { $0 + $1.runs.count } ?? 0
             let cb = grouped[b]?.reduce(0) { $0 + $1.runs.count } ?? 0

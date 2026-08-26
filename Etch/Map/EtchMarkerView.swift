@@ -32,16 +32,21 @@ final class EtchMarkerView: MKAnnotationView {
         disc.addSubview(countLabel)
 
         nameLabel.textAlignment = .center
-        nameLabel.font = .systemFont(ofSize: 11, weight: .semibold)
+        nameLabel.font = .systemFont(ofSize: 12, weight: .semibold)
         nameLabel.numberOfLines = 1
-        nameLabel.textColor = UIColor(Theme.Palette.bone)
-        // A soft dark halo keeps the name legible over any map ground.
-        nameLabel.layer.shadowColor = UIColor.black.cgColor
-        nameLabel.layer.shadowOpacity = 0.6
-        nameLabel.layer.shadowRadius = 2
+        // The name follows the map's appearance — ink on a light base, bone on a dark one. A
+        // fixed bone label vanished on the light Standard map, halo or not.
+        nameLabel.textColor = UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(Theme.Palette.bone)
+                : UIColor(Theme.Palette.ink)
+        }
         nameLabel.layer.shadowOffset = .zero
-
         addSubview(nameLabel)
+        updateNameHalo()
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (self: EtchMarkerView, _) in
+            self.updateNameHalo()
+        }
 
         canShowCallout = false
         clusteringIdentifier = nil
@@ -50,6 +55,15 @@ final class EtchMarkerView: MKAnnotationView {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    /// A halo in the opposite tone to the text keeps the name legible over map detail — a light
+    /// glow under ink text on light maps, a dark glow under bone text on dark ones.
+    private func updateNameHalo() {
+        let dark = traitCollection.userInterfaceStyle == .dark
+        nameLabel.layer.shadowColor = (dark ? UIColor.black : UIColor.white).cgColor
+        nameLabel.layer.shadowOpacity = dark ? 0.6 : 0.9
+        nameLabel.layer.shadowRadius = dark ? 2 : 2.5
+    }
 
     /// Sizes and colours the chip. `name` nil/empty hides the label (clusters). `selected`
     /// switches the disc to Etch Blue.

@@ -174,15 +174,19 @@ struct RunStatistics {
         var totalDistance: Double { runs.reduce(0) { $0 + $1.distance } }
     }
 
-    /// One pin per city, positioned at the average start coordinate of its runs.
+    /// One pin per city, positioned at the average start coordinate of its runs. State and
+    /// country are canonicalised so differently-geocoded runs ("AZ" vs "Arizona") land on one pin.
     var travelPlaces: [TravelPlace] {
-        placesGrouped(by: { [$0.city, $0.state, $0.country].compactMap { $0 }.joined(separator: ", ") },
-                      include: { $0.city?.isEmpty == false })
+        placesGrouped(by: { run in
+            [run.city, PlaceNames.canonicalState(run.state), PlaceNames.canonicalCountry(run.country)]
+                .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
+        }, include: { $0.city?.isEmpty == false })
     }
 
     /// One pin per country, at the average start coordinate of that country's runs.
     var countryPlaces: [TravelPlace] {
-        placesGrouped(by: { $0.country ?? "" }, include: { $0.country?.isEmpty == false })
+        placesGrouped(by: { PlaceNames.canonicalCountry($0.country) ?? "" },
+                      include: { $0.country?.isEmpty == false })
     }
 
     /// Runs that started at or next to a real point of interest — a park, university, museum,

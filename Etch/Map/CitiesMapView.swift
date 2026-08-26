@@ -89,7 +89,11 @@ struct CitiesMapView: UIViewRepresentable {
         func rebuild(on map: MKMapView, cities: [RunStatistics.TravelPlace]) {
             map.removeAnnotations(map.annotations.filter { !($0 is MKUserLocation) })
             let annotations = cities.map {
-                CityAnnotation(coordinate: $0.coordinate, name: $0.label, runIDs: $0.runs.map(\.id))
+                // The pin shows just the city — the map already provides the geographic context,
+                // and "Gilbert, AZ, United St…" truncating under every pin read as clutter.
+                CityAnnotation(coordinate: $0.coordinate,
+                               name: $0.label.components(separatedBy: ", ").first ?? $0.label,
+                               runIDs: $0.runs.map(\.id))
             }
             map.addAnnotations(annotations)
             installedCount = cities.count
