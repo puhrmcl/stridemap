@@ -109,6 +109,7 @@ struct StudioHomeView: View {
                             if !favorites.isEmpty { subjectRow("Favorites", favorites.map { ($0, nil) }) }
                             subjectRow("Recent", Array(mapped.prefix(12)).map { ($0, nil) })
                             mapPrintsSection
+                            yearBookBand
                             if hasPhotos { photoWallBand }
                             printsBand
                         }
@@ -412,6 +413,43 @@ struct StudioHomeView: View {
     private var hasPhotos: Bool { scopedRuns.contains { !$0.photoReferences.isEmpty } }
 
     /// Entry to the photo-wall poster: a contact sheet of every run's cover photo, filterable.
+    @State private var showYearBook = false
+
+    /// The Year Book — a year of activity as a layflat hardcover, self-composed. The Q4 hero.
+    private var yearBookBand: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Year Book")
+                .font(.system(.title3, design: .rounded).weight(.bold))
+            Button { showYearBook = true } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: "book.pages")
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Your whole year, printed")
+                            .font(.system(.headline, design: .rounded))
+                            .foregroundStyle(Theme.accent)
+                        Text("A layflat hardcover that composes itself — every month, every race, every line you ran.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right").font(.footnote.weight(.bold)).foregroundStyle(.tertiary)
+                }
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 18))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18).strokeBorder(Theme.accent.opacity(0.18), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+            .sheet(isPresented: $showYearBook) { YearBookView() }
+        }
+        .padding(.horizontal, 20)
+    }
+
     private var photoWallBand: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Photo Wall")
