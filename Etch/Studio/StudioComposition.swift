@@ -603,6 +603,12 @@ struct StudioComposition: View {
                                 .stroke(subtleColor,
                                         style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                                 .padding(24)
+                        } else {
+                            // Terrain profile unavailable (no route, or the fetch failed): say so
+                            // quietly instead of presenting an empty cell.
+                            Image(systemName: "mountain.2")
+                                .font(.system(size: ts(40), weight: .semibold))
+                                .foregroundStyle(subtleColor.opacity(0.45))
                         }
                     }
                 }

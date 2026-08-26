@@ -411,9 +411,14 @@ enum StudioRenderer {
     /// The route's terrain elevation profile, fetched when the strip is enabled or a chosen metric
     /// needs it (start elevation).
     static func elevationProfile(for request: Request) async -> [Double] {
+        // A Gallery Elevation tile needs the profile too — without this, the tile rendered as
+        // blank ground unless the profile band happened to be toggled on as well.
+        let galleryElevationTile = request.layout == .gallery
+            && request.galleryCellsRaw.contains(GalleryTileKind.elevation.rawValue)
         let needsProfile = request.showElevationProfile
             || request.heroMetric.needsElevationProfile
             || request.statSlots.contains(where: { $0.needsElevationProfile })
+            || galleryElevationTile
         guard needsProfile else { return [] }
         return await ElevationService.routeProfile(for: request.run.coordinates) ?? []
     }
