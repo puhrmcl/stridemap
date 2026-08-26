@@ -10,5 +10,5 @@
 #             wall-art:pulse, wall-art:bloom, wall-art:constellation, wall-art:grid
 # appearance: light, dark, or both
 
-screens=studio
-appearance=both
+screens=wall-art:grid,wall-art:ridgeline,wall-art:rings,wall-art:pulse,wall-art:constellation,wall-art:bloom
+appearance=light

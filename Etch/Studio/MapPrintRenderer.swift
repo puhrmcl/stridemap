@@ -396,7 +396,9 @@ enum MapPrintRenderer {
         let marginY = size.height * 0.16
         let drawableHeight = size.height - marginY * 2
         let rowSpacing = ridged.count > 1 ? drawableHeight / CGFloat(ridged.count - 1) : 0
-        let amplitude = max(rowSpacing * 2.6, drawableHeight * 0.08)
+        // Ridges must overlap generously — the occlusion between them is the whole effect, and
+        // a shallow amplitude reads as a wave pattern rather than a mountain chain.
+        let amplitude = max(rowSpacing * 4.2, drawableHeight * 0.12)
         let width = size.width - marginX * 2
 
         for (row, run) in ridged.enumerated() {
@@ -440,38 +442,56 @@ enum MapPrintRenderer {
         guard !years.isEmpty else { return }
 
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
-        let maxRadius = min(size.width, size.height) * 0.42
-        let innerRadius = maxRadius * (years.count > 1 ? 0.34 : 0.62)
-        let band = years.count > 1 ? (maxRadius - innerRadius) / CGFloat(years.count - 1) : 0
+        // Each year owns a band, and every run is a tick growing outward from that year's
+        // circle — so a heavy year fills its ring solid and a quiet one stays sparse, which is
+        // the whole point of reading a trunk. The first cut drew short ticks *centred* on a
+        // faint orbit, which read as dotted circles rather than growth.
+        let outer = min(size.width, size.height) * 0.44
+        let inner = outer * 0.24
+        let band = (outer - inner) / CGFloat(years.count)
         let maxDist = runs.map(\.distance).max() ?? 1
 
         if dark { cg.setBlendMode(.plusLighter) }
         for (index, year) in years.enumerated() {
-            let radius = years.count > 1 ? innerRadius + band * CGFloat(index) : innerRadius
-            // The year's faint orbit.
-            let orbit = UIBezierPath(arcCenter: center, radius: radius,
+            let ringInner = inner + band * CGFloat(index)
+            let usable = band * 0.84          // a hairline of air between years
+
+            let orbit = UIBezierPath(arcCenter: center, radius: ringInner,
                                      startAngle: 0, endAngle: .pi * 2, clockwise: true)
-            line.withAlphaComponent(0.14).setStroke()
-            orbit.lineWidth = 1 * unit
+            line.withAlphaComponent(0.22).setStroke()
+            orbit.lineWidth = 0.9 * unit
             orbit.stroke()
 
-            for run in byYear[year] ?? [] {
+            let yearRuns = byYear[year] ?? []
+            // Tick width follows how crowded the ring is: a busy year becomes a solid band
+            // instead of a smear, a light year keeps its individual marks.
+            let circumference = 2 * .pi * ringInner
+            let spacing = circumference / CGFloat(max(yearRuns.count, 1))
+            let tickWidth = min(max(spacing * 0.55, 1.1 * unit), 7 * unit) * weight
+
+            for run in yearRuns {
                 let day = calendar.ordinality(of: .day, in: .year, for: run.startDate) ?? 1
                 let angle = CGFloat(day) / 366 * 2 * .pi - .pi / 2
                 let t = maxDist > 0 ? CGFloat(run.distance / maxDist) : 0
-                let halfLength = (5 + 24 * t.squareRoot()) * unit * weight / 2
+                // Every run reaches a third of the band; distance carries it the rest.
+                let length = usable * (0.34 + 0.66 * t.squareRoot())
                 let direction = CGPoint(x: cos(angle), y: sin(angle))
                 let tick = UIBezierPath()
-                tick.move(to: CGPoint(x: center.x + direction.x * (radius - halfLength),
-                                      y: center.y + direction.y * (radius - halfLength)))
-                tick.addLine(to: CGPoint(x: center.x + direction.x * (radius + halfLength),
-                                         y: center.y + direction.y * (radius + halfLength)))
-                line.withAlphaComponent(run.isRace ? 1.0 : 0.5).setStroke()
-                tick.lineWidth = (run.isRace ? 2.8 : 1.5) * unit * weight
-                tick.lineCapStyle = .round
+                tick.move(to: CGPoint(x: center.x + direction.x * ringInner,
+                                      y: center.y + direction.y * ringInner))
+                tick.addLine(to: CGPoint(x: center.x + direction.x * (ringInner + length),
+                                         y: center.y + direction.y * (ringInner + length)))
+                line.withAlphaComponent(run.isRace ? 1.0 : 0.62).setStroke()
+                tick.lineWidth = run.isRace ? tickWidth * 1.9 : tickWidth
+                tick.lineCapStyle = .butt
                 tick.stroke()
             }
         }
+        // The eye: a small solid mark, so the composition has a centre to grow from.
+        let eyeRadius = 3.5 * unit
+        line.withAlphaComponent(0.8).setFill()
+        UIBezierPath(ovalIn: CGRect(x: center.x - eyeRadius, y: center.y - eyeRadius,
+                                    width: eyeRadius * 2, height: eyeRadius * 2)).fill()
         cg.setBlendMode(.normal)
     }
 

@@ -46,9 +46,11 @@ enum PreviewHarness {
             return Double((seedValue >> 33) % 10_000) / 10_000
         }
 
-        for index in 0..<80 {
+        // Enough volume to be honest: an Archive style that looks good on 80 runs can still
+        // fall apart on a real library, and the person this is built for has over a thousand.
+        for index in 0..<220 {
             let place = places[index % places.count]
-            let daysAgo = index * 9 + Int(random() * 4)
+            let daysAgo = index * 3 + Int(random() * 3)
             guard let date = calendar.date(byAdding: .day, value: -daysAgo, to: .now) else { continue }
 
             let isRace = index % 17 == 0
@@ -70,12 +72,25 @@ enum PreviewHarness {
                 ))
             }
 
-            // An elevation profile with a believable climb and descent.
+            // Elevation profiles in four believable shapes — a summit, rolling hills, a net
+            // descent, and a near-flat loop. One shared curve made every Ridgeline ridge
+            // identical, which flattered the composition and told us nothing.
             let base = 300 + random() * 900
-            let relief = 20 + random() * 260
+            let relief = 30 + random() * 340
+            let phase = random() * 6.28
+            let shape = index % 4
             let elevations = (0...120).map { step -> Double in
                 let t = Double(step) / 120
-                return base + relief * (sin(t * .pi * 1.5) * 0.7 + sin(t * .pi * 5) * 0.3)
+                switch shape {
+                case 0:   // out-and-back over a summit
+                    return base + relief * sin(t * .pi)
+                case 1:   // rolling
+                    return base + relief * 0.55 * (0.6 + 0.4 * sin(t * .pi * 6 + phase))
+                case 2:   // point to point, net downhill
+                    return base + relief * (1 - t) + relief * 0.12 * sin(t * .pi * 9 + phase)
+                default:  // flat with one bump
+                    return base + relief * 0.22 * sin(t * .pi * 2 + phase)
+                }
             }
 
             let lats = coordinates.map(\.latitude), lons = coordinates.map(\.longitude)
