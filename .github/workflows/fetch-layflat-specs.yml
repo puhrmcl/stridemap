@@ -33,9 +33,12 @@ jobs:
           print(text)
           print("── PAGE TEXT END")
           # Any SKU-looking codes in the raw HTML (incl. data attributes the text pass loses).
-          codes = sorted(set(re.findall(r'[A-Z]{2,}[A-Z0-9]*(?:-[A-Z0-9]{2,}){1,5}', html)))
-          plausible = [c for c in codes if any(k in c for k in ('BOOK', 'LAYFLAT', 'GLOBAL', 'PHOTO'))]
+          codes = sorted(set(re.findall(r'[A-Z]{2,}[A-Z0-9]*(?:-[A-Za-z0-9]{1,}){1,6}', html)))
+          plausible = [c for c in codes if any(k in c.upper() for k in ('BOOK', 'LAYFLAT', 'GLOBAL'))]
           print("── SKU-LIKE CODES:", plausible)
+          # The raw context around every BOOK-FE occurrence — the regex-free ground truth.
+          for m in re.finditer(r'BOOK-FE', html):
+              print("── CONTEXT:", html[max(0, m.start()-160):m.start()+220].replace('\n', ' '))
           EOF
 
       - name: Fetch sample PDF and report geometry
