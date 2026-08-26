@@ -269,64 +269,68 @@ struct HomeView: View {
     @ViewBuilder private var mapCanvas: some View {
         @Bindable var appModel = appModel
 
-        Group {
-            if showLocations {
-                if locationOverlay == .states {
-                    let _ = Self.diagLog("canvas → States branch")
-                    StatesMapView(
-                        intensities: stateIntensities,
-                        mapStyle: mapStyle,
-                        focusStateName: $focusStateName,
-                        focusToken: placeFocusToken,
-                        selectedName: selectedStateName,
-                        runPoints: selectedStateRunPoints,
-                        selectedRunID: $appModel.selectedRunID,
-                        stackedRunIDs: $appModel.stackedRunIDs
-                    )
-                    .id("states-\(locationRecenterToken)")
-                } else if locationOverlay == .countries {
-                    let _ = Self.diagLog("canvas → Countries branch")
-                    CountriesMapView(
-                        intensities: countryIntensities,
-                        mapStyle: mapStyle,
-                        focusCountryName: $focusCountryName,
-                        focusToken: placeFocusToken
-                    )
-                    .id("countries-\(locationRecenterToken)")
-                } else {
-                    let _ = Self.diagLog("canvas → Cities/Landmarks branch")
-                    CitiesMapView(
-                        cities: overlayPlaces,
-                        selectedRunID: $appModel.selectedRunID,
-                        stackedRunIDs: $appModel.stackedRunIDs,
-                        focusCoordinate: $focusCity,
-                        focusToken: placeFocusToken,
-                        mapStyle: mapStyle
-                    )
-                    .id("\(locationOverlay.rawValue)-\(locationRecenterToken)")
-                }
-            } else {
-                RunMapView(
-                    runs: visibleRuns,
-                    milestoneRunIDs: milestoneRunIDs,
+        // The map layers are ZStack *siblings*, never if/else branches. Replacing one map
+        // representable with another in the same conditional slot silently failed at runtime —
+        // the diagnose-map rig showed SwiftUI building the new branch (and computing its data)
+        // while the platform never committed the swap: no dismantle of the old MKMapView, no
+        // make of the new one, even under a forced identity change. Insertions and removals
+        // commit fine, so: the route map stays permanently mounted (hidden under a place view,
+        // which also preserves its camera), and each place map is its own independently
+        // inserted/removed child.
+        ZStack {
+            RunMapView(
+                runs: visibleRuns,
+                milestoneRunIDs: milestoneRunIDs,
+                selectedRunID: $appModel.selectedRunID,
+                stackedRunIDs: $appModel.stackedRunIDs,
+                command: $appModel.command,
+                mapStyle: mapStyle,
+                showPins: showPins,
+                is3D: is3D,
+                centerBox: centerBox,
+                zoomedInFor3D: $mapZoomedIn,
+                contentRevision: appModel.mapContentRevision
+            )
+            .opacity(showLocations ? 0 : 1)
+            .allowsHitTesting(!showLocations)
+
+            if showLocations && locationOverlay == .states {
+                let _ = Self.diagLog("canvas → States branch")
+                StatesMapView(
+                    intensities: stateIntensities,
+                    mapStyle: mapStyle,
+                    focusStateName: $focusStateName,
+                    focusToken: placeFocusToken,
+                    selectedName: selectedStateName,
+                    runPoints: selectedStateRunPoints,
+                    selectedRunID: $appModel.selectedRunID,
+                    stackedRunIDs: $appModel.stackedRunIDs
+                )
+                .id("states-\(locationRecenterToken)")
+            }
+            if showLocations && locationOverlay == .countries {
+                let _ = Self.diagLog("canvas → Countries branch")
+                CountriesMapView(
+                    intensities: countryIntensities,
+                    mapStyle: mapStyle,
+                    focusCountryName: $focusCountryName,
+                    focusToken: placeFocusToken
+                )
+                .id("countries-\(locationRecenterToken)")
+            }
+            if showLocations && (locationOverlay == .cities || locationOverlay == .landmarks) {
+                let _ = Self.diagLog("canvas → Cities/Landmarks branch")
+                CitiesMapView(
+                    cities: overlayPlaces,
                     selectedRunID: $appModel.selectedRunID,
                     stackedRunIDs: $appModel.stackedRunIDs,
-                    command: $appModel.command,
-                    mapStyle: mapStyle,
-                    showPins: showPins,
-                    is3D: is3D,
-                    centerBox: centerBox,
-                    zoomedInFor3D: $mapZoomedIn,
-                    contentRevision: appModel.mapContentRevision
+                    focusCoordinate: $focusCity,
+                    focusToken: placeFocusToken,
+                    mapStyle: mapStyle
                 )
+                .id("\(locationOverlay.rawValue)-\(locationRecenterToken)")
             }
         }
-        // Force the whole map subtree's identity to follow the chosen view. Switching to a place
-        // view flipped the state (the chip and the choropleth computations followed) but SwiftUI
-        // kept the route map's representable alive instead of swapping in the place map — the
-        // "State / City / Country / Landmark do nothing" bug, reproduced in the diagnose-map rig.
-        // A per-mode id makes the swap an identity change, which SwiftUI cannot elide.
-        .id("map-mode-\(showLocations ? locationOverlay.rawValue : "routes")")
         .ignoresSafeArea()
         // Tap anywhere on the map to dismiss the open mode dropdown (it sits above this layer).
         .overlay {

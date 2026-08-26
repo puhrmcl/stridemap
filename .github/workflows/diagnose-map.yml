@@ -56,6 +56,8 @@ jobs:
           xcrun simctl install "$UDID" "$APP"
           # Skip first-run onboarding so the home map mounts.
           xcrun simctl spawn "$UDID" defaults write com.nwagtech.etch didCompleteOnboarding -bool true
+          # Pre-grant location so the permission alert doesn't cover the screenshots.
+          xcrun simctl privacy "$UDID" grant location com.nwagtech.etch || true
           # NSLog goes to the unified system log, not the launch pty — stream it directly.
           xcrun simctl spawn "$UDID" log stream --style compact \
             --predicate 'eventMessage CONTAINS "ETCHDIAG"' > sys.log 2>&1 &
