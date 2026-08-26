@@ -59,6 +59,13 @@ enum PreviewHarness {
             let paceSecondsPerMile = 480 + random() * 180
             let movingTime = Int(miles * paceSecondsPerMile)
 
+            // Runs start from a different place each time — a trailhead, a hotel, the far side of
+            // town — spread a few kilometres around the hub. Every run sharing one exact start
+            // pin collapsed Constellation to a handful of dots, which said more about the seed
+            // than about the composition.
+            let originLat = place.lat + (random() - 0.5) * 0.06
+            let originLon = place.lon + (random() - 0.5) * 0.06
+
             // A looping route around the start: enough shape to read as a real run in a glyph.
             var coordinates: [CLLocationCoordinate2D] = []
             let loops = 1.0 + random()
@@ -67,8 +74,8 @@ enum PreviewHarness {
                 let t = Double(step) / 120 * loops * 2 * .pi
                 let wobble = 1 + 0.28 * sin(t * 3 + Double(index))
                 coordinates.append(CLLocationCoordinate2D(
-                    latitude: place.lat + sin(t) * radius * wobble,
-                    longitude: place.lon + cos(t) * radius * wobble * 1.2
+                    latitude: originLat + sin(t) * radius * wobble,
+                    longitude: originLon + cos(t) * radius * wobble * 1.2
                 ))
             }
 

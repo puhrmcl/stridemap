@@ -308,13 +308,22 @@ enum MapPrintRenderer {
         }
         let radius = Double(min(size.width, size.height)) * 0.42
         let scale = radius / maxExtent * Double(zoom)
-        let lineWidth = (withRoutes.count <= 12 ? 3.4 : withRoutes.count <= 80 ? 2.2 : 1.5) * unit * weight
+
+        // A few hundred routes stacked on one origin is a black disc, not a bloom. Thin the set
+        // and then ration the ink: every route has to fit inside a fixed budget of darkness, or
+        // the centre — where every route necessarily passes — saturates solid.
+        let step = max(withRoutes.count / 160, 1)
+        let drawn = step > 1 ? stride(from: 0, to: withRoutes.count, by: step).map { withRoutes[$0] }
+                             : Array(withRoutes)
+        let n = drawn.count
+        let lineWidth = (n <= 12 ? 3.4 : n <= 60 ? 2.0 : n <= 140 ? 1.3 : 0.9) * unit * weight
+        let ink = min(0.55, max(0.05, 2.6 / Double(n).squareRoot()))
 
         if dark { cg.setBlendMode(.plusLighter) }
-        for (i, run) in withRoutes.enumerated() {
+        for (i, run) in drawn.enumerated() {
             guard let start = run.coordinates.first else { continue }
-            let t = withRoutes.count > 1 ? CGFloat(i) / CGFloat(withRoutes.count - 1) : 1  // 0 old → 1 new
-            line.withAlphaComponent(0.22 + 0.6 * t).setStroke()
+            let t = n > 1 ? CGFloat(i) / CGFloat(n - 1) : 1  // 0 old → 1 new
+            line.withAlphaComponent(CGFloat(ink) * (0.45 + 0.55 * t)).setStroke()
             let path = UIBezierPath()
             var started = false
             for c in run.coordinates {
@@ -355,23 +364,58 @@ enum MapPrintRenderer {
 
     /// A clean starfield: no connecting thread (it read as clutter, not narrative), every point
     /// with a soft same-tone halo so the field has depth, and races ringed like named stars.
+    ///
+    /// Two things keep it from collapsing. It fits itself to where the runs *begin* rather than
+    /// to the ground they cover, because a field of start points drawn at route extent huddles in
+    /// the middle of the sheet. And starts falling on the same spot — the door you leave from
+    /// every morning — merge into one star that grows with the miles run from it, instead of
+    /// stacking a hundred identical dots into a single anonymous blob.
     private static func drawConstellation(_ runs: [Run], region: MKCoordinateRegion, size: CGSize,
                                           line: UIColor, unit: CGFloat, cg: CGContext, dark: Bool, weight: CGFloat) {
-        let project = geoProjector(region: region, size: size)
-        let maxDist = runs.map(\.distance).max() ?? 1
-        for run in runs.sorted(by: { $0.distance < $1.distance }) {
-            guard let start = run.startCoordinate else { continue }
-            let p = project(start)
-            let t = maxDist > 0 ? CGFloat(run.distance / maxDist) : 0
-            let radius = (2.6 + 9 * t.squareRoot()) * unit * weight
-            let rect = CGRect(x: p.x - radius, y: p.y - radius, width: radius * 2, height: radius * 2)
+        let starts = runs.compactMap { run in run.startCoordinate.map { (run, $0) } }
+        guard !starts.isEmpty else { return }
+
+        let lats = starts.map(\.1.latitude), lons = starts.map(\.1.longitude)
+        let spanLat = (lats.max() ?? 0) - (lats.min() ?? 0)
+        let spanLon = (lons.max() ?? 0) - (lons.min() ?? 0)
+        let fitted = (spanLat > 1e-5 || spanLon > 1e-5)
+            ? MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: ((lats.max() ?? 0) + (lats.min() ?? 0)) / 2,
+                                               longitude: ((lons.max() ?? 0) + (lons.min() ?? 0)) / 2),
+                span: MKCoordinateSpan(latitudeDelta: max(spanLat, 1e-4) * 1.1,
+                                       longitudeDelta: max(spanLon, 1e-4) * 1.1))
+            : region
+        let project = geoProjector(region: fitted, size: size)
+
+        struct Star { var point: CGPoint; var distance: Double; var isRace: Bool }
+        let cell = max(4.5 * unit, 1)
+        var merged: [Int: Star] = [:]
+        for (run, coordinate) in starts {
+            let p = project(coordinate)
+            let key = Int(p.x / cell) &* 100_003 &+ Int(p.y / cell)
+            if var star = merged[key] {
+                star.distance += run.distance
+                star.isRace = star.isRace || run.isRace
+                merged[key] = star
+            } else {
+                merged[key] = Star(point: p, distance: run.distance, isRace: run.isRace)
+            }
+        }
+
+        let brightest = merged.values.map(\.distance).max() ?? 1
+        // Smallest first, so the bright stars sit on top of the field rather than under it.
+        for star in merged.values.sorted(by: { $0.distance < $1.distance }) {
+            let t = brightest > 0 ? CGFloat(star.distance / brightest) : 0
+            let radius = (2.2 + 9 * t.squareRoot()) * unit * weight
+            let rect = CGRect(x: star.point.x - radius, y: star.point.y - radius,
+                              width: radius * 2, height: radius * 2)
             cg.saveGState()
             cg.setShadow(offset: .zero, blur: radius * (dark ? 1.8 : 1.1), color: line.cgColor)
             line.withAlphaComponent(0.9).setFill()
             UIBezierPath(ovalIn: rect).fill()
             cg.restoreGState()
             // Races read as named stars — a fine open ring around the point.
-            if run.isRace {
+            if star.isRace {
                 let ring = UIBezierPath(ovalIn: rect.insetBy(dx: -radius * 0.9, dy: -radius * 0.9))
                 line.withAlphaComponent(0.65).setStroke()
                 ring.lineWidth = 1.4 * unit * weight
@@ -506,8 +550,11 @@ enum MapPrintRenderer {
         let marginX = size.width * 0.09
         let width = size.width - marginX * 2
         let midY = size.height / 2
-        let maxAmplitude = size.height * 0.32
-        let maxDist = sorted.map(\.distance).max() ?? 1
+        let maxAmplitude = size.height * 0.34
+        // Normalised against a long run rather than the longest one: a single ultra otherwise
+        // flattens every ordinary week into a hairline, and the waveform reads as a grey band.
+        let ranked = sorted.map(\.distance).sorted()
+        let reference = ranked[Int(Double(ranked.count - 1) * 0.9)]
 
         // The quiet midline the beats hang from.
         let baseline = UIBezierPath()
@@ -519,8 +566,10 @@ enum MapPrintRenderer {
 
         for run in sorted {
             let x = marginX + width * CGFloat(run.startDate.timeIntervalSince(first) / span)
-            let t = maxDist > 0 ? CGFloat(run.distance / maxDist) : 0
-            let amplitude = max(maxAmplitude * t.squareRoot(), 5 * unit)
+            // Beyond the reference a beat still grows, but only a little — the spike stays a
+            // spike instead of setting the scale for everything beneath it.
+            let t = reference > 0 ? min(CGFloat(run.distance / reference), 1.3) : 0
+            let amplitude = max(maxAmplitude * min(t.squareRoot(), 1.14), 5 * unit)
             let bar = UIBezierPath()
             bar.move(to: CGPoint(x: x, y: midY - amplitude))
             bar.addLine(to: CGPoint(x: x, y: midY + amplitude))
