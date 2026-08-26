@@ -1,0 +1,100 @@
+# Screenshot any screen in a simulator, without a device or a TestFlight build.
+#
+# The app is launched with ETCH_PREVIEW=<screen>, which opens that surface directly on a
+# synthetic 80-run history (see PreviewHarness) — no Apple Health, no onboarding, no splash.
+# Screenshots are embedded in the job log as base64 so the working session can read them
+# straight from the run, and uploaded as artifacts for a closer look.
+#
+# Run it from the Actions tab (Run workflow), or the session triggers it directly. Turnaround
+# is about five minutes, against a build-and-install cycle measured in tens of them.
+
+name: Preview screens
+
+on:
+  workflow_dispatch:
+    inputs:
+      screens:
+        description: "Comma-separated: studio, home, archive, course, summit, yearbook, prints, wall-art, map-studio, gallery-studio, detail"
+        required: false
+        default: "studio,archive,map-studio"
+      appearance:
+        description: "light, dark, or both"
+        required: false
+        default: "light"
+
+jobs:
+  preview:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select newest Xcode
+        run: |
+          set -e
+          XC=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1 || true)
+          if [ -n "$XC" ]; then sudo xcode-select -s "$XC/Contents/Developer"; fi
+          xcodebuild -version
+
+      - name: Build for simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Etch.xcodeproj \
+            -scheme Etch \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath dd \
+            CODE_SIGNING_ALLOWED=NO | tail -5
+
+      - name: Capture each screen
+        env:
+          SCREENS: ${{ inputs.screens }}
+          APPEARANCE: ${{ inputs.appearance }}
+        run: |
+          set -e
+          UDID=$(xcrun simctl list devices available | grep -E "iPhone (1[5-9]|[2-9][0-9])" | grep -v "Plus\|Max\|SE" | head -1 | grep -oE "[0-9A-F-]{36}")
+          echo "Using device $UDID"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          APP=$(find dd/Build/Products -name "Etch.app" -maxdepth 2 | head -1)
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl spawn "$UDID" defaults write com.nwagtech.etch didCompleteOnboarding -bool true
+          xcrun simctl spawn "$UDID" defaults write com.nwagtech.etch didCompleteSetup -bool true
+          xcrun simctl privacy "$UDID" grant location com.nwagtech.etch || true
+
+          MODES="$APPEARANCE"
+          [ "$APPEARANCE" = "both" ] && MODES="light dark"
+
+          for MODE in $MODES; do
+            xcrun simctl ui "$UDID" appearance "$MODE" || true
+            IFS=',' read -ra LIST <<< "$SCREENS"
+            for SCREEN in "${LIST[@]}"; do
+              SCREEN=$(echo "$SCREEN" | xargs)   # trim
+              [ -z "$SCREEN" ] && continue
+              echo "── capturing $SCREEN ($MODE)"
+              xcrun simctl terminate "$UDID" com.nwagtech.etch 2>/dev/null || true
+              SIMCTL_CHILD_ETCH_PREVIEW="$SCREEN" xcrun simctl launch "$UDID" com.nwagtech.etch >/dev/null
+              # Seeding, map snapshots and the first compositions need a moment to land.
+              sleep 14
+              SHOT="$SCREEN-$MODE"
+              xcrun simctl io "$UDID" screenshot "$SHOT.png" || true
+            done
+          done
+
+          echo ""
+          for FILE in *.png; do
+            [ -f "$FILE" ] || continue
+            NAME="${FILE%.png}"
+            sips -Z 520 "$FILE" --out "small-$FILE" >/dev/null
+            echo "── BEGIN-B64 $NAME"
+            base64 -i "small-$FILE"
+            echo "── END-B64 $NAME"
+          done
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: previews
+          path: "*.png"
