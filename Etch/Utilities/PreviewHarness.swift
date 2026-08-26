@@ -84,7 +84,7 @@ enum PreviewHarness {
             var coordinates: [CLLocationCoordinate2D] = []
             let radius = 0.004 + miles * 0.0004
             let loops = 1.0 + random()
-            let phase = random() * 6.28
+            let routePhase = random() * 6.28
             let drift = 0.6 + random() * 0.8
             for step in 0...120 {
                 let u = Double(step) / 120
@@ -92,20 +92,20 @@ enum PreviewHarness {
                 switch (index / 3) % 4 {
                 case 0:   // a loop back to the door
                     let t = u * loops * 2 * .pi
-                    let wobble = 1 + 0.28 * sin(t * 3 + phase)
+                    let wobble = 1 + 0.28 * sin(t * 3 + routePhase)
                     dx = cos(t) * wobble * 1.2
                     dy = sin(t) * wobble
                 case 1:   // out and back along the same line
                     let v = u < 0.5 ? u * 2 : (1 - u) * 2
                     dx = v * 1.8 * drift
-                    dy = sin(v * .pi * 2.2 + phase) * 0.5
+                    dy = sin(v * .pi * 2.2 + routePhase) * 0.5
                 case 2:   // point to point, never returning
                     dx = (u - 0.5) * 2.4 * drift
-                    dy = sin(u * .pi * 1.6 + phase) * 0.7 + u * 0.6
+                    dy = sin(u * .pi * 1.6 + routePhase) * 0.7 + u * 0.6
                 default:  // a figure eight
                     let t = u * 2 * .pi
                     dx = sin(t) * 1.3
-                    dy = sin(t * 2 + phase) * 0.7
+                    dy = sin(t * 2 + routePhase) * 0.7
                 }
                 coordinates.append(CLLocationCoordinate2D(
                     latitude: originLat + dy * radius,
