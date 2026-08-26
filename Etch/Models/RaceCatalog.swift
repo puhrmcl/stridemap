@@ -15,28 +15,82 @@ import CoreLocation
 /// > survey-accurate GPX and are shared across the offered years. The model already supports
 /// > per-year geometry (`courses[year]`), so swapping in verified, year-specific GPX later is a
 /// > data-only change with no code impact. Do not sell prints off these until they're verified.
+/// What kind of event this is — it decides the activity type the entry becomes, how the library
+/// groups it, and the words the form uses ("finish time" reads differently on a summit).
+enum EventDiscipline: String, CaseIterable, Identifiable, Sendable {
+    case run, ride, hike
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .run:  return "Running"
+        case .ride: return "Cycling"
+        case .hike: return "Hikes & Summits"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .run:  return "figure.run"
+        case .ride: return "bicycle"
+        case .hike: return "mountain.2"
+        }
+    }
+
+    /// The `Run.sportType` an entry of this kind becomes.
+    var sportType: String {
+        switch self {
+        case .run:  return "Run"
+        case .ride: return "Ride"
+        case .hike: return "Hike"
+        }
+    }
+
+    /// A summit isn't "a race you placed in" — the finisher fields only make sense competitively.
+    var hasFinisherFields: Bool { self != .hike }
+}
+
 struct RaceEvent: Identifiable {
     let id: String
     let name: String
     let city: String
     let state: String?
     let country: String
+    var discipline: EventDiscipline = .run
     /// Official race distance in metres (a marathon is 42.195 km regardless of a runner's GPS).
+    /// For trails this is the commonly-cited round-trip length.
     let distanceMeters: Double
     /// A typical calendar slot, used only to pre-fill the date field for the chosen year.
     let typicalMonth: Int
     let typicalDay: Int
-    /// Course geometry keyed by year. Today every offered year points at the same representative
-    /// course; the shape is per-year so real courses that reroute can diverge later.
-    let courses: [Int: [CLLocationCoordinate2D]]
+    /// The start line or trailhead — approximate, and the only geography most library entries
+    /// carry. It places the activity on the map and in the right city; the *route* comes from the
+    /// participant's own file, which is the honest source for a course that changes year to year.
+    var start: CLLocationCoordinate2D? = nil
+    /// Course geometry keyed by year, for the handful of events with a traced course. Empty means
+    /// "no route until the participant attaches their file".
+    var courses: [Int: [CLLocationCoordinate2D]] = [:]
 
-    /// The years offered in the picker, most recent first.
-    var years: [Int] { courses.keys.sorted(by: >) }
+    /// The years offered in the picker, most recent first. Events with no traced course still
+    /// offer the standard recent years.
+    var years: [Int] {
+        courses.isEmpty ? RaceCatalog.offeredYears : courses.keys.sorted(by: >)
+    }
 
-    /// The course for a year, falling back to the most recent available if that exact year is
-    /// missing (so the picker never lands on an empty course).
+    /// The course for a year, falling back to the most recent available. Empty when the library
+    /// carries no geometry for this event.
     func course(for year: Int) -> [CLLocationCoordinate2D] {
-        courses[year] ?? courses[years.first ?? year] ?? []
+        guard !courses.isEmpty else { return [] }
+        return courses[year] ?? courses[courses.keys.sorted(by: >).first ?? year] ?? []
+    }
+
+    /// True when the library can draw this event's route without the participant's own file.
+    var hasCourse: Bool { !courses.isEmpty }
+
+    /// "Boston, MA · 26.2 mi" — the picker's supporting line.
+    var summary: String {
+        let place = [city, state].compactMap { $0 }.joined(separator: ", ")
+        return "\(place) · \(Format.distance(distanceMeters, decimals: 1))"
     }
 
     /// A sensible default date for the chosen year — the race's typical slot, clamped to a valid day.
@@ -52,11 +106,96 @@ struct RaceEvent: Identifiable {
 
 enum RaceCatalog {
 
-    /// The curated events, ordered as shown in the picker.
-    static let events: [RaceEvent] = [boston, newYork, chicago, mesa]
+    /// The curated events. The four with traced courses lead; the rest carry a start line or
+    /// trailhead, an official distance, and a calendar slot — which is everything needed to
+    /// create a real, correctly-placed activity. Their *route* comes from the participant's own
+    /// file, because a course that reroutes yearly is not something to invent on their behalf.
+    ///
+    /// Coordinates are approximate start lines and trailheads; distances are the nominal
+    /// published figures. Both are for placing and naming an activity, not for measuring one.
+    static let events: [RaceEvent] = [boston, newYork, chicago, mesa] + library
 
     /// The years offered for every event — the most recent three.
-    private static let offeredYears = [2026, 2025, 2024]
+    static let offeredYears = [2026, 2025, 2024]
+
+    /// Events grouped for the picker, in the order the library presents them.
+    static func grouped() -> [(discipline: EventDiscipline, events: [RaceEvent])] {
+        EventDiscipline.allCases.compactMap { discipline in
+            let matching = events.filter { $0.discipline == discipline }
+            return matching.isEmpty ? nil : (discipline, matching)
+        }
+    }
+
+    private static let marathon = 42_195.0
+    private static let half = 21_097.5
+
+    private static func event(_ id: String, _ name: String, _ city: String, _ state: String?,
+                              _ country: String = "United States",
+                              _ discipline: EventDiscipline, _ distance: Double,
+                              _ month: Int, _ day: Int,
+                              _ lat: Double, _ lon: Double) -> RaceEvent {
+        RaceEvent(id: id, name: name, city: city, state: state, country: country,
+                  discipline: discipline, distanceMeters: distance,
+                  typicalMonth: month, typicalDay: day,
+                  start: CLLocationCoordinate2D(latitude: lat, longitude: lon))
+    }
+
+    /// The library beyond the traced courses.
+    private static let library: [RaceEvent] = [
+        // ── Marathons
+        event("london", "London Marathon", "London", nil, "United Kingdom", .run, marathon, 4, 27, 51.4676, 0.0090),
+        event("berlin", "Berlin Marathon", "Berlin", nil, "Germany", .run, marathon, 9, 21, 52.5145, 13.3501),
+        event("tokyo", "Tokyo Marathon", "Tokyo", nil, "Japan", .run, marathon, 3, 2, 35.6895, 139.6917),
+        event("marine-corps", "Marine Corps Marathon", "Arlington", "Virginia", "United States", .run, marathon, 10, 26, 38.8895, -77.0353),
+        event("los-angeles", "Los Angeles Marathon", "Los Angeles", "California", "United States", .run, marathon, 3, 16, 34.0669, -118.2437),
+        event("big-sur", "Big Sur International Marathon", "Big Sur", "California", "United States", .run, marathon, 4, 27, 36.2704, -121.8081),
+        event("grandmas", "Grandma's Marathon", "Duluth", "Minnesota", "United States", .run, marathon, 6, 21, 46.7867, -91.9962),
+        event("houston", "Houston Marathon", "Houston", "Texas", "United States", .run, marathon, 1, 18, 29.7523, -95.3595),
+        event("philadelphia", "Philadelphia Marathon", "Philadelphia", "Pennsylvania", "United States", .run, marathon, 11, 23, 39.9656, -75.1810),
+        event("twin-cities", "Twin Cities Marathon", "Minneapolis", "Minnesota", "United States", .run, marathon, 10, 5, 44.9778, -93.2650),
+        event("honolulu", "Honolulu Marathon", "Honolulu", "Hawaii", "United States", .run, marathon, 12, 14, 21.2793, -157.8292),
+
+        // ── Half marathons and shorter
+        event("rnr-san-diego-half", "Rock 'n' Roll San Diego Half", "San Diego", "California", "United States", .run, half, 6, 1, 32.7157, -117.1611),
+        event("rnr-arizona-half", "Rock 'n' Roll Arizona Half", "Phoenix", "Arizona", "United States", .run, half, 1, 18, 33.4484, -112.0740),
+        event("brooklyn-half", "Brooklyn Half", "Brooklyn", "New York", "United States", .run, half, 5, 17, 40.6782, -73.9442),
+        event("peachtree", "Peachtree Road Race", "Atlanta", "Georgia", "United States", .run, 10_000, 7, 4, 33.8121, -84.3963),
+        event("bolder-boulder", "BOLDERBoulder 10K", "Boulder", "Colorado", "United States", .run, 10_000, 5, 25, 40.0150, -105.2705),
+        event("bay-to-breakers", "Bay to Breakers", "San Francisco", "California", "United States", .run, 12_000, 5, 17, 37.7749, -122.4194),
+        event("falmouth", "Falmouth Road Race", "Falmouth", "Massachusetts", "United States", .run, 11_265, 8, 16, 41.5623, -70.6389),
+
+        // ── Ultras and trail
+        event("western-states", "Western States 100", "Olympic Valley", "California", "United States", .run, 160_934, 6, 27, 39.1968, -120.2357),
+        event("leadville-100", "Leadville Trail 100", "Leadville", "Colorado", "United States", .run, 160_934, 8, 15, 39.2508, -106.2925),
+        event("jfk-50", "JFK 50 Mile", "Boonsboro", "Maryland", "United States", .run, 80_467, 11, 21, 39.4143, -77.7311),
+        event("pikes-peak-ascent", "Pikes Peak Ascent", "Manitou Springs", "Colorado", "United States", .run, 21_726, 9, 20, 38.8597, -104.9172),
+
+        // ── Cycling
+        event("unbound-gravel", "Unbound Gravel 200", "Emporia", "Kansas", "United States", .ride, 321_869, 5, 30, 38.4039, -96.1817),
+        event("el-tour-tucson", "El Tour de Tucson", "Tucson", "Arizona", "United States", .ride, 160_934, 11, 21, 32.2226, -110.9747),
+        event("triple-bypass", "Triple Bypass", "Evergreen", "Colorado", "United States", .ride, 193_121, 7, 11, 39.6333, -105.3172),
+        event("levis-granfondo", "Levi's GranFondo", "Santa Rosa", "California", "United States", .ride, 160_934, 10, 3, 38.4405, -122.7141),
+        event("gfny", "Gran Fondo New York", "Fort Lee", "New Jersey", "United States", .ride, 160_934, 5, 17, 40.8509, -73.9701),
+        event("mt-washington-hillclimb", "Mt. Washington Auto Road Hillclimb", "Gorham", "New Hampshire", "United States", .ride, 12_231, 8, 15, 44.2619, -71.2536),
+        event("assault-mt-mitchell", "Assault on Mt. Mitchell", "Spartanburg", "South Carolina", "United States", .ride, 164_154, 5, 18, 34.9496, -81.9320),
+        event("etape-du-tour", "L'Étape du Tour", "Alpe d'Huez", nil, "France", .ride, 145_000, 7, 12, 45.0902, 6.0703),
+
+        // ── Iconic hikes and summits
+        event("half-dome", "Half Dome", "Yosemite National Park", "California", "United States", .hike, 22_530, 7, 15, 37.7459, -119.5332),
+        event("angels-landing", "Angels Landing", "Zion National Park", "Utah", "United States", .hike, 8_690, 5, 15, 37.2690, -112.9469),
+        event("the-narrows", "The Narrows", "Zion National Park", "Utah", "United States", .hike, 15_127, 6, 15, 37.2982, -112.9481),
+        event("camelback", "Camelback Mountain (Echo Canyon)", "Phoenix", "Arizona", "United States", .hike, 4_023, 3, 15, 33.5225, -111.9631),
+        event("humphreys-peak", "Humphreys Peak", "Flagstaff", "Arizona", "United States", .hike, 16_898, 8, 15, 35.3464, -111.6780),
+        event("mount-whitney", "Mount Whitney", "Lone Pine", "California", "United States", .hike, 35_405, 8, 1, 36.5865, -118.2920),
+        event("rim-to-rim", "Grand Canyon Rim to Rim", "Grand Canyon", "Arizona", "United States", .hike, 38_624, 10, 10, 36.0544, -112.1401),
+        event("longs-peak", "Longs Peak", "Estes Park", "Colorado", "United States", .hike, 24_140, 8, 1, 40.2549, -105.6151),
+        event("mount-elbert", "Mount Elbert", "Leadville", "Colorado", "United States", .hike, 15_288, 8, 1, 39.1178, -106.4453),
+        event("mount-katahdin", "Mount Katahdin", "Millinocket", "Maine", "United States", .hike, 16_093, 9, 1, 45.9044, -68.9216),
+        event("mount-washington", "Mount Washington (Tuckerman Ravine)", "Gorham", "New Hampshire", "United States", .hike, 13_518, 7, 15, 44.2571, -71.3033),
+        event("kalalau", "Kalalau Trail", "Kauai", "Hawaii", "United States", .hike, 35_405, 5, 15, 22.2199, -159.5828),
+        event("mount-si", "Mount Si", "North Bend", "Washington", "United States", .hike, 12_875, 6, 15, 47.4879, -121.7230),
+        event("bright-angel", "Bright Angel Trail", "Grand Canyon", "Arizona", "United States", .hike, 30_578, 4, 15, 36.0574, -112.1436)
+    ]
 
     private static func courses(_ waypoints: [CLLocationCoordinate2D]) -> [Int: [CLLocationCoordinate2D]] {
         Dictionary(uniqueKeysWithValues: offeredYears.map { ($0, waypoints) })
@@ -67,33 +206,49 @@ enum RaceCatalog {
     /// Creates a `Run` for a library race with the runner's own inputs. The activity carries the
     /// official course and distance, is flagged as a race, and optionally kept out of aggregate
     /// totals. It behaves like any imported run everywhere downstream (map, timeline, Studio).
+    /// Creates the activity for a library entry with everything the participant recorded about
+    /// it. A route they attached themselves always wins over the library's traced course — it's
+    /// the line they actually covered.
     static func makeRun(
         event: RaceEvent,
         year: Int,
         date: Date,
         finishSeconds: Int,
-        countsInTotals: Bool
+        countsInTotals: Bool,
+        bibNumber: String = "",
+        finishPlace: String = "",
+        photoReferences: [String] = [],
+        attachedRoute: [CLLocationCoordinate2D]? = nil,
+        attachedElevations: [Double] = [],
+        attachedPaces: [Double] = [],
+        attachedDistance: Double? = nil
     ) -> Run {
-        let coordinates = event.course(for: year)
-        let box = RouteGeometry.boundingBox(of: coordinates, fallbackStart: coordinates.first)
+        let attached = attachedRoute ?? []
+        let coordinates = attached.isEmpty ? event.course(for: year) : attached
+        let box = RouteGeometry.boundingBox(of: coordinates, fallbackStart: coordinates.first ?? event.start)
+        // The official distance stands unless their own file measured the day.
+        let distance = attached.isEmpty ? event.distanceMeters : (attachedDistance ?? event.distanceMeters)
         let run = Run(
             provider: .other("Race Library"),
             name: "\(event.name) \(year)",
             startDate: date,
-            distance: event.distanceMeters,
+            distance: distance,
             movingTime: finishSeconds,
             elapsedTime: finishSeconds,
-            elevationGain: 0,
+            elevationGain: RouteMetrics.elevationGain(of: attachedElevations),
             summaryPolyline: PolylineDecoder.encode(coordinates),
             city: event.city,
             state: event.state,
             country: event.country,
-            sportType: "Run",
-            isRace: true,
-            isTrail: false,
+            sportType: event.discipline.sportType,
+            // A summit is an achievement, not a placing — flagging it as a race would put it in
+            // the finisher collection and skew every race statistic.
+            isRace: event.discipline != .hike,
+            isTrail: event.discipline == .hike,
             excludedFromTotals: !countsInTotals,
-            startLatitude: coordinates.first?.latitude,
-            startLongitude: coordinates.first?.longitude,
+            photoReferences: photoReferences,
+            startLatitude: coordinates.first?.latitude ?? event.start?.latitude,
+            startLongitude: coordinates.first?.longitude ?? event.start?.longitude,
             minLatitude: box.minLat,
             maxLatitude: box.maxLat,
             minLongitude: box.minLon,
@@ -102,7 +257,13 @@ enum RaceCatalog {
         run.importMethod = .manual
         run.raceIsCustom = true
         run.sourceExternalID = "race:\(event.id):\(year)"
-        run.routeStatus = .available
+        run.bibNumber = bibNumber
+        run.finishPlace = finishPlace
+        if !attachedElevations.isEmpty { run.elevationSeries = attachedElevations }
+        if !attachedPaces.isEmpty { run.paceSeries = attachedPaces }
+        // Without geometry the activity is honestly route-less: the detail page then offers to
+        // place it on the map or import the participant's file.
+        run.routeStatus = coordinates.isEmpty ? .unavailable : .available
         run.routeSource = .imported
         return run
     }

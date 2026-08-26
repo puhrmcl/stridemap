@@ -88,9 +88,7 @@ struct StudioHomeView: View {
                             description: Text("Runs with a map become art here. Sync or import your history to begin — or add a race you ran but never tracked.")
                         )
                         HStack(spacing: 12) {
-                            if showsAddRace {
-                                actionCapsule("Add a race", "trophy") { showAddRace = true }
-                            }
+                            actionCapsule("Add from the library", "trophy") { showAddRace = true }
                             actionCapsule("Import an activity", "square.and.arrow.down") { showImportPicker = true }
                         }
                     }
@@ -287,8 +285,9 @@ struct StudioHomeView: View {
         .padding(.horizontal, 20)
     }
 
-    /// "Add a race" is a running concept, so it's offered only for Runs or All Activities.
-    private var showsAddRace: Bool { scope == .runs || scope == .all }
+    /// The library now covers running, cycling and iconic hikes, so the entry point belongs to
+    /// every scope rather than only the running ones.
+    private var showsAddRace: Bool { true }
 
     /// A chip that names and switches the activity filter, mirroring Achievements / Profile.
     private var scopeFilter: some View {
@@ -478,9 +477,7 @@ struct StudioHomeView: View {
     private var utilityFooter: some View {
         VStack(alignment: .leading, spacing: 10) {
             Divider().padding(.bottom, 4)
-            if showsAddRace {
-                utilityRow("Add a race", "trophy") { showAddRace = true }
-            }
+            utilityRow("Add from the library", "trophy") { showAddRace = true }
             utilityRow("Import an activity", "square.and.arrow.down") { showImportPicker = true }
             if hasPhotos {
                 utilityRow("Photo Wall", "photo.on.rectangle.angled") { showPhotoWall = true }
