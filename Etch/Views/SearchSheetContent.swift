@@ -259,7 +259,9 @@ struct SearchSheetContent: View {
     ]
 
     /// A row of circular page shortcuts (Timeline, Achievements, Studio, Filter), sitting above
-    /// Recent like Apple Maps' quick actions — flat Etch-blue circles with white glyphs.
+    /// Recent like Apple Maps' quick actions. Deep-moss circles with bone glyphs and a hairline
+    /// border — restrained, so the shortcuts settle into the map and the dark sheet rather than
+    /// dominating it. Etch blue stays reserved for active/selected states and accents.
     private var pagesSection: some View {
         HStack(spacing: 0) {
             ForEach(pageShortcuts) { item in
@@ -267,20 +269,9 @@ struct SearchSheetContent: View {
                     searchFocused = false
                     appModel.presentedSurface = item.surface
                 } label: {
-                    VStack(spacing: 7) {
-                        Image(systemName: item.icon)
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 58, height: 58)
-                            .background(Theme.accent, in: .circle)
-                        Text(item.title)
-                            .font(.system(.caption, design: .rounded).weight(.medium))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                    }
-                    .frame(maxWidth: .infinity)   // spread the four evenly across the width
+                    ShortcutCircleLabel(icon: item.icon, title: item.title)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(ShortcutPressStyle())
             }
         }
         .padding(.vertical, 2)
@@ -505,5 +496,55 @@ struct SearchSheetContent: View {
         searchFocused = false
         model.requestCollapse()
         appModel.select(run)
+    }
+}
+
+// MARK: - Page shortcut styling
+
+/// Threads a shortcut button's pressed state into its label, so the circle can darken on press
+/// without restructuring the button or its hit area.
+private struct ShortcutPressedKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+private extension EnvironmentValues {
+    var shortcutPressed: Bool {
+        get { self[ShortcutPressedKey.self] }
+        set { self[ShortcutPressedKey.self] = newValue }
+    }
+}
+
+private struct ShortcutPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .environment(\.shortcutPressed, configuration.isPressed)
+    }
+}
+
+/// One shortcut's visual: a deep-moss circle (#3A403B at 88%), a bone glyph (#F5F5F3), and a
+/// whisper of a white border — premium and quiet, sized to sit with the map rather than over it.
+private struct ShortcutCircleLabel: View {
+    let icon: String
+    let title: String
+    @Environment(\.shortcutPressed) private var pressed
+
+    private static let fill = Color(red: 58 / 255, green: 64 / 255, blue: 59 / 255)        // #3A403B
+    private static let pressedFill = Color(red: 70 / 255, green: 77 / 255, blue: 71 / 255) // #464D47
+    private static let glyph = Color(red: 245 / 255, green: 245 / 255, blue: 243 / 255)    // #F5F5F3
+
+    var body: some View {
+        VStack(spacing: 7) {
+            Image(systemName: icon)
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(Self.glyph)
+                .frame(width: 74, height: 74)
+                .background((pressed ? Self.pressedFill : Self.fill).opacity(0.88), in: .circle)
+                .overlay(Circle().strokeBorder(.white.opacity(0.09), lineWidth: 1))
+            Text(title)
+                .font(.system(.caption, design: .rounded).weight(.medium))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)   // spread the four evenly across the width
     }
 }
