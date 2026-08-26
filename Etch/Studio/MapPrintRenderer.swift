@@ -365,30 +365,43 @@ enum MapPrintRenderer {
     /// A clean starfield: no connecting thread (it read as clutter, not narrative), every point
     /// with a soft same-tone halo so the field has depth, and races ringed like named stars.
     ///
-    /// Two things keep it from collapsing. It fits itself to where the runs *begin* rather than
-    /// to the ground they cover, because a field of start points drawn at route extent huddles in
-    /// the middle of the sheet. And starts falling on the same spot — the door you leave from
-    /// every morning — merge into one star that grows with the miles run from it, instead of
-    /// stacking a hundred identical dots into a single anonymous blob.
+    /// Two things keep it from collapsing. It frames itself on where the runs *begin* rather than
+    /// on the ground they cover, and it frames on the **dense core** of those starts rather than
+    /// their full extent. One trip to Chicago otherwise sets the scale for a life run in Arizona:
+    /// at that zoom a whole city is narrower than a single dot, every start in it merges, and the
+    /// piece comes out as four anonymous points on an empty sheet. Framed on the interdecile band
+    /// instead, the neighbourhood opens up and each morning's start is its own star. Trips still
+    /// draw — they simply fall outside the frame, the way a star chart shows one patch of sky.
+    ///
+    /// Starts that genuinely coincide — the door you leave from every morning — merge into one
+    /// star that grows with the miles run from it, rather than stacking identical dots.
     private static func drawConstellation(_ runs: [Run], region: MKCoordinateRegion, size: CGSize,
                                           line: UIColor, unit: CGFloat, cg: CGContext, dark: Bool, weight: CGFloat) {
         let starts = runs.compactMap { run in run.startCoordinate.map { (run, $0) } }
         guard !starts.isEmpty else { return }
 
-        let lats = starts.map(\.1.latitude), lons = starts.map(\.1.longitude)
-        let spanLat = (lats.max() ?? 0) - (lats.min() ?? 0)
-        let spanLon = (lons.max() ?? 0) - (lons.min() ?? 0)
+        /// The 10th–90th percentile of a set, so a handful of outliers can't set the scale.
+        func core(_ values: [Double]) -> (low: Double, high: Double) {
+            let sorted = values.sorted()
+            guard sorted.count > 8 else { return (sorted.first ?? 0, sorted.last ?? 0) }
+            let last = Double(sorted.count - 1)
+            return (sorted[Int(last * 0.1)], sorted[Int(last * 0.9)])
+        }
+        let latBand = core(starts.map(\.1.latitude))
+        let lonBand = core(starts.map(\.1.longitude))
+        let spanLat = latBand.high - latBand.low
+        let spanLon = lonBand.high - lonBand.low
         let fitted = (spanLat > 1e-5 || spanLon > 1e-5)
             ? MKCoordinateRegion(
-                center: CLLocationCoordinate2D(latitude: ((lats.max() ?? 0) + (lats.min() ?? 0)) / 2,
-                                               longitude: ((lons.max() ?? 0) + (lons.min() ?? 0)) / 2),
-                span: MKCoordinateSpan(latitudeDelta: max(spanLat, 1e-4) * 1.1,
-                                       longitudeDelta: max(spanLon, 1e-4) * 1.1))
+                center: CLLocationCoordinate2D(latitude: (latBand.high + latBand.low) / 2,
+                                               longitude: (lonBand.high + lonBand.low) / 2),
+                span: MKCoordinateSpan(latitudeDelta: max(spanLat, 1e-4) * 1.25,
+                                       longitudeDelta: max(spanLon, 1e-4) * 1.25))
             : region
         let project = geoProjector(region: fitted, size: size)
 
         struct Star { var point: CGPoint; var distance: Double; var isRace: Bool }
-        let cell = max(4.5 * unit, 1)
+        let cell = max(3 * unit, 1)
         var merged: [Int: Star] = [:]
         for (run, coordinate) in starts {
             let p = project(coordinate)

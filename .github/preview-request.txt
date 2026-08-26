@@ -10,9 +10,8 @@
 #             wall-art:pulse, wall-art:bloom, wall-art:constellation, wall-art:grid
 # appearance: light, dark, or both
 #
-# Requested for b389: all six Archive styles, after Bloom's ink budget, Constellation's
-# merge-and-fit, Pulse's percentile scaling, and a seed that no longer starts every run
-# from the same pin.
+# Requested for b390: all six Archive styles, after framing Constellation on the dense
+# core of its start points and giving the seed a home-dominant, lopsided history.
 
 screens=wall-art:grid,wall-art:ridgeline,wall-art:rings,wall-art:pulse,wall-art:constellation,wall-art:bloom
 appearance=light

@@ -49,7 +49,18 @@ enum PreviewHarness {
         // Enough volume to be honest: an Archive style that looks good on 80 runs can still
         // fall apart on a real library, and the person this is built for has over a thousand.
         for index in 0..<220 {
-            let place = places[index % places.count]
+            // A real history is lopsided: most runs start within a few miles of home, and trips
+            // punctuate them. An even spread across seven cities made every place-based
+            // composition read as uniform noise, and framed Constellation on a continent when
+            // the piece is really about a neighbourhood.
+            let roll = random()
+            let place: (city: String, state: String, lat: Double, lon: Double)
+            switch roll {
+            case ..<0.62:  place = places[index % 2]        // home, two nearby hubs
+            case ..<0.78:  place = places[2]                // the next town over
+            case ..<0.88:  place = places[3]                // the city
+            default:       place = places[4 + index % 3]    // travel
+            }
             let daysAgo = index * 3 + Int(random() * 3)
             guard let date = calendar.date(byAdding: .day, value: -daysAgo, to: .now) else { continue }
 
