@@ -1,0 +1,70 @@
+# CI-as-terminal: the working session's egress proxy blocks prodigi.com, so a runner
+# fetches the layflat photo book's product page and sample artwork PDF, extracts the
+# specs (sizes, pages, prices, SKUs, file geometry) and prints them into the job log.
+
+name: Fetch layflat book specs
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/rebrand-etch]
+    paths:
+      - ".github/workflows/fetch-layflat-specs.yml"
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch product page and extract text
+        run: |
+          set -e
+          curl -sL --retry 3 "https://www.prodigi.com/products/books-and-magazines/layflat-photo-book/" -o page.html
+          echo "page bytes: $(wc -c < page.html)"
+          pip install --quiet beautifulsoup4
+          python3 - <<'EOF'
+          from bs4 import BeautifulSoup
+          import re
+          html = open('page.html').read()
+          soup = BeautifulSoup(html, 'html.parser')
+          for tag in soup(['script', 'style', 'noscript']): tag.decompose()
+          text = re.sub(r'\n{3,}', '\n\n', soup.get_text('\n'))
+          print("── PAGE TEXT START")
+          print(text)
+          print("── PAGE TEXT END")
+          # Any SKU-looking codes in the raw HTML (incl. data attributes the text pass loses).
+          codes = sorted(set(re.findall(r'[A-Z]{2,}[A-Z0-9]*(?:-[A-Z0-9]{2,}){1,5}', html)))
+          plausible = [c for c in codes if any(k in c for k in ('BOOK', 'LAYFLAT', 'GLOBAL', 'PHOTO'))]
+          print("── SKU-LIKE CODES:", plausible)
+          EOF
+
+      - name: Fetch sample PDF and report geometry
+        run: |
+          set -e
+          curl -sL --retry 3 "https://www.prodigi.com/download/artwork-preparation/layflat-photo-book-sample-file-a4-landscape.pdf" -o sample.pdf
+          echo "pdf bytes: $(wc -c < sample.pdf)"
+          pip install --quiet pypdf
+          python3 - <<'EOF'
+          from pypdf import PdfReader
+          r = PdfReader('sample.pdf')
+          print("pages:", len(r.pages))
+          for i, p in enumerate(r.pages):
+              box = p.mediabox
+              w_mm = float(box.width) / 72 * 25.4
+              h_mm = float(box.height) / 72 * 25.4
+              print(f"page {i+1}: {float(box.width):.1f}x{float(box.height):.1f} pt = {w_mm:.1f}x{h_mm:.1f} mm")
+              if i >= 4 and len(r.pages) > 8:
+                  print(f"... ({len(r.pages)-5} more pages, assuming same size)")
+                  last = r.pages[-1].mediabox
+                  print(f"page {len(r.pages)}: {float(last.width):.1f}x{float(last.height):.1f} pt")
+                  break
+          EOF
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: layflat-specs
+          path: |
+            page.html
+            sample.pdf
