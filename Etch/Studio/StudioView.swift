@@ -162,6 +162,17 @@ struct StudioView: View {
         .fullScreenCover(isPresented: $showFullScreenPreview) {
             ArtworkPreviewView(image: rendered)
         }
+        .sheet(item: $photoPickingFrame) { target in
+            FramePhotoPickerSheet(
+                run: run,
+                current: effectivePhotoPick(target.frame),
+                onPick: { index in assignPhoto(index, toFrame: target.frame) },
+                onAddPhoto: {
+                    pendingPhotoFrame = target.frame
+                    Task { await PhotoLibrary.requestAuthorization(); showPhotoPicker = true }
+                }
+            )
+        }
         .task(id: renderKey) { await renderPreview() }
         // Debounce the free-text fields: commit them ~350ms after typing stops, so the preview
         // re-renders once per edit rather than once per keystroke.
@@ -551,12 +562,13 @@ struct StudioView: View {
                                 Label(kind.name, systemImage: kind.icon).tag(kind)
                             }
                         }
-                        // A photo frame with several photos on the run: choose which one it shows.
-                        if frameKind(i) == .photo, run.photoReferences.count > 1 {
-                            Picker("Photo", selection: photoPickBinding(i)) {
-                                ForEach(0..<min(run.photoReferences.count, 6), id: \.self) { p in
-                                    Label("Photo \(p + 1)", systemImage: "photo").tag(p)
-                                }
+                        // A photo frame: pick which photo it shows from a thumbnail gallery of
+                        // everything on the run (or add a new one straight into this frame).
+                        if frameKind(i) == .photo {
+                            Button {
+                                photoPickingFrame = FramePickTarget(frame: i)
+                            } label: {
+                                Label("Choose Photo…", systemImage: "photo.on.rectangle.angled")
                             }
                         }
                     } label: {
@@ -596,16 +608,21 @@ struct StudioView: View {
         return config.resolvedFrames.prefix(i).filter { $0 == .photo }.count
     }
 
-    private func photoPickBinding(_ i: Int) -> Binding<Int> {
-        Binding(
-            get: { effectivePhotoPick(i) },
-            set: { newValue in
-                var picks = config.resolvedPhotoPicks
-                guard picks.indices.contains(i) else { return }
-                picks[i] = newValue
-                config.galleryPhotoPicks = picks
-            }
-        )
+    /// Which Gallery frame is choosing its photo, driving the thumbnail picker sheet.
+    private struct FramePickTarget: Identifiable {
+        let frame: Int
+        var id: Int { frame }
+    }
+    @State private var photoPickingFrame: FramePickTarget?
+    /// A frame waiting for a newly added library photo — Add Photo from the frame picker lands
+    /// the new photo straight into that frame.
+    @State private var pendingPhotoFrame: Int?
+
+    private func assignPhoto(_ index: Int, toFrame frame: Int) {
+        var picks = config.resolvedPhotoPicks
+        guard picks.indices.contains(frame) else { return }
+        picks[frame] = index
+        config.galleryPhotoPicks = picks
     }
 
     private func frameBinding(_ i: Int) -> Binding<GalleryTileKind> {
@@ -1114,11 +1131,19 @@ struct StudioView: View {
     /// Appends newly picked library photos to this run (de-duplicated), which persists them on the
     /// run so they show both here and in the run's activity details, then re-renders the preview.
     private func addPhotos(_ ids: [String]) {
-        guard !ids.isEmpty else { return }
+        guard !ids.isEmpty else { pendingPhotoFrame = nil; return }
         var refs = run.photoReferences
         for id in ids where !refs.contains(id) { refs.append(id) }
-        guard refs.count != run.photoReferences.count else { return }
-        run.photoReferences = refs
-        try? modelContext.save()
+        if refs.count != run.photoReferences.count {
+            run.photoReferences = refs
+            try? modelContext.save()
+        }
+        // A Gallery frame was waiting on this add: land the first picked photo straight into it —
+        // add-and-place in one gesture, no second trip through the picker.
+        if let frame = pendingPhotoFrame, let first = ids.first,
+           let index = refs.firstIndex(of: first) {
+            assignPhoto(index, toFrame: frame)
+        }
+        pendingPhotoFrame = nil
     }
 }

@@ -102,20 +102,25 @@ enum StudioRenderer {
                                            edition: request.edition, route: request.routeColor)
     }
 
-    /// Loads the Memory edition's photos, cover-first, at a resolution matched to how many cells
-    /// share the panel — plus each photo's saliency focus point, so gallery cells crop toward the
-    /// subject. Empty for non-photo editions. `panelPixelWidth` is the full panel width; grid
-    /// cells need only a fraction of it, keeping memory in check.
+    /// Loads the composition's photos at a resolution matched to how many cells share the panel —
+    /// plus each photo's saliency focus point, so gallery cells crop toward the subject. Empty for
+    /// non-photo editions. `panelPixelWidth` is the full panel width; grid cells need only a
+    /// fraction of it, keeping memory in check.
+    ///
+    /// The third element is the Gallery's *compact* per-cell photo plan: the tile plan can pick
+    /// any of the run's photos per cell (no cap), so only the photos actually used are loaded and
+    /// the stored absolute indices are rewritten to positions in the loaded pool. Empty for
+    /// non-gallery layouts.
     static func photoImages(for request: Request,
-                            panelPixelWidth: CGFloat) async -> ([UIImage], [CGPoint]) {
+                            panelPixelWidth: CGFloat) async -> ([UIImage], [CGPoint], [Int]) {
+        if request.layout == .gallery {
+            return await galleryPhotoImages(for: request, panelPixelWidth: panelPixelWidth)
+        }
         // Memory fills the panel (single or grid); the Editorial layout may show one cover photo
         // beside the text.
         let ids: [String]
         if request.edition.isPhoto {
             ids = Array(request.run.photoReferences.prefix(request.photoLayout.maxPhotos))
-        } else if request.layout == .gallery {
-            // Gallery loads a deeper pool so any of the run's first photos can be picked per cell.
-            ids = Array(request.run.photoReferences.prefix(6))
         } else if request.layout == .keepsake {
             ids = Array(request.run.photoReferences.prefix(1))
         } else if request.mapLayoutRaw == MapLayout.photo.rawValue {
@@ -126,7 +131,7 @@ enum StudioRenderer {
         } else {
             ids = []
         }
-        guard !ids.isEmpty else { return ([], []) }
+        guard !ids.isEmpty else { return ([], [], []) }
         // In a grid the cell is at most half the panel; a single fills it.
         let cellWidth = ids.count > 1 ? panelPixelWidth / 2 : panelPixelWidth
         let target = max(cellWidth, 1200)
@@ -138,7 +143,45 @@ enum StudioRenderer {
                 focuses.append(await PhotoFocus.focusPoint(id: id, image: image))
             }
         }
-        return (images, focuses)
+        return (images, focuses, [])
+    }
+
+    /// Gallery: resolve the tile plan to the *absolute* photo indices it uses (explicit picks
+    /// win; automatic cells take photo order), load exactly those, and rewrite the plan to
+    /// positions in the loaded pool. A pick whose photo fails to load maps past the pool, which
+    /// the composition renders as the awaiting-photo placeholder.
+    private static func galleryPhotoImages(for request: Request,
+                                           panelPixelWidth: CGFloat) async -> ([UIImage], [CGPoint], [Int]) {
+        var autoIndex = 0
+        var neededAbsolute: [Int] = []
+        var cellAbsolute: [Int] = []   // per cell: absolute photo index, or -1 for non-photo cells
+        for (cell, raw) in request.galleryCellsRaw.enumerated() {
+            guard GalleryTileKind(rawValue: raw) == .photo else {
+                cellAbsolute.append(-1)
+                continue
+            }
+            let pick = cell < request.galleryPhotoPicks.count && request.galleryPhotoPicks[cell] >= 0
+                ? request.galleryPhotoPicks[cell] : autoIndex
+            autoIndex += 1
+            cellAbsolute.append(pick)
+            if !neededAbsolute.contains(pick) { neededAbsolute.append(pick) }
+        }
+        let refs = request.run.photoReferences
+        let cellWidth = neededAbsolute.count > 1 ? panelPixelWidth / 2 : panelPixelWidth
+        let target = max(cellWidth, 1200)
+        var images: [UIImage] = []
+        var focuses: [CGPoint] = []
+        var positionByAbsolute: [Int: Int] = [:]
+        for absolute in neededAbsolute where refs.indices.contains(absolute) {
+            let id = refs[absolute]
+            if let image = await PhotoLibrary.image(for: id, targetSize: CGSize(width: target, height: target)) {
+                positionByAbsolute[absolute] = images.count
+                images.append(image)
+                focuses.append(await PhotoFocus.focusPoint(id: id, image: image))
+            }
+        }
+        let compact = cellAbsolute.map { $0 >= 0 ? (positionByAbsolute[$0] ?? Int.max) : -1 }
+        return (images, focuses, compact)
     }
 
     /// Renders the composition at the given `ImageRenderer` scale.
@@ -151,16 +194,17 @@ enum StudioRenderer {
         var panel = panelRaw
         var photos = photoPack.0
         let focuses = photoPack.1
+        let picks = photoPack.2
         // Black & white: desaturate the raster panels here (ImageRenderer can't apply a colour
         // filter to a live map/photo), and let the composition tone its vector colours to grey.
         if request.monochrome {
             panel = panel.map { $0.desaturated() }
             photos = photos.map { $0.desaturated() }
         }
-        let plan = fitPlan(for: request, photos: photos, profile: profile)
+        let plan = fitPlan(for: request, photos: photos, picks: picks, profile: profile)
         let composition = composition(for: request, panel: panel, photos: photos, focuses: focuses,
-                                      profile: profile, fitScale: plan.scale, measuring: false,
-                                      artHeight: plan.artHeight)
+                                      picks: picks, profile: profile, fitScale: plan.scale,
+                                      measuring: false, artHeight: plan.artHeight)
         let renderer = ImageRenderer(content: composition)
         renderer.scale = scale
         guard let base = renderer.uiImage else { return nil }
@@ -171,8 +215,9 @@ enum StudioRenderer {
     /// Builds the composition view for a request — the one construction site, shared by the real
     /// render and the measurement pass so the two can never drift apart.
     private static func composition(for request: Request, panel: UIImage?, photos: [UIImage],
-                                    focuses: [CGPoint] = [], profile: [Double], fitScale: CGFloat,
-                                    measuring: Bool, artHeight: CGFloat? = nil) -> StudioComposition {
+                                    focuses: [CGPoint] = [], picks: [Int] = [], profile: [Double],
+                                    fitScale: CGFloat, measuring: Bool,
+                                    artHeight: CGFloat? = nil) -> StudioComposition {
         StudioComposition(
             run: request.run, edition: request.edition, panelImage: panel,
             photoImages: photos,
@@ -212,7 +257,7 @@ enum StudioRenderer {
             statScale: request.statScale,
             fitScale: fitScale,
             measuring: measuring,
-            galleryPhotoPicks: request.galleryPhotoPicks,
+            galleryPhotoPicks: picks,
             photoFocusPoints: focuses,
             artHeightOverride: artHeight,
             printAspect: request.printAspect
@@ -231,7 +276,7 @@ enum StudioRenderer {
     /// exact by construction. The shrink converges in a pass or two since type dominates the
     /// fixed height; floored at 0.5 — a sheet that still overflows at half size is not a layout
     /// problem the renderer should paper over.
-    private static func fitPlan(for request: Request, photos: [UIImage],
+    private static func fitPlan(for request: Request, photos: [UIImage], picks: [Int] = [],
                                 profile: [Double]) -> (scale: CGFloat, artHeight: CGFloat?) {
         // Overlay compositions (full-bleed map, keepsake) set type *over* the art between
         // spacers — they always fit.
@@ -248,8 +293,8 @@ enum StudioRenderer {
 
         // The probe renders at a light raster scale purely to read its laid-out height in points.
         func fixedHeight(at scale: CGFloat) -> CGFloat? {
-            let probe = composition(for: request, panel: nil, photos: photos, profile: profile,
-                                    fitScale: scale, measuring: true)
+            let probe = composition(for: request, panel: nil, photos: photos, picks: picks,
+                                    profile: profile, fitScale: scale, measuring: true)
             let renderer = ImageRenderer(content: probe)
             renderer.scale = 0.5
             guard let image = renderer.uiImage else { return nil }
