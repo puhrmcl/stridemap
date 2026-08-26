@@ -75,4 +75,30 @@ enum WeatherFormat {
         if let condition { parts.append(condition.label) }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
+
+    /// Relative humidity (0–1 fraction) as a percentage, e.g. "27%".
+    static func humidity(_ fraction: Double) -> String {
+        "\(Int((fraction * 100).rounded()))%"
+    }
+
+    /// Wind as "2.5 mph NW" / "4 km/h NW" from m/s + compass degrees. Direction alone is
+    /// omitted when the air is effectively still.
+    static func wind(speedMS: Double, directionDeg: Double?, unit: UnitSystem = .current) -> String {
+        let speedText: String
+        if unit == .miles {
+            speedText = String(format: "%.1f mph", speedMS * 2.23694)
+        } else {
+            speedText = String(format: "%.0f km/h", speedMS * 3.6)
+        }
+        guard speedMS >= 0.5, let directionDeg else { return speedText }
+        return "\(speedText) \(compass(directionDeg))"
+    }
+
+    /// A compass degree as its 8-point name (the direction the wind comes *from*).
+    static func compass(_ degrees: Double) -> String {
+        let names = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+        let index = Int(((degrees.truncatingRemainder(dividingBy: 360) + 360)
+            .truncatingRemainder(dividingBy: 360) + 22.5) / 45) % 8
+        return names[index]
+    }
 }

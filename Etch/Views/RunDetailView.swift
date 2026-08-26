@@ -402,11 +402,45 @@ struct RunDetailView: View {
                     }
                 }
             }
-            // Weather, when the run captured it.
-            if let weather = run.weatherLine() {
-                metric("Weather", weather, "cloud.sun")
+            // Weather — the recorded or backfilled conditions, two per row like the physio
+            // metrics. The Strava-style full panel: conditions, feels-like, humidity, wind.
+            ForEach(Array(stride(from: 0, to: weatherMetrics.count, by: 2)), id: \.self) { i in
+                HStack(spacing: 12) {
+                    let a = weatherMetrics[i]
+                    metric(a.label, a.value, a.icon)
+                    if i + 1 < weatherMetrics.count {
+                        let b = weatherMetrics[i + 1]
+                        metric(b.label, b.value, b.icon)
+                    } else {
+                        Color.clear.frame(maxWidth: .infinity)
+                    }
+                }
             }
         }
+        // Backfill this run's weather on first view if the sweep hasn't reached it yet — the
+        // panel fills in as soon as WeatherKit answers.
+        .task {
+            guard !run.weatherBackfilled else { return }
+            if await WeatherBackfill.backfill(run) { try? context.save() }
+        }
+    }
+
+    /// The available weather metrics, conditions first.
+    private var weatherMetrics: [(label: String, value: String, icon: String)] {
+        var items: [(label: String, value: String, icon: String)] = []
+        if let line = run.weatherLine() {
+            items.append(("Weather", line, run.weatherCondition?.symbol ?? "cloud.sun"))
+        }
+        if let feels = run.weatherFeelsLikeC {
+            items.append(("Feels Like", WeatherFormat.temperature(celsius: feels), "thermometer.medium"))
+        }
+        if let humidity = run.weatherHumidity {
+            items.append(("Humidity", WeatherFormat.humidity(humidity), "humidity"))
+        }
+        if let speed = run.weatherWindSpeedMS {
+            items.append(("Wind", WeatherFormat.wind(speedMS: speed, directionDeg: run.weatherWindDirectionDeg), "wind"))
+        }
+        return items
     }
 
     /// The available physiological metrics, ordered so heart rate sits next to energy.

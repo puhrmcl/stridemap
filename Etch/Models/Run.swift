@@ -96,6 +96,17 @@ final class Run {
     /// Normalized `WeatherCondition` raw value, when known (HealthKit only; Strava gives
     /// temperature but no condition).
     var weatherConditionRaw: String? = nil
+    /// Relative humidity as a 0–1 fraction; feels-like in Celsius; wind speed in m/s and
+    /// direction in compass degrees. Written by the source when it recorded them, else
+    /// backfilled from WeatherKit's historical weather. All defaulted for clean migration.
+    var weatherHumidity: Double? = nil
+    var weatherFeelsLikeC: Double? = nil
+    var weatherWindSpeedMS: Double? = nil
+    var weatherWindDirectionDeg: Double? = nil
+    /// True once the WeatherKit backfill has been *attempted* for this run — attempted, not
+    /// succeeded, so runs the service has no data for aren't retried forever. Errors (network,
+    /// missing entitlement) leave it false, and a later pass retries.
+    var weatherBackfilled: Bool = false
 
     // MARK: Location metadata
 

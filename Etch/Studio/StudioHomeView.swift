@@ -152,6 +152,9 @@ struct StudioHomeView: View {
                 // Sheet mode has no close button — swipe the sheet down to dismiss.
             }
             .fullScreenCover(isPresented: $showMap) { HomeView(isMapPopup: true) }
+            // Weather backfill sweep: each visit fills the next batch of runs from WeatherKit's
+            // historical weather (idempotent; source-recorded values always win).
+            .task(id: runs.count) { await WeatherBackfill.run(context: modelContext) }
             .sheet(isPresented: $showProfile) { ProfileView() }
             .sheet(item: $studioRun) { StudioView(run: $0) }
             .sheet(item: $openedPoster) { poster in

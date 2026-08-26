@@ -289,7 +289,8 @@ final class HealthKitProvider: ActivityProvider {
         return activity
     }
 
-    /// Reads the optional weather Apple Health stores on a workout (temperature + condition).
+    /// Reads the optional weather Apple Health stores on a workout (temperature + condition +
+    /// humidity, when the recording app wrote them).
     private func applyWeather(from workout: HKWorkout, to activity: inout ImportedActivity) {
         if let temp = workout.metadata?[HKMetadataKeyWeatherTemperature] as? HKQuantity {
             activity.weatherTemperatureC = temp.doubleValue(for: .degreeCelsius())
@@ -297,6 +298,11 @@ final class HealthKitProvider: ActivityProvider {
         if let raw = workout.metadata?[HKMetadataKeyWeatherCondition] as? NSNumber,
            let condition = WeatherCondition.fromHealthKit(raw.intValue) {
             activity.weatherCondition = condition.rawValue
+        }
+        if let humidity = workout.metadata?[HKMetadataKeyWeatherHumidity] as? HKQuantity {
+            // Recorders vary between a 0–1 fraction and a 0–100 percentage; normalize to 0–1.
+            let value = humidity.doubleValue(for: .percent())
+            activity.weatherHumidity = value > 1 ? value / 100 : value
         }
     }
 

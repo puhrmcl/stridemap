@@ -76,6 +76,7 @@ final class ActivityIngestor {
         if run.maxSpeed == nil { run.maxSpeed = activity.maxSpeed }
         if run.weatherTemperatureC == nil { run.weatherTemperatureC = activity.weatherTemperatureC }
         if run.weatherConditionRaw == nil { run.weatherConditionRaw = activity.weatherCondition }
+        if run.weatherHumidity == nil { run.weatherHumidity = activity.weatherHumidity }
         if !run.hasRoute, !activity.coordinates.isEmpty {
             applyRoute(activity.coordinates, source: .healthKit, to: run,
                        encoded: activity.encodedPolyline, elevations: activity.elevationSeries,
@@ -149,6 +150,7 @@ final class ActivityIngestor {
         if run.country == nil { run.country = activity.country }
         if run.weatherTemperatureC == nil { run.weatherTemperatureC = activity.weatherTemperatureC }
         if run.weatherConditionRaw == nil { run.weatherConditionRaw = activity.weatherCondition }
+        if run.weatherHumidity == nil { run.weatherHumidity = activity.weatherHumidity }
 
         // Fill route/elevation only if HealthKit didn't provide them.
         if !run.hasRoute, let polyline = activity.encodedPolyline, !polyline.isEmpty {
@@ -220,6 +222,7 @@ final class ActivityIngestor {
         if run.maxSpeed == nil { run.maxSpeed = activity.maxSpeed }
         if run.weatherTemperatureC == nil { run.weatherTemperatureC = activity.weatherTemperatureC }
         if run.weatherConditionRaw == nil { run.weatherConditionRaw = activity.weatherCondition }
+        if run.weatherHumidity == nil { run.weatherHumidity = activity.weatherHumidity }
         if run.elevationGain == 0, let gain = activity.elevationGain { run.elevationGain = gain }
         if !run.hasElevationSeries, !activity.elevationSeries.isEmpty {
             run.elevationSeries = activity.elevationSeries
@@ -278,6 +281,7 @@ final class ActivityIngestor {
         run.activityType = activity.activityType
         run.weatherTemperatureC = activity.weatherTemperatureC
         run.weatherConditionRaw = activity.weatherCondition
+        run.weatherHumidity = activity.weatherHumidity
         run.maxSpeed = activity.maxSpeed
         if !activity.elevationSeries.isEmpty { run.elevationSeries = activity.elevationSeries }
         if !activity.paceSeries.isEmpty { run.paceSeries = activity.paceSeries }
