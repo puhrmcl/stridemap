@@ -51,14 +51,18 @@ SKUS=(
   # page (sizes: A4 landscape 297x210, squares 210x210 and 297x297; 18-122 pages).
   # Exact SKU naming unknown, so several candidates; the product-details dump of
   # whichever resolves is the authority on the page-count attribute for quotes.
-  # The product page's HTML carries "BOOK-FE-A4" verbatim; the square sizes are
-  # 210x210 and 297x297 mm, so probe metric-cm suffixes alongside.
-  "BOOK-FE-A4:"
-  "BOOK-FE-SQ:"
-  "BOOK-FE-21X21:"
-  "BOOK-FE-30X30:"
-  "BOOK-FE-21:"
-  "BOOK-FE-30:"
+  # The Year Book's confirmed variant, straight from the product page's dashboard
+  # link: BOOK-FE-A4-L-LF-G (A4 · Landscape · LayFlat · Gloss). The pages=NN entry
+  # probes the page-count attribute for a real quote; the rest probe the square
+  # sizes on the same naming pattern.
+  "BOOK-FE-A4-L-LF-G:"
+  "BOOK-FE-A4-L-LF-G:pages=26"
+  "BOOK-FE-8X8-S-LF-G:"
+  "BOOK-FE-12X12-S-LF-G:"
+  "BOOK-FE-210X210-S-LF-G:"
+  "BOOK-FE-297X297-S-LF-G:"
+  "BOOK-FE-21X21-S-LF-G:"
+  "BOOK-FE-30X30-S-LF-G:"
 )
 
 for entry in "${SKUS[@]}"; do
@@ -94,9 +98,17 @@ attrs = p.get("attributes") or {}
 if attrs: print(f"   attributes: {json.dumps(attrs)}")
 PY
 
-  # 2) What does one actually cost, shipped to the US?
+  # 2) What does one actually cost, shipped to the US? The suffix after ':' is a
+  # frame colour by default; a "key=value" form passes any attribute (books need
+  # a page count, for instance).
   if [[ -n "$frame" ]]; then
-    attributes="{\"color\":\"$frame\"}"
+    if [[ "$frame" == *"="* ]]; then
+      attr_key="${frame%%=*}"
+      attr_value="${frame#*=}"
+      attributes="{\"$attr_key\":\"$attr_value\"}"
+    else
+      attributes="{\"color\":\"$frame\"}"
+    fi
   else
     attributes="{}"
   fi
