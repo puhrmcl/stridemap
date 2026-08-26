@@ -15,12 +15,13 @@ struct AddRaceView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var eventID: String = RaceCatalog.events.first?.id ?? ""
-    @State private var year: Int = RaceCatalog.offeredYears.first ?? Calendar.current.component(.year, from: Date())
     @State private var date = Date()
     @State private var hours = 4
     @State private var minutes = 0
     @State private var seconds = 0
     @State private var countsInTotals = true
+    /// Set when the date came from an explicit choice that changing the event shouldn't undo.
+    @State private var keepChosenDate = false
 
     @State private var bibNumber = ""
     @State private var finishPlace = ""
@@ -43,8 +44,12 @@ struct AddRaceView: View {
     }
 
     private var event: RaceEvent {
-        RaceCatalog.events.first { $0.id == eventID } ?? RaceCatalog.events[0]
+        RaceCatalog.event(id: eventID) ?? RaceCatalog.events[0]
     }
+
+    /// The date is the single source of truth for *when* — which is what lets someone add the
+    /// marathon they ran in 1998 without the library having to offer a list of years.
+    private var year: Int { Calendar.current.component(.year, from: date) }
 
     private var finishSeconds: Int { hours * 3600 + minutes * 60 + seconds }
 
@@ -58,6 +63,7 @@ struct AddRaceView: View {
     var body: some View {
         Form {
             eventSection
+            upcomingSection
             resultSection
             if event.discipline.hasFinisherFields { finisherSection }
             routeSection
@@ -77,7 +83,6 @@ struct AddRaceView: View {
         }
         .onAppear(perform: syncDefaults)
         .onChange(of: eventID) { syncDefaults() }
-        .onChange(of: year) { date = event.defaultDate(for: year) }
         .fileImporter(isPresented: $showFileImporter,
                       allowedContentTypes: Self.fileTypes,
                       allowsMultipleSelection: false,
@@ -110,14 +115,51 @@ struct AddRaceView: View {
                     }
                 }
             }
-            Picker("Year", selection: $year) {
-                ForEach(event.years, id: \.self) { Text(String($0)).tag($0) }
-            }
             DatePicker("Date", selection: $date, displayedComponents: .date)
+            if !isOnTypicalDate {
+                Button("Use \(typicalDateLabel)") { date = event.lastOccurrence() }
+                    .font(.subheadline)
+            }
         } header: {
             Text("Event")
         } footer: {
             Text(event.summary)
+        }
+    }
+
+    private var isOnTypicalDate: Bool {
+        Calendar.current.isDate(date, inSameDayAs: event.defaultDate(for: year))
+    }
+
+    private var typicalDateLabel: String {
+        event.lastOccurrence().formatted(.dateTime.month(.abbreviated).day().year())
+    }
+
+    /// What the library says is coming up next. The calendar is the only thing it knows — there
+    /// are no entry lists here — but "Boston is in six weeks" is the reason to open this screen.
+    private var upcomingSection: some View {
+        Section {
+            ForEach(RaceCatalog.upcoming(limit: 5)) { item in
+                Button {
+                    // Changing the event normally re-dates the form to that event's last running.
+                    // Here the date is the whole point of the tap, so it survives the sync.
+                    keepChosenDate = true
+                    eventID = item.event.id
+                    date = item.date
+                } label: {
+                    HStack {
+                        Label(item.event.name, systemImage: item.event.discipline.icon)
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Text(item.date.formatted(.dateTime.month(.abbreviated).day()))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        } header: {
+            Text("Coming up")
+        } footer: {
+            Text("The library's usual calendar slots, soonest first. Picking one sets the event and its date — adjust the date if the year you ran it was different.")
         }
     }
 
@@ -192,10 +234,14 @@ struct AddRaceView: View {
         if attached != nil {
             return "Your file draws the route and measures the distance — it's the line you actually covered."
         }
-        if event.hasCourse {
-            return "This event has a representative course in the library. Attach your own GPX, TCX or FIT file to draw the route you actually covered."
+        switch event.courseSource {
+        case .file:
+            return "The library carries this event's official course. Attach your own GPX, TCX or FIT file to draw the route you actually covered instead."
+        case .traced:
+            return "The library carries an approximate course for this event, traced from public geography. Attach your own GPX, TCX or FIT file for the real thing."
+        case .none:
+            return "The library places this event but doesn't invent its route. Attach your GPX, TCX or FIT file to draw it — or add it later from the activity."
         }
-        return "The library places this event but doesn't invent its route. Attach your GPX, TCX or FIT file to draw it — or add it later from the activity."
     }
 
     private static let fileTypes: [UTType] = {
@@ -274,7 +320,7 @@ struct AddRaceView: View {
     private var noteSection: some View {
         Section {
             Label {
-                Text(event.hasCourse
+                Text(event.courseSource == .traced
                      ? "Library courses are representative and may vary by year. Your time and details are exactly as you enter them."
                      : "The library supplies this event's location and official distance. Your time and details are exactly as you enter them.")
             } icon: {
@@ -294,8 +340,9 @@ struct AddRaceView: View {
     }
 
     private func syncDefaults() {
-        if !event.years.contains(year) { year = event.years.first ?? year }
-        if attached == nil { date = event.defaultDate(for: year) }
+        // Their own file knows the day; otherwise default to the last time this came around.
+        if attached == nil && !keepChosenDate { date = event.lastOccurrence() }
+        keepChosenDate = false
         if !event.discipline.hasFinisherFields { bibNumber = ""; finishPlace = "" }
     }
 

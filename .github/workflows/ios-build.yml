@@ -31,7 +31,26 @@ jobs:
             -project Etch.xcodeproj \
             -scheme Etch \
             -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath dd \
             CODE_SIGNING_ALLOWED=NO
+
+      # Adding an event's course is meant to be a file drop into Etch/Resources/Courses, relying
+      # on the target being a synchronized folder. If that ever stops bundling the files, the
+      # process silently does nothing and every course quietly disappears — so prove it here.
+      - name: Course files reach the app bundle
+        run: |
+          set -e
+          python3 scripts/event-library.py --check
+          APP=$(find dd/Build/Products -name "Etch.app" -maxdepth 3 | head -1)
+          echo "bundle: $APP"
+          find "$APP" -name "*.gpx" -o -name "*.tcx" -o -name "*.fit" | sed "s|$APP/||"
+          COUNT=$(find "$APP" \( -name "*.gpx" -o -name "*.tcx" -o -name "*.fit" \) | wc -l | tr -d ' ')
+          ON_DISK=$(ls Etch/Resources/Courses 2>/dev/null | wc -l | tr -d ' ')
+          echo "$COUNT of $ON_DISK course file(s) reached the bundle"
+          if [ "$COUNT" -lt "$ON_DISK" ]; then
+            echo "::error::Course files did not reach the app bundle — the drop-in path is broken."
+            exit 1
+          fi
 
       # Xcode Cloud disables automatic SPM resolution and refuses to build unless
       # Package.resolved is committed. This runner just resolved for real, so print
