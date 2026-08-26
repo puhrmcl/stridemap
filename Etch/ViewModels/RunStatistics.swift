@@ -191,23 +191,34 @@ struct RunStatistics {
 
     /// Runs that started at or next to a real point of interest — a park, university, museum,
     /// and so on — grouped by that landmark. Populated by `SyncService.detectLandmarks`.
+    /// Grouping is case- and whitespace-insensitive so detection variants of the same landmark
+    /// merge into one pin; the display name comes from the runs, not the folded key.
     var landmarkPlaces: [TravelPlace] {
-        placesGrouped(by: { $0.landmarkName ?? "" }, include: { $0.landmarkName?.isEmpty == false })
+        placesGrouped(
+            by: { ($0.landmarkName ?? "").trimmingCharacters(in: .whitespaces).lowercased() },
+            label: { $0.landmarkName?.trimmingCharacters(in: .whitespaces) ?? "" },
+            include: { $0.landmarkName?.isEmpty == false }
+        )
     }
 
-    /// Groups located runs by a label key into pins at each group's average start coordinate.
-    private func placesGrouped(by key: (Run) -> String, include: (Run) -> Bool) -> [TravelPlace] {
+    /// Groups located runs by a key into pins at each group's average start coordinate. `label`
+    /// supplies the display name when the grouping key is a folded form (defaults to the key).
+    private func placesGrouped(by key: (Run) -> String,
+                               label: ((Run) -> String)? = nil,
+                               include: (Run) -> Bool) -> [TravelPlace] {
         let groups = Dictionary(grouping: runs.filter { include($0) && $0.startCoordinate != nil }, by: key)
-        return groups.compactMap { label, runs -> TravelPlace? in
-            guard !label.isEmpty else { return nil }
+        return groups.compactMap { groupKey, runs -> TravelPlace? in
+            guard !groupKey.isEmpty else { return nil }
             let coords = runs.compactMap(\.startCoordinate)
             guard !coords.isEmpty else { return nil }
             let lat = coords.map(\.latitude).reduce(0, +) / Double(coords.count)
             let lon = coords.map(\.longitude).reduce(0, +) / Double(coords.count)
+            let sorted = runs.sorted { $0.startDate > $1.startDate }
+            let name = label.flatMap { fn in sorted.first.map(fn) } ?? groupKey
             return TravelPlace(
-                label: label,
+                label: name.isEmpty ? groupKey : name,
                 coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
-                runs: runs.sorted { $0.startDate > $1.startDate }
+                runs: sorted
             )
         }
         .sorted { $0.runs.count > $1.runs.count }
