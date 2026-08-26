@@ -47,6 +47,17 @@ SKUS=(
   "GLOBAL-CFP-12X12:black"
   "GLOBAL-CFP-20X20:black"
   "GLOBAL-CFP-24X24:black"
+  # Year Book candidates — layflat photo book, SKU prefix BOOK-FE per the product
+  # page (sizes: A4 landscape 297x210, squares 210x210 and 297x297; 18-122 pages).
+  # Exact SKU naming unknown, so several candidates; the product-details dump of
+  # whichever resolves is the authority on the page-count attribute for quotes.
+  "BOOK-FE-A4L:"
+  "BOOK-FE-A4-L:"
+  "BOOK-FE-297X210:"
+  "BOOK-FE-8X8:"
+  "BOOK-FE-210X210:"
+  "BOOK-FE-12X12:"
+  "BOOK-FE-297X297:"
 )
 
 for entry in "${SKUS[@]}"; do
