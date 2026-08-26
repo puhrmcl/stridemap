@@ -51,13 +51,14 @@ SKUS=(
   # page (sizes: A4 landscape 297x210, squares 210x210 and 297x297; 18-122 pages).
   # Exact SKU naming unknown, so several candidates; the product-details dump of
   # whichever resolves is the authority on the page-count attribute for quotes.
-  "BOOK-FE-A4L:"
-  "BOOK-FE-A4-L:"
-  "BOOK-FE-297X210:"
-  "BOOK-FE-8X8:"
-  "BOOK-FE-210X210:"
-  "BOOK-FE-12X12:"
-  "BOOK-FE-297X297:"
+  # The product page's HTML carries "BOOK-FE-A4" verbatim; the square sizes are
+  # 210x210 and 297x297 mm, so probe metric-cm suffixes alongside.
+  "BOOK-FE-A4:"
+  "BOOK-FE-SQ:"
+  "BOOK-FE-21X21:"
+  "BOOK-FE-30X30:"
+  "BOOK-FE-21:"
+  "BOOK-FE-30:"
 )
 
 for entry in "${SKUS[@]}"; do
