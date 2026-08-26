@@ -646,12 +646,18 @@ struct StudioView: View {
                        placeholder: run.name, scale: $config.titleScale)
         toggleFieldRow("Text 2", show: $config.showLocation, text: $config.location,
                        placeholder: derivedPlace, scale: $config.locationScale)
-        toggleFieldRow("Text 3", show: $config.showDate, text: $config.date,
-                       placeholder: Format.date(run.startDate), scale: $config.dateScale)
+        // The Gallery sheet's masthead carries only the title and place — no date line and no
+        // headline block — so those controls only appear for the Map product.
+        if config.family == .map {
+            toggleFieldRow("Text 3", show: $config.showDate, text: $config.date,
+                           placeholder: Format.date(run.startDate), scale: $config.dateScale)
+        }
         fontPicker
         // Size, at every altitude: each line has its own Aa menu above; these rows size the big
         // headline block and the data rows, and All Text scales everything together.
-        scaleRow("Headline", $config.heroScale)
+        if config.family == .map {
+            scaleRow("Headline", $config.heroScale)
+        }
         scaleRow("Data", $config.statScale)
         scaleRow("All Text", $config.textScale)
         colorRow("Text", selection: $config.textColor, swatches: textSwatches, fallback: config.edition.ink)
