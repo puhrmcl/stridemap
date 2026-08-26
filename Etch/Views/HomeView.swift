@@ -357,6 +357,10 @@ struct HomeView: View {
             guard showLocations, locationOverlay == .landmarks else { return }
             await sync.detectLandmarks(limit: 20)
         }
+        // CI diagnostics (ETCH_DIAG_MAP=1): drives the place views unattended — seeds a few runs,
+        // switches to States, then selects Arizona — logging each stage so the map rig's
+        // screenshots and log show exactly where the pipeline breaks, without a device.
+        .task { await runMapDiagnostics() }
         // Applying a filter reframes the route map to the newly filtered runs.
         .onChange(of: appModel.filter) {
             if !isOverviewMode { appModel.fit(visibleRuns) }
@@ -1000,6 +1004,52 @@ struct HomeView: View {
         scopedRuns.compactMap { run in
             run.startCoordinate.map { RunMapPoint(id: run.id, coordinate: $0) }
         }
+    }
+
+    /// CI diagnostics (ETCH_DIAG_MAP=1): the scripted repro of "the place views do nothing" —
+    /// seed runs in three states, switch to the States view the way the Activity View sheet
+    /// does, then select Arizona the way the jump menu does, logging counts at each stage.
+    /// The diagnose-map workflow screenshots the simulator between stages.
+    private func runMapDiagnostics() async {
+        guard ProcessInfo.processInfo.environment["ETCH_DIAG_MAP"] == "1" else { return }
+        NSLog("ETCHDIAG map: appear — boundaries=%d located=%d runs=%d showLocations=%d overlay=%@",
+              USStateBoundaries.shared.boundaries.count, runStartPoints.count, allRuns.count,
+              showLocations ? 1 : 0, locationOverlay.rawValue)
+        if allRuns.isEmpty {
+            let seeds: [(String, Double, Double)] = [
+                ("Gilbert Loop", 33.352, -111.789),
+                ("Phoenix Tempo", 33.448, -112.074),
+                ("Mesa Long Run", 33.415, -111.831),
+                ("Chicago Lakefront", 41.882, -87.623),
+                ("San Diego RnR", 32.716, -117.161)
+            ]
+            for (i, seed) in seeds.enumerated() {
+                modelContext.insert(Run(
+                    provider: .unknown, name: seed.0,
+                    startDate: Date().addingTimeInterval(Double(-i - 1) * 86_400),
+                    distance: 8_000, movingTime: 2_400, elapsedTime: 2_500,
+                    elevationGain: 40, summaryPolyline: "",
+                    sportType: "Run",
+                    startLatitude: seed.1, startLongitude: seed.2
+                ))
+            }
+            try? modelContext.save()
+            NSLog("ETCHDIAG map: seeded %d runs", seeds.count)
+        }
+        try? await Task.sleep(for: .seconds(8))
+        NSLog("ETCHDIAG map: switching to States")
+        withAnimation { locationOverlay = .states; showLocations = true }
+        try? await Task.sleep(for: .seconds(6))
+        NSLog("ETCHDIAG map: after switch — showLocations=%d overlay=%@ intensities=%d ranked=%d",
+              showLocations ? 1 : 0, locationOverlay.rawValue,
+              stateIntensities.count, stateRanked.count)
+        selectedStateName = "Arizona"
+        focusStateName = "Arizona"
+        selectedPlaceLabel = "Arizona"
+        placeFocusToken += 1
+        try? await Task.sleep(for: .seconds(6))
+        NSLog("ETCHDIAG map: after select — selected=%@ points=%d",
+              selectedStateName ?? "nil", selectedStateRunPoints.count)
     }
 
     /// Attributes each located run to a US state by point-in-polygon and shades proportionally

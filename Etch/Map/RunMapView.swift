@@ -59,6 +59,9 @@ struct RunMapView: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeUIView(context: Context) -> MKMapView {
+        if ProcessInfo.processInfo.environment["ETCH_DIAG_MAP"] == "1" {
+            NSLog("ETCHDIAG map: RunMapView made")
+        }
         let map = MKMapView()
         map.delegate = context.coordinator
         map.showsUserLocation = true

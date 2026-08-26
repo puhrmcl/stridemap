@@ -50,6 +50,9 @@ struct StatesMapView: UIViewRepresentable {
         )
 
         context.coordinator.install(on: map)
+        if ProcessInfo.processInfo.environment["ETCH_DIAG_MAP"] == "1" {
+            NSLog("ETCHDIAG map: StatesMapView made — overlays=%d", map.overlays.count)
+        }
         return map
     }
 
