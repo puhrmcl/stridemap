@@ -387,14 +387,21 @@ enum MapPrintRenderer {
             let last = Double(sorted.count - 1)
             return (sorted[Int(last * 0.1)], sorted[Int(last * 0.9)])
         }
-        let latBand = core(starts.map(\.1.latitude))
-        let lonBand = core(starts.map(\.1.longitude))
-        let spanLat = latBand.high - latBand.low
-        let spanLon = lonBand.high - lonBand.low
+        func median(_ values: [Double]) -> Double {
+            let sorted = values.sorted()
+            return sorted.isEmpty ? 0 : sorted[sorted.count / 2]
+        }
+        let latValues = starts.map(\.1.latitude), lonValues = starts.map(\.1.longitude)
+        let latBand = core(latValues), lonBand = core(lonValues)
+        // Centred on the median, not on the middle of the band: a second cluster across town
+        // pulls the band's midpoint away from where the runs actually are, and the field ends up
+        // hanging off one corner of the sheet.
+        let latMid = median(latValues), lonMid = median(lonValues)
+        let spanLat = max(latMid - latBand.low, latBand.high - latMid) * 2
+        let spanLon = max(lonMid - lonBand.low, lonBand.high - lonMid) * 2
         let fitted = (spanLat > 1e-5 || spanLon > 1e-5)
             ? MKCoordinateRegion(
-                center: CLLocationCoordinate2D(latitude: (latBand.high + latBand.low) / 2,
-                                               longitude: (lonBand.high + lonBand.low) / 2),
+                center: CLLocationCoordinate2D(latitude: latMid, longitude: lonMid),
                 span: MKCoordinateSpan(latitudeDelta: max(spanLat, 1e-4) * 1.25,
                                        longitudeDelta: max(spanLon, 1e-4) * 1.25))
             : region

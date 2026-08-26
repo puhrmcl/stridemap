@@ -77,16 +77,39 @@ enum PreviewHarness {
             let originLat = place.lat + (random() - 0.5) * 0.06
             let originLon = place.lon + (random() - 0.5) * 0.06
 
-            // A looping route around the start: enough shape to read as a real run in a glyph.
+            // Routes come in shapes — a loop home, an out-and-back, a point-to-point, a figure
+            // eight. One formula for all 220 made the Grid a page of near-identical glyphs and
+            // turned Bloom into a symmetric rosette: the compositions looked settled because the
+            // data was uniform, not because they worked.
             var coordinates: [CLLocationCoordinate2D] = []
-            let loops = 1.0 + random()
             let radius = 0.004 + miles * 0.0004
+            let loops = 1.0 + random()
+            let phase = random() * 6.28
+            let drift = 0.6 + random() * 0.8
             for step in 0...120 {
-                let t = Double(step) / 120 * loops * 2 * .pi
-                let wobble = 1 + 0.28 * sin(t * 3 + Double(index))
+                let u = Double(step) / 120
+                var dx: Double, dy: Double
+                switch (index / 3) % 4 {
+                case 0:   // a loop back to the door
+                    let t = u * loops * 2 * .pi
+                    let wobble = 1 + 0.28 * sin(t * 3 + phase)
+                    dx = cos(t) * wobble * 1.2
+                    dy = sin(t) * wobble
+                case 1:   // out and back along the same line
+                    let v = u < 0.5 ? u * 2 : (1 - u) * 2
+                    dx = v * 1.8 * drift
+                    dy = sin(v * .pi * 2.2 + phase) * 0.5
+                case 2:   // point to point, never returning
+                    dx = (u - 0.5) * 2.4 * drift
+                    dy = sin(u * .pi * 1.6 + phase) * 0.7 + u * 0.6
+                default:  // a figure eight
+                    let t = u * 2 * .pi
+                    dx = sin(t) * 1.3
+                    dy = sin(t * 2 + phase) * 0.7
+                }
                 coordinates.append(CLLocationCoordinate2D(
-                    latitude: originLat + sin(t) * radius * wobble,
-                    longitude: originLon + cos(t) * radius * wobble * 1.2
+                    latitude: originLat + dy * radius,
+                    longitude: originLon + dx * radius
                 ))
             }
 
