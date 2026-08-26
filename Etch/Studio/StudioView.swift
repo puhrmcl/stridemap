@@ -755,16 +755,20 @@ struct StudioView: View {
 
     @ViewBuilder private var dataTab: some View {
         // The complication model: a headline slot and up to four data slots, each tap-retuned
-        // from everything this activity tracked — the watch-face pattern, on paper.
-        VStack(spacing: 6) {
-            Text("HEADLINE")
-                .font(.system(size: 11, weight: .semibold)).tracking(1.5)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Button { editingSlot = .hero } label: { slotChip(config.heroMetric) }
-                .buttonStyle(.plain)
+        // from everything this activity tracked — the watch-face pattern, on paper. The Gallery
+        // sheet has no headline block (its masthead is the title and place; data lives in the
+        // slots), so the headline control only appears for the Map product.
+        if config.family == .map {
+            VStack(spacing: 6) {
+                Text("HEADLINE")
+                    .font(.system(size: 11, weight: .semibold)).tracking(1.5)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button { editingSlot = .hero } label: { slotChip(config.heroMetric) }
+                    .buttonStyle(.plain)
+            }
+            .frame(maxWidth: 340)
         }
-        .frame(maxWidth: 340)
 
         VStack(spacing: 6) {
             Text("DATA POINTS")
