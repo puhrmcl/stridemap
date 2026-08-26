@@ -11,6 +11,15 @@
 name: Preview screens
 
 on:
+  # Editing .github/preview-request.txt asks for a preview. GitHub only offers
+  # workflow_dispatch for workflows that live on the default branch, and this work happens
+  # on a feature branch — so the request is a file, which also means anyone can ask for
+  # screenshots from a phone by editing one line.
+  push:
+    branches: [claude/rebrand-etch]
+    paths:
+      - ".github/preview-request.txt"
+      - ".github/workflows/preview.yml"
   workflow_dispatch:
     inputs:
       screens:
@@ -47,10 +56,33 @@ jobs:
             -derivedDataPath dd \
             CODE_SIGNING_ALLOWED=NO | tail -5
 
+      - name: Read the request
+        id: request
+        env:
+          INPUT_SCREENS: ${{ inputs.screens }}
+          INPUT_APPEARANCE: ${{ inputs.appearance }}
+        run: |
+          set -e
+          # A manual dispatch wins; otherwise take the request from the committed file.
+          SCREENS="$INPUT_SCREENS"
+          APPEARANCE="$INPUT_APPEARANCE"
+          FILE=.github/preview-request.txt
+          if [ -z "$SCREENS" ] && [ -f "$FILE" ]; then
+            SCREENS=$(grep -E '^screens=' "$FILE" | tail -1 | cut -d= -f2- | xargs)
+          fi
+          if [ -z "$APPEARANCE" ] && [ -f "$FILE" ]; then
+            APPEARANCE=$(grep -E '^appearance=' "$FILE" | tail -1 | cut -d= -f2- | xargs)
+          fi
+          [ -z "$SCREENS" ] && SCREENS="studio"
+          [ -z "$APPEARANCE" ] && APPEARANCE="light"
+          echo "screens=$SCREENS" >> "$GITHUB_OUTPUT"
+          echo "appearance=$APPEARANCE" >> "$GITHUB_OUTPUT"
+          echo "requesting: $SCREENS ($APPEARANCE)"
+
       - name: Capture each screen
         env:
-          SCREENS: ${{ inputs.screens }}
-          APPEARANCE: ${{ inputs.appearance }}
+          SCREENS: ${{ steps.request.outputs.screens }}
+          APPEARANCE: ${{ steps.request.outputs.appearance }}
         run: |
           set -e
           UDID=$(xcrun simctl list devices available | grep -E "iPhone (1[5-9]|[2-9][0-9])" | grep -v "Plus\|Max\|SE" | head -1 | grep -oE "[0-9A-F-]{36}")
