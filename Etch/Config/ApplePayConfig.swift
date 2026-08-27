@@ -50,19 +50,32 @@ enum ApplePayConfig {
     /// **and** a merchant on the App ID's Apple Pay capability — all three are the same string,
     /// and signing fails if any of them disagrees.
     ///
-    /// This was empty for one build, and the reason is worth keeping. Declaring
-    /// `com.apple.developer.in-app-payments` while the App ID carried no Apple Pay capability
-    /// made automatic signing unable to mint *any* provisioning profile, so `exportArchive`
-    /// failed with exit 70 for development, ad-hoc and App Store alike and nothing reached
-    /// TestFlight. WeatherKit did the same thing earlier in this project. An entitlement is not
-    /// a local declaration — it is a claim checked against the App ID at signing time.
+    /// **Withdrawn again, with the entitlement, to get a build to TestFlight.**
     ///
-    /// Both halves are now in place: the merchant exists in the developer portal and the
-    /// capability is enabled on the App ID listing it. They were restored in a single commit,
-    /// which is the only safe way — a merchant identifier set while the entitlement is missing
-    /// gives wallet buttons that render and then fail at the payment sheet, which is worse than
-    /// no buttons at all.
-    static let merchantIdentifier = "merchant.com.nwagtech.etch"
+    /// The history matters because the obvious diagnosis is now the wrong one. b414 emptied this
+    /// because the App ID carried no Apple Pay capability, and an entitlement is not a local
+    /// declaration — it is a claim checked against the App ID at signing time, so automatic
+    /// signing could mint no provisioning profile at all and `exportArchive` failed with exit 70
+    /// for development, ad-hoc and App Store alike. b415 restored it once the merchant existed.
+    ///
+    /// The portal has since been confirmed correct: Apple Pay Payment Processing is enabled on
+    /// the App ID with one enabled merchant, and that merchant is `merchant.com.nwagtech.etch`.
+    /// So whatever is failing now is *not* the b414 cause repeating, and this withdrawal is not a
+    /// fix — it removes the one variable between a green GitHub build and a red Xcode Cloud one so
+    /// a build can reach testers while the real cause is found. If Xcode Cloud still fails with
+    /// this absent, the entitlement was never the problem and the search moves elsewhere, which
+    /// is worth knowing either way.
+    ///
+    /// Restoring it is the same paired edit as b415: this string and the
+    /// `com.apple.developer.in-app-payments` key in `Etch.entitlements`, in one commit. Apart
+    /// they are worse than either alone — an identifier set without the entitlement gives wallet
+    /// buttons that render and then fail at the payment sheet.
+    ///
+    /// Nothing else is lost meanwhile. `isConfigured` goes false, the wallet buttons are simply
+    /// not drawn, and Shopify's hosted checkout takes every order exactly as it does today. The
+    /// payment processing certificate — still waiting on Shopify's scope approval — was never
+    /// going to let a tap take money before this landed anyway.
+    static let merchantIdentifier = ""
 
     /// Contact fields the Apple Pay sheet collects.
     ///
