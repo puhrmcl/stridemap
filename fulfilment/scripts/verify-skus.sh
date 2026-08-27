@@ -70,6 +70,25 @@ SKUS=(
   "MEDAL-FRA-CLA-MOUNT-30X40:"
   "MEDAL-FRA-CLA-MOUNT-30X40:color=black,mountColor=Black"
   "MEDAL-FRA-CLA-MOUNT-30X40:color=natural,mountColor=Navy"
+  # Photo Wall — the multi-photo frame the wall prints into. 20X30 is the L
+  # template (8x5 = 40 windows), which is what the wall now defaults to, so this
+  # quote is the one that sets prices.photoWallCents. Mounted (MPFM) is the
+  # version whose windows are physically cut; unmounted (MPF) is quoted beside it
+  # so the difference the mount costs is a number rather than an assumption.
+  "GLOBAL-MPFM-20X30:color=black,mountColor=Snow white"
+  "GLOBAL-MPF-20X30:color=black"
+  "GLOBAL-MPFM-16X24:color=black,mountColor=Snow white"
+  "GLOBAL-MPFM-24X36:color=black,mountColor=Snow white"
+  # Poster hanger — the confirmed 24x36 portrait, plus the two sizes the finish
+  # needs before it can be offered at all. 12X18 and 16X24 were not on the product
+  # page; these probe the naming pattern the confirmed codes establish
+  # (POSTER-HANGER-<hanger cm>-<print size>-<orientation>), and either would open
+  # the finish on a size the device can already render.
+  "POSTER-HANGER-60-24X36-PORT:color=natural"
+  "POSTER-HANGER-30-12X18-PORT:color=natural"
+  "POSTER-HANGER-40-12X18-PORT:color=natural"
+  "POSTER-HANGER-40-16X24-PORT:color=natural"
+  "POSTER-HANGER-50-16X24-PORT:color=natural"
 )
 
 for entry in "${SKUS[@]}"; do

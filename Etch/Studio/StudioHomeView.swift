@@ -509,10 +509,9 @@ struct StudioHomeView: View {
                 let plan = BookPlan.make(year: year, runs: runs)
                 image = await BookRenderer.pageImage(plan: plan, page: 0, scale: 0.34)
             case .photoWall:
-                // The tile wants the wall inside its frame, not the bare grid — a mockup the
-                // wall renderer doesn't produce yet. The glyph placeholder stands until it does,
-                // which is moot while the product is withheld for want of a SKU.
-                image = nil
+                // The tile shows the wall inside its frame, because that is the object that
+                // ships — the bare grid is the artwork, not the product.
+                image = await photoWallMockup()
             case .wallArt:
                 var request = MapPrintRequest.make(kind: .artMap, runs: mapped)
                 request.artStyle = .grid
@@ -523,6 +522,32 @@ struct StudioHomeView: View {
                 withAnimation(.easeIn(duration: 0.2)) { productPreviews[product] = image }
             }
         }
+    }
+
+    /// The Photo Wall tile: this user's own cover photos, behind the mount of the frame the
+    /// default count is cut for. Loads only as many photographs as the frame has windows, at
+    /// thumbnail size — the tile is 180pt wide, and a storefront that stalls on a photo library
+    /// is worse than one that shows a glyph for a moment.
+    private func photoWallMockup() async -> UIImage? {
+        let layout = MultiPhotoFrameCatalog.layout(
+            forPhotos: MultiPhotoFrameCatalog.defaultPhotos
+        )
+        let candidates = scopedRuns
+            .filter { !$0.photoReferences.isEmpty }
+            .sorted { $0.startDate > $1.startDate }
+            .prefix(layout.capacity)
+        guard !candidates.isEmpty else { return nil }
+
+        var photos: [UIImage] = []
+        for run in candidates {
+            if Task.isCancelled { return nil }
+            guard let reference = run.photoReferences.first else { continue }
+            if let image = await PhotoLibrary.image(
+                for: reference, targetSize: CGSize(width: 180, height: 180)
+            ) { photos.append(image) }
+        }
+        guard !photos.isEmpty else { return nil }
+        return PhotoWallRenderer.image(photos: photos, layout: layout, longEdge: 900)
     }
 
     private func sectionTitle(_ text: String) -> some View {

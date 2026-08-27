@@ -28,6 +28,17 @@ struct PrintShopView: View {
     @State private var product: PrintProduct = .framed
     @State private var size: PrintSize
     @State private var finish: FrameFinish = .natural
+    @State private var hangerFinish: HangerFinish = .natural
+
+    /// The finish as the order path takes it — one value, so a framed order can never carry a
+    /// wood colour or the other way round.
+    private var selectedFinish: PrintFinish {
+        switch product {
+        case .framed: return .frame(finish)
+        case .hanger: return .hanger(hangerFinish)
+        case .print:  return .none
+        }
+    }
 
     /// Full-screen look at the product — tap the mockup to inspect the piece in its frame.
     @State private var showProductPreview = false
@@ -63,7 +74,8 @@ struct PrintShopView: View {
                     mockup
                     productPicker
                     sizePicker
-                    if product == .framed { finishPicker }
+                    if product.takesFrameFinish { finishPicker }
+                    if product.takesHangerFinish { hangerPicker }
                     orderPanel
                 }
                 .padding(20)
@@ -117,7 +129,7 @@ struct PrintShopView: View {
                 let url = try await PrintOrderService.beginCheckout(
                     request: renderRequest, creationID: creation,
                     product: product, size: size,
-                    finish: product == .framed ? finish : nil,
+                    finish: selectedFinish,
                     onPhase: { orderPhase = $0 }
                 )
                 orderPhase = nil
@@ -203,14 +215,26 @@ struct PrintShopView: View {
         }
 
         Group {
-            if product == .framed {
+            switch product {
+            case .framed:
                 // Full-bleed in the moulding — the verified product (Classic Frame, no mount) has
                 // no mat, so the mockup doesn't draw one. Honest previews only.
                 sheet
                     .padding(9)                                    // moulding
                     .background(Color(hex: finish.mouldingHex) ?? .black)
                     .shadow(color: .black.opacity(0.30), radius: 16, y: 10)
-            } else {
+            case .hanger:
+                // The wood sits *over* the print, so the strips are drawn on top of the sheet and
+                // the artwork behind them is inset by what they cover — the same reserve the
+                // uploaded file carries. A mockup that drew the wood outside the paper would
+                // promise a bigger image than ships.
+                sheet
+                    .padding(.vertical, hangerStripHeight)
+                    .background(Theme.Palette.bone)
+                    .overlay(alignment: .top) { hangerStrip }
+                    .overlay(alignment: .bottom) { hangerStrip }
+                    .shadow(color: .black.opacity(0.24), radius: 14, y: 9)
+            case .print:
                 sheet
                     .shadow(color: .black.opacity(0.22), radius: 12, y: 8)
             }
@@ -218,6 +242,23 @@ struct PrintShopView: View {
         .scaleEffect(0.55 + 0.45 * relative, anchor: .center)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: size)
         .animation(.easeInOut(duration: 0.2), value: finish)
+        .animation(.easeInOut(duration: 0.2), value: hangerFinish)
+    }
+
+    /// The wood strip, drawn at its true proportion of the sheet: 15mm of a 36″ print is 1.6% of
+    /// the height, and the mockup is 320pt tall, so it is genuinely a thin band rather than the
+    /// chunky batten a decorative drawing would give it.
+    private var hangerStripHeight: CGFloat {
+        let sheetInches = CGFloat(size.height)
+        let coverInches = PosterHangerCatalog.hangerCoverMM / 25.4
+        return max(3, 250 * (coverInches / max(sheetInches, 1)))
+    }
+
+    private var hangerStrip: some View {
+        Rectangle()
+            .fill(Color(hex: hangerFinish.woodHex) ?? .brown)
+            .frame(height: hangerStripHeight)
+            .overlay(Rectangle().fill(.black.opacity(0.12)).frame(height: 0.5), alignment: .bottom)
     }
 
     /// The product as one flat image for the full-screen viewer: the artwork inside its chosen
@@ -225,6 +266,29 @@ struct PrintShopView: View {
     /// current finish, so what's inspected is exactly what's configured.
     private func productPreviewImage() -> UIImage? {
         guard let artwork else { return nil }
+
+        if product == .hanger {
+            // The same compositing the order path does, at preview scale: artwork inside the
+            // band-free box on its own ground, with the wood drawn over the bands. Inspecting the
+            // product should show the covered strips, not a bare sheet.
+            let sheetHeight = artwork.size.width * CGFloat(size.height) / CGFloat(size.width)
+            let sheet = CGSize(width: artwork.size.width, height: sheetHeight)
+            guard let composed = PosterHangerCatalog.composite(
+                artwork: artwork, sheetPixels: sheet, ground: UIColor(Theme.Palette.bone)
+            ) else { return artwork }
+            let band = min(PosterHangerCatalog.hangerCoverMM / 25.4 / CGFloat(size.height),
+                           0.1) * sheetHeight
+            let format = UIGraphicsImageRendererFormat()
+            format.opaque = true
+            format.scale = 1
+            return UIGraphicsImageRenderer(size: sheet, format: format).image { context in
+                composed.draw(in: CGRect(origin: .zero, size: sheet))
+                UIColor(Color(hex: hangerFinish.woodHex) ?? .brown).setFill()
+                context.fill(CGRect(x: 0, y: 0, width: sheet.width, height: band))
+                context.fill(CGRect(x: 0, y: sheet.height - band, width: sheet.width, height: band))
+            }
+        }
+
         guard product == .framed else { return artwork }
 
         // Moulding proportion matches the real Classic frame (~4% of the long edge), drawn in the
@@ -258,7 +322,7 @@ struct PrintShopView: View {
     private var productPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
             sectionLabel("Format")
-            ForEach(PrintProduct.allCases) { p in
+            ForEach(PrintProduct.offered) { p in
                 Button { product = p } label: {
                     HStack(spacing: 14) {
                         Image(systemName: p.symbol)
@@ -347,6 +411,41 @@ struct PrintShopView: View {
                     .buttonStyle(.plain)
                 }
             }
+        }
+    }
+
+    private var hangerPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionLabel("Wood")
+            HStack(spacing: 10) {
+                ForEach(HangerFinish.allCases) { h in
+                    Button { hangerFinish = h } label: {
+                        VStack(spacing: 6) {
+                            Capsule()
+                                .fill(Color(hex: h.woodHex) ?? .brown)
+                                .frame(width: 34, height: 12)
+                                .overlay(Capsule().strokeBorder(.black.opacity(0.15), lineWidth: 0.5))
+                                .frame(height: 30)
+                            Text(h.name).font(.caption).foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            hangerFinish == h ? Theme.accent.opacity(0.12) : Color.primary.opacity(0.04),
+                            in: .rect(cornerRadius: 12)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 12)
+                                .strokeBorder(hangerFinish == h ? Theme.accent : .clear, lineWidth: 1.5)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Text("The hangers cover 15mm of the print at the top and bottom, so the piece is composed with that margin kept clear.")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

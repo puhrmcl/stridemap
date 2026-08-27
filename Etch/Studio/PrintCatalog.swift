@@ -54,11 +54,38 @@ struct PrintSize: Identifiable, Hashable {
     }
 
     /// The variant SKU as entered in Shopify — the join key between this catalogue and the
-    /// store. Unframed sizes use the Prodigi SKU verbatim; framed sizes append the finish,
+    /// store. Unframed sizes use the Prodigi SKU verbatim; finished sizes append the finish,
     /// because in Shopify each finish is its own variant.
-    func shopifySKU(finish: FrameFinish?) -> String {
-        guard let finish else { return prodigiSKU }
-        return "\(prodigiSKU)-\(finish.skuSuffix)"
+    func shopifySKU(finish: PrintFinish) -> String {
+        guard let suffix = finish.skuSuffix else { return prodigiSKU }
+        return "\(prodigiSKU)-\(suffix)"
+    }
+}
+
+/// What a print is finished with. Two products take a finish and they take different ones — a
+/// moulding colour or a wood colour — so the order path carries the choice as one value rather
+/// than as a pair of optionals that must never both be set.
+enum PrintFinish: Hashable {
+    case none
+    case frame(FrameFinish)
+    case hanger(HangerFinish)
+
+    /// The Shopify variant suffix, or nil for an unfinished sheet.
+    var skuSuffix: String? {
+        switch self {
+        case .none:              return nil
+        case .frame(let f):      return f.skuSuffix
+        case .hanger(let h):     return h.skuSuffix
+        }
+    }
+
+    /// Prodigi's colour attribute value, empty when there's nothing to send.
+    var prodigiAttribute: String {
+        switch self {
+        case .none:              return ""
+        case .frame(let f):      return f.prodigiAttribute
+        case .hanger(let h):     return h.prodigiAttribute
+        }
     }
 }
 
@@ -70,13 +97,21 @@ struct PrintSize: Identifiable, Hashable {
 /// competes with Fine-Art Print and reads cheaper), canvas deferred (different look, different
 /// quality risk), stickers cut (inconsistent with "museum-grade archival paper").
 enum PrintProduct: String, CaseIterable, Identifiable {
-    case print, framed
+    case print, framed, hanger
     var id: String { rawValue }
+
+    /// The formats the shop currently shows. The hanger is built but withheld while its only
+    /// confirmed portrait size needs a render the device can't produce — see
+    /// `PosterHangerCatalog.isAvailable`, whose gate resolves on its own.
+    static var offered: [PrintProduct] {
+        allCases.filter { $0 != .hanger || PosterHangerCatalog.isAvailable }
+    }
 
     var name: String {
         switch self {
         case .print:  return "Fine-Art Print"
         case .framed: return "Framed Print"
+        case .hanger: return "Print with Hanger"
         }
     }
 
@@ -85,6 +120,7 @@ enum PrintProduct: String, CaseIterable, Identifiable {
         switch self {
         case .print:  return "Museum-grade archival paper. Unframed, ready for your own frame."
         case .framed: return "Archival print in a hardwood frame. Ready to hang out of the box."
+        case .hanger: return "Archival print in solid wood hangers. Hangs from a nail, no glass."
         }
     }
 
@@ -92,6 +128,7 @@ enum PrintProduct: String, CaseIterable, Identifiable {
         switch self {
         case .print:  return "Giclée on Hahnemühle German Etching, 310gsm mould-made paper"
         case .framed: return "Giclée archival print · solid hardwood frame · shatterproof glazing"
+        case .hanger: return "Archival print on 200gsm enhanced matte art paper · solid wood magnetic hangers"
         }
     }
 
@@ -99,6 +136,7 @@ enum PrintProduct: String, CaseIterable, Identifiable {
         switch self {
         case .print:  return "doc.richtext"
         case .framed: return "photo.artframe"
+        case .hanger: return "scroll"
         }
     }
 
@@ -108,6 +146,7 @@ enum PrintProduct: String, CaseIterable, Identifiable {
         switch self {
         case .print:  return "fine-art-print"
         case .framed: return "framed-print"
+        case .hanger: return "print-with-hanger"
         }
     }
 
@@ -129,13 +168,50 @@ enum PrintProduct: String, CaseIterable, Identifiable {
                 PrintSize(width: 12, height: 18, prodigiSKU: "GLOBAL-CFP-12X18", priceCents: 13900),
                 PrintSize(width: 16, height: 24, prodigiSKU: "GLOBAL-CFP-16X24", priceCents: 17900)
             ]
+        case .hanger:
+            // Read off the product page and confirmed live. The 24×36 hanger's print area is
+            // 7200 × 10800 — identical to GLOBAL-HGE-24X36 and GLOBAL-CFP-24X36 — so the finish
+            // needs no new geometry, only the covered bands kept clear. Priced between the
+            // unframed and framed lines: £7 wholesale is the cheapest finish in the range, and
+            // the paper is the 200gsm EMA stock rather than the 310gsm mould-made.
+            return PosterHangerCatalog.portraitSizes.map {
+                PrintSize(width: $0.width, height: $0.height, prodigiSKU: $0.sku, priceCents: 12900)
+            }
         }
     }
 
-    /// Frame finishes, for the framed product only. These map to Prodigi frame attributes at
-    /// order time; the app shows them as a finish choice, not as a SKU.
-    var frameFinishes: [FrameFinish] {
-        self == .framed ? FrameFinish.allCases : []
+    /// Whether choosing this format asks for a colour, and which kind.
+    var takesFrameFinish: Bool { self == .framed }
+    var takesHangerFinish: Bool { self == .hanger }
+}
+
+/// The wood colours a hanger comes in — all three Prodigi offers, because unlike frame mouldings
+/// there is no colour here that fights a map: black, natural and white are the only options and
+/// each reads as a deliberate choice. The attribute values are the catalog's exact strings; the
+/// range sheet's "natural oak" is rejected on a quote.
+enum HangerFinish: String, CaseIterable, Identifiable {
+    case natural, black, white
+    var id: String { rawValue }
+
+    var name: String {
+        switch self {
+        case .natural: return "Natural"
+        case .black:   return "Black"
+        case .white:   return "White"
+        }
+    }
+
+    var prodigiAttribute: String { rawValue }
+
+    var skuSuffix: String { rawValue.uppercased() }
+
+    /// Approximate wood colour, for drawing the on-device mockup.
+    var woodHex: String {
+        switch self {
+        case .natural: return "#C99B62"
+        case .black:   return "#1A1A1C"
+        case .white:   return "#F1EEE8"
+        }
     }
 }
 

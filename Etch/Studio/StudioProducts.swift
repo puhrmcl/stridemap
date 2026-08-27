@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 /// What Etch Studio sells, as a customer would name it. The storefront leads with these four
 /// objects rather than with the user's activity list: a shop shows products, and the activity
@@ -39,7 +40,7 @@ enum StudioProduct: String, CaseIterable, Identifiable {
         switch self {
         case .mapPoster:     return "One route, over real geography."
         case .galleryPoster: return "Photos, map and elevation, composed."
-        case .photoWall:     return "Twenty runs, one frame."
+        case .photoWall:     return "Forty runs, one frame."
         case .medalFrame:    return "The medal, and the day you earned it."
         case .yearBook:      return "A year of it, bound."
         case .wallArt:       return "Everything you've run, as one object."
@@ -188,6 +189,26 @@ enum MultiPhotoFrameCatalog {
         layouts.first { $0.capacity == count }
     }
 
+    /// The frame a given count would actually be made in: the one it fills exactly if there is
+    /// one, else the smallest that holds it. Never nil for a count the wall allows — the largest
+    /// layout's capacity *is* `maxPhotos`.
+    static func layout(forPhotos count: Int) -> Layout {
+        exactLayout(forPhotos: count)
+            ?? layouts.first { $0.capacity >= count }
+            ?? layouts[layouts.count - 1]
+    }
+
+    /// How the current count sits in the frame it would be made in — the line the wall shows so
+    /// the choice of count is a choice about an object rather than about a screenshot.
+    static func fitDescription(forPhotos count: Int) -> String {
+        let layout = layout(forPhotos: count)
+        let size = layout.sku.replacingOccurrences(of: "GLOBAL-MPF-", with: "")
+            .replacingOccurrences(of: "X", with: "×")
+        let spare = layout.capacity - count
+        if spare <= 0 { return "Fills the \(size)″ frame — \(layout.columns) × \(layout.rows)." }
+        return "\(size)″ frame · \(spare) window\(spare == 1 ? "" : "s") left empty."
+    }
+
     /// Forty: the L frame, 8×5, filled to the corner. The frame accepts nine to sixty, but a
     /// count that leaves a ragged last row makes a worse object than one that doesn't.
     static let defaultPhotos = 40
@@ -266,9 +287,64 @@ enum PosterHangerCatalog {
     /// takes plain `natural`, and a quote is rejected on the sheet's wording.
     static let hangerColours = ["black", "natural", "white"]
 
-    /// The 12×18" and 16×24" hangers were not on the product page, so the finish is offered at
-    /// 24×36" only until they are confirmed the same way.
-    static var isAvailable: Bool { false }
+    /// The confirmed 2:3 portrait hangers, as the sizes the print catalogue speaks in. Only one
+    /// so far: the 12×18" and 16×24" hangers weren't on the product page and have to be read off
+    /// it the same way the others were before they can be listed.
+    static let portraitSizes: [(width: Int, height: Int, sku: String)] = [
+        (24, 36, sku24x36)
+    ]
+
+    /// Whether the finish can be offered at all — true once at least one confirmed size is
+    /// renderable on the device.
+    ///
+    /// Today that is false, and for a reason worth stating plainly: the only confirmed portrait
+    /// hanger is 24×36", which needs a 10,800px long edge against the device's 6,000px ceiling.
+    /// So the cheapest finish in the range is gated behind the same server renderer as the
+    /// largest print. Confirming the 12×18" or 16×24" hanger opens it immediately; so does the
+    /// server renderer. The gate resolves itself either way rather than waiting on a flag.
+    static var isAvailable: Bool {
+        portraitSizes.contains { size in
+            PrintGeometry(trimWidth: Double(size.width), trimHeight: Double(size.height))
+                .isAcceptable(longEdgePixels: PrintGeometry.deviceRenderLongEdge)
+        }
+    }
+
+    /// Lays a rendered artwork onto the full sheet with the covered bands kept clear.
+    ///
+    /// The wooden strips hide 15mm at each end, so a hung print needs those bands to hold nothing
+    /// but paper. Rather than reflow the composition for one finish — a second layout to design,
+    /// proof and maintain — the artwork is placed inside the band-free box at its own proportions
+    /// and the sheet around it is filled with the piece's own ground colour. What the wood covers
+    /// is then ground, which is what it covers on any hung print.
+    ///
+    /// The leftover appears as a narrow margin at the sides (about 0.3″ on a 24×36), because a 2:3
+    /// artwork fitted into a slightly squarer box is limited by height. That margin is real and
+    /// visible, which is the point: the mockup draws it too.
+    static func composite(artwork: UIImage, sheetPixels: CGSize, ground: UIColor) -> UIImage? {
+        guard sheetPixels.width > 1, sheetPixels.height > 1 else { return nil }
+        // `hangerCoverPixels` is quoted at 300 DPI and the sheet is rendered at 300 DPI, so it
+        // applies directly. Clamped so a small sheet can never be reserved away to nothing.
+        let band = min(hangerCoverPixels, sheetPixels.height * 0.1)
+
+        let box = CGSize(width: sheetPixels.width, height: sheetPixels.height - band * 2)
+        let art = artwork.size
+        guard art.width > 0, art.height > 0, box.height > 0 else { return nil }
+        let fit = min(box.width / art.width, box.height / art.height)
+        let drawn = CGSize(width: art.width * fit, height: art.height * fit)
+
+        let format = UIGraphicsImageRendererFormat()
+        format.opaque = true
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: sheetPixels, format: format).image { context in
+            ground.setFill()
+            context.fill(CGRect(origin: .zero, size: sheetPixels))
+            artwork.draw(in: CGRect(
+                x: (sheetPixels.width - drawn.width) / 2,
+                y: (sheetPixels.height - drawn.height) / 2,
+                width: drawn.width, height: drawn.height
+            ))
+        }
+    }
 }
 
 /// Chooses the activity a poster is made from — reached *after* picking a product, which is

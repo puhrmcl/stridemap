@@ -224,6 +224,11 @@ struct PhotoWallView: View {
                     .font(.system(.subheadline, design: .rounded).weight(.medium))
             }
             .frame(maxWidth: 340)
+            // Which frame this count would actually be made in, and whether it fills it. The
+            // count is a choice about an object, so it says what the object would be.
+            Text(MultiPhotoFrameCatalog.fitDescription(forPhotos: shown.count))
+                .font(.system(.caption, design: .rounded).weight(.medium))
+                .foregroundStyle(Theme.accent)
             if !excludedIDs.isEmpty {
                 Button {
                     withAnimation { excludedIDs.removeAll() }

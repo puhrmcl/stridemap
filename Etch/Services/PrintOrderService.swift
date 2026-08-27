@@ -42,7 +42,7 @@ enum PrintOrderService {
         creationID: String,
         product: PrintProduct,
         size: PrintSize,
-        finish: FrameFinish?,
+        finish: PrintFinish,
         onPhase: (Phase) -> Void
     ) async throws -> URL {
         let geometry = size.geometry
@@ -53,14 +53,29 @@ enum PrintOrderService {
         printRequest.printAspect = geometry.aspect
         printRequest.outputSize = .poster
         let longEdge = max(geometry.trimPixels.width, geometry.trimPixels.height)
-        guard
-            let image = await StudioRenderer.printImage(for: printRequest, longEdgePixels: longEdge),
-            let data = image.pngData()
+        guard let rendered = await StudioRenderer.printImage(for: printRequest,
+                                                            longEdgePixels: longEdge)
         else { throw OrderError.renderFailed }
+
+        // A hung print is the same artwork on a sheet whose top and bottom 15mm the wood covers.
+        // Reserving those bands here rather than in the composition means one layout to design
+        // and proof, and the covered strip is the piece's own ground rather than its title.
+        let sheet: UIImage
+        if case .hanger = finish {
+            guard let composed = PosterHangerCatalog.composite(
+                artwork: rendered,
+                sheetPixels: geometry.trimPixels,
+                ground: UIColor(request.groundColor ?? request.edition.ground)
+            ) else { throw OrderError.renderFailed }
+            sheet = composed
+        } else {
+            sheet = rendered
+        }
+        guard let data = sheet.pngData() else { throw OrderError.renderFailed }
 
         onPhase(.uploading)
         let assetID = UUID().uuidString.lowercased()
-        try await upload(data, assetID: assetID, creationID: creationID, image: image)
+        try await upload(data, assetID: assetID, creationID: creationID, image: sheet)
 
         onPhase(.openingCheckout)
         let variant = try await ShopifyStorefront.variant(
@@ -74,7 +89,7 @@ enum PrintOrderService {
                 "_etch_asset_id": assetID,
                 "_etch_creation_id": creationID,
                 "_etch_sku": size.prodigiSKU,
-                "_etch_frame": finish?.prodigiAttribute ?? "",
+                "_etch_frame": finish.prodigiAttribute,
             ]
         )
     }
