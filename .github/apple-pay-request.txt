@@ -2,8 +2,15 @@
 #
 # Before anything here works:
 #   1. Shopify must approve write_mobile_payments and read_mobile_payments for the store.
-#   2. SHOPIFY_ADMIN_TOKEN must be a repository secret (Settings → Secrets and variables →
-#      Actions). Never paste it into a file — this one is public in the repo.
+#   2. SHOPIFY_CLIENT_ID and SHOPIFY_CLIENT_SECRET must be repository secrets (Settings →
+#      Secrets and variables → Actions), taken from the app's API credentials at
+#      dev.shopify.com. Never paste them into a file — this one is public in the repo.
+#
+# There is no permanent token to store any more. Shopify retired admin-created custom apps
+# ("You can no longer create these apps"), so the workflow mints a token per run with the
+# client credentials grant, which is the one Shopify names for server-side integrations acting
+# on their own store. Those tokens last 24 hours, which is why storing one would have worked
+# for a day and then quietly stopped.
 #
 # action=status   list the certificates the store already has (safe; start here)
 # action=create   make a resource, wait for the CSR, print it and attach it as an artifact

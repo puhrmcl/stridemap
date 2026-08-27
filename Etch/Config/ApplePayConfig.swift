@@ -32,6 +32,11 @@ import Foundation
 /// worth requesting early: `write_cart_wallet_payments` for the accelerated checkout buttons,
 /// and `write_mobile_payments` + `read_mobile_payments` for the certificate.
 ///
+/// The app that holds those scopes is created at dev.shopify.com, not in the store admin —
+/// Shopify retired admin-created custom apps and with them the permanent `shpat_` token. What
+/// exists now is a client id and secret exchanged for a 24-hour token through the client
+/// credentials grant, which is why nothing durable is stored anywhere.
+///
 /// Note the ordering. The merchant identifier and the App ID capability are what unblock the
 /// *build*; the certificate is what unblocks *transactions*. The entitlement can come back as
 /// soon as the first two exist.

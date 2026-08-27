@@ -15,11 +15,21 @@
 # Ask by editing .github/apple-pay-request.txt. Same file trigger as the preview and doc rigs:
 # workflow_dispatch is only offered for workflows on the default branch.
 #
-# The one secret is the Admin API token. It never appears in output; Actions masks it
-# regardless. Add it at Settings → Secrets and variables → Actions:
+# Authentication is the client credentials grant, which is what Shopify's docs name for
+# "server-side integrations acting on your own stores". The admin-created custom app that used
+# to hand out a permanent shpat_ token is retired — "You can no longer create these apps" — so
+# there is nothing static to store. The app in the Dev Dashboard has a client id and secret,
+# and a token is minted from them per run and lives 24 hours.
 #
-#   SHOPIFY_ADMIN_TOKEN   Admin API access token with write_mobile_payments and
-#                         read_mobile_payments. Both scopes need Shopify's approval first.
+# Add both at Settings → Secrets and variables → Actions. Neither appears in output; Actions
+# masks them regardless.
+#
+#   SHOPIFY_CLIENT_ID       from the app's API credentials in the Dev Dashboard
+#   SHOPIFY_CLIENT_SECRET   likewise
+#
+# The app needs write_mobile_payments and read_mobile_payments, and both scopes need Shopify's
+# approval before they can be granted. A legacy SHOPIFY_ADMIN_TOKEN is still honoured if it is
+# set, for a store that still maintains one of the old custom apps.
 
 name: Apple Pay certificate
 
@@ -56,9 +66,49 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "action: $ACTION"
 
+      - name: Mint an access token
+        id: auth
+        env:
+          CLIENT_ID: ${{ secrets.SHOPIFY_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}
+          LEGACY_TOKEN: ${{ secrets.SHOPIFY_ADMIN_TOKEN }}
+          SHOP: ${{ steps.request.outputs.shop_domain }}
+        run: |
+          set -euo pipefail
+          if [ -n "$LEGACY_TOKEN" ]; then
+            echo "── Using the stored SHOPIFY_ADMIN_TOKEN"
+            echo "::add-mask::$LEGACY_TOKEN"
+            echo "token=$LEGACY_TOKEN" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
+            echo "::error::Set SHOPIFY_CLIENT_ID and SHOPIFY_CLIENT_SECRET."
+            echo "Create the app at dev.shopify.com, then copy its client id and secret into"
+            echo "github.com/puhrmcl/stridemap → Settings → Secrets and variables → Actions."
+            echo ""
+            echo "The app also needs write_mobile_payments and read_mobile_payments, which"
+            echo "require Shopify's approval before they can be granted."
+            exit 1
+          fi
+          # Client credentials: no merchant interaction, because this app acts on its own store.
+          # The token lives 24 hours, which is why it is minted per run rather than stored.
+          echo "── Exchanging client credentials for an access token"
+          RESPONSE=$(curl -sS --request POST "$SHOP/admin/oauth/access_token" \
+            --header "Content-Type: application/json" --max-time 30 \
+            --data "{\"client_id\":\"$CLIENT_ID\",\"client_secret\":\"$CLIENT_SECRET\",\"grant_type\":\"client_credentials\"}")
+          TOKEN=$(echo "$RESPONSE" | jq -r '.access_token // empty')
+          if [ -z "$TOKEN" ]; then
+            echo "::error::No access_token came back."
+            echo "$RESPONSE" | jq . 2>/dev/null || echo "$RESPONSE"
+            exit 1
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "   expires_in: $(echo "$RESPONSE" | jq -r '.expires_in // "?"') seconds"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
       - name: Talk to the Admin API
         env:
-          TOKEN: ${{ secrets.SHOPIFY_ADMIN_TOKEN }}
+          TOKEN: ${{ steps.auth.outputs.token }}
           ACTION: ${{ steps.request.outputs.action }}
           CERT_ID: ${{ steps.request.outputs.certificate_id }}
           MERCHANT_ID: ${{ steps.request.outputs.merchant_id }}
@@ -66,16 +116,7 @@ jobs:
           VERSION: ${{ steps.request.outputs.api_version }}
         run: |
           set -euo pipefail
-          if [ -z "$TOKEN" ]; then
-            echo "::error::SHOPIFY_ADMIN_TOKEN is not set."
-            echo "Add it on your phone: github.com/puhrmcl/stridemap → Settings →"
-            echo "Secrets and variables → Actions → New repository secret →"
-            echo "Name: SHOPIFY_ADMIN_TOKEN → paste the Admin API access token → Add secret."
-            echo ""
-            echo "The token needs write_mobile_payments and read_mobile_payments, and both"
-            echo "scopes require Shopify's approval before they can be granted."
-            exit 1
-          fi
+          [ -z "$TOKEN" ] && { echo "::error::No access token."; exit 1; }
           BASE="$SHOP/admin/api/$VERSION/apple_pay_certificates"
           AUTH=(--header "X-Shopify-Access-Token: $TOKEN")
 
