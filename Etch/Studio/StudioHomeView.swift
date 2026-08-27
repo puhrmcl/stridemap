@@ -131,12 +131,13 @@ struct StudioHomeView: View {
                         Button { showProfile = true } label: {
                             // Shows the user's chosen photo (like the map search bar); the plain
                             // person glyph is the placeholder before one is set.
-                            ProfileAvatar(size: 30) {
+                            ProfileAvatar(size: 36) {
                                 Image(systemName: "person.crop.circle")
-                                    .font(.system(size: 26))
+                                    .font(.system(size: 32))
                                     .foregroundStyle(Theme.accent)
                             }
                         }
+                        .buttonStyle(.plain)
                         // Long-press to remove the photo without opening the profile page.
                         .contextMenu {
                             if profileImageData != nil {
@@ -146,11 +147,17 @@ struct StudioHomeView: View {
                             }
                         }
                     }
+                    // The photo IS the button. Without this the toolbar draws its own glass
+                    // circle behind it and the avatar sits inside as a smaller disc, ringed in
+                    // white. `.buttonStyle(.plain)` alone doesn't remove it — the background
+                    // belongs to the toolbar item, not the button.
+                    .sharedBackgroundVisibility(.hidden)
                     ToolbarItem(placement: .principal) {
-                        // One mark across the app. The etch. wordmark sits inside more padding
-                        // than the studio lockup did (73% ink height against 80%), so the frame
-                        // grows slightly to keep the letterforms the same optical size.
-                        Image("BrandLogo").resizable().scaledToFit().frame(height: 28)
+                        // One mark across the app, and the masthead of this page — so it is
+                        // sized to carry the bar rather than to match the old lockup's ink. The
+                        // artwork holds 27% of its height as padding, so a 40pt frame puts about
+                        // 29pt of letterform in a 44pt bar.
+                        Image("BrandLogo").resizable().scaledToFit().frame(height: 40)
                             .accessibilityLabel("Etch")
                     }
                     ToolbarItem(placement: .topBarTrailing) { mapThumbnailButton }
@@ -274,7 +281,7 @@ struct StudioHomeView: View {
             if !isHome {
                 VStack(alignment: .leading, spacing: 8) {
                     Image("BrandLogo")
-                        .resizable().scaledToFit().frame(height: 32)
+                        .resizable().scaledToFit().frame(height: 44)
                         .accessibilityLabel("Etch")
                     Text("Turn a run, a race, or a favorite into gallery-grade art.")
                         .font(.system(.subheadline, design: .rounded))
@@ -425,7 +432,7 @@ struct StudioHomeView: View {
                         .foregroundStyle(Theme.Palette.ink.opacity(0.22))
                 }
             }
-            .aspectRatio(product == .yearBook ? 1.25 : 0.72, contentMode: .fit)
+            .aspectRatio(product.tileAspect, contentMode: .fit)
             .frame(maxWidth: .infinity)
             .clipShape(.rect(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14)
@@ -468,6 +475,8 @@ struct StudioHomeView: View {
             case .wallArt:
                 var request = MapPrintRequest.make(kind: .artMap, runs: mapped)
                 request.artStyle = .grid
+                // Shown landscape so it shares a row with the book, which only lies that way.
+                request.orientation = .landscape
                 image = await MapPrintRenderer.image(for: request, scale: 0.2)
             }
             if Task.isCancelled { return }

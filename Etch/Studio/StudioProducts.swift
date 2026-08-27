@@ -41,6 +41,15 @@ enum StudioProduct: String, CaseIterable, Identifiable {
     /// Whether choosing this product asks which activity it's made from.
     var needsSubject: Bool { self == .mapPoster || self == .galleryPoster }
 
+    /// Which way this product's tile lies. The book is a landscape object and can't pretend
+    /// otherwise, so Wall Art — which prints either way — shows its landscape face and the two
+    /// share a row. That keeps the grid on a single baseline instead of leaving the book short
+    /// beside a tall poster. The declaration order of the cases puts the portrait pair first.
+    var isLandscape: Bool { self == .yearBook || self == .wallArt }
+
+    /// The tile's aspect, matching the object it shows.
+    var tileAspect: CGFloat { isLandscape ? 1.25 : 0.72 }
+
     var family: PosterFamily { self == .galleryPoster ? .gallery : .map }
 }
 
