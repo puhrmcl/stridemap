@@ -34,7 +34,13 @@
  *   POST /admin/verify-skus            Bearer UPLOAD_TOKEN; body {skus:[…]} — checks each
  *                                      against the live Prodigi catalog (the Phase 1 gate:
  *                                      the SKUs in the app are UNVERIFIED until this passes).
+ *   GET  /tiles/{z}/{x}/{y}.mvt        Etch's own basemap, read out of the PMTiles archive in
+ *                                      R2. This is what replaces Apple Maps as the source of
+ *                                      printable cartography — see src/tiles.ts.
+ *   GET  /tiles/tiles.json             TileJSON for the above.
  */
+
+import { serveTile, serveTileJSON, parseTilePath } from "./tiles";
 
 export interface Env {
   ASSETS: R2Bucket;
@@ -47,6 +53,8 @@ export interface Env {
   UPLOAD_TOKEN: string;
   /** Prodigi API base URL — sandbox by default (wrangler.toml [vars]). */
   PRODIGI_BASE: string;
+  /** Object key of the basemap archive in R2. Defaults to `basemap.pmtiles`. */
+  BASEMAP_KEY?: string;
 }
 
 /** Normalized statuses. Raw values MUST match the iOS `PrintOrderStatus` enum. */
@@ -64,6 +72,13 @@ export default {
     try {
       if (request.method === "GET" && path === "/health") {
         return json({ ok: true });
+      }
+      if (request.method === "GET" && path === "/tiles/tiles.json") {
+        return await serveTileJSON(env, url.origin);
+      }
+      if (request.method === "GET" && path.startsWith("/tiles/")) {
+        const tile = parseTilePath(path);
+        if (tile) return await serveTile(env, tile.z, tile.x, tile.y);
       }
       if (request.method === "GET" && path === "/config") {
         return await serveConfig(env);
