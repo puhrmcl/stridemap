@@ -10,8 +10,8 @@
 #             wall-art:pulse, wall-art:bloom, wall-art:constellation, wall-art:grid
 # appearance: light, dark, or both
 #
-# Requested for b391: all six Archive styles, after centring Constellation on the median
-# and giving the seeded routes four real shapes instead of one.
+# Requested for b393: the Studio storefront, to check the etch. wordmark in the toolbar
+# and the sheet masthead now that it replaces the etched.studio lockup.
 
-screens=wall-art:grid,wall-art:ridgeline,wall-art:rings,wall-art:pulse,wall-art:constellation,wall-art:bloom
-appearance=light
+screens=studio,studio@intro
+appearance=both

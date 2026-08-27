@@ -147,9 +147,11 @@ struct StudioHomeView: View {
                         }
                     }
                     ToolbarItem(placement: .principal) {
-                        // Studio is the app's home here, so lead with the studio's own wordmark.
-                        Image("StudioLogo").resizable().scaledToFit().frame(height: 26)
-                            .accessibilityLabel("Etched Studio")
+                        // One mark across the app. The etch. wordmark sits inside more padding
+                        // than the studio lockup did (73% ink height against 80%), so the frame
+                        // grows slightly to keep the letterforms the same optical size.
+                        Image("BrandLogo").resizable().scaledToFit().frame(height: 28)
+                            .accessibilityLabel("Etch")
                     }
                     ToolbarItem(placement: .topBarTrailing) { mapThumbnailButton }
                 }
@@ -271,9 +273,9 @@ struct StudioHomeView: View {
             // tagline treatment belongs only to the home variant (whose toolbar mark is small).
             if !isHome {
                 VStack(alignment: .leading, spacing: 8) {
-                    Image("StudioLogo")
-                        .resizable().scaledToFit().frame(height: 28)
-                        .accessibilityLabel("Etched Studio")
+                    Image("BrandLogo")
+                        .resizable().scaledToFit().frame(height: 32)
+                        .accessibilityLabel("Etch")
                     Text("Turn a run, a race, or a favorite into gallery-grade art.")
                         .font(.system(.subheadline, design: .rounded))
                         .foregroundStyle(.secondary)
