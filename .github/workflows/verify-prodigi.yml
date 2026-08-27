@@ -35,3 +35,13 @@ jobs:
           fi
           chmod +x fulfilment/scripts/verify-skus.sh
           ./fulfilment/scripts/verify-skus.sh --live
+
+      # The session's network can't reach prodigi.com, so the runner reads the range PDF and
+      # probes what it finds. This is how the medal frame gets real SKUs rather than guesses.
+      - name: Discover medal frame products
+        if: always()
+        env:
+          PRODIGI_API_KEY: ${{ secrets.PRODIGI_API_KEY }}
+        run: |
+          chmod +x fulfilment/scripts/medal-frames.sh
+          ./fulfilment/scripts/medal-frames.sh --live
