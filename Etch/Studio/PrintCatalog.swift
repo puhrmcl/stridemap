@@ -98,13 +98,21 @@ enum PrintFinish: Hashable {
 
 /// The Etch Studio print catalogue.
 ///
-/// Deliberately two products and five SKUs. The audit's reasoning: every extra SKU is a print
-/// profile, a mockup, a margin, a damage policy and a support case, and none of that is worth
-/// carrying before one framed print has shipped and come back undamaged. Poster was cut (it
-/// competes with Fine-Art Print and reads cheaper), canvas deferred (different look, different
-/// quality risk), stickers cut (inconsistent with "museum-grade archival paper").
+/// Deliberately few SKUs. The audit's reasoning: every extra SKU is a print profile, a mockup, a
+/// margin, a damage policy and a support case, and none of that is worth carrying before one
+/// framed print has shipped and come back undamaged. Poster was cut (it competes with Fine-Art
+/// Print and reads cheaper), canvas deferred (different look, different quality risk), stickers
+/// cut (inconsistent with "museum-grade archival paper").
 enum PrintProduct: String, CaseIterable, Identifiable {
-    case print, framed, hanger
+    /// Case order is the order the shop presents them, and it climbs: bare sheet, then wood, then
+    /// glass and a hardwood frame — $59 to $109, then $129, then $139 to $179. A buyer reading
+    /// down the list is reading a price ladder, and each rung adds something physical to the one
+    /// above it. The hanger sitting last put the cheapest finish in the range beneath the dearest
+    /// product, which read as an afterthought rather than as the step it is.
+    ///
+    /// The raw values are the case names and are unchanged by the reordering, so nothing already
+    /// stored against them moves.
+    case print, hanger, framed
     var id: String { rawValue }
 
     /// The formats the shop currently shows. The hanger is built but withheld while its only
@@ -117,8 +125,8 @@ enum PrintProduct: String, CaseIterable, Identifiable {
     var name: String {
         switch self {
         case .print:  return "Fine-Art Print"
-        case .framed: return "Framed Print"
         case .hanger: return "Print with Hanger"
+        case .framed: return "Framed Print"
         }
     }
 
@@ -126,24 +134,24 @@ enum PrintProduct: String, CaseIterable, Identifiable {
     var tagline: String {
         switch self {
         case .print:  return "Museum-grade archival paper. Unframed, ready for your own frame."
-        case .framed: return "Archival print in a hardwood frame. Ready to hang out of the box."
         case .hanger: return "Archival print in solid wood hangers. Hangs from a nail, no glass."
+        case .framed: return "Archival print in a hardwood frame. Ready to hang out of the box."
         }
     }
 
     var material: String {
         switch self {
         case .print:  return "Giclée on Hahnemühle German Etching, 310gsm mould-made paper"
-        case .framed: return "Giclée archival print · solid hardwood frame · shatterproof glazing"
         case .hanger: return "Archival print on 200gsm enhanced matte art paper · solid wood magnetic hangers"
+        case .framed: return "Giclée archival print · solid hardwood frame · shatterproof glazing"
         }
     }
 
     var symbol: String {
         switch self {
         case .print:  return "doc.richtext"
-        case .framed: return "photo.artframe"
         case .hanger: return "scroll"
+        case .framed: return "photo.artframe"
         }
     }
 
@@ -152,8 +160,8 @@ enum PrintProduct: String, CaseIterable, Identifiable {
     var shopifyHandle: String {
         switch self {
         case .print:  return "fine-art-print"
-        case .framed: return "framed-print"
         case .hanger: return "print-with-hanger"
+        case .framed: return "framed-print"
         }
     }
 
@@ -168,13 +176,6 @@ enum PrintProduct: String, CaseIterable, Identifiable {
                 PrintSize(width: 16, height: 24, prodigiSKU: "GLOBAL-HGE-16X24", priceCents: 7900),
                 PrintSize(width: 24, height: 36, prodigiSKU: "GLOBAL-HGE-24X36", priceCents: 10900)
             ]
-        case .framed:
-            // CFP = Classic Frame, no mount: the full-bleed 2:3 framed product. (CFP-24X36 is
-            // also verified, gated on the server renderer like the unframed 24×36.)
-            return [
-                PrintSize(width: 12, height: 18, prodigiSKU: "GLOBAL-CFP-12X18", priceCents: 13900),
-                PrintSize(width: 16, height: 24, prodigiSKU: "GLOBAL-CFP-16X24", priceCents: 17900)
-            ]
         case .hanger:
             // Read off the product page and confirmed live. The 24×36 hanger's print area is
             // 7200 × 10800 — identical to GLOBAL-HGE-24X36 and GLOBAL-CFP-24X36 — so the finish
@@ -184,6 +185,17 @@ enum PrintProduct: String, CaseIterable, Identifiable {
             return PosterHangerCatalog.portraitSizes.map {
                 PrintSize(width: $0.width, height: $0.height, prodigiSKU: $0.sku, priceCents: 12900)
             }
+        case .framed:
+            // CFP = Classic Frame, no mount: the full-bleed 2:3 framed product.
+            //
+            // GLOBAL-CFP-24X36 is verified and now renderable — the banded writer removed the
+            // ceiling that used to gate it. It stays unlisted for a different reason: no live
+            // quote has come back for it, and a framed 24×36 is the dearest thing in the range,
+            // so a guessed rung would be a guess at a loss. Add it when the quote lands.
+            return [
+                PrintSize(width: 12, height: 18, prodigiSKU: "GLOBAL-CFP-12X18", priceCents: 13900),
+                PrintSize(width: 16, height: 24, prodigiSKU: "GLOBAL-CFP-16X24", priceCents: 17900)
+            ]
         }
     }
 
