@@ -4,8 +4,10 @@
 #
 # Public, read-only pages only.
 
-# Apple Pay with Shopify as the payment processor: who generates the CSR, and is a Mac needed.
-https://shopify.dev/docs/storefronts/mobile/create-apple-payment-processing-certificates
+# Answered: Shopify generates the CSR through its REST Admin API. Kept as a record of the
+# question, commented out so it isn't refetched.
+# https://shopify.dev/docs/storefronts/mobile/create-apple-payment-processing-certificates
 
 # The planet basemap build sizes — the one number docs/basemap.md estimates rather than states.
-https://build.protomaps.com/
+# build.protomaps.com/ returned 404 for the bare root; the listing lives one level in.
+https://build.protomaps.com/builds

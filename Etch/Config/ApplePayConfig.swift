@@ -21,8 +21,20 @@ import Foundation
 /// 2. **The Merchant IDs entitlement** on the App ID, listing that identifier. It is declared in
 ///    `Etch.entitlements` as `com.apple.developer.in-app-payments`; the App ID has to carry the
 ///    capability too or signing fails to mint a profile — the same failure mode WeatherKit hit.
-/// 3. **Apple Pay enabled in Shopify**, under Settings → Payments. Shopify holds the payment
-///    processing certificate; the app never sees a card.
+/// 3. **A payment processing certificate**, which Shopify holds the private key for — the app
+///    never sees a card. Apple's portal asks for "a CSR file from your Mac"; that is the path
+///    for merchants who process their own payments and is the wrong one here. Shopify generates
+///    the CSR through its REST Admin API, you upload it to Apple, and Apple's certificate goes
+///    back to Shopify the same way. The `Apple Pay certificate` workflow runs all of that —
+///    see `.github/apple-pay-request.txt`.
+///
+/// Two Shopify scopes gate it and both need approval before they can be granted, so they are
+/// worth requesting early: `write_cart_wallet_payments` for the accelerated checkout buttons,
+/// and `write_mobile_payments` + `read_mobile_payments` for the certificate.
+///
+/// Note the ordering. The merchant identifier and the App ID capability are what unblock the
+/// *build*; the certificate is what unblocks *transactions*. The entitlement can come back as
+/// soon as the first two exist.
 ///
 /// Until the identifier resolves, `isConfigured` is false and the buttons are simply not drawn —
 /// the sheet handles every order, exactly as it does today. Nothing breaks while this is pending.

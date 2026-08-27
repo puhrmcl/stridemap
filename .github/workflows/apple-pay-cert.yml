@@ -1,0 +1,161 @@
+# The Apple Pay payment processing certificate dance, run on a runner because there is no
+# terminal here.
+#
+# Shopify decrypts the PassKit payment data, so Shopify — not Etch — holds the private key and
+# generates the Certificate Signing Request. Apple's portal asks for "a CSR file from your Mac",
+# which is the instruction for merchants who process their own payments and is the wrong path
+# here. The real sequence, from Shopify's own guide:
+#
+#   create  →  POST   /apple_pay_certificates.json            (a certificate resource)
+#              GET    /apple_pay_certificates/{id}.json       (wait for status: "csr")
+#              GET    /apple_pay_certificates/{id}/csr.json   (the CSR, base64 in .csr.key)
+#              ── you upload that CSR to Apple, download apple_pay.cer ──
+#   upload  →  PUT    /apple_pay_certificates/{id}.json       (the signed certificate back)
+#
+# Ask by editing .github/apple-pay-request.txt. Same file trigger as the preview and doc rigs:
+# workflow_dispatch is only offered for workflows on the default branch.
+#
+# The one secret is the Admin API token. It never appears in output; Actions masks it
+# regardless. Add it at Settings → Secrets and variables → Actions:
+#
+#   SHOPIFY_ADMIN_TOKEN   Admin API access token with write_mobile_payments and
+#                         read_mobile_payments. Both scopes need Shopify's approval first.
+
+name: Apple Pay certificate
+
+on:
+  push:
+    branches: [claude/rebrand-etch]
+    paths:
+      - ".github/apple-pay-request.txt"
+      - ".github/workflows/apple-pay-cert.yml"
+  workflow_dispatch:
+
+jobs:
+  certificate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the request
+        id: request
+        run: |
+          set -euo pipefail
+          FILE=.github/apple-pay-request.txt
+          value() { grep -E "^$1=" "$FILE" 2>/dev/null | tail -1 | cut -d= -f2- | xargs || true; }
+          ACTION=$(value action); [ -z "$ACTION" ] && ACTION="status"
+          {
+            echo "action=$ACTION"
+            echo "certificate_id=$(value certificate_id)"
+            echo "merchant_id=$(value merchant_id)"
+            SHOP=$(value shop_domain); [ -z "$SHOP" ] && SHOP="https://zn1ddh-it.myshopify.com"
+            echo "shop_domain=$SHOP"
+            VER=$(value api_version); [ -z "$VER" ] && VER="2026-07"
+            echo "api_version=$VER"
+          } >> "$GITHUB_OUTPUT"
+          echo "action: $ACTION"
+
+      - name: Talk to the Admin API
+        env:
+          TOKEN: ${{ secrets.SHOPIFY_ADMIN_TOKEN }}
+          ACTION: ${{ steps.request.outputs.action }}
+          CERT_ID: ${{ steps.request.outputs.certificate_id }}
+          MERCHANT_ID: ${{ steps.request.outputs.merchant_id }}
+          SHOP: ${{ steps.request.outputs.shop_domain }}
+          VERSION: ${{ steps.request.outputs.api_version }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TOKEN" ]; then
+            echo "::error::SHOPIFY_ADMIN_TOKEN is not set."
+            echo "Add it on your phone: github.com/puhrmcl/stridemap → Settings →"
+            echo "Secrets and variables → Actions → New repository secret →"
+            echo "Name: SHOPIFY_ADMIN_TOKEN → paste the Admin API access token → Add secret."
+            echo ""
+            echo "The token needs write_mobile_payments and read_mobile_payments, and both"
+            echo "scopes require Shopify's approval before they can be granted."
+            exit 1
+          fi
+          BASE="$SHOP/admin/api/$VERSION/apple_pay_certificates"
+          AUTH=(--header "X-Shopify-Access-Token: $TOKEN")
+
+          case "$ACTION" in
+            create)
+              echo "── Creating a certificate resource"
+              RESPONSE=$(curl -sS --request POST "$BASE.json" "${AUTH[@]}" \
+                --retry 3 --retry-all-errors --max-time 30)
+              echo "$RESPONSE" | jq . || { echo "$RESPONSE"; exit 1; }
+              ID=$(echo "$RESPONSE" | jq -r '.apple_pay_certificate.id // empty')
+              [ -z "$ID" ] && { echo "::error::No certificate id came back."; exit 1; }
+              echo ""
+              echo "════ CERTIFICATE ID: $ID"
+              echo "     Put this in .github/apple-pay-request.txt as certificate_id="
+              echo ""
+
+              # Shopify mints the key pair asynchronously; status flips to "csr" when ready.
+              echo "── Waiting for the CSR"
+              for attempt in $(seq 1 20); do
+                STATUS=$(curl -sS "$BASE/$ID.json" "${AUTH[@]}" --max-time 30 \
+                  | jq -r '.apple_pay_certificate.status // "unknown"')
+                echo "   attempt $attempt: status=$STATUS"
+                [ "$STATUS" = "csr" ] && break
+                sleep 5
+              done
+              if [ "$STATUS" != "csr" ]; then
+                echo "::error::Certificate $ID never reached status 'csr' (last: $STATUS)."
+                exit 1
+              fi
+
+              echo "── Fetching and decoding the CSR"
+              curl -sS "$BASE/$ID/csr.json" "${AUTH[@]}" --max-time 30 \
+                | tr -d '\n' | jq -r '.csr.key' \
+                | openssl base64 -a -d -out apple_payment_processing.csr
+              echo ""
+              echo "── BEGIN-CSR"
+              cat apple_payment_processing.csr
+              echo "── END-CSR"
+              echo ""
+              echo "Next: download the 'apple-pay-csr' artifact from this run, upload it to"
+              echo "developer.apple.com under Certificates → + → Apple Pay Payment Processing"
+              echo "Certificate (NOT Apple Pay Merchant Identity Certificate, which is web only),"
+              echo "then commit the apple_pay.cer Apple gives you to"
+              echo "fulfilment/apple-pay/apple_pay.cer and set action=upload."
+              ;;
+
+            upload)
+              CER=fulfilment/apple-pay/apple_pay.cer
+              [ -z "$CERT_ID" ] && { echo "::error::certificate_id= is required for upload."; exit 1; }
+              [ -z "$MERCHANT_ID" ] && { echo "::error::merchant_id= is required for upload."; exit 1; }
+              [ -f "$CER" ] || { echo "::error::$CER is not in the repository."; exit 1; }
+
+              echo "── Uploading the signed certificate for $CERT_ID"
+              ENCODED=$(openssl base64 -a -A -e -in "$CER")
+              curl -sS --request PUT "$BASE/$CERT_ID.json" "${AUTH[@]}" \
+                --header "Content-Type: application/json" --max-time 30 \
+                --data "{\"apple_pay_certificate\":{\"id\":\"$CERT_ID\",\"status\":\"completed\",\"merchant_id\":\"$MERCHANT_ID\",\"encoded_signed_certificate\":\"$ENCODED\"}}" \
+                | jq .
+              echo ""
+              echo "If this reports status: completed, Apple Pay can now be processed."
+              echo "Certificates expire every 25 months — make a note now."
+              ;;
+
+            status)
+              echo "── Certificates on this store"
+              curl -sS "$BASE.json" "${AUTH[@]}" --max-time 30 | jq .
+              ;;
+
+            *)
+              echo "::error::Unknown action '$ACTION'. Use create, upload, or status."
+              exit 1
+              ;;
+          esac
+
+      # The CSR has to reach Apple's upload form, and a job log is awkward to turn back into a
+      # file on a phone. The artifact downloads as a zip that Files can open.
+      - name: Upload the CSR
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-pay-csr
+          path: apple_payment_processing.csr
+          if-no-files-found: ignore

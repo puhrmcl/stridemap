@@ -1,0 +1,22 @@
+# Drives the "Apple Pay certificate" workflow. Edit and commit to run it.
+#
+# Before anything here works:
+#   1. Shopify must approve write_mobile_payments and read_mobile_payments for the store.
+#   2. SHOPIFY_ADMIN_TOKEN must be a repository secret (Settings → Secrets and variables →
+#      Actions). Never paste it into a file — this one is public in the repo.
+#
+# action=status   list the certificates the store already has (safe; start here)
+# action=create   make a resource, wait for the CSR, print it and attach it as an artifact
+# action=upload   send Apple's signed apple_pay.cer back to Shopify
+#
+# For upload, also set certificate_id= (printed by create) and merchant_id= (the Apple
+# merchant identifier, e.g. merchant.com.nwagtech.etch), and commit Apple's certificate to
+# fulfilment/apple-pay/apple_pay.cer. That file is the *public* half — the private key never
+# leaves Shopify — so it is safe in the repository.
+#
+# shop_domain and api_version default to the Etch store and 2026-07; override only if needed.
+
+action=status
+
+certificate_id=
+merchant_id=
