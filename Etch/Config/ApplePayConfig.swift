@@ -41,31 +41,28 @@ import Foundation
 /// *build*; the certificate is what unblocks *transactions*. The entitlement can come back as
 /// soon as the first two exist.
 ///
-/// Until the identifier resolves, `isConfigured` is false and the buttons are simply not drawn —
-/// the sheet handles every order, exactly as it does today. Nothing breaks while this is pending.
+/// `isConfigured` also requires the storefront credentials, so the buttons stay hidden until the
+/// shop can actually transact — the hosted checkout handles every order until then, and nothing
+/// is half-on.
 enum ApplePayConfig {
 
-    /// The merchant identifier, which must match an entry in the app's Merchant IDs entitlement.
+    /// The merchant identifier. Must match an entry in the app's Merchant IDs entitlement
+    /// **and** a merchant on the App ID's Apple Pay capability — all three are the same string,
+    /// and signing fails if any of them disagrees.
     ///
-    /// **Empty on purpose, and the entitlement is currently absent too.** Declaring
-    /// `com.apple.developer.in-app-payments` on an App ID that does not carry the Apple Pay
-    /// capability makes automatic signing unable to mint *any* provisioning profile, so Xcode
-    /// Cloud's `exportArchive` fails with exit 70 for development, ad-hoc and App Store alike and
-    /// no build reaches TestFlight. WeatherKit did exactly this earlier and was diagnosed the same
-    /// way: an entitlement is a promise the App ID has to be able to keep.
+    /// This was empty for one build, and the reason is worth keeping. Declaring
+    /// `com.apple.developer.in-app-payments` while the App ID carried no Apple Pay capability
+    /// made automatic signing unable to mint *any* provisioning profile, so `exportArchive`
+    /// failed with exit 70 for development, ad-hoc and App Store alike and nothing reached
+    /// TestFlight. WeatherKit did the same thing earlier in this project. An entitlement is not
+    /// a local declaration — it is a claim checked against the App ID at signing time.
     ///
-    /// Turning Apple Pay on is three edits made together, and they must stay together — a
-    /// merchant identifier set while the entitlement is missing gives buttons that render and
-    /// then fail at the payment sheet, which is worse than no buttons:
-    ///
-    /// 1. developer.apple.com → Identifiers → Merchant IDs → create `merchant.com.nwagtech.etch`.
-    /// 2. Add the Apple Pay capability to the App ID, listing that merchant.
-    /// 3. Restore the entitlement in `Etch.entitlements` and set this string, in one commit.
-    ///
-    /// Everything else — the buttons, the cart, the order path — is already built and waiting on
-    /// exactly this. `isConfigured` is false while the string is empty, so the shop keeps the
-    /// hosted checkout it has today and nothing is broken in the meantime.
-    static let merchantIdentifier = ""
+    /// Both halves are now in place: the merchant exists in the developer portal and the
+    /// capability is enabled on the App ID listing it. They were restored in a single commit,
+    /// which is the only safe way — a merchant identifier set while the entitlement is missing
+    /// gives wallet buttons that render and then fail at the payment sheet, which is worse than
+    /// no buttons at all.
+    static let merchantIdentifier = "merchant.com.nwagtech.etch"
 
     /// Contact fields the Apple Pay sheet collects.
     ///
