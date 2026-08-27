@@ -46,11 +46,18 @@ struct PrintSize: Identifiable, Hashable {
         PrintGeometry(trimWidth: Double(width), trimHeight: Double(height))
     }
 
-    /// Whether this device can render the print file at acceptable quality. 24×36 needs a
-    /// 10,800px long edge — beyond the on-device ceiling — so it stays visible but unorderable
-    /// until the server renderer exists.
+    /// Whether the device can produce this size's print file at acceptable quality.
+    ///
+    /// It always can now. This used to test the trim against a 6,000px ceiling, which is the
+    /// largest *single bitmap* a phone will hold — and it made 24×36 permanently unorderable at
+    /// 10,800px, waiting on a server renderer that would have meant a second implementation of
+    /// the composition. `PrintFileWriter` streams the sheet to disk a band at a time instead, so
+    /// the ceiling is on one band rather than on the print, and every size renders at the full
+    /// 300 DPI its geometry asks for. Kept as a property because a future size could still be
+    /// out of reach, and a call site that asks the question is better than one that assumes.
     var deviceRenderable: Bool {
-        geometry.isAcceptable(longEdgePixels: PrintGeometry.deviceRenderLongEdge)
+        geometry.isAcceptable(longEdgePixels: max(geometry.trimPixels.width,
+                                                  geometry.trimPixels.height))
     }
 
     /// The variant SKU as entered in Shopify — the join key between this catalogue and the

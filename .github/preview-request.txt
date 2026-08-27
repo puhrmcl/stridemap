@@ -8,10 +8,13 @@
 #             map-studio, gallery-studio, detail
 #             wall-art accepts a style: wall-art:ridgeline, wall-art:rings,
 #             wall-art:pulse, wall-art:bloom, wall-art:constellation, wall-art:grid
+#             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b397: the wordmark as a page masthead, measured against the "Leave your
-# mark." headline it now has to match.
+# Requested for b406: the print engine's self-check — does the hand-written PNG decode,
+# do its scanlines run the right way, and does a 7200x10800 sheet actually get written on
+# a phone-class device. Plus the storefront, where the Photo Wall tile now shows the wall
+# inside its frame.
 
-screens=studio,studio@products
-appearance=both
+screens=print-engine,studio@products
+appearance=light

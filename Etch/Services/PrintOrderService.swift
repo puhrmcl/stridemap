@@ -46,36 +46,30 @@ enum PrintOrderService {
         onPhase: (Phase) -> Void
     ) async throws -> URL {
         let geometry = size.geometry
-        guard size.deviceRenderable else { throw OrderError.resolutionTooLow(size) }
 
         onPhase(.rendering)
         var printRequest = request
         printRequest.printAspect = geometry.aspect
         printRequest.outputSize = .poster
-        let longEdge = max(geometry.trimPixels.width, geometry.trimPixels.height)
-        guard let rendered = await StudioRenderer.printImage(for: printRequest,
-                                                            longEdgePixels: longEdge)
-        else { throw OrderError.renderFailed }
 
-        // A hung print is the same artwork on a sheet whose top and bottom 15mm the wood covers.
-        // Reserving those bands here rather than in the composition means one layout to design
-        // and proof, and the covered strip is the piece's own ground rather than its title.
-        let sheet: UIImage
+        // A hung print is the same artwork on a sheet whose top and bottom 15mm the wood covers,
+        // so the artwork clears that band and the sheet around it is the piece's own ground.
+        var reserve: CGFloat = 0
         if case .hanger = finish {
-            guard let composed = PosterHangerCatalog.composite(
-                artwork: rendered,
-                sheetPixels: geometry.trimPixels,
-                ground: UIColor(request.groundColor ?? request.edition.ground)
-            ) else { throw OrderError.renderFailed }
-            sheet = composed
-        } else {
-            sheet = rendered
+            reserve = (PosterHangerCatalog.hangerCoverMM / 25.4) / CGFloat(size.height)
         }
-        guard let data = sheet.pngData() else { throw OrderError.renderFailed }
+
+        // Streamed to disk a band at a time — the finished sheet is never one allocation, which
+        // is what lets a 7200 × 10800 print exist on a phone at all.
+        let fileURL = try await StudioRenderer.printFile(
+            for: printRequest, geometry: geometry, reserveFraction: reserve
+        )
+        defer { try? FileManager.default.removeItem(at: fileURL) }
 
         onPhase(.uploading)
         let assetID = UUID().uuidString.lowercased()
-        try await upload(data, assetID: assetID, creationID: creationID, image: sheet)
+        try await upload(fileAt: fileURL, assetID: assetID, creationID: creationID,
+                         pixels: geometry.trimPixels)
 
         onPhase(.openingCheckout)
         let variant = try await ShopifyStorefront.variant(
@@ -106,12 +100,16 @@ enum PrintOrderService {
         }
     }
 
+    /// Uploads the print file straight from disk.
+    ///
+    /// Reading it into a `Data` first would undo what the banded renderer just achieved — a
+    /// 24×36 PNG is tens of megabytes and the point was never to hold the whole sheet. The
+    /// checksum is folded over the file in chunks for the same reason, and `upload(for:fromFile:)`
+    /// streams the body rather than materialising it.
     private static func upload(
-        _ data: Data, assetID: String, creationID: String, image: UIImage
+        fileAt url: URL, assetID: String, creationID: String, pixels: CGSize
     ) async throws {
-        let checksum = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-        let pixels = CGSize(width: image.size.width * image.scale,
-                            height: image.size.height * image.scale)
+        let checksum = try streamedSHA256(of: url)
 
         var request = URLRequest(url: CommerceConfig.workerBase.appendingPathComponent("assets/\(assetID)"))
         request.httpMethod = "PUT"
@@ -123,12 +121,23 @@ enum PrintOrderService {
         request.setValue("\(Int(pixels.width))x\(Int(pixels.height))", forHTTPHeaderField: "X-Pixel-Size")
         request.timeoutInterval = 180  // print files are tens of megabytes on cellular
 
-        let (body, response) = try await URLSession.shared.upload(for: request, from: data)
+        let (body, response) = try await URLSession.shared.upload(for: request, fromFile: url)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else {
             let reason = String(data: body, encoding: .utf8) ?? "HTTP \(status)"
             throw OrderError.uploadFailed(reason)
         }
+    }
+
+    /// SHA-256 of a file, read in 1 MB chunks so the digest never costs more than a chunk.
+    private static func streamedSHA256(of url: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty {
+            hasher.update(data: chunk)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 }
 

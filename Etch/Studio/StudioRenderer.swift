@@ -435,6 +435,122 @@ enum StudioRenderer {
         let scale = max(2, target / compositionLongEdge)
         return await image(for: request, scale: scale)
     }
+
+    // MARK: The print engine — arbitrary size, written a band at a time
+
+    /// The largest raster panel produced for a print.
+    ///
+    /// The banded writer removes the ceiling on the *finished sheet*, but the map snapshot,
+    /// photograph or contour field composited into it is still one bitmap, and a 7200px-wide
+    /// square panel is 207 MB on its own. 5000 is the honest ceiling: on a 24″-wide sheet it is
+    /// 208 DPI across the full width — above the 200 DPI floor this codebase already refuses to
+    /// ship below — and the panel is a muted ground rather than the subject, while the type,
+    /// route and hairlines that the eye actually judges are drawn as vectors at the sheet's full
+    /// 300 DPI. It binds on almost nothing in practice: the editions that reach print are
+    /// contour (drawn by us at any size), photo, and paper.
+    static let maxPanelPixelWidth: CGFloat = 5000
+
+    /// Rows of output pixels rendered in one pass. At a 7200px width one band costs about 26 MB,
+    /// so a 24×36 is twelve of them instead of a single 311 MB allocation.
+    static let bandPixelHeight: CGFloat = 900
+
+    /// Renders the artwork at any print size and streams it to a PNG on disk.
+    ///
+    /// This is what removes `deviceRenderable` as a gate. The composition, the panel, the photos
+    /// and the fit plan are computed once; then the sheet is rendered in horizontal bands, each
+    /// one compressed and appended to the file and released before the next begins. Peak memory
+    /// is a band, not a poster.
+    ///
+    /// - Returns: the file URL. The caller owns it and should remove it after upload.
+    static func printFile(for request: Request, geometry: PrintGeometry,
+                          reserveFraction: CGFloat = 0) async throws -> URL {
+        let canvas = StudioComposition.canvasSize(request.orientation, request.dataPlacement,
+                                                  request.printAspect)
+        let target = geometry.trimPixels
+        // The composition's shape is authoritative; the print size sets how many pixels it becomes.
+        let scale = max(target.width / canvas.width, target.height / canvas.height)
+        let pixelWidth = Int((canvas.width * scale).rounded())
+        let pixelHeight = Int((canvas.height * scale).rounded())
+
+        let built = await buildComposition(for: request, scale: scale)
+        let ground = request.groundColor ?? request.edition.ground
+
+        // A finish that covers part of the sheet — the poster hanger's wooden strips — reserves a
+        // band at each end. The artwork shrinks to clear it and the sheet around it is the piece's
+        // own ground, so what the wood hides is paper rather than a title. Zero reserve leaves the
+        // composition at its full size, which is every other product.
+        let fit = max(0.1, 1 - reserveFraction * 2)
+        let composition = ZStack {
+            ground
+            built
+                .frame(width: canvas.width, height: canvas.height)
+                .scaleEffect(fit)
+        }
+        .frame(width: canvas.width, height: canvas.height)
+
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("etch-print-\(UUID().uuidString).png")
+        let writer = try PrintFileWriter(width: pixelWidth, height: pixelHeight, url: url)
+
+        let bandPoints = bandPixelHeight / scale
+        var top: CGFloat = 0
+        var rowsEmitted = 0
+
+        while rowsEmitted < pixelHeight {
+            try Task.checkCancellation()
+            // The last band is short — sized from what's left in *pixels*, so rounding across
+            // many bands can never leave the file a row short or a row long.
+            let remaining = pixelHeight - rowsEmitted
+            let bandPixels = min(Int(bandPixelHeight), remaining)
+            let heightPoints = min(bandPoints, canvas.height - top)
+
+            // Clipping in SwiftUI rather than transforming a CGContext: the band goes through the
+            // exact renderer the preview and the single-shot export use, so a banded print can't
+            // differ from an unbanded one by a flip, an offset or a colour space.
+            let band = composition
+                .frame(width: canvas.width, height: canvas.height, alignment: .top)
+                .offset(y: -top)
+                .frame(width: canvas.width, height: heightPoints, alignment: .top)
+                .clipped()
+
+            let renderer = ImageRenderer(content: band)
+            renderer.scale = scale
+            guard let image = renderer.uiImage, let cgImage = image.cgImage else {
+                try? FileManager.default.removeItem(at: url)
+                throw PrintFileWriter.WriteError.compressionFailed
+            }
+            try writer.append(band: cgImage, rows: bandPixels)
+
+            rowsEmitted += bandPixels
+            top += heightPoints
+            // Give the run loop a turn between bands so a long print doesn't wedge the UI and the
+            // autorelease pool actually drops the band that was just written.
+            await Task.yield()
+        }
+
+        return try writer.finish()
+    }
+
+    /// Builds the composition once, with everything a render needs resolved. Split out of
+    /// `image(for:scale:)` so the band loop pays for the panel, the photos and the fit pass a
+    /// single time rather than once per band.
+    private static func buildComposition(for request: Request, scale: CGFloat) async -> StudioComposition {
+        let pixelWidth = min(StudioComposition.width * scale, maxPanelPixelWidth)
+        async let panelTask = panelImage(for: request, panelPixelWidth: pixelWidth)
+        async let photosTask = photoImages(for: request, panelPixelWidth: pixelWidth)
+        async let profileTask = elevationProfile(for: request)
+        let (panelRaw, photoPack, profile) = await (panelTask, photosTask, profileTask)
+        var panel = panelRaw
+        var photos = photoPack.0
+        if request.monochrome {
+            panel = panel.map { $0.desaturated() }
+            photos = photos.map { $0.desaturated() }
+        }
+        let plan = fitPlan(for: request, photos: photos, picks: photoPack.2, profile: profile)
+        return composition(for: request, panel: panel, photos: photos, focuses: photoPack.1,
+                           picks: photoPack.2, profile: profile, fitScale: plan.scale,
+                           measuring: false, artHeight: plan.artHeight)
+    }
 }
 
 extension UIImage {

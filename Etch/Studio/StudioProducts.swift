@@ -294,18 +294,19 @@ enum PosterHangerCatalog {
         (24, 36, sku24x36)
     ]
 
-    /// Whether the finish can be offered at all — true once at least one confirmed size is
-    /// renderable on the device.
+    /// Whether the finish can be offered at all — true once at least one confirmed size renders.
     ///
-    /// Today that is false, and for a reason worth stating plainly: the only confirmed portrait
-    /// hanger is 24×36", which needs a 10,800px long edge against the device's 6,000px ceiling.
-    /// So the cheapest finish in the range is gated behind the same server renderer as the
-    /// largest print. Confirming the 12×18" or 16×24" hanger opens it immediately; so does the
-    /// server renderer. The gate resolves itself either way rather than waiting on a flag.
+    /// This was false while the only confirmed portrait hanger was 24×36", needing a 10,800px
+    /// long edge against a 6,000px single-bitmap ceiling: the cheapest finish in the range gated
+    /// behind the same wall as the most expensive print. The banded writer took the wall down,
+    /// so the gate now answers yes on the size that was already confirmed. It is still a real
+    /// question — a future size could outrun the renderer — so it is still asked.
     static var isAvailable: Bool {
         portraitSizes.contains { size in
-            PrintGeometry(trimWidth: Double(size.width), trimHeight: Double(size.height))
-                .isAcceptable(longEdgePixels: PrintGeometry.deviceRenderLongEdge)
+            let geometry = PrintGeometry(trimWidth: Double(size.width),
+                                         trimHeight: Double(size.height))
+            return geometry.isAcceptable(longEdgePixels: max(geometry.trimPixels.width,
+                                                             geometry.trimPixels.height))
         }
     }
 

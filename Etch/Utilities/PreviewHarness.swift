@@ -192,6 +192,9 @@ struct PreviewHarnessView: View {
                 case "summit":          CollectionBrowserView(collection: .summit, runs: allRuns)
                 case "yearbook":        YearBookView()
                 case "prints":          PrintShopView(subjectTitle: subject?.name)
+                // Not a screen of the app: the print engine's self-check, reported on screen
+                // because CI photographs screens and this project has no test target.
+                case "print-engine":    PrintEngineCheckView()
                 // "wall-art:ridgeline" opens that style full size — the Archive's thumbnails
                 // are too small to judge a composition by.
                 case let name where name.hasPrefix("wall-art"):

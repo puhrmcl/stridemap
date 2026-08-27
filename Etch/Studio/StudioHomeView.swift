@@ -137,7 +137,15 @@ struct StudioHomeView: View {
             .fullScreenCover(isPresented: $showMap) { HomeView(isMapPopup: true) }
             // Weather backfill sweep: each visit fills the next batch of runs from WeatherKit's
             // historical weather (idempotent; source-recorded values always win).
-            .task(id: runs.count) { await WeatherBackfill.run(context: modelContext) }
+            //
+            // Keyed on the run count, which climbs on every insert during a first import — so the
+            // leading settle turns `task(id:)`'s cancel-and-restart into a trailing debounce and
+            // the sweep runs once the store stops moving, instead of being restarted (and its
+            // WeatherKit calls abandoned) hundreds of times on the first launch.
+            .task(id: runs.count) {
+                guard await settled(for: .seconds(2)) else { return }
+                await WeatherBackfill.run(context: modelContext)
+            }
             .sheet(isPresented: $showProfile) { ProfileView() }
             .sheet(item: $studioRun) { StudioView(run: $0) }
             .sheet(item: $openedPoster) { poster in
@@ -406,7 +414,14 @@ struct StudioHomeView: View {
             }
         }
         .padding(.horizontal, 20)
-        .task(id: mapped.count) { await renderProductPreviews() }
+        // Same settle as the weather sweep, and for a sharper reason: each restart threw away six
+        // half-finished poster renders — map snapshots included — and started them again, so on a
+        // first launch the storefront flickered through partial tiles for as long as the import
+        // ran. One render, after the history stops arriving.
+        .task(id: mapped.count) {
+            guard await settled(for: .milliseconds(600)) else { return }
+            await renderProductPreviews()
+        }
         .sheet(item: $pickingFor) { product in
             ActivityPickerSheet(runs: runs, scope: scope) { run in
                 // The picker dismisses itself; give it a beat before the editor rises.
@@ -548,6 +563,14 @@ struct StudioHomeView: View {
         }
         guard !photos.isEmpty else { return nil }
         return PhotoWallRenderer.image(photos: photos, layout: layout, longEdge: 900)
+    }
+
+    /// Waits out a burst of changes. Returns false if another change arrived first — `task(id:)`
+    /// cancels the running task when its id changes, so a cancelled sleep *is* the signal that
+    /// this work is already stale.
+    private func settled(for duration: Duration) async -> Bool {
+        do { try await Task.sleep(for: duration) } catch { return false }
+        return !Task.isCancelled
     }
 
     private func sectionTitle(_ text: String) -> some View {

@@ -9,7 +9,23 @@ struct RootView: View {
     @Environment(HealthKitService.self) private var healthKit
     @Environment(SyncService.self) private var sync
     @Environment(AppModel.self) private var appModel
-    @Query private var runs: [Run]
+
+    /// Whether *any* run exists — not the runs themselves.
+    ///
+    /// This was `@Query private var runs: [Run]`, used for a single `runs.isEmpty` check. That
+    /// made the root view a dependant of every Run in the store, so the first launch — which
+    /// imports a whole HealthKit history — re-evaluated `body` on each batch of inserts and tore
+    /// down and rebuilt the entire content tree underneath, map and all, hundreds of times while
+    /// the splash was fading. Fetching one row with no properties answers the same question and
+    /// leaves the root still.
+    @Query(Self.existenceProbe) private var anyRun: [Run]
+
+    private static var existenceProbe: FetchDescriptor<Run> {
+        var descriptor = FetchDescriptor<Run>()
+        descriptor.fetchLimit = 1
+        descriptor.propertiesToFetch = []
+        return descriptor
+    }
 
     @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding = false
     /// New users pick their activities and default view here before entering the app.
@@ -78,7 +94,7 @@ struct RootView: View {
             // Import on first appearance, then keep observing for new workouts. Also run when
             // Strava was just connected but its full history hasn't been backfilled yet, so
             // maps attach to pre-existing runs without a manual "Sync Now".
-            if runs.isEmpty || sync.needsStravaBackfill { await sync.sync() }
+            if anyRun.isEmpty || sync.needsStravaBackfill { await sync.sync() }
             // Backfill place names for located runs still missing them (e.g. a file/ZIP import in a
             // prior session that never ran a full sync): state/country fill instantly offline, and
             // cities continue filling via the bounded geocoder.
