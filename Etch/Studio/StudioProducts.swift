@@ -6,13 +6,22 @@ import SwiftData
 /// is a *choice made inside* buying one — the order Tesla uses, and the reason their
 /// configurator is ten taps rather than seventy.
 enum StudioProduct: String, CaseIterable, Identifiable {
-    case mapPoster, galleryPoster, yearBook, wallArt
+    case mapPoster, galleryPoster, medalFrame, yearBook, wallArt
     var id: String { rawValue }
+
+    /// The products the storefront currently offers. The medal frame is built but withheld until
+    /// its SKU is confirmed against the live catalog — the range PDF names the prefix
+    /// (MEDAL-FRA-CLA) and the geometry, not the orderable code, and this shop has never listed
+    /// something it can't actually make.
+    static var offered: [StudioProduct] {
+        allCases.filter { $0 != .medalFrame || MedalFrameCatalog.isAvailable }
+    }
 
     var name: String {
         switch self {
         case .mapPoster:     return "Map Poster"
         case .galleryPoster: return "Gallery Poster"
+        case .medalFrame:    return "Medal Frame"
         case .yearBook:      return "Year Book"
         case .wallArt:       return "Wall Art"
         }
@@ -23,6 +32,7 @@ enum StudioProduct: String, CaseIterable, Identifiable {
         switch self {
         case .mapPoster:     return "One route, over real geography."
         case .galleryPoster: return "Photos, map and elevation, composed."
+        case .medalFrame:    return "The medal, and the day you earned it."
         case .yearBook:      return "A year of it, bound."
         case .wallArt:       return "Everything you've run, as one object."
         }
@@ -32,6 +42,8 @@ enum StudioProduct: String, CaseIterable, Identifiable {
         switch self {
         case .yearBook:
             return BookCatalog.price
+        case .medalFrame:
+            return MedalFrameCatalog.price
         default:
             let from = PrintProduct.print.sizes.first?.price ?? "$59"
             return "From \(from)"
@@ -39,7 +51,9 @@ enum StudioProduct: String, CaseIterable, Identifiable {
     }
 
     /// Whether choosing this product asks which activity it's made from.
-    var needsSubject: Bool { self == .mapPoster || self == .galleryPoster }
+    var needsSubject: Bool {
+        self == .mapPoster || self == .galleryPoster || self == .medalFrame
+    }
 
     /// Every tile is the same square, whatever shape the object inside it is.
     ///
@@ -54,12 +68,51 @@ enum StudioProduct: String, CaseIterable, Identifiable {
     /// Shown until this product's own preview has rendered.
     var placeholderSymbol: String {
         switch self {
-        case .yearBook: return "book.pages"
-        default:        return "photo.artframe"
+        case .yearBook:   return "book.pages"
+        case .medalFrame: return "medal"
+        default:          return "photo.artframe"
         }
     }
 
     var family: PosterFamily { self == .galleryPoster ? .gallery : .map }
+}
+
+/// The medal display frame: a classic frame with a double mount whose pre-cut aperture holds the
+/// medals, and a printed panel beside them carrying the race.
+///
+/// Confirmed from Prodigi's range sheet: one size, 30x40cm (12x16") overall, with an 8x10"
+/// Giclée print area on lustre paper — **4:5, not the 2:3 every other poster uses**, so the
+/// artwork is composed for this frame rather than cropped into it. Snow-white top mount over a
+/// black or navy bottom mount, eight frame colours, Perspex glaze, 300 DPI, made in the UK.
+enum MedalFrameCatalog {
+
+    /// The range sheet names this prefix; the orderable code adds a suffix that the live catalog
+    /// has to confirm. Until `sku` is non-nil the product stays out of the storefront.
+    static let skuPrefix = "MEDAL-FRA-CLA"
+
+    /// Set once a probe resolves the full code. Nil means "not orderable yet", which is what
+    /// keeps the tile hidden rather than showing a product that can't be bought.
+    static let sku: String? = nil
+
+    static var isAvailable: Bool { sku != nil }
+
+    /// 8x10 inches at 300 DPI — the aperture the artwork is composed for.
+    static let printPixelSize = CGSize(width: 2400, height: 3000)
+    static let aspect: CGFloat = 0.8
+
+    /// Wholesale is £70 before shipping from the UK, which is the highest landed cost in the
+    /// range — the retail rung is set once a real quote lands, not from the range sheet.
+    static var price: String {
+        guard let cents = EtchConfig.current.prices.medalFrameCents else { return "—" }
+        return (Double(cents) / 100).formatted(.currency(code: "USD").precision(.fractionLength(0)))
+    }
+
+    /// The frame colours the range sheet lists, in its order.
+    static let frameColours = ["Black", "White", "Natural", "Antique Silver",
+                               "Brown", "Antique Gold", "Dark Grey", "Light Grey"]
+
+    /// The bottom mount, under the snow-white top mount.
+    static let mountColours = ["Black", "Navy"]
 }
 
 /// Chooses the activity a poster is made from — reached *after* picking a product, which is

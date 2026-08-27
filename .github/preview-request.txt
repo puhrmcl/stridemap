@@ -10,8 +10,8 @@
 #             wall-art:pulse, wall-art:bloom, wall-art:constellation, wall-art:grid
 # appearance: light, dark, or both
 #
-# Requested: the product grid, which the previous run missed by anchoring both shots at
-# the top of the page. b395 verified the wordmark and the bare profile photo.
+# Requested for b396: the product grid on uniform square tiles, each object fitted on its
+# own mat rather than cropped to the tile.
 
 screens=studio@products,studio@collections
 appearance=both

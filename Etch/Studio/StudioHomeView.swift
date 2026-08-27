@@ -387,7 +387,7 @@ struct StudioHomeView: View {
             sectionTitle("What would you like to make?")
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)],
                       spacing: 20) {
-                ForEach(StudioProduct.allCases) { product in
+                ForEach(StudioProduct.offered) { product in
                     Button { open(product) } label: { productCard(product) }
                         .buttonStyle(.plain)
                 }
@@ -425,9 +425,9 @@ struct StudioHomeView: View {
 
     private func open(_ product: StudioProduct) {
         switch product {
-        case .mapPoster, .galleryPoster: pickingFor = product
-        case .yearBook:                  showYearBook = true
-        case .wallArt:                   mapPrintKind = .artMap
+        case .mapPoster, .galleryPoster, .medalFrame: pickingFor = product
+        case .yearBook:                               showYearBook = true
+        case .wallArt:                                mapPrintKind = .artMap
         }
     }
 
@@ -483,11 +483,11 @@ struct StudioHomeView: View {
     /// different shop's promise. Sequential and cached, so the page settles once.
     private func renderProductPreviews() async {
         guard let subject = heroPiece?.run ?? mapped.first else { return }
-        for product in StudioProduct.allCases where productPreviews[product] == nil {
+        for product in StudioProduct.offered where productPreviews[product] == nil {
             if Task.isCancelled { return }
             let image: UIImage?
             switch product {
-            case .mapPoster, .galleryPoster:
+            case .mapPoster, .galleryPoster, .medalFrame:
                 var recipe = PosterConfig.makeDefault(for: subject)
                 recipe.family = product.family
                 image = await StudioRenderer.image(for: recipe.request(for: subject), scale: 0.34)

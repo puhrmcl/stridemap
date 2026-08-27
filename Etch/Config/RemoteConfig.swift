@@ -36,6 +36,10 @@ struct EtchRemoteConfig: Codable, Sendable, Equatable {
         var bySKU: [String: Int]
         /// The Year Book's retail price in USD cents.
         var yearBookCents: Int
+        /// The medal frame's retail price in USD cents. Optional because the rung isn't set
+        /// until a real quote lands — its wholesale is the highest in the range and it ships
+        /// from the UK, so guessing it would be guessing at a loss.
+        var medalFrameCents: Int?
     }
 
     /// How much history an Archive style needs before it's offered. These are judgement calls
@@ -72,7 +76,7 @@ struct EtchRemoteConfig: Codable, Sendable, Equatable {
             closedTitle: "Ordering opens soon",
             closedDetail: "Printed to order on archival paper and shipped to your door. Secure checkout with Apple Pay."
         ),
-        prices: Prices(bySKU: [:], yearBookCents: 11900),
+        prices: Prices(bySKU: [:], yearBookCents: 11900, medalFrameCents: nil),
         archive: ArchiveGates(
             gridMinRoutedRuns: 20,
             ridgelineMinProfiles: 12,

@@ -83,5 +83,38 @@ for sku in $CANDIDATES "${EXTRA[@]}"; do
   esac
 done
 
+# Guessing suffixes from a prefix has now failed twice — the layflat book only resolved when we
+# read the product page's own HTML, which carried the code verbatim. The PDF links to that page;
+# pdftotext drops link annotations, so pull the URIs out of the raw PDF and follow them.
+echo ""
+echo "── Product page links in the PDF"
+LINKS=$(python3 - <<'PY'
+import re
+data = open("medal.pdf", "rb").read()
+urls = set()
+for m in re.finditer(rb'/URI\s*\((.*?)\)', data, re.S):
+    try:
+        urls.add(m.group(1).decode("latin-1").strip())
+    except Exception:
+        pass
+for u in sorted(urls):
+    if "prodigi" in u.lower():
+        print(u)
+PY
+)
+echo "$LINKS"
+
+echo ""
+echo "── SKU-shaped strings on those pages"
+for url in $LINKS; do
+  echo "── $url"
+  # Follow redirects; the range sheet links tend to bounce through a short URL.
+  if curl -sSL --max-time 30 -o page.html "$url"; then
+    grep -oE 'MEDAL[A-Z0-9-]{2,40}' page.html | sort -u | head -40 || echo "   (no MEDAL-shaped strings)"
+  else
+    echo "   (fetch failed)"
+  fi
+done
+
 echo ""
 echo "── Done. Paste this log back into the session."
