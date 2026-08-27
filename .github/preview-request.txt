@@ -10,8 +10,8 @@
 #             wall-art:pulse, wall-art:bloom, wall-art:constellation, wall-art:grid
 # appearance: light, dark, or both
 #
-# Requested for b396: the product grid on uniform square tiles, each object fitted on its
-# own mat rather than cropped to the tile.
+# Requested for b397: the wordmark as a page masthead, measured against the "Leave your
+# mark." headline it now has to match.
 
-screens=studio@products,studio@collections
+screens=studio,studio@products
 appearance=both

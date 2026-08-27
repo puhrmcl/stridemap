@@ -128,14 +128,8 @@ struct StudioHomeView: View {
                 if isHome {
                     // Studio-first: profile on the left, the map as a mini-thumbnail on the right.
                     profileToolbarItem
-                    ToolbarItem(placement: .principal) {
-                        // One mark across the app, and the masthead of this page — so it is
-                        // sized to carry the bar rather than to match the old lockup's ink. The
-                        // artwork holds 27% of its height as padding, so a 40pt frame puts about
-                        // 29pt of letterform in a 44pt bar.
-                        Image("BrandLogo").resizable().scaledToFit().frame(height: 40)
-                            .accessibilityLabel("Etch")
-                    }
+                    // No principal mark: the bar clamps it to a size that reads as an
+                    // afterthought, so the wordmark leads the page instead.
                     ToolbarItem(placement: .topBarTrailing) { mapThumbnailButton }
                 }
                 // Sheet mode has no close button — swipe the sheet down to dismiss.
@@ -303,6 +297,15 @@ struct StudioHomeView: View {
                 }
             } else {
                 VStack(alignment: .leading, spacing: 6) {
+                    // The mark leads the page rather than the bar. A navigation bar in inline
+                    // mode clamps its principal item to about 16pt of content however large the
+                    // frame asks for — measured against this very headline, the wordmark came
+                    // out half its height and no frame value in the toolbar could fix it. In the
+                    // page it renders at the size it's given.
+                    Image("BrandLogo")
+                        .resizable().scaledToFit().frame(height: 46)
+                        .accessibilityLabel("Etch")
+                        .padding(.bottom, 2)
                     Text("Leave your mark.")
                         .font(.system(.title, design: .rounded).weight(.bold))
                     Text("Turn a run, a race, or a favorite into gallery-grade art.")
