@@ -86,15 +86,18 @@ enum StudioProduct: String, CaseIterable, Identifiable {
 /// black or navy bottom mount, eight frame colours, Perspex glaze, 300 DPI, made in the UK.
 enum MedalFrameCatalog {
 
-    /// The range sheet names this prefix; the orderable code adds a suffix that the live catalog
-    /// has to confirm. Until `sku` is non-nil the product stays out of the storefront.
-    static let skuPrefix = "MEDAL-FRA-CLA"
+    /// The orderable code, taken verbatim from the product page's own HTML.
+    ///
+    /// `MOUNT` sits in the middle of it, which is why twenty-four suffixes guessed off the
+    /// range sheet's `MEDAL-FRA-CLA` prefix all 404'd. Guessing a SKU from a prefix has now
+    /// failed twice; reading the product page has worked twice.
+    static let sku = "MEDAL-FRA-CLA-MOUNT-30X40"
 
-    /// Set once a probe resolves the full code. Nil means "not orderable yet", which is what
-    /// keeps the tile hidden rather than showing a product that can't be bought.
-    static let sku: String? = nil
-
-    static var isAvailable: Bool { sku != nil }
+    /// The storefront lists this product only once its landed cost is known and a retail rung is
+    /// set — the frame is £70 wholesale before UK shipping, the dearest thing in the range, so a
+    /// guessed price would be a guess at a loss. Setting `prices.medalFrameCents` in the served
+    /// configuration turns it on, with no build.
+    static var isAvailable: Bool { EtchConfig.current.prices.medalFrameCents != nil }
 
     /// 8x10 inches at 300 DPI — the aperture the artwork is composed for.
     static let printPixelSize = CGSize(width: 2400, height: 3000)

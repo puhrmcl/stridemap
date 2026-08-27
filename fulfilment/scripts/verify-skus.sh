@@ -63,6 +63,12 @@ SKUS=(
   "BOOK-FE-297X297-S-LF-G:"
   "BOOK-FE-21X21-S-LF-G:"
   "BOOK-FE-30X30-S-LF-G:"
+  # Medal frame — the code the product page carries verbatim. Note MOUNT sits in the
+  # middle, which is why 24 suffix guesses off the MEDAL-FRA-CLA prefix all 404'd.
+  # The attribute dump is the authority on how frame colour and bottom-mount colour
+  # are expressed; the bare quote gives the landed cost the retail rung needs.
+  "MEDAL-FRA-CLA-MOUNT-30X40:"
+  "MEDAL-FRA-CLA-MOUNT-30X40:black"
 )
 
 for entry in "${SKUS[@]}"; do
