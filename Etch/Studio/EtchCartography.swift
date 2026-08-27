@@ -73,11 +73,11 @@ enum EtchCartography {
             // Water takes a touch of the route's colour rather than a generic blue: a coastline
             // that quietly rhymes with the run reads as one design, and a stock blue would be the
             // one thing on the sheet nobody chose.
-            water = Self.hex(blend(ground, edition.route, 0.16))
-            majorRoad = Self.hex(blend(ground, ink, edition.isDark ? 0.34 : 0.26))
-            minorRoad = Self.hex(blend(ground, ink, edition.isDark ? 0.20 : 0.14))
-            building = Self.hex(blend(ground, ink, edition.isDark ? 0.13 : 0.08))
-            label = Self.hex(blend(ground, ink, 0.62))
+            water = Self.hex(Self.blend(ground, edition.route, 0.16))
+            majorRoad = Self.hex(Self.blend(ground, ink, edition.isDark ? 0.34 : 0.26))
+            minorRoad = Self.hex(Self.blend(ground, ink, edition.isDark ? 0.20 : 0.14))
+            building = Self.hex(Self.blend(ground, ink, edition.isDark ? 0.13 : 0.08))
+            label = Self.hex(Self.blend(ground, ink, 0.62))
         }
 
         /// `amount` of `top` over `base`, in sRGB.
