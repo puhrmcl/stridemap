@@ -80,10 +80,14 @@ enum StudioProduct: String, CaseIterable, Identifiable {
 /// The medal display frame: a classic frame with a double mount whose pre-cut aperture holds the
 /// medals, and a printed panel beside them carrying the race.
 ///
-/// Confirmed from Prodigi's range sheet: one size, 30x40cm (12x16") overall, with an 8x10"
-/// Giclée print area on lustre paper — **4:5, not the 2:3 every other poster uses**, so the
-/// artwork is composed for this frame rather than cropped into it. Snow-white top mount over a
-/// black or navy bottom mount, eight frame colours, Perspex glaze, 300 DPI, made in the UK.
+/// Verified against the live catalog: "Classic Medal Display Frame, LPP, 30x40 / 12x16"" — one
+/// size, printed on 240gsm lustre photo paper, snow-white top mount over a black or navy bottom
+/// mount, eight frame colours, Perspex glaze, made in the UK.
+///
+/// Its print area is **2397 × 3000**, which is neither the 2:3 every other poster uses nor the
+/// clean 2400 × 3000 the range sheet's "8x10 inch" implies. Three pixels of difference is enough
+/// to matter on a mount with a pre-cut aperture, so the artwork is composed to the number the
+/// API gives rather than to the one the brochure rounds to.
 enum MedalFrameCatalog {
 
     /// The orderable code, taken verbatim from the product page's own HTML.
@@ -99,9 +103,9 @@ enum MedalFrameCatalog {
     /// configuration turns it on, with no build.
     static var isAvailable: Bool { EtchConfig.current.prices.medalFrameCents != nil }
 
-    /// 8x10 inches at 300 DPI — the aperture the artwork is composed for.
-    static let printPixelSize = CGSize(width: 2400, height: 3000)
-    static let aspect: CGFloat = 0.8
+    /// The aperture the artwork is composed for, exactly as the catalog reports it.
+    static let printPixelSize = CGSize(width: 2397, height: 3000)
+    static var aspect: CGFloat { printPixelSize.width / printPixelSize.height }
 
     /// Wholesale is £70 before shipping from the UK, which is the highest landed cost in the
     /// range — the retail rung is set once a real quote lands, not from the range sheet.
@@ -110,11 +114,13 @@ enum MedalFrameCatalog {
         return (Double(cents) / 100).formatted(.currency(code: "USD").precision(.fractionLength(0)))
     }
 
-    /// The frame colours the range sheet lists, in its order.
-    static let frameColours = ["Black", "White", "Natural", "Antique Silver",
-                               "Brown", "Antique Gold", "Dark Grey", "Light Grey"]
+    /// Frame colour — the `color` attribute, in the exact strings the catalog accepts.
+    static let frameColours = ["black", "brown", "dark grey", "gold",
+                               "light grey", "natural", "silver", "white"]
 
-    /// The bottom mount, under the snow-white top mount.
+    /// Bottom mount under the snow-white top — the `mountColor` attribute. Capitalised, unlike
+    /// `color`, which is the catalog's inconsistency and not ours to tidy: a quote is rejected
+    /// without both attributes, and rejected again if either is spelled the other way.
     static let mountColours = ["Black", "Navy"]
 }
 

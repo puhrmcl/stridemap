@@ -68,7 +68,8 @@ SKUS=(
   # The attribute dump is the authority on how frame colour and bottom-mount colour
   # are expressed; the bare quote gives the landed cost the retail rung needs.
   "MEDAL-FRA-CLA-MOUNT-30X40:"
-  "MEDAL-FRA-CLA-MOUNT-30X40:black"
+  "MEDAL-FRA-CLA-MOUNT-30X40:color=black,mountColor=Black"
+  "MEDAL-FRA-CLA-MOUNT-30X40:color=natural,mountColor=Navy"
 )
 
 for entry in "${SKUS[@]}"; do
@@ -109,9 +110,19 @@ PY
   # a page count, for instance).
   if [[ -n "$frame" ]]; then
     if [[ "$frame" == *"="* ]]; then
-      attr_key="${frame%%=*}"
-      attr_value="${frame#*=}"
-      attributes="{\"$attr_key\":\"$attr_value\"}"
+      # Comma-separated key=value pairs. One attribute isn't always enough: the medal
+      # frame rejects a quote without *both* a frame colour and a mount colour.
+      attributes="{"
+      first=1
+      while IFS= read -r pair; do
+        [[ -z "$pair" ]] && continue
+        attr_key="${pair%%=*}"
+        attr_value="${pair#*=}"
+        [[ $first -eq 0 ]] && attributes+=","
+        attributes+="\"$attr_key\":\"$attr_value\""
+        first=0
+      done < <(tr ',' '\n' <<< "$frame")
+      attributes+="}"
     else
       attributes="{\"color\":\"$frame\"}"
     fi
