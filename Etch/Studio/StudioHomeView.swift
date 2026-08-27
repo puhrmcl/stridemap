@@ -100,6 +100,7 @@ struct StudioHomeView: View {
                     ScrollViewReader { proxy in
                         ScrollView {
                             VStack(alignment: .leading, spacing: 38) {
+                                if isHome { header }
                                 intro.id("intro")
                                 momentHero.id("hero")
                                 productGrid.id("products")
@@ -124,16 +125,10 @@ struct StudioHomeView: View {
             // The logo wordmark leads the page, so keep the bar title inline and blank.
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                if isHome {
-                    // Studio-first: profile on the left, the map as a mini-thumbnail on the right.
-                    profileToolbarItem
-                    // No principal mark: the bar clamps it to a size that reads as an
-                    // afterthought, so the wordmark leads the page instead.
-                    ToolbarItem(placement: .topBarTrailing) { mapThumbnailButton }
-                }
-                // Sheet mode has no close button — swipe the sheet down to dismiss.
-            }
+            // Studio-first builds its own header in the content (see `header`), so the bar is
+            // hidden entirely rather than left empty. Sheet mode keeps its bar (and has no close
+            // button — swipe it down).
+            .toolbar(isHome ? .hidden : .automatic, for: .navigationBar)
             .fullScreenCover(isPresented: $showMap) { HomeView(isMapPopup: true) }
             // Weather backfill sweep: each visit fills the next batch of runs from WeatherKit's
             // historical weather (idempotent; source-recorded values always win).
@@ -183,21 +178,6 @@ struct StudioHomeView: View {
     /// A plain map glyph in the corner that opens the full map (Studio-first mode).
     /// The profile photo, as the whole button.
     ///
-    /// From iOS 26 the toolbar draws its own glass circle behind an item, which left the avatar
-    /// sitting inside as a smaller disc ringed in white. That background belongs to the toolbar
-    /// item rather than the button, so `.buttonStyle(.plain)` doesn't touch it — hiding the
-    /// item's shared background does. Earlier systems never drew the circle, so the unmodified
-    /// item is already correct there.
-    @ToolbarContentBuilder
-    private var profileToolbarItem: some ToolbarContent {
-        if #available(iOS 26.0, *) {
-            ToolbarItem(placement: .topBarLeading) { profileButton }
-                .sharedBackgroundVisibility(.hidden)
-        } else {
-            ToolbarItem(placement: .topBarLeading) { profileButton }
-        }
-    }
-
     private var profileButton: some View {
         Button { showProfile = true } label: {
             // Shows the user's chosen photo (like the map search bar); the plain person glyph is
@@ -287,6 +267,34 @@ struct StudioHomeView: View {
         modelContext.delete(poster)
     }
 
+    // MARK: Header
+
+    /// Avatar, wordmark, map — on one line, in the content rather than the navigation bar.
+    ///
+    /// The bar cannot hold this. A navigation bar is 44pt tall and the wordmark's frame is about
+    /// 83pt, because two thirds of the BrandLogo asset is transparent margin and only a third is
+    /// ink. Handing the bar a mark that size gets it scaled down to something that reads as an
+    /// afterthought — which is why it was moved into the page in the first place. Building the
+    /// header out of ordinary views instead means the mark keeps the size it has now *and* sits
+    /// beside the two buttons, which is what was actually being asked for.
+    ///
+    /// The trade is that the header scrolls away with the page rather than pinning. For a
+    /// storefront that reads top to bottom, that is the normal behaviour and arguably the better
+    /// one: the buttons are reachable at the top, where a reader starts.
+    private var header: some View {
+        HStack(alignment: .center, spacing: 12) {
+            profileButton
+            Spacer(minLength: 8)
+            Image("BrandLogo")
+                .resizable().scaledToFit()
+                .frame(height: Self.mastheadMarkHeight)
+                .accessibilityLabel("Etch")
+            Spacer(minLength: 8)
+            mapThumbnailButton
+        }
+        .padding(.horizontal, 20)
+    }
+
     // MARK: Intro
 
     /// How much of the BrandLogo artwork is actually ink: **a third**. The rest is transparent
@@ -318,11 +326,9 @@ struct StudioHomeView: View {
                         .foregroundStyle(.secondary)
                 }
             } else {
+                // The wordmark now leads the page from `header`, so the intro is the headline and
+                // its line — repeating the mark here would give the page two of them.
                 VStack(alignment: .leading, spacing: 6) {
-                    Image("BrandLogo")
-                        .resizable().scaledToFit().frame(height: Self.mastheadMarkHeight)
-                        .accessibilityLabel("Etch")
-                        .padding(.bottom, 2)
                     Text("Leave your mark.")
                         .font(.system(.title, design: .rounded).weight(.bold))
                     Text("Turn a run, a race, or a favorite into gallery-grade art.")
@@ -393,6 +399,8 @@ struct StudioHomeView: View {
     /// Whether any scoped run carries a cover photo — gates the Photo Wall utility row.
     private var hasPhotos: Bool { scopedRuns.contains { !$0.photoReferences.isEmpty } }
     @State private var showYearBook = false
+    /// Browsing the whole history in date order to pick a subject.
+    @State private var showTimeline = false
 
     /// Which product's activity picker is open.
     @State private var pickingFor: StudioProduct?
@@ -544,13 +552,13 @@ struct StudioHomeView: View {
     /// thumbnail size — the tile is 180pt wide, and a storefront that stalls on a photo library
     /// is worse than one that shows a glyph for a moment.
     private func photoWallMockup() async -> UIImage? {
-        let layout = MultiPhotoFrameCatalog.layout(
+        let size = MultiPhotoFrameCatalog.size(
             forPhotos: MultiPhotoFrameCatalog.defaultPhotos
         )
         let candidates = scopedRuns
             .filter { !$0.photoReferences.isEmpty }
             .sorted { $0.startDate > $1.startDate }
-            .prefix(layout.capacity)
+            .prefix(size.capacity)
         guard !candidates.isEmpty else { return nil }
 
         var photos: [UIImage] = []
@@ -562,7 +570,7 @@ struct StudioHomeView: View {
             ) { photos.append(image) }
         }
         guard !photos.isEmpty else { return nil }
-        return PhotoWallRenderer.image(photos: photos, layout: layout, longEdge: 900)
+        return PhotoWallRenderer.image(photos: photos, size: size, longEdge: 900)
     }
 
     /// Waits out a burst of changes. Returns false if another change arrived first — `task(id:)`
@@ -587,6 +595,7 @@ struct StudioHomeView: View {
         VStack(alignment: .leading, spacing: 10) {
             Divider().padding(.bottom, 4)
             utilityRow("Add from the library", "trophy") { showAddRace = true }
+            utilityRow("Create from a timeline", "calendar") { showTimeline = true }
             utilityRow("Import an activity", "square.and.arrow.down") { showImportPicker = true }
             if hasPhotos {
                 utilityRow("Photo Wall", "photo.on.rectangle.angled") { showPhotoWall = true }
@@ -596,6 +605,17 @@ struct StudioHomeView: View {
         .padding(.horizontal, 20)
         .sheet(isPresented: $showPrints) { PrintShopView(subjectTitle: nil) }
         .sheet(isPresented: $showYearBook) { YearBookView() }
+        // The product grid's picker leads with standouts and stops at thirty recent runs, which
+        // is the right shape for "make something good" and the wrong one for "make the one from
+        // that Tuesday in March". This is the same picker in date order, month by month, with
+        // nothing left out.
+        .sheet(isPresented: $showTimeline) {
+            ActivityPickerSheet(runs: runs, scope: scope, mode: .timeline) { run in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    studioPreset = StudioSubjectPick(run: run, family: .map)
+                }
+            }
+        }
     }
 
     private func utilityRow(_ title: String, _ symbol: String, action: @escaping () -> Void) -> some View {

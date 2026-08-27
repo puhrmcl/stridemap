@@ -1,142 +1,106 @@
 import UIKit
 import SwiftUI
 
-/// Draws the Photo Wall as the object it becomes: photographs behind a snow-white mount whose
-/// windows are cut one per picture, inside a classic frame.
+/// Draws the Photo Wall as the object it becomes: the contact sheet printed edge to edge, behind
+/// glass, in a classic frame.
 ///
-/// The bare grid the wall view shows is the *artwork*; this is the *product*. A storefront tile
-/// showing the artwork promises a print, and what arrives is a framed object — so the tile draws
-/// what ships. Every dimension here comes from `MultiPhotoFrameCatalog`, which comes from the
-/// live catalog, so the mockup is a scale drawing of the frame rather than an impression of one.
+/// An earlier version of this drew a snow-white mount with a window cut per photograph and a bevel
+/// around each one. That was wrong, and the live catalog said so: `GLOBAL-MPF-*` is **No Mount /
+/// No Mat**, one continuous print. The mounted line whose windows are actually cut exists only at
+/// sizes this product does not use. A mockup showing a bevelled mount would have promised an
+/// object nobody would receive — the exact failure a mockup exists to prevent.
+///
+/// What it means for the design is better than what it cost: the grid, the gutters and the margins
+/// are all ours, and nothing has to register against a physical aperture.
 enum PhotoWallRenderer {
 
-    /// Where each window sits, in a unit square over the frame's glaze. Shared by the mockup and
-    /// by anything that later composes the real print file, so the two can never disagree about
-    /// where a photograph goes.
-    struct Aperture {
-        /// Normalised rect within the glaze (top-left origin), 0…1 on both axes.
-        let unit: CGRect
-        let column: Int
-        let row: Int
+    /// Renders the framed wall.
+    ///
+    /// - Parameters:
+    ///   - photos: images in reading order; fewer than the grid holds leaves paper showing, which
+    ///     is exactly what a buyer would receive.
+    ///   - size: the frame being drawn.
+    ///   - moulding: frame colour.
+    ///   - ground: the paper between and around the photographs.
+    ///   - longEdge: output pixels on the long edge.
+    static func image(photos: [UIImage],
+                      size: MultiPhotoFrameCatalog.Size,
+                      moulding: FrameFinish = .black,
+                      ground: Color = Theme.Palette.bone,
+                      longEdge: CGFloat = 900) -> UIImage? {
+        let aspect = size.printPixels.width / size.printPixels.height
+        let sheet = aspect >= 1
+            ? CGSize(width: longEdge, height: longEdge / aspect)
+            : CGSize(width: longEdge * aspect, height: longEdge)
+        guard sheet.width > 1, sheet.height > 1 else { return nil }
+
+        // Classic moulding is a 20mm face on a frame whose glaze is 500mm across — 4% of the
+        // sheet, drawn to that proportion rather than to a number that looked right.
+        let moulder = min(sheet.width, sheet.height) * 0.04
+        let canvas = CGSize(width: sheet.width + moulder * 2, height: sheet.height + moulder * 2)
+
+        let format = UIGraphicsImageRendererFormat()
+        format.opaque = true
+        format.scale = 2
+
+        return UIGraphicsImageRenderer(size: canvas, format: format).image { context in
+            let cg = context.cgContext
+
+            UIColor(Color(hex: moulding.mouldingHex) ?? .black).setFill()
+            cg.fill(CGRect(origin: .zero, size: canvas))
+
+            let sheetRect = CGRect(x: moulder, y: moulder, width: sheet.width, height: sheet.height)
+            UIColor(ground).setFill()
+            cg.fill(sheetRect)
+
+            for (index, cell) in cells(for: size, in: sheetRect).enumerated() {
+                guard index < photos.count else { continue }
+                cg.saveGState()
+                cg.clip(to: cell)
+                draw(photos[index], filling: cell)
+                cg.restoreGState()
+            }
+
+            // The rebate: a thin shadow where the moulding lips over the glass.
+            UIColor.black.withAlphaComponent(0.22).setStroke()
+            let edge = UIBezierPath(rect: sheetRect)
+            edge.lineWidth = max(1, moulder * 0.12)
+            edge.stroke()
+        }
     }
 
-    /// The window grid for a layout, in normalised coordinates.
+    /// Where each photograph sits on the sheet.
     ///
-    /// The catalog's numbers don't quite close on their own: eight 60mm cells with 20mm between
-    /// them span 660mm of a 750mm glaze, so 45mm is left over at each end. Rather than assume a
-    /// uniform border, the leftover is split evenly as the outer margin and the inner gaps stay at
-    /// the stated 20mm. That reproduces the templates — a mount with a wider margin than gutter,
-    /// which is how mounts are actually cut — and the margins come out different top-to-bottom
-    /// versus side-to-side on every size, which is the frame's own asymmetry, not an error here.
-    static func apertures(for layout: MultiPhotoFrameCatalog.Layout,
-                          landscape: Bool = true) -> [Aperture] {
-        let cell = MultiPhotoFrameCatalog.cellMM
-        let gap = MultiPhotoFrameCatalog.borderMM
-        let cols = layout.columns, rows = layout.rows
-        let sheetW = landscape ? layout.widthMM : layout.heightMM
-        let sheetH = landscape ? layout.heightMM : layout.widthMM
-        let gridW = CGFloat(cols) * cell + CGFloat(cols - 1) * gap
-        let gridH = CGFloat(rows) * cell + CGFloat(rows - 1) * gap
-        let marginX = max(0, (sheetW - gridW) / 2)
-        let marginY = max(0, (sheetH - gridH) / 2)
+    /// The outer margin is drawn at twice the gutter. A contact sheet whose edge photographs run
+    /// to the paper's edge reads as a crop rather than a composition, and the frame's rebate would
+    /// eat into them besides.
+    static func cells(for size: MultiPhotoFrameCatalog.Size, in sheet: CGRect) -> [CGRect] {
+        let columns = CGFloat(size.columns)
+        let rows = CGFloat(size.rows)
+        let gutter = min(sheet.width / columns, sheet.height / rows)
+            * MultiPhotoFrameCatalog.gutterFraction
+        let margin = gutter * 2
 
-        var out: [Aperture] = []
-        out.reserveCapacity(cols * rows)
-        for row in 0..<rows {
-            for column in 0..<cols {
-                let x = marginX + CGFloat(column) * (cell + gap)
-                let y = marginY + CGFloat(row) * (cell + gap)
-                out.append(Aperture(
-                    unit: CGRect(x: x / sheetW, y: y / sheetH,
-                                 width: cell / sheetW, height: cell / sheetH),
-                    column: column, row: row
+        let cellWidth = (sheet.width - margin * 2 - gutter * (columns - 1)) / columns
+        let cellHeight = (sheet.height - margin * 2 - gutter * (rows - 1)) / rows
+        guard cellWidth > 0, cellHeight > 0 else { return [] }
+
+        var out: [CGRect] = []
+        out.reserveCapacity(size.capacity)
+        for row in 0..<size.rows {
+            for column in 0..<size.columns {
+                out.append(CGRect(
+                    x: sheet.minX + margin + CGFloat(column) * (cellWidth + gutter),
+                    y: sheet.minY + margin + CGFloat(row) * (cellHeight + gutter),
+                    width: cellWidth, height: cellHeight
                 ))
             }
         }
         return out
     }
 
-    /// Renders the framed wall.
-    ///
-    /// - Parameters:
-    ///   - photos: images in reading order; fewer than the layout's capacity leaves the remaining
-    ///     windows empty, which is exactly what the buyer would receive.
-    ///   - layout: the frame being drawn.
-    ///   - moulding: frame colour.
-    ///   - longEdge: output pixels on the long edge.
-    static func image(photos: [UIImage],
-                      layout: MultiPhotoFrameCatalog.Layout,
-                      moulding: FrameFinish = .black,
-                      longEdge: CGFloat = 900) -> UIImage? {
-        // Portrait when the grid is taller than it is wide — the same SKU, turned. The catalog
-        // reports portrait print areas; the artwork templates are drawn landscape.
-        let landscape = layout.columns >= layout.rows
-        let sheetW = landscape ? layout.widthMM : layout.heightMM
-        let sheetH = landscape ? layout.heightMM : layout.widthMM
-        let scale = longEdge / max(sheetW, sheetH)
-        let glaze = CGSize(width: sheetW * scale, height: sheetH * scale)
-
-        // Classic moulding is ~20mm face — drawn to scale like everything else.
-        let mouldingPx = 20 * scale
-        let canvas = CGSize(width: glaze.width + mouldingPx * 2,
-                            height: glaze.height + mouldingPx * 2)
-        guard canvas.width > 1, canvas.height > 1 else { return nil }
-
-        let format = UIGraphicsImageRendererFormat()
-        format.opaque = true
-        format.scale = 2
-        let renderer = UIGraphicsImageRenderer(size: canvas, format: format)
-
-        return renderer.image { context in
-            let cg = context.cgContext
-
-            // Moulding.
-            UIColor(Color(hex: moulding.mouldingHex) ?? .black).setFill()
-            cg.fill(CGRect(origin: .zero, size: canvas))
-
-            // Mount. One colour, snow white, because the catalog reports exactly one.
-            let glazeRect = CGRect(x: mouldingPx, y: mouldingPx,
-                                   width: glaze.width, height: glaze.height)
-            UIColor(white: 0.976, alpha: 1).setFill()
-            cg.fill(glazeRect)
-
-            // Windows, and the photographs behind them.
-            for (index, aperture) in apertures(for: layout, landscape: landscape).enumerated() {
-                let window = CGRect(
-                    x: glazeRect.minX + aperture.unit.minX * glazeRect.width,
-                    y: glazeRect.minY + aperture.unit.minY * glazeRect.height,
-                    width: aperture.unit.width * glazeRect.width,
-                    height: aperture.unit.height * glazeRect.height
-                )
-                if index < photos.count {
-                    cg.saveGState()
-                    cg.clip(to: window)
-                    draw(photos[index], filling: window)
-                    cg.restoreGState()
-                } else {
-                    // An uncut window shows the backing board, not white — an empty slot should
-                    // look empty, so a count that doesn't fill the frame reads as one.
-                    UIColor(white: 0.90, alpha: 1).setFill()
-                    cg.fill(window)
-                }
-                // The bevel: mounts are cut at an angle, and that pale edge is most of why a
-                // mounted print looks mounted.
-                UIColor(white: 1.0, alpha: 0.85).setStroke()
-                let bevel = UIBezierPath(rect: window.insetBy(dx: -0.5, dy: -0.5))
-                bevel.lineWidth = max(0.5, 2.4 * scale)
-                bevel.stroke()
-            }
-
-            // The rebate: a thin shadow where the moulding lips over the glaze.
-            UIColor.black.withAlphaComponent(0.22).setStroke()
-            let edge = UIBezierPath(rect: glazeRect)
-            edge.lineWidth = max(1, mouldingPx * 0.12)
-            edge.stroke()
-        }
-    }
-
-    /// Aspect-fill an image into a rect — the same crop the real mount makes, since a square
-    /// window over a rectangular photograph takes the middle.
+    /// Aspect-fill into a cell — a near-square cell over a rectangular photograph takes the middle,
+    /// which is the same crop the print makes.
     private static func draw(_ image: UIImage, filling rect: CGRect) {
         let size = image.size
         guard size.width > 0, size.height > 0 else { return }

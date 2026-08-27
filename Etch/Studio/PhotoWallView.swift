@@ -10,8 +10,8 @@ struct PhotoWallView: View {
 
     @State private var filter: Filter = .all
     @State private var sort: SortOrder = .newest
-    /// Forty is the wall's default because it is what the frame it prints into wants: the L
-    /// frame's 8×5, filled to the corner.
+    /// Forty is the wall's default because it fills the 20 × 30" sheet to its corners: five
+    /// across, eight down.
     @State private var count = MultiPhotoFrameCatalog.defaultPhotos
     /// Photos the user tapped away — the next unused photo fills their slot.
     @State private var excludedIDs: Set<UUID> = []
@@ -22,8 +22,8 @@ struct PhotoWallView: View {
     /// Runs whose cover photo is a screenshot — kept out of the wall so it reads as photography.
     @State private var screenshotRunIDs: Set<UUID> = []
 
-    /// Hard ceiling on one wall — which is also the frame's own ceiling, so a wall that reads
-    /// well on screen is always one that can actually be made.
+    /// Hard ceiling on one wall: the largest grid any confirmed frame size takes — 6 × 9 on the
+    /// 24 × 36". A wall that reads well on screen is therefore always one that can be made.
     private let maxPhotos = MultiPhotoFrameCatalog.maxPhotos
 
     enum Filter: Hashable {
@@ -108,18 +108,14 @@ struct PhotoWallView: View {
     }
 
     /// Columns for the current wall.
-    ///
-    /// When the count is one the frame is actually cut for — 24, 40, 60 — the wall takes that
-    /// frame's own arrangement, so what's on screen is a preview of the object rather than a
-    /// picture of something else. Forty in eight columns is the L frame; the near-square rule
-    /// would have made it six columns and seven rows with four photos rattling in the last one.
-    ///
-    /// Any other count falls back to near-square, capped so cells never get too small — the cap
-    /// is the widest frame's ten, not six, or the exact grids couldn't be reached.
     private var columnCount: Int {
         let n = max(shown.count, 1)
-        if let layout = MultiPhotoFrameCatalog.exactLayout(forPhotos: n) { return layout.columns }
-        return min(10, max(1, Int(ceil(Double(n).squareRoot()))))
+        // The frame this count would be made in decides the arrangement, so what's on screen is a
+        // preview of the object. Forty is five across and eight down, because the 20 × 30" sheet
+        // is *portrait* — the old rule put it in eight columns, which is a landscape grid bound
+        // for a paper the lab cannot rotate.
+        if let size = MultiPhotoFrameCatalog.exactSize(forPhotos: n) { return size.columns }
+        return min(6, max(1, Int(ceil(Double(n).squareRoot()))))
     }
 
     /// Signature that changes whenever the shown set changes — drives image loading + re-render.

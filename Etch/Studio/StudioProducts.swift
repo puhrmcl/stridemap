@@ -143,91 +143,102 @@ enum MedalFrameCatalog {
     static let mountColours = ["Black", "Navy"]
 }
 
-/// The Photo Wall's object: a classic frame whose mount is cut with one aperture per photo.
+/// The Photo Wall's object: a contact sheet, printed as one image, in a classic frame.
 ///
-/// From Prodigi's range sheet: 9 to 60 images, each printed at **60×60mm with a 20mm border**
-/// between apertures, on enhanced matte art paper behind Perspex in a satin-laminated classic
-/// frame. Frame sizes 12×12" to 24×36", eight frame colours, mounted or unmounted. Made in the
-/// UK, EU *and US* — unlike the medal frame, so a US buyer isn't paying transatlantic shipping.
+/// The catalog corrected two things this was built on, and both mattered.
+///
+/// **The frame has no mount.** `GLOBAL-MPF-*` reports `mount: ["No mount / No Mat"]` — the whole
+/// print area is a single continuous image. The mounted line (`GLOBAL-MPFM-*`), whose windows are
+/// physically cut, exists only at 12X18, 16X16 and 24X24; there is no `MPFM-20X30`, so the
+/// `mountedSKU` this used to synthesise by swapping `MPF` for `MPFM` named a product that does not
+/// exist. Guessing a SKU from a pattern has now failed four times out of four here.
+///
+/// That is good news for the design: the grid, the gutters and the margins are all ours to draw,
+/// and nothing has to line up with a physical aperture. It does mean the mockup must not draw a
+/// cut mount with a bevel — that would promise an object nobody will receive.
+///
+/// **The frames are portrait, not landscape.** 20X30's print area is 5905 × 8858 — 500 × 750mm
+/// upright. A forty-photo wall laid out eight columns wide was a landscape arrangement bound for
+/// a portrait sheet, which the lab cannot rotate. Five across and eight down is the same forty
+/// photographs in the shape the paper actually is.
+///
+/// Made in the UK, EU *and US*, so a US buyer isn't paying transatlantic shipping — unlike the
+/// medal frame, and the reason this is the better product to lead with.
 enum MultiPhotoFrameCatalog {
 
-    /// Verified SKUs. Two families, and the difference matters: `MPF` is **No Mount / No Mat**,
-    /// so the whole print area is one image and any grid is ours to draw; `MPFM` is
-    /// **Mounted / Matted** with a 2.4mm snow-white mount, which is the version whose windows are
-    /// physically cut — the one Prodigi's own artwork templates are drawn for.
     static let skuPrefix = "GLOBAL-MPF"
-    static let mountedSKUPrefix = "GLOBAL-MPFM"
 
-    /// The three grids Prodigi's artwork templates lay out, each now tied to the SKU whose print
-    /// area matches it to the millimetre. The templates are drawn landscape while the catalog
-    /// reports portrait print areas, so the same SKU turned on its side.
-    struct Layout {
+    /// One frame size and the grid Etch prints into it.
+    ///
+    /// `printPixels` is quoted verbatim from the live catalog rather than derived from the stated
+    /// centimetres — the medal frame taught us those disagree, and by enough to matter.
+    struct Size {
         let name: String
+        let sku: String
+        /// Exactly as the catalog reports it.
+        let printPixels: CGSize
         let columns: Int
         let rows: Int
-        /// Glaze size in millimetres, landscape — the frame's own size, not counting moulding.
-        let widthMM: CGFloat
-        let heightMM: CGFloat
-        /// Unmounted SKU. The mounted variant swaps MPF for MPFM.
-        let sku: String
-        var mountedSKU: String { sku.replacingOccurrences(of: "GLOBAL-MPF-", with: "GLOBAL-MPFM-") }
         var capacity: Int { columns * rows }
+
+        /// `GLOBAL-MPF-20X30` → `20 × 30″`.
+        var label: String {
+            sku.replacingOccurrences(of: "GLOBAL-MPF-", with: "")
+               .replacingOccurrences(of: "X", with: " × ") + "″"
+        }
+
+        /// How square each photograph comes out. Cells are near-square by construction, never
+        /// exactly so on every size: five columns and eight rows on a 2:3 sheet gives a cell of
+        /// 1.07:1, which no eye reads as a rectangle.
+        var cellAspect: CGFloat {
+            (printPixels.width / CGFloat(columns)) / (printPixels.height / CGFloat(rows))
+        }
     }
 
-    /// Sizes confirmed against the live catalog: 20X30's print area is 5905×8858px, exactly
-    /// 500×750mm, which is the L template turned upright; 24X36's is 7086×10629, exactly
-    /// 600×900mm, the XL template. 16X24 follows the same pattern at 400×600mm.
-    static let layouts = [
-        Layout(name: "M",  columns: 6,  rows: 4, widthMM: 600, heightMM: 400, sku: "GLOBAL-MPF-16X24"),
-        Layout(name: "L",  columns: 8,  rows: 5, widthMM: 750, heightMM: 500, sku: "GLOBAL-MPF-20X30"),
-        Layout(name: "XL", columns: 10, rows: 6, widthMM: 900, heightMM: 600, sku: "GLOBAL-MPF-24X36")
+    /// The three sizes confirmed against the live catalog, each with a grid chosen for its shape.
+    ///
+    /// 12X12 is square, so 4×4 gives exactly square cells. 24X36 is 2:3, and 6×9 is 2:3, so its
+    /// cells are exactly square too. 20X30 takes 5×8 — 40 photographs, the wall's default, at a
+    /// cell 7% off square, which is the price of the count and cheap at that.
+    static let sizes = [
+        Size(name: "Square", sku: "GLOBAL-MPF-12X12",
+             printPixels: CGSize(width: 3543, height: 3543), columns: 4, rows: 4),
+        Size(name: "Standard", sku: "GLOBAL-MPF-20X30",
+             printPixels: CGSize(width: 5905, height: 8858), columns: 5, rows: 8),
+        Size(name: "Large", sku: "GLOBAL-MPF-24X36",
+             printPixels: CGSize(width: 7086, height: 10629), columns: 6, rows: 9)
     ]
 
-    /// The grid a given count fills exactly, when there is one. A wall that matches its frame's
-    /// arrangement is a preview of the object; one that doesn't is a picture of something else.
-    static func exactLayout(forPhotos count: Int) -> Layout? {
-        layouts.first { $0.capacity == count }
+    /// The size a count fills exactly, when one does.
+    static func exactSize(forPhotos count: Int) -> Size? {
+        sizes.first { $0.capacity == count }
     }
 
-    /// The frame a given count would actually be made in: the one it fills exactly if there is
-    /// one, else the smallest that holds it. Never nil for a count the wall allows — the largest
-    /// layout's capacity *is* `maxPhotos`.
-    static func layout(forPhotos count: Int) -> Layout {
-        exactLayout(forPhotos: count)
-            ?? layouts.first { $0.capacity >= count }
-            ?? layouts[layouts.count - 1]
+    /// The size a count would actually be made in: the one it fills exactly, else the smallest
+    /// that holds it, else the largest there is.
+    static func size(forPhotos count: Int) -> Size {
+        exactSize(forPhotos: count)
+            ?? sizes.first { $0.capacity >= count }
+            ?? sizes[sizes.count - 1]
     }
 
-    /// How the current count sits in the frame it would be made in — the line the wall shows so
-    /// the choice of count is a choice about an object rather than about a screenshot.
+    /// The line the wall shows, so choosing a count is choosing an object rather than a screenshot.
     static func fitDescription(forPhotos count: Int) -> String {
-        let layout = layout(forPhotos: count)
-        let size = layout.sku.replacingOccurrences(of: "GLOBAL-MPF-", with: "")
-            .replacingOccurrences(of: "X", with: "×")
-        let spare = layout.capacity - count
-        if spare <= 0 { return "Fills the \(size)″ frame — \(layout.columns) × \(layout.rows)." }
-        return "\(size)″ frame · \(spare) window\(spare == 1 ? "" : "s") left empty."
+        let size = size(forPhotos: count)
+        let spare = size.capacity - count
+        if spare <= 0 { return "Fills the \(size.label) frame — \(size.columns) × \(size.rows)." }
+        return "\(size.label) frame · room for \(spare) more."
     }
 
-    /// Forty: the L frame, 8×5, filled to the corner. The frame accepts nine to sixty, but a
-    /// count that leaves a ragged last row makes a worse object than one that doesn't.
+    /// Forty: five across, eight down, filling the 20 × 30″ sheet to its corners.
     static let defaultPhotos = 40
     static let minPhotos = 9
-    static let maxPhotos = 60
+    /// The largest grid any confirmed size takes — 6 × 9 on the 24 × 36″.
+    static var maxPhotos: Int { sizes.map(\.capacity).max() ?? 54 }
 
-    /// Each aperture, in millimetres, and the mount border between them.
-    static let cellMM: CGFloat = 60
-    static let borderMM: CGFloat = 20
-
-    /// One cell at 300 DPI: 60mm ≈ 2.362 inches, so 709px square.
-    static var cellPixels: CGFloat { (cellMM / 25.4) * 300 }
-
-    /// The full print area for a layout, from its glaze size at 300 DPI — the number an order
-    /// has to supply, and nowhere near the 1000px the shared image renders at. L is 8858×5905
-    /// landscape; XL is 10629×7086.
-    static func printPixelSize(for layout: Layout) -> CGSize {
-        CGSize(width: (layout.widthMM / 25.4) * 300, height: (layout.heightMM / 25.4) * 300)
-    }
+    /// The gutter between photographs, as a fraction of the shorter cell edge. Ours to choose,
+    /// now that no physical mount dictates it.
+    static let gutterFraction: CGFloat = 0.06
 
     static var isAvailable: Bool { EtchConfig.current.prices.photoWallCents != nil }
 
@@ -238,10 +249,6 @@ enum MultiPhotoFrameCatalog {
 
     static let frameColours = ["black", "brown", "dark grey", "gold",
                                "light grey", "natural", "silver", "white"]
-
-    /// The mounted variant offers exactly one mount colour, whatever the range sheet's
-    /// "Snow white, Black, Off-white" suggests — the catalog reports `mountColor: ["Snow white"]`.
-    static let mountColours = ["Snow white"]
 }
 
 /// A poster *finish* rather than a product: the same fine-art print, shipped with a solid wood
@@ -353,8 +360,18 @@ enum PosterHangerCatalog {
 /// Favorites, then everything recent. This replaces four near-identical shelves that used to
 /// sit on the storefront pretending to be merchandise.
 struct ActivityPickerSheet: View {
+
+    /// How the picker is organised.
+    ///
+    /// `curated` answers "make me something good": milestones first, then races, favourites, and
+    /// the last thirty runs. `timeline` answers a different question — "the one from that Tuesday
+    /// in March" — and for that a ranked shelf is useless. It shows everything, month by month,
+    /// newest first, with nothing left out.
+    enum Mode { case curated, timeline }
+
     let runs: [Run]
     let scope: ActivityScope
+    var mode: Mode = .curated
     let onPick: (Run) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -379,13 +396,34 @@ struct ActivityPickerSheet: View {
         return out.filter { seen.insert($0.0.id).inserted }
     }
 
+    /// Every mapped run grouped by the month it happened in, newest month first.
+    private var months: [(label: String, runs: [Run])] {
+        let calendar = Calendar.current
+        let sorted = mapped.sorted { $0.startDate > $1.startDate }
+        var order: [String] = []
+        var buckets: [String: [Run]] = [:]
+        for run in sorted {
+            // The year is always spelled out except for the current one, where it is noise.
+            let label = calendar.isDate(run.startDate, equalTo: .now, toGranularity: .year)
+                ? run.startDate.formatted(.dateTime.month(.wide))
+                : run.startDate.formatted(.dateTime.month(.wide).year())
+            if buckets[label] == nil { order.append(label) }
+            buckets[label, default: []].append(run)
+        }
+        return order.map { ($0, buckets[$0] ?? []) }
+    }
+
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 14)]
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 26) {
-                    if query.isEmpty {
+                    if mode == .timeline && query.isEmpty {
+                        ForEach(months, id: \.label) { month in
+                            section(month.label) { grid(month.runs.map { ($0, nil) }) }
+                        }
+                    } else if query.isEmpty {
                         if !milestones.isEmpty {
                             section("Milestones") {
                                 grid(milestones.map { ($0.0, $0.1) })
@@ -409,7 +447,7 @@ struct ActivityPickerSheet: View {
             }
             .background(Color(.systemGroupedBackground))
             .searchable(text: $query, prompt: "Search your activities")
-            .navigationTitle("Choose an activity")
+            .navigationTitle(mode == .timeline ? "Your timeline" : "Choose an activity")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Cancel") { dismiss() } }

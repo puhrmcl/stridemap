@@ -49,8 +49,15 @@ struct EtchRemoteConfig: Codable, Sendable, Equatable {
         /// until a real quote lands — its wholesale is the highest in the range and it ships
         /// from the UK, so guessing it would be guessing at a loss.
         var medalFrameCents: Int?
-        /// The Photo Wall's multi-photo frame, in USD cents. Optional for the same reason as
-        /// the medal frame: no rung until a real quote lands.
+        /// The Photo Wall's multi-photo frame, in USD cents.
+        ///
+        /// **Provisional.** Every other price here was set from a live Prodigi quote; this one is
+        /// not, because the quote has not come back yet. It is compiled in so the product can be
+        /// listed, and it is the first number to correct from the served document once the real
+        /// landed cost lands. The reasoning behind it: the range sheet puts the entry size at £28
+        /// wholesale, the 20 × 30" is roughly double that, and unlike the medal frame this one is
+        /// made in the US — so no transatlantic shipping. $199 holds the range's margin against a
+        /// landed cost around $90-110. Treat it as a placeholder with a rationale, not a quote.
         var photoWallCents: Int?
     }
 
@@ -89,7 +96,7 @@ struct EtchRemoteConfig: Codable, Sendable, Equatable {
             closedDetail: "Printed to order on archival paper and shipped to your door. Secure checkout with Apple Pay."
         ),
         prices: Prices(bySKU: [:], yearBookCents: 11900,
-                       medalFrameCents: nil, photoWallCents: nil),
+                       medalFrameCents: nil, photoWallCents: 19900),
         basemapReady: false,
         archive: ArchiveGates(
             gridMinRoutedRuns: 20,
