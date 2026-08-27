@@ -13,6 +13,12 @@ https://shopify.dev/docs/storefronts/mobile/create-apple-payment-processing-cert
 # Answered: admin-created custom apps are retired; the client credentials grant replaces them.
 # https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens
 
+# Can the App Store Connect API create a Merchant ID and turn on the Apple Pay capability for
+# an App ID? If it can, the two Apple-side steps blocking the entitlement stop being portal
+# clicking and become a workflow, and the operator only has to mint one API key.
+https://developer.apple.com/documentation/appstoreconnectapi/merchant-ids
+https://developer.apple.com/documentation/appstoreconnectapi/bundle-id-capabilities
+
 # The planet basemap build sizes — the one number docs/basemap.md estimates rather than states.
 # build.protomaps.com/ returned 404 for the bare root; the listing lives one level in.
 https://build.protomaps.com/builds
