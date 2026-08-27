@@ -67,11 +67,19 @@ struct StudioEdition: Identifiable, Equatable {
         switch surface { case .map, .photo, .contour: return true; case .paper: return false }
     }
     var mapKind: MapKind? { if case .map(let kind) = surface { return kind }; return nil }
-    /// Whether this edition's artwork may be sold as a print. Editions whose panel is an Apple
-    /// Maps snapshot are display-only: Apple licenses map data for in-app use, not for
-    /// merchandise. They return to the shop when the self-owned OSM cartography replaces the
-    /// snapshot source; contour, paper, and photo panels are ours end to end.
-    var printReady: Bool { mapKind == nil }
+    /// Whether this edition's artwork may be sold as a print.
+    ///
+    /// Contour, paper and photo panels are ours end to end and always qualify. A map panel
+    /// qualifies only when it was drawn from Etch's own basemap — Apple licenses its map data for
+    /// in-app display, not for merchandise, so an Apple snapshot is display-only however good it
+    /// looks. `EtchMapSnapshotter.canRender` answers both halves of that: whether the basemap
+    /// archive is live, and whether this edition has an OpenStreetMap equivalent at all.
+    ///
+    /// Satellite is the one that does not. OpenStreetMap is vector data and carries no aerial
+    /// imagery, so replacing it means licensing photography from someone — a separate purchase
+    /// and a separate decision. Until then it stays display-only, and says so honestly.
+    @MainActor
+    var printReady: Bool { mapKind == nil || EtchMapSnapshotter.canRender(self) }
     var isPhoto: Bool { surface == .photo }
     var isContour: Bool { surface == .contour }
     var isDark: Bool { mapKind == .streetsDark || mapKind == .standardDark }

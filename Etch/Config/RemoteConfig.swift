@@ -16,6 +16,15 @@ struct EtchRemoteConfig: Codable, Sendable, Equatable {
 
     var ordering: Ordering
     var prices: Prices
+    /// Whether Etch's own basemap archive is live in R2.
+    ///
+    /// Served rather than compiled because it is an *operational* fact — whether a 120 GB object
+    /// finished uploading — not a property of the build. Flipping it turns the map editions from
+    /// Apple snapshots (beautiful, unsellable) to Etch cartography (printable), and turns them
+    /// back if a tile problem appears, neither of which should need an App Store release.
+    /// Defaults false: a style pointed at a missing archive renders a blank rectangle, and a
+    /// poster that silently loses its city is a defect the customer finds rather than us.
+    var basemapReady: Bool = false
     var archive: ArchiveGates
     /// Nil when there's nothing seasonal to say.
     var seasonal: Seasonal?
@@ -81,6 +90,7 @@ struct EtchRemoteConfig: Codable, Sendable, Equatable {
         ),
         prices: Prices(bySKU: [:], yearBookCents: 11900,
                        medalFrameCents: nil, photoWallCents: nil),
+        basemapReady: false,
         archive: ArchiveGates(
             gridMinRoutedRuns: 20,
             ridgelineMinProfiles: 12,

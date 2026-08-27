@@ -93,6 +93,24 @@ enum PosterMap {
         let key = panelKey("studio", run: run, size: size, edition: edition, route: routeOverride)
         if let cached = panelCache.object(forKey: key) { return cached }
 
+        // Etch's own cartography first, when the basemap is live and this edition has an
+        // OpenStreetMap equivalent — that is the panel the poster may actually be sold as. Apple
+        // remains the fallback, so a tile outage costs a poster its *printability*, never its
+        // existence.
+        if EtchMapSnapshotter.canRender(edition),
+           let own = await EtchMapSnapshotter.snapshot(for: coordinates, size: size,
+                                                       scale: 2, edition: edition) {
+            let base = edition.panelSaturation.map { desaturated(own.image, saturation: $0) }
+                ?? own.image
+            let finished = overlay(
+                base, coordinates: coordinates, size: size, scale: 2,
+                edition: edition, route: routeOverride,
+                project: { own.frame.point(for: $0, in: size) }
+            )
+            panelCache.setObject(finished, forKey: key)
+            return finished
+        }
+
         let options = MKMapSnapshotter.Options()
         options.region = region(for: run)
         options.size = size
@@ -135,24 +153,45 @@ enum PosterMap {
             baseImage = snapshot.image
         }
 
+        let image = overlay(
+            baseImage, coordinates: coordinates, size: size, scale: options.scale,
+            edition: edition, route: routeOverride,
+            project: { snapshot.point(for: $0) }
+        )
+        panelCache.setObject(image, forKey: key)
+        return image
+    }
+
+    /// Draws the wash and the route over a map panel.
+    ///
+    /// `project` is the only thing that differs between the two sources: Apple hands back a
+    /// `point(for:)` from its own snapshot, Etch's basemap projects through the frame it framed
+    /// with. Everything after that — the wash, the glow, the casing, the route, the start and
+    /// finish dots — is the edition's style and must be identical, or the same edition would
+    /// look like two different products depending on which cartography drew it.
+    @MainActor
+    private static func overlay(
+        _ base: UIImage, coordinates: [CLLocationCoordinate2D], size: CGSize, scale: CGFloat,
+        edition: StudioEdition, route routeOverride: Color?,
+        project: (CLLocationCoordinate2D) -> CGPoint
+    ) -> UIImage {
         let format = UIGraphicsImageRendererFormat()
-        format.scale = options.scale
+        format.scale = scale
         format.opaque = true
         let renderer = UIGraphicsImageRenderer(size: size, format: format)
-
         let route = UIColor(routeOverride ?? edition.route)
 
-        let image = renderer.image { context in
+        return renderer.image { context in
             let cg = context.cgContext
 
-            baseImage.draw(in: CGRect(origin: .zero, size: size))
+            base.draw(in: CGRect(origin: .zero, size: size))
             UIColor(edition.mapWash).withAlphaComponent(edition.mapWashAlpha).setFill()
             cg.fill(CGRect(origin: .zero, size: size))
 
             let path = UIBezierPath()
             var started = false
             for coordinate in coordinates {
-                let point = snapshot.point(for: coordinate)
+                let point = project(coordinate)
                 if started { path.addLine(to: point) } else { path.move(to: point); started = true }
             }
             path.lineJoinStyle = .round
@@ -176,13 +215,13 @@ enum PosterMap {
             path.lineWidth = edition.routeWidth
             path.stroke()
 
-            let startFill = UIColor(edition.accent)
-            let endFill = route
-            if let first = coordinates.first { dot(cg, at: snapshot.point(for: first), fill: startFill, radius: edition.routeWidth) }
-            if let last = coordinates.last { dot(cg, at: snapshot.point(for: last), fill: endFill, radius: edition.routeWidth) }
+            if let first = coordinates.first {
+                dot(cg, at: project(first), fill: UIColor(edition.accent), radius: edition.routeWidth)
+            }
+            if let last = coordinates.last {
+                dot(cg, at: project(last), fill: route, radius: edition.routeWidth)
+            }
         }
-        panelCache.setObject(image, forKey: key)
-        return image
     }
 
     /// Renders the art panel for the Topographic edition: real terrain contour lines (traced
