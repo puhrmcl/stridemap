@@ -118,8 +118,15 @@ enum MedalFrameCatalog {
     static let printPixelSize = CGSize(width: 2397, height: 3000)
     static var aspect: CGFloat { printPixelSize.width / printPixelSize.height }
 
-    /// Wholesale is £70 before shipping from the UK, which is the highest landed cost in the
-    /// range — the retail rung is set once a real quote lands, not from the range sheet.
+    /// Quoted live to a US address: **items $95.12 + shipping $55.78 = $150.90 landed.**
+    ///
+    /// That shipping figure is the problem, not the frame. It is 37% of the landed cost, because
+    /// this is the one product in the range made only in the UK — every other item has a US or EU
+    /// line. At the range's usual 55% margin the rung would be about $335, roughly three Year
+    /// Books, which is a different shop from the one the rest of the catalogue describes.
+    ///
+    /// So no price is set here. `prices.medalFrameCents` stays nil and the product stays unlisted
+    /// until that is a deliberate decision rather than a default.
     static var price: String {
         guard let cents = EtchConfig.current.prices.medalFrameCents else { return "—" }
         return (Double(cents) / 100).formatted(.currency(code: "USD").precision(.fractionLength(0)))
