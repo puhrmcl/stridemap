@@ -10,8 +10,8 @@
 #             wall-art:pulse, wall-art:bloom, wall-art:constellation, wall-art:grid
 # appearance: light, dark, or both
 #
-# Requested for b394: the Studio storefront - the larger etch. wordmark, the profile photo
-# as the whole button, and the product grid on one baseline.
+# Requested: the product grid, which the previous run missed by anchoring both shots at
+# the top of the page. b395 verified the wordmark and the bare profile photo.
 
-screens=studio,studio@intro
+screens=studio@products,studio@collections
 appearance=both
