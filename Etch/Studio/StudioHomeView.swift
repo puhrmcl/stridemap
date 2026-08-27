@@ -127,31 +127,7 @@ struct StudioHomeView: View {
             .toolbar {
                 if isHome {
                     // Studio-first: profile on the left, the map as a mini-thumbnail on the right.
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button { showProfile = true } label: {
-                            // Shows the user's chosen photo (like the map search bar); the plain
-                            // person glyph is the placeholder before one is set.
-                            ProfileAvatar(size: 36) {
-                                Image(systemName: "person.crop.circle")
-                                    .font(.system(size: 32))
-                                    .foregroundStyle(Theme.accent)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        // Long-press to remove the photo without opening the profile page.
-                        .contextMenu {
-                            if profileImageData != nil {
-                                Button(role: .destructive) { profileImageData = nil } label: {
-                                    Label("Remove Photo", systemImage: "trash")
-                                }
-                            }
-                        }
-                    }
-                    // The photo IS the button. Without this the toolbar draws its own glass
-                    // circle behind it and the avatar sits inside as a smaller disc, ringed in
-                    // white. `.buttonStyle(.plain)` alone doesn't remove it — the background
-                    // belongs to the toolbar item, not the button.
-                    .sharedBackgroundVisibility(.hidden)
+                    profileToolbarItem
                     ToolbarItem(placement: .principal) {
                         // One mark across the app, and the masthead of this page — so it is
                         // sized to carry the bar rather than to match the old lockup's ink. The
@@ -203,6 +179,44 @@ struct StudioHomeView: View {
     }
 
     /// A plain map glyph in the corner that opens the full map (Studio-first mode).
+    /// The profile photo, as the whole button.
+    ///
+    /// From iOS 26 the toolbar draws its own glass circle behind an item, which left the avatar
+    /// sitting inside as a smaller disc ringed in white. That background belongs to the toolbar
+    /// item rather than the button, so `.buttonStyle(.plain)` doesn't touch it — hiding the
+    /// item's shared background does. Earlier systems never drew the circle, so the unmodified
+    /// item is already correct there.
+    @ToolbarContentBuilder
+    private var profileToolbarItem: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .topBarLeading) { profileButton }
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarLeading) { profileButton }
+        }
+    }
+
+    private var profileButton: some View {
+        Button { showProfile = true } label: {
+            // Shows the user's chosen photo (like the map search bar); the plain person glyph is
+            // the placeholder before one is set.
+            ProfileAvatar(size: 36) {
+                Image(systemName: "person.crop.circle")
+                    .font(.system(size: 32))
+                    .foregroundStyle(Theme.accent)
+            }
+        }
+        .buttonStyle(.plain)
+        // Long-press to remove the photo without opening the profile page.
+        .contextMenu {
+            if profileImageData != nil {
+                Button(role: .destructive) { profileImageData = nil } label: {
+                    Label("Remove Photo", systemImage: "trash")
+                }
+            }
+        }
+    }
+
     private var mapThumbnailButton: some View {
         Button { showMap = true } label: {
             Image(systemName: "map.fill")
