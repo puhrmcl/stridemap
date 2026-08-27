@@ -130,6 +130,9 @@ struct StudioHomeView: View {
             // hidden entirely rather than left empty. Sheet mode keeps its bar (and has no close
             // button — swipe it down).
             .toolbar(isHome ? .hidden : .automatic, for: .navigationBar)
+            // A different scope is a different library, so its hero starts at the top rather
+            // than wherever "Show another" had wandered to in the previous one.
+            .onChange(of: scope) { heroOffset = 0 }
             .fullScreenCover(isPresented: $showMap) { HomeView(isMapPopup: true) }
             // Weather backfill sweep: each visit fills the next batch of runs from WeatherKit's
             // historical weather (idempotent; source-recorded values always win).
@@ -741,6 +744,7 @@ struct StudioHomeView: View {
     private var utilityFooter: some View {
         VStack(alignment: .leading, spacing: 10) {
             Divider().padding(.bottom, 4)
+            restoreHeroRow
             utilityRow("Add from the library", "trophy") { showAddRace = true }
             utilityRow("Create from your timeline", "calendar") { showTimeline = true }
             utilityRow("Import an activity", "square.and.arrow.down") { showImportPicker = true }
@@ -789,17 +793,49 @@ struct StudioHomeView: View {
     // MARK: The moment hero — Studio knows the user; lead with *their* moment
 
     @State private var heroPick: CollectionPiece?
+    /// Which of the candidates is showing. Cycled by "Show another".
+    @State private var heroOffset = 0
+    /// Hidden by the reader, remembered across launches.
+    @AppStorage("studioHeroHidden") private var heroHidden = false
 
-    /// The single most commemorable piece in the library: the latest race, else the biggest
-    /// summit. Shown as a full-bleed editorial hero — the user's own place as the shop window,
-    /// per the art-house standard (the artwork leads; chrome recedes).
+    /// The pieces worth leading with, best first.
+    ///
+    /// **Scoped.** This read the unfiltered library, so filtering Studio to Rides still put a run
+    /// at the top of the page — the one place a filter has to be obeyed, since the hero is the
+    /// largest thing on the screen and reads as a claim about what you have.
+    ///
+    /// Races newest first, then summits by height, then the longest remaining routes. The tail
+    /// matters: without it, a library with no races and no climbs — which is most people starting
+    /// out — got no hero at all, and "Show another" had nothing to move to.
+    private var heroCandidates: [CollectionPiece] {
+        let scoped = scopedRuns
+        var pieces = StudioCollections.courses(in: scoped) + StudioCollections.summits(in: scoped)
+        var seen = Set(pieces.map { $0.run.id })
+        let longest = scoped
+            .filter { $0.hasRoute && !seen.contains($0.id) }
+            .sorted { $0.distance > $1.distance }
+            .prefix(8)
+        for run in longest {
+            seen.insert(run.id)
+            pieces.append(CollectionPiece(run: run,
+                                          preset: StudioCollections.coursePreset(for: run),
+                                          subtitle: Format.distance(run.distance)))
+        }
+        return pieces
+    }
+
+    /// The one on screen. The offset wraps, so "Show another" is an endless carousel rather than
+    /// a button that quietly stops working at the end of the list.
     private var heroPiece: CollectionPiece? {
-        StudioCollections.courses(in: runs).first ?? StudioCollections.summits(in: runs).first
+        let candidates = heroCandidates
+        guard !candidates.isEmpty else { return nil }
+        return candidates[((heroOffset % candidates.count) + candidates.count) % candidates.count]
     }
 
     @ViewBuilder private var momentHero: some View {
-        if let piece = heroPiece {
+        if !heroHidden, let piece = heroPiece {
             let isRace = piece.run.isRace
+            VStack(alignment: .leading, spacing: 0) {
             Button { heroPick = piece } label: {
                 ZStack(alignment: .bottomLeading) {
                     RouteMapTile(run: piece.run)
@@ -840,10 +876,39 @@ struct StudioHomeView: View {
                 .contentShape(.rect(cornerRadius: 22))
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, 20)
             .accessibilityLabel("Your \(heroTitle(for: piece)). Create your piece in Etch Studio.")
+
+            // A featured piece is a suggestion, and a suggestion you cannot refuse is an
+            // instruction. Both ways out sit under it, quietly.
+            HStack(spacing: 18) {
+                if heroCandidates.count > 1 {
+                    Button { withAnimation(.easeInOut(duration: 0.25)) { heroOffset += 1 } } label: {
+                        Label("Show another", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .buttonStyle(.plain)
+                }
+                Spacer(minLength: 0)
+                Button { withAnimation { heroHidden = true } } label: {
+                    Label("Hide", systemImage: "eye.slash")
+                }
+                .buttonStyle(.plain)
+            }
+            .font(.system(.footnote, design: .rounded).weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.top, 10)
+            }
+            .padding(.horizontal, 20)
             .sheet(item: $heroPick) { pick in
                 StudioView(run: pick.run, preset: pick.preset)
+            }
+        }
+    }
+
+    /// Bringing the hero back, offered only to someone who hid it.
+    @ViewBuilder private var restoreHeroRow: some View {
+        if heroHidden && !heroCandidates.isEmpty {
+            utilityRow("Show a featured piece", "sparkles") {
+                withAnimation { heroHidden = false }
             }
         }
     }
