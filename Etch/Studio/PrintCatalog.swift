@@ -155,6 +155,24 @@ enum PrintProduct: String, CaseIterable, Identifiable {
         }
     }
 
+    /// A two-word name for the storefront strip, where the full one wraps.
+    var shortName: String {
+        switch self {
+        case .print:  return "Fine-Art Print"
+        case .hanger: return "With Hanger"
+        case .framed: return "Framed"
+        }
+    }
+
+    /// The cheapest this format can be had for — what the storefront quotes before a size is
+    /// chosen. Derived from the sizes rather than written down, so it cannot drift from them.
+    var entryPrice: String {
+        guard let lowest = sizes.map(\.resolvedPriceCents).min() else { return "—" }
+        let formatted = (Double(lowest) / 100)
+            .formatted(.currency(code: "USD").precision(.fractionLength(0)))
+        return sizes.count > 1 ? "From \(formatted)" : formatted
+    }
+
     /// The product's URL handle in Shopify, used to look up its variants at order time. Must
     /// match the handle on the store's product page exactly.
     var shopifyHandle: String {

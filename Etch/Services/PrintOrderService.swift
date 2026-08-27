@@ -66,15 +66,37 @@ enum PrintOrderService {
         )
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
+        return try await checkout(
+            fileAt: fileURL, pixels: geometry.trimPixels, creationID: creationID,
+            shopifySKU: size.shopifySKU(finish: finish), prodigiSKU: size.prodigiSKU,
+            productHandle: product.shopifyHandle, finishAttribute: finish.prodigiAttribute,
+            onPhase: onPhase
+        )
+    }
+
+    /// Uploads a print file that is already rendered and opens a cart for it.
+    ///
+    /// The poster path renders and then calls this; the Photo Wall renders a different way — its
+    /// own grid at the frame's own resolution — and calls it directly. What matters is that both
+    /// arrive here, so an order carries the same hidden line attributes whatever composed it, and
+    /// the fulfilment worker has one shape of order to understand rather than two.
+    static func checkout(
+        fileAt fileURL: URL,
+        pixels: CGSize,
+        creationID: String,
+        shopifySKU: String,
+        prodigiSKU: String,
+        productHandle: String,
+        finishAttribute: String,
+        onPhase: (Phase) -> Void
+    ) async throws -> ShopifyStorefront.Cart {
         onPhase(.uploading)
         let assetID = UUID().uuidString.lowercased()
-        try await upload(fileAt: fileURL, assetID: assetID, creationID: creationID,
-                         pixels: geometry.trimPixels)
+        try await upload(fileAt: fileURL, assetID: assetID, creationID: creationID, pixels: pixels)
 
         onPhase(.openingCheckout)
         let variant = try await ShopifyStorefront.variant(
-            sku: size.shopifySKU(finish: finish),
-            productHandle: product.shopifyHandle
+            sku: shopifySKU, productHandle: productHandle
         )
         return try await ShopifyStorefront.cart(
             variantID: variant.id,
@@ -82,8 +104,8 @@ enum PrintOrderService {
             attributes: [
                 "_etch_asset_id": assetID,
                 "_etch_creation_id": creationID,
-                "_etch_sku": size.prodigiSKU,
-                "_etch_frame": finish.prodigiAttribute,
+                "_etch_sku": prodigiSKU,
+                "_etch_frame": finishAttribute,
             ]
         )
     }

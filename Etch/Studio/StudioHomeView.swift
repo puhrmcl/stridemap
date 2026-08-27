@@ -515,6 +515,7 @@ struct StudioHomeView: View {
                         .buttonStyle(.plain)
                 }
             }
+            finishes
         }
         .padding(.horizontal, 20)
         // Same settle as the weather sweep, and for a sharper reason: each restart threw away six
@@ -608,6 +609,57 @@ struct StudioHomeView: View {
         }
         // Cards hang from the top of their row rather than centring in it.
         .frame(maxHeight: .infinity, alignment: .top)
+    }
+
+    /// What the grid above can be *made of*.
+    ///
+    /// The grid answers "what would you like to make" and every tile is a composition — a map
+    /// poster, a gallery poster, a year book. None of them says that a finished piece can arrive
+    /// as a bare sheet, on a wood hanger, or framed behind glass, because that choice lives in the
+    /// print sheet you only reach *after* designing something. So a first-time visitor reads this
+    /// page as "an app that makes posters" and never learns there is a $139 framed object in it.
+    ///
+    /// This strip is the shortest honest fix: the formats, their entry prices, and the fact that
+    /// any piece can be any of them. Built from `PrintProduct.offered`, so a format that is
+    /// withheld — as the hanger was until its size could be rendered — never advertises itself.
+    private var finishes: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Every piece, three ways")
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+            HStack(spacing: 10) {
+                ForEach(PrintProduct.offered) { format in
+                    VStack(spacing: 5) {
+                        Image(systemName: format.symbol)
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                            .frame(height: 22)
+                        Text(format.shortName)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                        Text(format.entryPrice)
+                            .font(.system(size: 11, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Theme.Palette.bone.opacity(0.7), in: .rect(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14)
+                        .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5))
+                }
+            }
+            Button { showPrints = true } label: {
+                HStack(spacing: 4) {
+                    Text("See papers, frames and sizes")
+                    Image(systemName: "chevron.right").font(.caption2.weight(.bold))
+                }
+                .font(.system(.footnote, design: .rounded).weight(.semibold))
+                .foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.top, 4)
     }
 
     /// Each tile shows the buyer's own history in that product — a stock sample would be a

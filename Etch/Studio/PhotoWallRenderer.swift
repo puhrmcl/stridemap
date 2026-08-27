@@ -99,6 +99,66 @@ enum PhotoWallRenderer {
         return out
     }
 
+    // MARK: The print file
+
+    /// Streams the wall to disk at the frame's real print resolution.
+    ///
+    /// A 20 × 30″ multi-photo frame wants 5905 × 8858 pixels, which is a 209 MB bitmap — the same
+    /// wall the print engine hit for posters, and solved the same way. Bands are drawn and
+    /// flushed, so peak cost is one band rather than one sheet.
+    ///
+    /// No moulding here: the frame is a physical object Prodigi supplies, and the file is only
+    /// what goes behind the glass. Drawing a frame into the artwork would print a picture of a
+    /// frame inside a frame.
+    static func printFile(photos: [UIImage],
+                          size: MultiPhotoFrameCatalog.Size,
+                          ground: Color = Theme.Palette.bone) async throws -> URL {
+        let width = Int(size.printPixels.width)
+        let height = Int(size.printPixels.height)
+        let sheet = CGRect(x: 0, y: 0, width: size.printPixels.width, height: size.printPixels.height)
+        let cells = cells(for: size, in: sheet)
+
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("etch-wall-\(UUID().uuidString).png")
+        let writer = try PrintFileWriter(width: width, height: height, url: url)
+
+        let bandHeight = 900
+        var top = 0
+        while top < height {
+            try Task.checkCancellation()
+            let rows = min(bandHeight, height - top)
+            let format = UIGraphicsImageRendererFormat()
+            format.opaque = true
+            format.scale = 1
+            let band = UIGraphicsImageRenderer(
+                size: CGSize(width: width, height: rows), format: format
+            ).image { context in
+                let cg = context.cgContext
+                UIColor(ground).setFill()
+                cg.fill(CGRect(x: 0, y: 0, width: width, height: rows))
+                // Shift the sheet so this band's slice sits at the origin, then draw only the
+                // photographs that reach into it.
+                cg.translateBy(x: 0, y: CGFloat(-top))
+                let visible = CGRect(x: 0, y: CGFloat(top), width: CGFloat(width), height: CGFloat(rows))
+                for (index, cell) in cells.enumerated() where index < photos.count {
+                    guard cell.intersects(visible) else { continue }
+                    cg.saveGState()
+                    cg.clip(to: cell)
+                    draw(photos[index], filling: cell)
+                    cg.restoreGState()
+                }
+            }
+            guard let cgImage = band.cgImage else {
+                try? FileManager.default.removeItem(at: url)
+                throw PrintFileWriter.WriteError.compressionFailed
+            }
+            try writer.append(band: cgImage, rows: rows)
+            top += rows
+            await Task.yield()
+        }
+        return try writer.finish()
+    }
+
     /// Aspect-fill into a cell — a near-square cell over a rectangular photograph takes the middle,
     /// which is the same crop the print makes.
     private static func draw(_ image: UIImage, filling rect: CGRect) {

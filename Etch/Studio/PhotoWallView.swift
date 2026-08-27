@@ -1,4 +1,5 @@
 import SwiftUI
+import ShopifyCheckoutSheetKit
 
 /// A gallery poster of your run cover photos — a contact-sheet "photo wall" for the runs that have
 /// a picture. Filter by year/state/location, sort or shuffle, tap a photo to swap it out, dial the
@@ -21,6 +22,11 @@ struct PhotoWallView: View {
     @State private var posterImage: UIImage?
     /// Runs whose cover photo is a screenshot — kept out of the wall so it reads as photography.
     @State private var screenshotRunIDs: Set<UUID> = []
+
+    /// Ordering the wall as the framed object it was designed for.
+    @State private var orderPhase: PrintOrderService.Phase?
+    @State private var orderError: String?
+    @State private var checkoutURL: URL?
 
     /// Hard ceiling on one wall: the largest grid any confirmed frame size takes — 6 × 9 on the
     /// 24 × 36". A wall that reads well on screen is therefore always one that can be made.
@@ -155,6 +161,27 @@ struct PhotoWallView: View {
                     }
                 }
             }
+            .sheet(item: Binding(
+                get: { checkoutURL.map { CheckoutTarget(url: $0) } },
+                set: { if $0 == nil { checkoutURL = nil } }
+            )) { target in
+                CheckoutSheet(checkout: target.url)
+                    .title("Checkout")
+                    .colorScheme(.automatic)
+                    .tintColor(UIColor(Theme.accent))
+                    .onCancel { checkoutURL = nil }
+                    .onComplete { _ in checkoutURL = nil; dismiss() }
+                    .onFail { error in
+                        checkoutURL = nil
+                        orderError = error.localizedDescription
+                    }
+                    .interactiveDismissDisabled()
+            }
+            .alert("Couldn't start the order", isPresented: Binding(
+                get: { orderError != nil }, set: { if !$0 { orderError = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: { Text(orderError ?? "") }
             .onChange(of: filter) { excludedIDs = []; clampCount() }
             .onAppear { clampCount() }
             .task { detectScreenshots() }
@@ -238,11 +265,97 @@ struct PhotoWallView: View {
             Text("Tap a photo to swap it out.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            orderButton
         }
         .padding(.vertical, 16)
         .padding(.horizontal, 24)
         .frame(maxWidth: .infinity)
         .background(.regularMaterial)
+    }
+
+    /// Order the wall as the multi-photo frame it is composed for.
+    ///
+    /// Until now this screen could only share a picture of the wall, which made the Photo Wall the
+    /// one product on the storefront you could design and not buy — the catalogue, the renderer and
+    /// the frame's real geometry all existed, and nothing connected them to a cart.
+    ///
+    /// The order renders at the frame's own resolution (5905 × 8858 for the 20 × 30″), which is why
+    /// it goes through the banded writer rather than an image: that sheet is a 209 MB bitmap.
+    @ViewBuilder private var orderButton: some View {
+        if MultiPhotoFrameCatalog.isAvailable, PrintOrderService.isConfigured,
+           EtchConfig.current.ordering.enabled, !shown.isEmpty {
+            Button(action: order) {
+                Group {
+                    if let orderPhase {
+                        HStack(spacing: 10) {
+                            ProgressView().tint(.white)
+                            Text(orderPhase.label)
+                        }
+                    } else {
+                        Label("Order framed · \(MultiPhotoFrameCatalog.price)", systemImage: "bag")
+                    }
+                }
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Theme.accent, in: .rect(cornerRadius: 14))
+                .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+            .disabled(orderPhase != nil)
+            .frame(maxWidth: 340)
+
+            Text(MultiPhotoFrameCatalog.fitDescription(forPhotos: shown.count))
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private func order() {
+        guard orderPhase == nil else { return }
+        let size = MultiPhotoFrameCatalog.size(forPhotos: shown.count)
+        let runs = shown
+        Task {
+            do {
+                orderPhase = .rendering
+                // Photographs at the cell's real print size, not the on-screen thumbnails the
+                // grid drew with — a 1181px cell fed a 600px thumbnail would print soft.
+                let cellPixels = size.printPixels.width / CGFloat(size.columns)
+                var prints: [UIImage] = []
+                for run in runs {
+                    guard let reference = run.photoReferences.first else { continue }
+                    if let image = await PhotoLibrary.image(
+                        for: reference,
+                        targetSize: CGSize(width: cellPixels, height: cellPixels)
+                    ) { prints.append(image) }
+                }
+                guard !prints.isEmpty else {
+                    orderPhase = nil
+                    orderError = "Those photos couldn't be loaded at print size."
+                    return
+                }
+
+                let fileURL = try await PhotoWallRenderer.printFile(photos: prints, size: size)
+                defer { try? FileManager.default.removeItem(at: fileURL) }
+
+                let cart = try await PrintOrderService.checkout(
+                    fileAt: fileURL,
+                    pixels: size.printPixels,
+                    creationID: "photowall-\(size.sku)-\(runs.count)-\(UUID().uuidString)",
+                    shopifySKU: size.sku,
+                    prodigiSKU: size.sku,
+                    productHandle: MultiPhotoFrameCatalog.shopifyHandle,
+                    finishAttribute: MultiPhotoFrameCatalog.frameColours.first ?? "black",
+                    onPhase: { orderPhase = $0 }
+                )
+                orderPhase = nil
+                checkoutURL = cart.checkoutURL
+            } catch {
+                orderPhase = nil
+                orderError = error.localizedDescription
+            }
+        }
     }
 
     private var filterMenu: some View {
@@ -394,6 +507,12 @@ struct PhotoWallView: View {
         renderer.scale = 3
         posterImage = renderer.uiImage
     }
+}
+
+/// Wraps the checkout URL so it can drive a `.sheet(item:)`.
+private struct CheckoutTarget: Identifiable {
+    let url: URL
+    var id: String { url.absoluteString }
 }
 
 private extension Array {

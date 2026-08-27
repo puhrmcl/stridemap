@@ -249,6 +249,10 @@ enum MultiPhotoFrameCatalog {
 
     static let frameColours = ["black", "brown", "dark grey", "gold",
                                "light grey", "natural", "silver", "white"]
+
+    /// The Shopify product handle the wall's variants live under. Must match the store's product
+    /// page exactly, the same join as `PrintProduct.shopifyHandle`.
+    static let shopifyHandle = "photo-wall"
 }
 
 /// A poster *finish* rather than a product: the same fine-art print, shipped with a solid wood
