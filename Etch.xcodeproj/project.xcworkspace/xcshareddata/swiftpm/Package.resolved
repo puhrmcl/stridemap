@@ -1,5 +1,5 @@
 {
-  "originHash" : "00230362f0f9130af57d5522a8df11be479bb4faa37b7c59ff0aa3e86c3045fb",
+  "originHash" : "5f4f0ae78f4e5536e9bbc0df0657fb9782c2a4e437392f9cf0619543bea74b72",
   "pins" : [
     {
       "identity" : "checkout-sheet-kit-swift",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "3760e2ec62043d1d29a374c0a07a73c7ad22dd6a",
         "version" : "3.8.2"
+      }
+    },
+    {
+      "identity" : "maplibre-gl-native-distribution",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/maplibre/maplibre-gl-native-distribution",
+      "state" : {
+        "revision" : "86992aabad3e89ce8818adec2e8b9d03177d69da",
+        "version" : "6.29.0"
       }
     }
   ],
