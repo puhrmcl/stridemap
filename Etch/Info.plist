@@ -16,6 +16,14 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<!-- Stated explicitly because this target sets GENERATE_INFOPLIST_FILE = NO. With a
+	     generated plist Xcode writes this key itself; with a hand-written one the value arrives
+	     only if the asset catalog compiler's partial plist merges cleanly, and an App Store
+	     upload without it fails validation (ITMS-90713) after archive and export have both
+	     succeeded. Naming it here costs nothing and removes the dependency. Must match
+	     ASSETCATALOG_COMPILER_APPICON_NAME. -->
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>
