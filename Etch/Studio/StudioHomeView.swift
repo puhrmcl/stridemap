@@ -742,7 +742,7 @@ struct StudioHomeView: View {
         VStack(alignment: .leading, spacing: 10) {
             Divider().padding(.bottom, 4)
             utilityRow("Add from the library", "trophy") { showAddRace = true }
-            utilityRow("Create from a timeline", "calendar") { showTimeline = true }
+            utilityRow("Create from your timeline", "calendar") { showTimeline = true }
             utilityRow("Import an activity", "square.and.arrow.down") { showImportPicker = true }
             if hasPhotos {
                 utilityRow("Photo Wall", "photo.on.rectangle.angled") { showPhotoWall = true }
