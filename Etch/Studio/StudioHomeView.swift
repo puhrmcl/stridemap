@@ -281,6 +281,20 @@ struct StudioHomeView: View {
 
     // MARK: Intro
 
+    /// How much of the BrandLogo artwork is actually ink: **a third**. The rest is transparent
+    /// margin baked into the asset, so a frame height is roughly three times the letterforms it
+    /// produces. Sizing the mark as though the frame were the type is what made every earlier
+    /// value — 26, 28, 40, 46 — come out looking the same and looking small.
+    private static let brandInkFraction: CGFloat = 0.333
+
+    /// A frame tall enough that the wordmark's letterforms clear the headline beneath it.
+    /// "Leave your mark." is `.title` bold, whose ink runs cap-height to descender at about 0.93
+    /// of its point size; the mark is scaled to beat that rather than merely approach it.
+    private static var mastheadMarkHeight: CGFloat {
+        let headlineInk = UIFont.preferredFont(forTextStyle: .title1).pointSize * 0.93
+        return (headlineInk / brandInkFraction) * 1.06
+    }
+
     private var intro: some View {
         VStack(alignment: .leading, spacing: 16) {
             // Sheet mode: the wordmark IS the masthead — modest, with one quiet supporting line.
@@ -289,7 +303,7 @@ struct StudioHomeView: View {
             if !isHome {
                 VStack(alignment: .leading, spacing: 8) {
                     Image("BrandLogo")
-                        .resizable().scaledToFit().frame(height: 44)
+                        .resizable().scaledToFit().frame(height: Self.mastheadMarkHeight * 0.85)
                         .accessibilityLabel("Etch")
                     Text("Turn a run, a race, or a favorite into gallery-grade art.")
                         .font(.system(.subheadline, design: .rounded))
@@ -297,13 +311,8 @@ struct StudioHomeView: View {
                 }
             } else {
                 VStack(alignment: .leading, spacing: 6) {
-                    // The mark leads the page rather than the bar. A navigation bar in inline
-                    // mode clamps its principal item to about 16pt of content however large the
-                    // frame asks for — measured against this very headline, the wordmark came
-                    // out half its height and no frame value in the toolbar could fix it. In the
-                    // page it renders at the size it's given.
                     Image("BrandLogo")
-                        .resizable().scaledToFit().frame(height: 46)
+                        .resizable().scaledToFit().frame(height: Self.mastheadMarkHeight)
                         .accessibilityLabel("Etch")
                         .padding(.bottom, 2)
                     Text("Leave your mark.")
