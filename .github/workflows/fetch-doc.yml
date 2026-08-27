@@ -9,6 +9,11 @@
 #
 # Read-only, public pages only. Never point this at anything that needs a credential.
 #
+# One trick worth knowing: developer.apple.com renders entirely in JavaScript, so a fetch of a
+# documentation page returns "This page requires JavaScript" and nothing useful. Every one of
+# those pages publishes a Markdown twin at the same URL with `.md` appended, offered explicitly
+# for automated tools. Ask for the .md.
+#
 # Ask by editing .github/doc-request.txt — one URL per line. GitHub only offers
 # workflow_dispatch for workflows on the default branch and this work happens on a feature
 # branch, which is the same reason the preview rig is file-triggered.
