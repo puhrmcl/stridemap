@@ -10,8 +10,8 @@ struct PhotoWallView: View {
 
     @State private var filter: Filter = .all
     @State private var sort: SortOrder = .newest
-    /// Twenty is the wall's default because it is what the frame it prints into wants: a 5×4
-    /// grid fills exactly, with no half-empty last row. `columnCount` lands on 5 for this count.
+    /// Forty is the wall's default because it is what the frame it prints into wants: the L
+    /// frame's 8×5, filled to the corner.
     @State private var count = MultiPhotoFrameCatalog.defaultPhotos
     /// Photos the user tapped away — the next unused photo fills their slot.
     @State private var excludedIDs: Set<UUID> = []
@@ -107,10 +107,19 @@ struct PhotoWallView: View {
         }
     }
 
-    /// Near-square column count for the current wall size, capped so cells never get too small.
+    /// Columns for the current wall.
+    ///
+    /// When the count is one the frame is actually cut for — 24, 40, 60 — the wall takes that
+    /// frame's own arrangement, so what's on screen is a preview of the object rather than a
+    /// picture of something else. Forty in eight columns is the L frame; the near-square rule
+    /// would have made it six columns and seven rows with four photos rattling in the last one.
+    ///
+    /// Any other count falls back to near-square, capped so cells never get too small — the cap
+    /// is the widest frame's ten, not six, or the exact grids couldn't be reached.
     private var columnCount: Int {
         let n = max(shown.count, 1)
-        return min(6, max(1, Int(ceil(Double(n).squareRoot()))))
+        if let layout = MultiPhotoFrameCatalog.exactLayout(forPhotos: n) { return layout.columns }
+        return min(10, max(1, Int(ceil(Double(n).squareRoot()))))
     }
 
     /// Signature that changes whenever the shown set changes — drives image loading + re-render.

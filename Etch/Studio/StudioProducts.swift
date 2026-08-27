@@ -148,10 +148,34 @@ enum MultiPhotoFrameCatalog {
     /// Resolved from the product page by `discover-product.sh`; nil until that lands.
     static let sku: String? = nil
 
-    /// The wall defaults to twenty because twenty fills a 5×4 grid exactly. The frame accepts
-    /// nine to sixty, but a count that leaves a ragged last row makes a worse object than one
-    /// that doesn't.
-    static let defaultPhotos = 20
+    /// The three grids Prodigi's own artwork templates lay out, each filled exactly.
+    struct Layout {
+        let name: String
+        let columns: Int
+        let rows: Int
+        /// Glaze size in millimetres — the frame's own size, not counting the moulding.
+        let widthMM: CGFloat
+        let heightMM: CGFloat
+        var capacity: Int { columns * rows }
+    }
+
+    /// Taken from the template sheets rather than derived: 60mm cells and 20mm borders permit
+    /// several arrangements, and these are the ones the frames are actually cut for.
+    static let layouts = [
+        Layout(name: "M",  columns: 6,  rows: 4, widthMM: 600, heightMM: 400),
+        Layout(name: "L",  columns: 8,  rows: 5, widthMM: 750, heightMM: 500),
+        Layout(name: "XL", columns: 10, rows: 6, widthMM: 900, heightMM: 600)
+    ]
+
+    /// The grid a given count fills exactly, when there is one. A wall that matches its frame's
+    /// arrangement is a preview of the object; one that doesn't is a picture of something else.
+    static func exactLayout(forPhotos count: Int) -> Layout? {
+        layouts.first { $0.capacity == count }
+    }
+
+    /// Forty: the L frame, 8×5, filled to the corner. The frame accepts nine to sixty, but a
+    /// count that leaves a ragged last row makes a worse object than one that doesn't.
+    static let defaultPhotos = 40
     static let minPhotos = 9
     static let maxPhotos = 60
 
@@ -161,6 +185,17 @@ enum MultiPhotoFrameCatalog {
 
     /// One cell at 300 DPI: 60mm ≈ 2.362 inches, so 709px square.
     static var cellPixels: CGFloat { (cellMM / 25.4) * 300 }
+
+    /// What a print-ready wall has to measure for a given grid, cells only.
+    ///
+    /// Worth stating plainly because the numbers are large and the on-screen wall is nowhere
+    /// near them: the shared image renders 1000px wide, while L needs **5672 × 3545** and XL
+    /// needs 7090 × 4254. The share export is a picture of the wall; the order will need its own
+    /// render at this scale, the way the poster line already does.
+    static func printPixelSize(for layout: Layout) -> CGSize {
+        CGSize(width: CGFloat(layout.columns) * cellPixels,
+               height: CGFloat(layout.rows) * cellPixels)
+    }
 
     static var isAvailable: Bool {
         sku != nil && EtchConfig.current.prices.photoWallCents != nil
