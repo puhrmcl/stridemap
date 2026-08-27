@@ -143,28 +143,36 @@ enum MedalFrameCatalog {
 /// UK, EU *and US* — unlike the medal frame, so a US buyer isn't paying transatlantic shipping.
 enum MultiPhotoFrameCatalog {
 
+    /// Verified SKUs. Two families, and the difference matters: `MPF` is **No Mount / No Mat**,
+    /// so the whole print area is one image and any grid is ours to draw; `MPFM` is
+    /// **Mounted / Matted** with a 2.4mm snow-white mount, which is the version whose windows are
+    /// physically cut — the one Prodigi's own artwork templates are drawn for.
     static let skuPrefix = "GLOBAL-MPF"
+    static let mountedSKUPrefix = "GLOBAL-MPFM"
 
-    /// Resolved from the product page by `discover-product.sh`; nil until that lands.
-    static let sku: String? = nil
-
-    /// The three grids Prodigi's own artwork templates lay out, each filled exactly.
+    /// The three grids Prodigi's artwork templates lay out, each now tied to the SKU whose print
+    /// area matches it to the millimetre. The templates are drawn landscape while the catalog
+    /// reports portrait print areas, so the same SKU turned on its side.
     struct Layout {
         let name: String
         let columns: Int
         let rows: Int
-        /// Glaze size in millimetres — the frame's own size, not counting the moulding.
+        /// Glaze size in millimetres, landscape — the frame's own size, not counting moulding.
         let widthMM: CGFloat
         let heightMM: CGFloat
+        /// Unmounted SKU. The mounted variant swaps MPF for MPFM.
+        let sku: String
+        var mountedSKU: String { sku.replacingOccurrences(of: "GLOBAL-MPF-", with: "GLOBAL-MPFM-") }
         var capacity: Int { columns * rows }
     }
 
-    /// Taken from the template sheets rather than derived: 60mm cells and 20mm borders permit
-    /// several arrangements, and these are the ones the frames are actually cut for.
+    /// Sizes confirmed against the live catalog: 20X30's print area is 5905×8858px, exactly
+    /// 500×750mm, which is the L template turned upright; 24X36's is 7086×10629, exactly
+    /// 600×900mm, the XL template. 16X24 follows the same pattern at 400×600mm.
     static let layouts = [
-        Layout(name: "M",  columns: 6,  rows: 4, widthMM: 600, heightMM: 400),
-        Layout(name: "L",  columns: 8,  rows: 5, widthMM: 750, heightMM: 500),
-        Layout(name: "XL", columns: 10, rows: 6, widthMM: 900, heightMM: 600)
+        Layout(name: "M",  columns: 6,  rows: 4, widthMM: 600, heightMM: 400, sku: "GLOBAL-MPF-16X24"),
+        Layout(name: "L",  columns: 8,  rows: 5, widthMM: 750, heightMM: 500, sku: "GLOBAL-MPF-20X30"),
+        Layout(name: "XL", columns: 10, rows: 6, widthMM: 900, heightMM: 600, sku: "GLOBAL-MPF-24X36")
     ]
 
     /// The grid a given count fills exactly, when there is one. A wall that matches its frame's
@@ -186,20 +194,14 @@ enum MultiPhotoFrameCatalog {
     /// One cell at 300 DPI: 60mm ≈ 2.362 inches, so 709px square.
     static var cellPixels: CGFloat { (cellMM / 25.4) * 300 }
 
-    /// What a print-ready wall has to measure for a given grid, cells only.
-    ///
-    /// Worth stating plainly because the numbers are large and the on-screen wall is nowhere
-    /// near them: the shared image renders 1000px wide, while L needs **5672 × 3545** and XL
-    /// needs 7090 × 4254. The share export is a picture of the wall; the order will need its own
-    /// render at this scale, the way the poster line already does.
+    /// The full print area for a layout, from its glaze size at 300 DPI — the number an order
+    /// has to supply, and nowhere near the 1000px the shared image renders at. L is 8858×5905
+    /// landscape; XL is 10629×7086.
     static func printPixelSize(for layout: Layout) -> CGSize {
-        CGSize(width: CGFloat(layout.columns) * cellPixels,
-               height: CGFloat(layout.rows) * cellPixels)
+        CGSize(width: (layout.widthMM / 25.4) * 300, height: (layout.heightMM / 25.4) * 300)
     }
 
-    static var isAvailable: Bool {
-        sku != nil && EtchConfig.current.prices.photoWallCents != nil
-    }
+    static var isAvailable: Bool { EtchConfig.current.prices.photoWallCents != nil }
 
     static var price: String {
         guard let cents = EtchConfig.current.prices.photoWallCents else { return "—" }
@@ -208,7 +210,10 @@ enum MultiPhotoFrameCatalog {
 
     static let frameColours = ["black", "brown", "dark grey", "gold",
                                "light grey", "natural", "silver", "white"]
-    static let mountColours = ["Snow white", "Black", "Off-white"]
+
+    /// The mounted variant offers exactly one mount colour, whatever the range sheet's
+    /// "Snow white, Black, Off-white" suggests — the catalog reports `mountColor: ["Snow white"]`.
+    static let mountColours = ["Snow white"]
 }
 
 /// A poster *finish* rather than a product: the same fine-art print, shipped with a solid wood
@@ -223,18 +228,40 @@ enum PosterHangerCatalog {
 
     static let skuPrefix = "POSTER-HANGER"
 
-    /// Resolved from the product page by `discover-product.sh`; nil until that lands.
-    static let sku: String? = nil
+    /// Codes read off the product page and confirmed live. The shape is
+    /// `POSTER-HANGER-<hanger cm>-<print size>-<orientation>`, so the hanger's own width is part
+    /// of the code rather than an attribute — a 24×36" portrait print takes the 60cm hanger.
+    ///
+    /// The one that matters most: **`POSTER-HANGER-60-24X36-PORT` has a 7200 × 10800 print
+    /// area — identical to `GLOBAL-HGE-24X36` and `GLOBAL-CFP-24X36`.** The hanger is a drop-in
+    /// finish for artwork the Studio already composes, on the same EMA 200gsm stock as the
+    /// framed line. No new geometry, no new render.
+    static let confirmed = [
+        "POSTER-HANGER-20-6X8-PORT":     CGSize(width: 1800, height: 2400),
+        "POSTER-HANGER-30-12X12-SQUARE": CGSize(width: 3600, height: 3600),
+        "POSTER-HANGER-30-A3-PORT":      CGSize(width: 3507, height: 4960),
+        "POSTER-HANGER-60-24X36-PORT":   CGSize(width: 7200, height: 10800),
+        "POSTER-HANGER-80-24X32-LAND":   CGSize(width: 9600, height: 7200)
+    ]
+
+    /// The size the poster line already renders, so the first finish to offer.
+    static let sku24x36 = "POSTER-HANGER-60-24X36-PORT"
 
     /// How much of the print each wooden strip hides, top and bottom.
     static let hangerCoverMM: CGFloat = 15
 
-    /// The same at 300 DPI, which is what the composition has to keep clear.
+    /// The same at 300 DPI, which is what the composition has to keep clear. On a 24×36" print
+    /// that is 177px of the 10800 at each end — small in proportion, and exactly where the
+    /// poster puts its title and date line, so a hung edition cannot reuse the framed margins.
     static var hangerCoverPixels: CGFloat { (hangerCoverMM / 25.4) * 300 }
 
-    static let hangerColours = ["black", "white", "natural oak"]
+    /// The `color` attribute's accepted values. The range sheet says "natural oak"; the catalog
+    /// takes plain `natural`, and a quote is rejected on the sheet's wording.
+    static let hangerColours = ["black", "natural", "white"]
 
-    static var isAvailable: Bool { sku != nil }
+    /// The 12×18" and 16×24" hangers were not on the product page, so the finish is offered at
+    /// 24×36" only until they are confirmed the same way.
+    static var isAvailable: Bool { false }
 }
 
 /// Chooses the activity a poster is made from — reached *after* picking a product, which is
