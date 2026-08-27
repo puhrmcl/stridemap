@@ -12,7 +12,11 @@
 # on their own store. Those tokens last 24 hours, which is why storing one would have worked
 # for a day and then quietly stopped.
 #
-# action=status   list the certificates the store already has (safe; start here)
+# # First run with real credentials. status is a read: it authenticates with the client
+# credentials grant and lists whatever certificates the store already has. If the token comes
+# back, the app and secrets are wired correctly; if the certificates call is then rejected,
+# that is the scope approval still pending, which is a different and expected failure.
+action=status   list the certificates the store already has (safe; start here)
 # action=create   make a resource, wait for the CSR, print it and attach it as an artifact
 # action=upload   send Apple's signed apple_pay.cer back to Shopify
 #
@@ -23,6 +27,10 @@
 #
 # shop_domain and api_version default to the Etch store and 2026-07; override only if needed.
 
+# First run with real credentials. status is a read: it authenticates with the client
+# credentials grant and lists whatever certificates the store already has. If the token comes
+# back, the app and secrets are wired correctly; if the certificates call is then rejected,
+# that is the scope approval still pending, which is a different and expected failure.
 action=status
 
 certificate_id=
