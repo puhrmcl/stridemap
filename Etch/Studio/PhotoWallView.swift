@@ -10,7 +10,9 @@ struct PhotoWallView: View {
 
     @State private var filter: Filter = .all
     @State private var sort: SortOrder = .newest
-    @State private var count = 24
+    /// Twenty is the wall's default because it is what the frame it prints into wants: a 5×4
+    /// grid fills exactly, with no half-empty last row. `columnCount` lands on 5 for this count.
+    @State private var count = MultiPhotoFrameCatalog.defaultPhotos
     /// Photos the user tapped away — the next unused photo fills their slot.
     @State private var excludedIDs: Set<UUID> = []
     /// A shuffled ordering of run ids, regenerated each time Shuffle is tapped.
@@ -20,8 +22,9 @@ struct PhotoWallView: View {
     /// Runs whose cover photo is a screenshot — kept out of the wall so it reads as photography.
     @State private var screenshotRunIDs: Set<UUID> = []
 
-    /// Hard ceiling on one wall, so the grid stays legible and the render stays light.
-    private let maxPhotos = 60
+    /// Hard ceiling on one wall — which is also the frame's own ceiling, so a wall that reads
+    /// well on screen is always one that can actually be made.
+    private let maxPhotos = MultiPhotoFrameCatalog.maxPhotos
 
     enum Filter: Hashable {
         case all

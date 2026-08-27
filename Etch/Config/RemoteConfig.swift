@@ -40,6 +40,9 @@ struct EtchRemoteConfig: Codable, Sendable, Equatable {
         /// until a real quote lands — its wholesale is the highest in the range and it ships
         /// from the UK, so guessing it would be guessing at a loss.
         var medalFrameCents: Int?
+        /// The Photo Wall's multi-photo frame, in USD cents. Optional for the same reason as
+        /// the medal frame: no rung until a real quote lands.
+        var photoWallCents: Int?
     }
 
     /// How much history an Archive style needs before it's offered. These are judgement calls
@@ -76,7 +79,8 @@ struct EtchRemoteConfig: Codable, Sendable, Equatable {
             closedTitle: "Ordering opens soon",
             closedDetail: "Printed to order on archival paper and shipped to your door. Secure checkout with Apple Pay."
         ),
-        prices: Prices(bySKU: [:], yearBookCents: 11900, medalFrameCents: nil),
+        prices: Prices(bySKU: [:], yearBookCents: 11900,
+                       medalFrameCents: nil, photoWallCents: nil),
         archive: ArchiveGates(
             gridMinRoutedRuns: 20,
             ridgelineMinProfiles: 12,

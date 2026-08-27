@@ -6,7 +6,7 @@ import SwiftData
 /// is a *choice made inside* buying one — the order Tesla uses, and the reason their
 /// configurator is ten taps rather than seventy.
 enum StudioProduct: String, CaseIterable, Identifiable {
-    case mapPoster, galleryPoster, medalFrame, yearBook, wallArt
+    case mapPoster, galleryPoster, photoWall, medalFrame, yearBook, wallArt
     var id: String { rawValue }
 
     /// The products the storefront currently offers. The medal frame is built but withheld until
@@ -14,13 +14,20 @@ enum StudioProduct: String, CaseIterable, Identifiable {
     /// (MEDAL-FRA-CLA) and the geometry, not the orderable code, and this shop has never listed
     /// something it can't actually make.
     static var offered: [StudioProduct] {
-        allCases.filter { $0 != .medalFrame || MedalFrameCatalog.isAvailable }
+        allCases.filter { product in
+            switch product {
+            case .medalFrame: return MedalFrameCatalog.isAvailable
+            case .photoWall:  return MultiPhotoFrameCatalog.isAvailable
+            default:          return true
+            }
+        }
     }
 
     var name: String {
         switch self {
         case .mapPoster:     return "Map Poster"
         case .galleryPoster: return "Gallery Poster"
+        case .photoWall:     return "Photo Wall"
         case .medalFrame:    return "Medal Frame"
         case .yearBook:      return "Year Book"
         case .wallArt:       return "Wall Art"
@@ -32,6 +39,7 @@ enum StudioProduct: String, CaseIterable, Identifiable {
         switch self {
         case .mapPoster:     return "One route, over real geography."
         case .galleryPoster: return "Photos, map and elevation, composed."
+        case .photoWall:     return "Twenty runs, one frame."
         case .medalFrame:    return "The medal, and the day you earned it."
         case .yearBook:      return "A year of it, bound."
         case .wallArt:       return "Everything you've run, as one object."
@@ -42,6 +50,8 @@ enum StudioProduct: String, CaseIterable, Identifiable {
         switch self {
         case .yearBook:
             return BookCatalog.price
+        case .photoWall:
+            return MultiPhotoFrameCatalog.price
         case .medalFrame:
             return MedalFrameCatalog.price
         default:
@@ -69,6 +79,7 @@ enum StudioProduct: String, CaseIterable, Identifiable {
     var placeholderSymbol: String {
         switch self {
         case .yearBook:   return "book.pages"
+        case .photoWall:  return "square.grid.3x3"
         case .medalFrame: return "medal"
         default:          return "photo.artframe"
         }
@@ -122,6 +133,73 @@ enum MedalFrameCatalog {
     /// `color`, which is the catalog's inconsistency and not ours to tidy: a quote is rejected
     /// without both attributes, and rejected again if either is spelled the other way.
     static let mountColours = ["Black", "Navy"]
+}
+
+/// The Photo Wall's object: a classic frame whose mount is cut with one aperture per photo.
+///
+/// From Prodigi's range sheet: 9 to 60 images, each printed at **60×60mm with a 20mm border**
+/// between apertures, on enhanced matte art paper behind Perspex in a satin-laminated classic
+/// frame. Frame sizes 12×12" to 24×36", eight frame colours, mounted or unmounted. Made in the
+/// UK, EU *and US* — unlike the medal frame, so a US buyer isn't paying transatlantic shipping.
+enum MultiPhotoFrameCatalog {
+
+    static let skuPrefix = "GLOBAL-MPF"
+
+    /// Resolved from the product page by `discover-product.sh`; nil until that lands.
+    static let sku: String? = nil
+
+    /// The wall defaults to twenty because twenty fills a 5×4 grid exactly. The frame accepts
+    /// nine to sixty, but a count that leaves a ragged last row makes a worse object than one
+    /// that doesn't.
+    static let defaultPhotos = 20
+    static let minPhotos = 9
+    static let maxPhotos = 60
+
+    /// Each aperture, in millimetres, and the mount border between them.
+    static let cellMM: CGFloat = 60
+    static let borderMM: CGFloat = 20
+
+    /// One cell at 300 DPI: 60mm ≈ 2.362 inches, so 709px square.
+    static var cellPixels: CGFloat { (cellMM / 25.4) * 300 }
+
+    static var isAvailable: Bool {
+        sku != nil && EtchConfig.current.prices.photoWallCents != nil
+    }
+
+    static var price: String {
+        guard let cents = EtchConfig.current.prices.photoWallCents else { return "—" }
+        return (Double(cents) / 100).formatted(.currency(code: "USD").precision(.fractionLength(0)))
+    }
+
+    static let frameColours = ["black", "brown", "dark grey", "gold",
+                               "light grey", "natural", "silver", "white"]
+    static let mountColours = ["Snow white", "Black", "Off-white"]
+}
+
+/// A poster *finish* rather than a product: the same fine-art print, shipped with a solid wood
+/// magnetic hanger instead of a frame. Cheapest finish in the range (£7 wholesale and up), made
+/// in the UK, US and EU, offered from 6×8" up to A0.
+///
+/// One geometry consequence the print engine has to respect: **the wooden strips cover up to
+/// 15mm of the print at the top and bottom**. Anything inside that band — a title, a date line —
+/// is hidden by the hanger, so a hung edition needs deeper top and bottom margins than a framed
+/// one, not the same ones.
+enum PosterHangerCatalog {
+
+    static let skuPrefix = "POSTER-HANGER"
+
+    /// Resolved from the product page by `discover-product.sh`; nil until that lands.
+    static let sku: String? = nil
+
+    /// How much of the print each wooden strip hides, top and bottom.
+    static let hangerCoverMM: CGFloat = 15
+
+    /// The same at 300 DPI, which is what the composition has to keep clear.
+    static var hangerCoverPixels: CGFloat { (hangerCoverMM / 25.4) * 300 }
+
+    static let hangerColours = ["black", "white", "natural oak"]
+
+    static var isAvailable: Bool { sku != nil }
 }
 
 /// Chooses the activity a poster is made from — reached *after* picking a product, which is

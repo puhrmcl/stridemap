@@ -45,3 +45,17 @@ jobs:
         run: |
           chmod +x fulfilment/scripts/medal-frames.sh
           ./fulfilment/scripts/medal-frames.sh --live
+
+      # The Photo Wall's output product and the poster hanger finish. Reading the product page
+      # is the only method that has ever resolved a Prodigi SKU for us; prefixes never have.
+      - name: Discover multi photo frames and poster hangers
+        if: always()
+        env:
+          PRODIGI_API_KEY: ${{ secrets.PRODIGI_API_KEY }}
+        run: |
+          chmod +x fulfilment/scripts/discover-product.sh
+          ./fulfilment/scripts/discover-product.sh GLOBAL-MPF \
+            https://www.prodigi.com/products/wall-art/framed-prints/multi-photo-frames/
+          echo ""
+          ./fulfilment/scripts/discover-product.sh POSTER-HANGER \
+            https://www.prodigi.com/products/prints-and-posters/poster-hangers/art-print-with-hanger/

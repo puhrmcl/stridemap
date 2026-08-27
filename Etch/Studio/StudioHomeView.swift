@@ -438,6 +438,7 @@ struct StudioHomeView: View {
     private func open(_ product: StudioProduct) {
         switch product {
         case .mapPoster, .galleryPoster, .medalFrame: pickingFor = product
+        case .photoWall:                              showPhotoWall = true
         case .yearBook:                               showYearBook = true
         case .wallArt:                                mapPrintKind = .artMap
         }
@@ -507,6 +508,11 @@ struct StudioHomeView: View {
                 let year = Calendar.current.component(.year, from: subject.startDate)
                 let plan = BookPlan.make(year: year, runs: runs)
                 image = await BookRenderer.pageImage(plan: plan, page: 0, scale: 0.34)
+            case .photoWall:
+                // The tile wants the wall inside its frame, not the bare grid — a mockup the
+                // wall renderer doesn't produce yet. The glyph placeholder stands until it does,
+                // which is moot while the product is withheld for want of a SKU.
+                image = nil
             case .wallArt:
                 var request = MapPrintRequest.make(kind: .artMap, runs: mapped)
                 request.artStyle = .grid
