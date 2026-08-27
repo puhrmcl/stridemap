@@ -16,5 +16,5 @@
 # a phone-class device. Plus the storefront, where the Photo Wall tile now shows the wall
 # inside its frame.
 
-screens=print-engine,map-studio
+screens=print-engine,studio@products
 appearance=light

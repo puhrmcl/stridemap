@@ -56,14 +56,18 @@ interface Entry {
 /**
  * Reads a byte range out of the archive.
  *
- * Every lookup is one or two of these — the root directory, then the tile — so they are the whole
- * cost of serving a tile and they are what R2's ranged reads make cheap.
+ * These are the whole cost of serving a tile. R2 bills reads per operation, so how many of them a
+ * single tile costs is the difference between this basemap costing a couple of dollars a month and
+ * costing thirty — see the cache below.
  */
 async function readRange(env: TileEnv, offset: number, length: number): Promise<ArrayBuffer> {
-  const key = env.BASEMAP_KEY ?? DEFAULT_KEY;
-  const object = await env.ASSETS.get(key, { range: { offset, length } });
-  if (!object) throw new Error(`basemap ${key} is not in the bucket`);
+  const object = await env.ASSETS.get(archiveKey(env), { range: { offset, length } });
+  if (!object) throw new Error(`basemap ${archiveKey(env)} is not in the bucket`);
   return await object.arrayBuffer();
+}
+
+function archiveKey(env: TileEnv): string {
+  return env.BASEMAP_KEY ?? DEFAULT_KEY;
 }
 
 /** Little-endian unsigned 64-bit read. Offsets in a planet-scale archive exceed 32 bits. */
@@ -71,13 +75,44 @@ function readUint64(view: DataView, offset: number): number {
   return Number(view.getBigUint64(offset, true));
 }
 
-async function readHeader(env: TileEnv): Promise<Header> {
+/**
+ * What a warm isolate remembers between requests.
+ *
+ * A PMTiles archive is immutable for its whole life — a new planet build is a new object under a
+ * new key, never an edit of this one — so the header and the root directory are constants once
+ * read. Fetching them again for every tile was costing three or four R2 reads per tile where one
+ * or two would do, which at a hundred thousand sessions a month is the difference between about
+ * $8 and about $30.
+ *
+ * Everything is keyed by the object key, so pointing `BASEMAP_KEY` at a new build invalidates the
+ * lot without a deploy dance. A cold isolate simply refills it; nothing here has to survive.
+ */
+interface ArchiveCache {
+  key: string;
+  header: Header;
+  root: Entry[];
+  /** Leaf directories, most recently used last. */
+  leaves: Map<string, Entry[]>;
+}
+let cache: ArchiveCache | null = null;
+
+/**
+ * Leaf directories are a few kilobytes each and a planet has thousands, so this is bounded. Runs
+ * cluster — the same person's routes, and everyone's races, sit in a handful of metros — so even
+ * a small cache catches most of the repeats within a render.
+ */
+const MAX_LEAVES = 64;
+
+async function archive(env: TileEnv): Promise<ArchiveCache> {
+  const key = archiveKey(env);
+  if (cache && cache.key === key) return cache;
+
   const view = new DataView(await readRange(env, 0, HEADER_BYTES));
   // "PMTiles" + version 3.
   const magic = String.fromCharCode(...new Uint8Array(view.buffer, 0, 7));
   if (magic !== "PMTiles") throw new Error("not a PMTiles archive");
   if (view.getUint8(7) !== 3) throw new Error("only PMTiles v3 is supported");
-  return {
+  const header: Header = {
     rootDirectoryOffset: readUint64(view, 8),
     rootDirectoryLength: readUint64(view, 16),
     tileDataOffset: readUint64(view, 40),
@@ -86,6 +121,34 @@ async function readHeader(env: TileEnv): Promise<Header> {
     minZoom: view.getUint8(100),
     maxZoom: view.getUint8(101),
   };
+
+  const rootRaw = await readRange(env, header.rootDirectoryOffset, header.rootDirectoryLength);
+  const root = decodeDirectory(await decompress(rootRaw, header.internalCompression));
+
+  cache = { key, header, root, leaves: new Map() };
+  return cache;
+}
+
+/** A leaf directory, from the cache or from R2. */
+async function leafDirectory(
+  env: TileEnv, entry: ArchiveCache, offset: number, length: number
+): Promise<Entry[]> {
+  const id = `${offset}:${length}`;
+  const hit = entry.leaves.get(id);
+  if (hit) {
+    // Re-inserting moves it to the end, which is what makes the eviction below least-recently-used.
+    entry.leaves.delete(id);
+    entry.leaves.set(id, hit);
+    return hit;
+  }
+  const raw = await readRange(env, offset, length);
+  const entries = decodeDirectory(await decompress(raw, entry.header.internalCompression));
+  entry.leaves.set(id, entries);
+  if (entry.leaves.size > MAX_LEAVES) {
+    const oldest = entry.leaves.keys().next();
+    if (!oldest.done) entry.leaves.delete(oldest.value);
+  }
+  return entries;
 }
 
 /** Gunzip, when the archive says its directories are compressed. */
@@ -210,25 +273,27 @@ export function tileID(z: number, x: number, y: number): number {
 export async function serveTile(
   env: TileEnv, z: number, x: number, y: number
 ): Promise<Response> {
-  const header = await readHeader(env);
+  const archived = await archive(env);
+  const header = archived.header;
   if (z < header.minZoom || z > header.maxZoom) return new Response(null, { status: 204 });
 
   const wanted = tileID(z, x, y);
-  let directoryOffset = header.rootDirectoryOffset;
-  let directoryLength = header.rootDirectoryLength;
+  // The root is already in memory; only a leaf miss and the tile itself reach R2.
+  let entries = archived.root;
 
-  // Root, then at most two levels of leaf directories — deeper than any planet build needs, and
+  // Root, then at most three levels of leaf directories — deeper than any planet build needs, and
   // bounded so a malformed archive can't spin here.
   for (let depth = 0; depth < 4; depth++) {
-    const raw = await readRange(env, directoryOffset, directoryLength);
-    const entries = decodeDirectory(await decompress(raw, header.internalCompression));
     const entry = findEntry(entries, wanted);
     if (!entry) return new Response(null, { status: 204 });
 
     if (entry.runLength === 0) {
       // A leaf directory: its offset is relative to the root directory's own region.
-      directoryOffset = header.rootDirectoryOffset + header.rootDirectoryLength + entry.offset;
-      directoryLength = entry.length;
+      entries = await leafDirectory(
+        env, archived,
+        header.rootDirectoryOffset + header.rootDirectoryLength + entry.offset,
+        entry.length
+      );
       continue;
     }
 
@@ -250,7 +315,7 @@ export async function serveTile(
 
 /** TileJSON describing the archive, which is what a MapLibre style's source points at. */
 export async function serveTileJSON(env: TileEnv, origin: string): Promise<Response> {
-  const header = await readHeader(env);
+  const header = (await archive(env)).header;
   return new Response(JSON.stringify({
     tilejson: "3.0.0",
     name: "Etch Basemap",

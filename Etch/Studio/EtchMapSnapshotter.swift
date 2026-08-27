@@ -28,8 +28,62 @@ enum EtchMapSnapshotter {
 
     /// Whether this edition's panel can come from our own cartography.
     static func canRender(_ edition: StudioEdition) -> Bool {
-        guard isAvailable, let kind = edition.mapKind else { return false }
+        guard isAvailable, !isTripped, let kind = edition.mapKind else { return false }
         return kind != .satellite
+    }
+
+    // MARK: The blank-map circuit breaker
+
+    /// Consecutive renders that came back with nothing on them.
+    private static var blankRuns = 0
+
+    /// After this many, stop trying for the rest of the session.
+    ///
+    /// One blank render is ambiguous — a route across open water or featureless desert genuinely
+    /// has no features to draw, and falling back to Apple for that single poster is the right
+    /// answer anyway. Three different routes coming back blank is not terrain, it is the archive:
+    /// missing, mis-keyed, or a worker that is down. At that point every further attempt is a
+    /// MapLibre snapshot that will time out before failing, and the editor would crawl.
+    private static let blankLimit = 3
+
+    private static var isTripped: Bool { blankRuns >= blankLimit }
+
+    /// Whether a snapshot has nothing on it but its own background.
+    ///
+    /// This is the guard that was missing, and its absence was a real defect: MapLibre renders the
+    /// style's background layer and returns a **successful** image when every tile request fails,
+    /// so a nil-check never fires and the poster silently loses its city. A customer would find
+    /// that, not us.
+    ///
+    /// The test is exact uniformity. The image is averaged down to a small grid — averaging rather
+    /// than nearest-neighbour sampling, so a single hairline road still perturbs the cell it
+    /// crosses instead of being stepped over — and if every cell is byte-identical then nothing
+    /// but the background drew. Any real content at all, one road or one lake edge, breaks it.
+    /// Exact comparison is the conservative direction: it errs toward *trusting* the render, and
+    /// the cost of a wrong "blank" is only a fallback to Apple.
+    private static func isBlank(_ image: UIImage) -> Bool {
+        guard let cgImage = image.cgImage else { return true }
+        let side = 96
+        var pixels = [UInt8](repeating: 0, count: side * side * 4)
+        let drew: Bool = pixels.withUnsafeMutableBytes { raw in
+            guard let context = CGContext(
+                data: raw.baseAddress, width: side, height: side, bitsPerComponent: 8,
+                bytesPerRow: side * 4, space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+                    | CGBitmapInfo.byteOrder32Big.rawValue
+            ) else { return false }
+            context.interpolationQuality = .high
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: side, height: side))
+            return true
+        }
+        guard drew else { return true }
+
+        let first = (pixels[0], pixels[1], pixels[2])
+        for index in stride(from: 4, to: pixels.count, by: 4) {
+            if pixels[index] != first.0 || pixels[index + 1] != first.1
+                || pixels[index + 2] != first.2 { return false }
+        }
+        return true
     }
 
     /// A snapshot and the frame it was taken in.
@@ -151,7 +205,20 @@ enum EtchMapSnapshotter {
                 continuation.resume(returning: snapshot?.image)
             }
         }
-        guard let image else { return nil }
+        guard let image else {
+            blankRuns += 1
+            return nil
+        }
+        // A returned image is not yet a map. Prove something drew on it before handing back a
+        // panel this poster could be *sold* on the strength of.
+        guard !isBlank(image) else {
+            blankRuns += 1
+            if isTripped {
+                print("basemap: \(blankLimit) blank renders — falling back to Apple for this session")
+            }
+            return nil
+        }
+        blankRuns = 0
         return Snapshot(image: image, frame: frame)
     }
 

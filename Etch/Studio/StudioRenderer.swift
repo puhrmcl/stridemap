@@ -85,7 +85,14 @@ enum StudioRenderer {
     static let maxLongEdgePixels = PrintGeometry.deviceRenderLongEdge
 
     /// The map / contour art panel image. Nil for photo and paper editions.
-    static func panelImage(for request: Request, panelPixelWidth: CGFloat) async -> UIImage? {
+    ///
+    /// `requireOwnCartography` refuses the Apple fallback. A screen preview is happy to show an
+    /// Apple panel when our tiles are unreachable — the poster still exists, it just can't be
+    /// sold. A *print* must not: falling back silently there would upload an Apple-derived sheet
+    /// to the print lab, which is the exact licensing line the whole basemap exists to stay on
+    /// the right side of. So the print path asks for our cartography or nothing.
+    static func panelImage(for request: Request, panelPixelWidth: CGFloat,
+                           requireOwnCartography: Bool = false) async -> UIImage? {
         // Full Bleed runs the map across the entire sheet, so its panel is snapshotted at the
         // canvas shape rather than the square art panel — no stretch, no crop surprise.
         let panelSize = request.mapLayoutRaw == MapLayout.fullBleed.rawValue && request.layout == .classic
@@ -99,7 +106,8 @@ enum StudioRenderer {
         }
         guard request.edition.mapKind != nil else { return nil }
         return await PosterMap.studioPanel(for: request.run, size: panelSize,
-                                           edition: request.edition, route: request.routeColor)
+                                           edition: request.edition, route: request.routeColor,
+                                           requireOwnCartography: requireOwnCartography)
     }
 
     /// Loads the composition's photos at a resolution matched to how many cells share the panel —
@@ -450,6 +458,20 @@ enum StudioRenderer {
     /// contour (drawn by us at any size), photo, and paper.
     static let maxPanelPixelWidth: CGFloat = 5000
 
+    /// What can go wrong producing a print file, as distinct from a preview failing to draw.
+    enum PrintError: Error, LocalizedError {
+        /// A map edition whose panel our own cartography could not supply.
+        case cartographyUnavailable
+
+        var errorDescription: String? {
+            switch self {
+            case .cartographyUnavailable:
+                return "This style's map couldn't be loaded, so it can't be printed right now. "
+                     + "Try again in a moment, or pick a contour or paper style."
+            }
+        }
+    }
+
     /// Rows of output pixels rendered in one pass. At a 7200px width one band costs about 26 MB,
     /// so a 24×36 is twelve of them instead of a single 311 MB allocation.
     static let bandPixelHeight: CGFloat = 900
@@ -472,7 +494,8 @@ enum StudioRenderer {
         let pixelWidth = Int((canvas.width * scale).rounded())
         let pixelHeight = Int((canvas.height * scale).rounded())
 
-        let built = await buildComposition(for: request, scale: scale)
+        let built = try await buildComposition(for: request, scale: scale,
+                                               requireOwnCartography: request.edition.mapKind != nil)
         let ground = request.groundColor ?? request.edition.ground
 
         // A finish that covers part of the sheet — the poster hanger's wooden strips — reserves a
@@ -534,13 +557,21 @@ enum StudioRenderer {
     /// Builds the composition once, with everything a render needs resolved. Split out of
     /// `image(for:scale:)` so the band loop pays for the panel, the photos and the fit pass a
     /// single time rather than once per band.
-    private static func buildComposition(for request: Request, scale: CGFloat) async -> StudioComposition {
+    private static func buildComposition(for request: Request, scale: CGFloat,
+                                         requireOwnCartography: Bool = false) async throws -> StudioComposition {
         let pixelWidth = min(StudioComposition.width * scale, maxPanelPixelWidth)
-        async let panelTask = panelImage(for: request, panelPixelWidth: pixelWidth)
+        async let panelTask = panelImage(for: request, panelPixelWidth: pixelWidth,
+                                         requireOwnCartography: requireOwnCartography)
         async let photosTask = photoImages(for: request, panelPixelWidth: pixelWidth)
         async let profileTask = elevationProfile(for: request)
         let (panelRaw, photoPack, profile) = await (panelTask, photosTask, profileTask)
         var panel = panelRaw
+        // A map edition whose panel came back nil under a strict render means our tiles could not
+        // supply it. Refusing here is the whole point: the alternative is an order that looks
+        // fine and ships someone else's map data.
+        if requireOwnCartography, request.edition.mapKind != nil, panel == nil {
+            throw PrintError.cartographyUnavailable
+        }
         var photos = photoPack.0
         if request.monochrome {
             panel = panel.map { $0.desaturated() }

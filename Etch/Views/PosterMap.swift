@@ -79,9 +79,13 @@ enum PosterMap {
     /// per the edition), washed toward the edition's material, with the route drawn on top in
     /// the edition's style (optional casing, optional glow, start/finish dots). Returns nil for
     /// paper editions, which draw a vector route in the composition instead.
+    /// - Parameter requireOwnCartography: refuses the Apple fallback, returning nil instead. The
+    ///   print path sets it: a preview may honestly show an Apple panel and simply not be
+    ///   sellable, but a print file built from one would be Apple's map data on merchandise.
     @MainActor
     static func studioPanel(for run: Run, size: CGSize, edition: StudioEdition,
-                            route routeOverride: Color? = nil) async -> UIImage? {
+                            route routeOverride: Color? = nil,
+                            requireOwnCartography: Bool = false) async -> UIImage? {
         guard let kind = edition.mapKind else { return nil }
         let coordinates = run.coordinates
         guard coordinates.count > 1 else { return nil }
@@ -90,8 +94,13 @@ enum PosterMap {
         // every keystroke in a text field — and each render used to start a fresh MKMapSnapshotter.
         // The panel only depends on the run, the edition, the size and the route tint, so cache it:
         // typing a title now costs one snapshot, not one per character.
+        // A strict render neither reads nor writes the cache. The key covers the run, size,
+        // edition and route tint — not *where the map came from* — so a preview that fell back to
+        // Apple would otherwise be handed straight back to a print asking for our cartography,
+        // and the guard would pass while shipping the thing it exists to prevent. Print panels are
+        // rendered once per order, so there is nothing to save here anyway.
         let key = panelKey("studio", run: run, size: size, edition: edition, route: routeOverride)
-        if let cached = panelCache.object(forKey: key) { return cached }
+        if !requireOwnCartography, let cached = panelCache.object(forKey: key) { return cached }
 
         // Etch's own cartography first, when the basemap is live and this edition has an
         // OpenStreetMap equivalent — that is the panel the poster may actually be sold as. Apple
@@ -107,9 +116,14 @@ enum PosterMap {
                 edition: edition, route: routeOverride,
                 project: { own.frame.point(for: $0, in: size) }
             )
-            panelCache.setObject(finished, forKey: key)
+            if !requireOwnCartography { panelCache.setObject(finished, forKey: key) }
             return finished
         }
+
+        // Our cartography could not supply it. For a preview that is fine — Apple draws the panel
+        // and the shop marks the piece display-only. For a print it is not: the caller asked for
+        // a sheet it can sell, and there isn't one.
+        if requireOwnCartography { return nil }
 
         let options = MKMapSnapshotter.Options()
         options.region = region(for: run)
