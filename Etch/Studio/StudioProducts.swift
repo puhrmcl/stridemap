@@ -40,10 +40,10 @@ enum StudioProduct: String, CaseIterable, Identifiable {
         switch self {
         case .mapPoster:     return "One route, over real geography."
         case .galleryPoster: return "Photos, map and elevation, composed."
-        case .photoWall:     return "Forty runs, one frame."
+        case .photoWall:     return "Forty days, one frame."
         case .medalFrame:    return "The medal, and the day you earned it."
         case .yearBook:      return "A year of it, bound."
-        case .wallArt:       return "Everything you've run, as one object."
+        case .wallArt:       return "Everything you've done, as one object."
         }
     }
 

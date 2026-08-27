@@ -3,7 +3,8 @@ import SwiftData
 import UniformTypeIdentifiers
 
 /// Etch Studio's home inside the app — the "Make Lasting" surface. A calm, editorial hub for
-/// turning a run, race, or favourite into art, plus the entry point for prints. Not a
+/// turning any activity — a ride, a run, a hike, a race — into art, plus the entry point for
+/// prints. Not a
 /// configurator or a shop: the artwork leads, commerce stays quiet.
 struct StudioHomeView: View {
     /// True when Studio is the app's home (Studio-first mode): shows a profile button and a mini-map
@@ -85,7 +86,7 @@ struct StudioHomeView: View {
                         ContentUnavailableView(
                             "Nothing to etch yet",
                             systemImage: "photo.artframe",
-                            description: Text("Runs with a map become art here. Sync or import your history to begin — or add a race you ran but never tracked.")
+                            description: Text("Any activity with a map becomes art here. Sync or import your history to begin — or add a race you did but never tracked.")
                         )
                         HStack(spacing: 12) {
                             actionCapsule("Add from the library", "trophy") { showAddRace = true }
@@ -270,15 +271,24 @@ struct StudioHomeView: View {
     @ViewBuilder private var recentImportsSection: some View {
         if !recentImports.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .firstTextBaseline) {
-                    sectionTitle("Recent imports")
-                    Spacer(minLength: 8)
-                    Button { showImportPicker = true } label: {
-                        Label("Add", systemImage: "plus")
-                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                            .foregroundStyle(Theme.accent)
+                // The supporting line sits under the whole row rather than inside the heading,
+                // because the Add button shares that row and would otherwise squeeze the line
+                // into a narrow column beside it.
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(alignment: .firstTextBaseline) {
+                        sectionTitle("Recent imports")
+                        Spacer(minLength: 8)
+                        Button { showImportPicker = true } label: {
+                            Label("Add", systemImage: "plus")
+                                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                                .foregroundStyle(Theme.accent)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
+                    Text("Brought in through Studio. Pick one up where you left it.")
+                        .font(.system(.subheadline, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.horizontal, 20)
 
@@ -338,8 +348,7 @@ struct StudioHomeView: View {
 
     private var keptSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Your Etches")
-                .font(.system(.title3, design: .rounded).weight(.bold))
+            sectionTitle("Your Etches", "Pieces you've kept. Open one to change it or order a print.")
                 .padding(.horizontal, 20)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: 12) {
@@ -419,7 +428,7 @@ struct StudioHomeView: View {
                     Image("BrandLogo")
                         .resizable().scaledToFit().frame(height: Self.mastheadMarkHeight * 0.85)
                         .accessibilityLabel("Etch")
-                    Text("Turn a run, a race, or a favorite into gallery-grade art.")
+                    Text("Turn any ride, run, hike or race into gallery-grade art.")
                         .font(.system(.subheadline, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
@@ -429,7 +438,7 @@ struct StudioHomeView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Leave your mark.")
                         .font(.system(.title, design: .rounded).weight(.bold))
-                    Text("Turn a run, a race, or a favorite into gallery-grade art.")
+                    Text("Turn any ride, run, hike or race into gallery-grade art.")
                         .font(.system(.body, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
@@ -510,7 +519,8 @@ struct StudioHomeView: View {
     /// so nothing below it has to shout.
     private var productGrid: some View {
         VStack(alignment: .leading, spacing: 16) {
-            sectionTitle("What would you like to make?")
+            sectionTitle("What would you like to make?",
+                         "Every one is composed from your own maps and photographs, then printed and shipped to you.")
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)],
                       spacing: 20) {
                 ForEach(StudioProduct.offered) { product in
@@ -627,8 +637,14 @@ struct StudioHomeView: View {
     /// withheld — as the hanger was until its size could be rendered — never advertises itself.
     private var finishes: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Every piece, three ways")
-                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Every piece, three ways")
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                Text("Pick the finish when you order — anything above can arrive as any of these.")
+                    .font(.system(.footnote, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             HStack(spacing: 10) {
                 ForEach(PrintProduct.offered) { format in
                     VStack(spacing: 5) {
@@ -731,9 +747,23 @@ struct StudioHomeView: View {
         return !Task.isCancelled
     }
 
-    private func sectionTitle(_ text: String) -> some View {
-        Text(text)
-            .font(.system(.title3, design: .rounded).weight(.bold))
+    /// A section heading in the two-part form a shop uses: the bold statement, then a lighter
+    /// line beneath saying what the shelf actually holds.
+    ///
+    /// The supporting line is optional on purpose. A shelf whose name already explains itself
+    /// gains nothing from a second line that restates it — the pattern earns its keep only where
+    /// the heading names a thing and the line answers the question the heading raises.
+    private func sectionTitle(_ text: String, _ detail: String? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(text)
+                .font(.system(.title3, design: .rounded).weight(.bold))
+            if let detail {
+                Text(detail)
+                    .font(.system(.subheadline, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     // MARK: The utilities, kept quiet at the foot of the page
@@ -945,8 +975,7 @@ struct StudioHomeView: View {
 
         if !counts.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Collections")
-                    .font(.system(.title3, design: .rounded).weight(.bold))
+                sectionTitle("Collections", "Curated sets, drawn from what you've already done.")
                 VStack(spacing: 12) {
                     ForEach(counts, id: \.0) { collection, count in
                         Button { collectionBrowser = collection } label: {

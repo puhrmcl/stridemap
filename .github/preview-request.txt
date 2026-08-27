@@ -11,8 +11,8 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b412: the wordmark in the header beside the avatar and map button, the
-# Photo Wall listed with its corrected mockup, and the timeline entry in the utilities.
+# Requested for b420: the Apple Store-style two-part section headings (bold statement over a
+# lighter supporting line) across the storefront's shelves, and the broadened subheading copy.
 
-screens=studio,studio@products,studio@utilities
+screens=studio,studio@products,studio@imports,studio@collections
 appearance=light
