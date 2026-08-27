@@ -17,14 +17,21 @@ struct ImportRunView: View {
 
     let activity: ImportedActivity
 
+    /// Handed the run once it exists, so the caller can carry on with it. Studio uses this to
+    /// open the editor on the thing that was just imported: importing a file is not the goal,
+    /// making something out of it is, and a flow that drops you back on the storefront makes you
+    /// go and find the run you just added.
+    var onAdded: ((Run) -> Void)? = nil
+
     @State private var title: String
     @State private var makeRace: Bool
     @State private var countsInTotals = true
     /// nil = Auto (use Etch's detection); a value overrides it.
     @State private var activityOverride: ActivityType?
 
-    init(activity: ImportedActivity) {
+    init(activity: ImportedActivity, onAdded: ((Run) -> Void)? = nil) {
         self.activity = activity
+        self.onAdded = onAdded
         _title = State(initialValue: activity.name?.isEmpty == false ? activity.name! : "Imported Run")
         _makeRace = State(initialValue: activity.isRace ?? false)
     }
@@ -148,5 +155,6 @@ struct ImportRunView: View {
         context.insert(run)
         try? context.save()
         dismiss()
+        onAdded?(run)
     }
 }

@@ -104,6 +104,7 @@ struct StudioHomeView: View {
                                 intro.id("intro")
                                 momentHero.id("hero")
                                 productGrid.id("products")
+                                recentImportsSection.id("imports")
                                 collectionsSection.id("collections")
                                 if !keptPosters.isEmpty { keptSection.id("kept") }
                                 utilityFooter.id("utilities")
@@ -152,7 +153,17 @@ struct StudioHomeView: View {
             .sheet(isPresented: $showPhotoWall) { PhotoWallView(runs: scopedRuns) }
             .sheet(isPresented: $showAddRace) { NavigationStack { AddRaceView() } }
             .sheet(item: $importDraft) { draft in
-                NavigationStack { ImportRunView(activity: draft.activity) }
+                NavigationStack {
+                    ImportRunView(activity: draft.activity) { run in
+                        // Straight into the editor on the run that was just imported. Importing a
+                        // file is never the goal — making something out of it is — and returning
+                        // to the storefront made you go and find the run you had just added.
+                        // A beat, because the import sheet is still dismissing.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            studioPreset = StudioSubjectPick(run: run, family: .map)
+                        }
+                    }
+                }
             }
             .fileImporter(
                 isPresented: $showImportPicker,
@@ -225,6 +236,90 @@ struct StudioHomeView: View {
                 importDraft = ImportedRunDraft(activity: best ?? outcome.activities[0])
             }
         }
+    }
+
+    // MARK: Recent imports
+
+    /// Runs brought in from a file, newest import first.
+    ///
+    /// Keyed on `importedAt` rather than the run's own date, which is the point: a file dropped in
+    /// today is usually a race from three years ago, so it lands in the middle of the library
+    /// where nothing surfaces it. What the person wants is the thing they just added, and the
+    /// storefront's other shelves are all ordered by when the run *happened*.
+    ///
+    /// Everything that entered through Studio: a dropped file, and a race added from the
+    /// library, which lands as `.manual`. Both were a deliberate act by someone standing on this
+    /// page. HealthKit and Strava are excluded because they arrive by the hundred on a sync and
+    /// would bury the handful that were chosen.
+    ///
+    /// A GPX has no parser-side method of its own, so it falls through `ImportRunView` to
+    /// `.manual` as well — which is why that case has to be in the set even though it reads like
+    /// it only means the library.
+    private var recentImports: [Run] {
+        let fromFiles: Set<ImportMethod> = [.gpxFile, .tcxFile, .fitFile, .zipArchive, .manual]
+        return scopedRuns
+            .filter { run in run.importMethod.map(fromFiles.contains) ?? false }
+            .sorted { $0.importedAt > $1.importedAt }
+            .prefix(10)
+            .map { $0 }
+    }
+
+    @ViewBuilder private var recentImportsSection: some View {
+        if !recentImports.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline) {
+                    sectionTitle("Recent imports")
+                    Spacer(minLength: 8)
+                    Button { showImportPicker = true } label: {
+                        Label("Add", systemImage: "plus")
+                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                            .foregroundStyle(Theme.accent)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 20)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 14) {
+                        ForEach(recentImports, id: \.id) { run in
+                            Button {
+                                studioPreset = StudioSubjectPick(run: run, family: .map)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 7) {
+                                    RunMonthTile(run: run, corner: 14)
+                                        .frame(width: 150, height: 190)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(run.name)
+                                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+                                        // When it was imported, not when it was run — the run's own
+                                        // date is already on the tile, and this shelf exists to
+                                        // answer "what did I just bring in".
+                                        Text(importedLabel(run))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .frame(width: 150, alignment: .leading)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+            }
+        }
+    }
+
+    /// "Imported today" / "Imported 3 days ago" — relative, because the exact minute is noise.
+    private func importedLabel(_ run: Run) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        let calendar = Calendar.current
+        if calendar.isDateInToday(run.importedAt) { return "Imported today" }
+        if calendar.isDateInYesterday(run.importedAt) { return "Imported yesterday" }
+        return "Imported " + formatter.localizedString(for: run.importedAt, relativeTo: .now)
     }
 
     // MARK: Kept posters (the pieces the user saved)
