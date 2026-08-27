@@ -39,7 +39,7 @@ enum StudioCollection: String, CaseIterable, Identifiable {
         switch self {
         case .course:  return "The races you finished, as finisher pieces — the course, the city, your time."
         case .summit:  return "The climbs that earned a wall — contour lines, elevation, brass."
-        case .archive: return "Everything you've ever run, as one object."
+        case .archive: return "Everywhere you've ever been, as one object."
         }
     }
 
