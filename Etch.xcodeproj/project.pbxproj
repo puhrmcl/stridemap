@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0A0000000000000000000020 /* ShopifyCheckoutSheetKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0A0000000000000000000022 /* ShopifyCheckoutSheetKit */; };
+		0A0000000000000000000023 /* ShopifyAcceleratedCheckouts in Frameworks */ = {isa = PBXBuildFile; productRef = 0A0000000000000000000024 /* ShopifyAcceleratedCheckouts */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -41,6 +42,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0A0000000000000000000020 /* ShopifyCheckoutSheetKit in Frameworks */,
+				0A0000000000000000000023 /* ShopifyAcceleratedCheckouts in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -84,6 +86,7 @@
 			name = Etch;
 			packageProductDependencies = (
 				0A0000000000000000000022 /* ShopifyCheckoutSheetKit */,
+				0A0000000000000000000024 /* ShopifyAcceleratedCheckouts */,
 			);
 			productName = Etch;
 			productReference = 0A0000000000000000000005 /* Etch.app */;
@@ -369,6 +372,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 0A0000000000000000000021 /* XCRemoteSwiftPackageReference "checkout-sheet-kit-swift" */;
 			productName = ShopifyCheckoutSheetKit;
+		};
+		0A0000000000000000000024 /* ShopifyAcceleratedCheckouts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0A0000000000000000000021 /* XCRemoteSwiftPackageReference "checkout-sheet-kit-swift" */;
+			productName = ShopifyAcceleratedCheckouts;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -84,13 +84,32 @@ enum ShopifyStorefront {
     /// the line; keys beginning with `_` are hidden from the customer and arrive on the order
     /// webhook as line-item properties — this is how `_etch_asset_id` reaches the fulfilment
     /// worker.
+    /// A created cart: the web checkout URL, and the cart's own id.
+    ///
+    /// Both are needed because there are two ways to pay. The URL opens Shopify's hosted checkout
+    /// in the sheet — address, card, receipt, all Shopify's. The id is what the native Apple Pay
+    /// and Shop Pay buttons check out, and those never open the sheet at all: the buyer confirms
+    /// with Face ID and the order is placed. Same cart, same line attributes, same fulfilment
+    /// path — so a print ordered in one second carries the asset id exactly as one ordered in ten.
+    struct Cart: Sendable {
+        /// `gid://shopify/Cart/…` — what `AcceleratedCheckoutButtons(cartID:)` takes.
+        let id: String
+        let checkoutURL: URL
+    }
+
     static func checkoutURL(
         variantID: String, quantity: Int, attributes: [String: String]
     ) async throws -> URL {
+        try await cart(variantID: variantID, quantity: quantity, attributes: attributes).checkoutURL
+    }
+
+    static func cart(
+        variantID: String, quantity: Int, attributes: [String: String]
+    ) async throws -> Cart {
         let mutation = """
         mutation($input: CartInput!) {
           cartCreate(input: $input) {
-            cart { checkoutUrl }
+            cart { id checkoutUrl }
             userErrors { message }
           }
         }
@@ -116,10 +135,11 @@ enum ShopifyStorefront {
         }
         guard
             let cart = payload["cart"] as? [String: Any],
+            let id = cart["id"] as? String,
             let urlString = cart["checkoutUrl"] as? String,
             let url = URL(string: urlString)
         else { throw StorefrontError.graphQL("The checkout couldn't be created.") }
-        return url
+        return Cart(id: id, checkoutURL: url)
     }
 
     // MARK: Transport

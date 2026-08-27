@@ -44,7 +44,7 @@ enum PrintOrderService {
         size: PrintSize,
         finish: PrintFinish,
         onPhase: (Phase) -> Void
-    ) async throws -> URL {
+    ) async throws -> ShopifyStorefront.Cart {
         let geometry = size.geometry
 
         onPhase(.rendering)
@@ -76,7 +76,7 @@ enum PrintOrderService {
             sku: size.shopifySKU(finish: finish),
             productHandle: product.shopifyHandle
         )
-        return try await ShopifyStorefront.checkoutURL(
+        return try await ShopifyStorefront.cart(
             variantID: variant.id,
             quantity: 1,
             attributes: [

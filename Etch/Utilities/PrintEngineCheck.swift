@@ -81,6 +81,26 @@ struct PrintEngineCheckView: View {
         out.append(largeSheetCheck())
         results = out
         running = false
+        writeReport(out)
+    }
+
+    /// Also writes the outcome as plain text into the app's Documents directory.
+    ///
+    /// The screenshot is the human-readable form, but a screenshot has to travel back as base64 —
+    /// four of them ran to 900 KB, which is more than a reading session can hold. A text file the
+    /// runner can `cat` puts the same verdict in the job log for nothing.
+    private func writeReport(_ results: [Result]) {
+        guard let directory = FileManager.default.urls(for: .documentDirectory,
+                                                       in: .userDomainMask).first else { return }
+        var lines = ["print-engine \(AppInfo.changeTag)"]
+        for result in results {
+            lines.append("\(result.passed ? "PASS" : "FAIL")  \(result.name) — \(result.detail)")
+        }
+        lines.append(results.allSatisfy(\.passed) ? "RESULT: ALL PASS" : "RESULT: FAIL")
+        try? lines.joined(separator: "\n").write(
+            to: directory.appendingPathComponent("print-engine-report.txt"),
+            atomically: true, encoding: .utf8
+        )
     }
 
     /// A file the system decoder accepts, at the size asked for, with pixels where they were put.

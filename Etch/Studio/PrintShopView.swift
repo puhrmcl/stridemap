@@ -1,5 +1,6 @@
 import SwiftUI
 import ShopifyCheckoutSheetKit
+import ShopifyAcceleratedCheckouts
 
 /// Browse Etch Studio's print formats and order one.
 ///
@@ -53,6 +54,15 @@ struct PrintShopView: View {
         var id: String { url.absoluteString }
     }
 
+    /// The cart the wallet buttons check out, once the print file is uploaded and a cart exists.
+    ///
+    /// Apple Pay can't be offered before this point, and that ordering is the whole design: the
+    /// artwork has to be rendered and frozen into the fulfilment worker *before* money moves, or
+    /// a paid order could exist with no file behind it. So the first tap prepares the order and
+    /// the second is the payment — which is still one tap on the price, one on Apple Pay, and no
+    /// form at all.
+    @State private var preparedCart: ShopifyStorefront.Cart?
+
     init(subjectTitle: String?, artwork: UIImage? = nil,
          renderRequest: StudioRenderer.Request? = nil,
          creationID: String? = nil, runID: UUID? = nil) {
@@ -89,7 +99,11 @@ struct PrintShopView: View {
             .onChange(of: product) { _, new in
                 // Keep the nearest size when switching products rather than resetting to the top.
                 size = new.sizes.min { abs($0.width - size.width) < abs($1.width - size.width) } ?? new.sizes[0]
+                invalidatePreparedCart()
             }
+            .onChange(of: size) { invalidatePreparedCart() }
+            .onChange(of: finish) { invalidatePreparedCart() }
+            .onChange(of: hangerFinish) { invalidatePreparedCart() }
             .sheet(item: $checkout) { target in
                 CheckoutSheet(checkout: target.url)
                     .title("Checkout")
@@ -121,24 +135,40 @@ struct PrintShopView: View {
         renderRequest != nil && PrintOrderService.isConfigured && EtchConfig.current.ordering.enabled
     }
 
-    private func beginOrder() {
+    /// Whether this build can offer the native wallet buttons at all. When it can't — no
+    /// merchant identifier, or no storefront credentials — the panel keeps the single "Order"
+    /// button that opens the hosted checkout, which is the behaviour it has today, unchanged.
+    private var offersWallets: Bool { ApplePayConfig.isConfigured }
+
+    /// Renders, uploads and creates the cart. `openSheet` decides what happens next: the hosted
+    /// checkout opens immediately, or the wallet buttons appear over the prepared cart.
+    private func beginOrder(openSheet: Bool = true) {
         guard let renderRequest, orderPhase == nil, renderRequest.edition.printReady else { return }
         let creation = creationID ?? runID?.uuidString ?? UUID().uuidString
         Task {
             do {
-                let url = try await PrintOrderService.beginCheckout(
+                let cart = try await PrintOrderService.beginCheckout(
                     request: renderRequest, creationID: creation,
                     product: product, size: size,
                     finish: selectedFinish,
                     onPhase: { orderPhase = $0 }
                 )
                 orderPhase = nil
-                checkout = CheckoutTarget(url: url)
+                preparedCart = cart
+                if openSheet { checkout = CheckoutTarget(url: cart.checkoutURL) }
             } catch {
                 orderPhase = nil
                 orderError = error.localizedDescription
             }
         }
+    }
+
+    /// A prepared cart is only valid for what was configured when it was made — change the size,
+    /// the format or the finish and the uploaded file no longer matches the line. Dropping it
+    /// sends the next order back through render-and-upload rather than paying for the wrong thing
+    /// in one tap, which is the failure a fast checkout makes easy.
+    private func invalidatePreparedCart() {
+        preparedCart = nil
     }
 
     /// Shopify reported payment complete: keep the on-device record the worker will update.
@@ -485,25 +515,44 @@ struct PrintShopView: View {
                     unavailableNote("This style is coming to print",
                                     detail: "Map styles are being remade with our own cartography for print. Contour, paper, and photo styles are ready to order today.")
                 } else if size.deviceRenderable {
-                    Button(action: beginOrder) {
-                        Group {
-                            if let orderPhase {
-                                HStack(spacing: 10) {
-                                    ProgressView().tint(.white)
-                                    Text(orderPhase.label)
-                                }
-                            } else {
-                                Label("Order · \(size.price)", systemImage: "bag")
-                            }
+                    // A prepared order pays in one tap. Until one exists the print file has to be
+                    // made and frozen first, because a paid order with no artwork behind it is
+                    // the one failure this pipeline must never produce — so the wallet buttons
+                    // appear after preparation rather than instead of it.
+                    if let preparedCart, offersWallets {
+                        walletButtons(cart: preparedCart)
+                        Button { checkout = CheckoutTarget(url: preparedCart.checkoutURL) } label: {
+                            Text("Other ways to pay")
+                                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .foregroundStyle(Theme.accent)
+                                .background(Theme.accent.opacity(0.10), in: .rect(cornerRadius: 14))
                         }
-                        .font(.system(.headline, design: .rounded))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Theme.accent, in: .rect(cornerRadius: 14))
-                        .foregroundStyle(.white)
+                        .buttonStyle(.plain)
+                    } else {
+                        Button(action: { beginOrder(openSheet: !offersWallets) }) {
+                            Group {
+                                if let orderPhase {
+                                    HStack(spacing: 10) {
+                                        ProgressView().tint(.white)
+                                        Text(orderPhase.label)
+                                    }
+                                } else {
+                                    Label(offersWallets ? "Continue · \(size.price)"
+                                                        : "Order · \(size.price)",
+                                          systemImage: "bag")
+                                }
+                            }
+                            .font(.system(.headline, design: .rounded))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Theme.accent, in: .rect(cornerRadius: 14))
+                            .foregroundStyle(.white)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(orderPhase != nil)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(orderPhase != nil)
 
                     Text("Secure checkout with Apple Pay or card. Printed to order and shipped to your door.")
                         .font(.caption)
@@ -526,6 +575,29 @@ struct PrintShopView: View {
         }
         .padding(16)
         .background(.regularMaterial, in: .rect(cornerRadius: 18))
+    }
+
+    /// Apple Pay and Shop Pay over the prepared cart.
+    ///
+    /// These are native buttons, not a web checkout: the buyer confirms with Face ID against the
+    /// card and address Apple already holds, and no form is ever shown. The order is the same
+    /// cart the sheet would have opened, carrying the same hidden line attributes, so fulfilment
+    /// cannot tell the two apart. Apple Pay leads because it is the one most buyers have.
+    private func walletButtons(cart: ShopifyStorefront.Cart) -> some View {
+        AcceleratedCheckoutButtons(cartID: cart.id)
+            .wallets([.applePay, .shopPay])
+            .cornerRadius(14)
+            .onComplete { event in recordOrder(event) }
+            .onFail { error in orderError = error.localizedDescription }
+            .environmentObject(ShopifyAcceleratedCheckouts.Configuration(
+                storefrontDomain: CommerceConfig.shopDomain,
+                storefrontAccessToken: CommerceConfig.storefrontToken
+            ))
+            .environmentObject(ShopifyAcceleratedCheckouts.ApplePayConfiguration(
+                merchantIdentifier: ApplePayConfig.merchantIdentifier,
+                contactFields: ApplePayConfig.requiresPhone ? [.email, .phone] : [.email],
+                supportedShippingCountries: ApplePayConfig.supportedShippingCountries
+            ))
     }
 
     private func unavailableNote(_ title: String, detail: String) -> some View {

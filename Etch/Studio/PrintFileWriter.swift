@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import Compression
+import Accelerate
 
 /// Writes a PNG of any size to disk without ever holding the whole image in memory.
 ///
@@ -124,40 +125,78 @@ final class PrintFileWriter {
         context.fill(CGRect(x: 0, y: 0, width: width, height: bandHeight))
         context.draw(band, in: CGRect(x: 0, y: 0, width: width, height: bandHeight))
 
-        let pixels = base.assumingMemoryBound(to: UInt8.self)
-        // One scanline: the PNG filter byte, then RGB triples. A CGBitmapContext's row 0 is the
-        // *bottom* of the image, while PNG scanlines run top to bottom — hence the reversal.
-        var scanline = [UInt8](repeating: 0, count: 1 + width * 3)
-        for row in (0..<bandHeight).reversed() {
-            let source = pixels + row * bytesPerRow
-            var out = 1
-            for column in 0..<width {
-                let pixel = source + column * 4
-                scanline[out] = pixel[0]
-                scanline[out + 1] = pixel[1]
-                scanline[out + 2] = pixel[2]
-                out += 3
-            }
-            try feed(scanline)
-            rowsWritten += 1
+        // RGBA → RGB for the whole band in one Accelerate call. Done pixel-by-pixel in Swift this
+        // is 6.5 million iterations per band and 78 million for a 24×36 sheet, which is the
+        // difference between a print taking seconds and taking minutes.
+        let rgbBytesPerRow = width * 3
+        var rgb = [UInt8](repeating: 0, count: rgbBytesPerRow * bandHeight)
+        try rgb.withUnsafeMutableBufferPointer { rgbBuffer in
+            var source = vImage_Buffer(data: base, height: vImagePixelCount(bandHeight),
+                                       width: vImagePixelCount(width), rowBytes: bytesPerRow)
+            var destination = vImage_Buffer(data: rgbBuffer.baseAddress,
+                                            height: vImagePixelCount(bandHeight),
+                                            width: vImagePixelCount(width),
+                                            rowBytes: rgbBytesPerRow)
+            guard vImageConvert_RGBA8888toRGB888(&source, &destination, vImage_Flags(kvImageNoFlags))
+                    == kvImageNoError else { throw WriteError.compressionFailed }
         }
+
+        // The band as PNG scanlines: a filter byte then the row's RGB. A CGBitmapContext's row 0
+        // is the *bottom* of the image while PNG scanlines run top to bottom, so the rows are
+        // copied in reverse. Building the whole band at once means one call into the compressor
+        // per band rather than one per scanline.
+        let stride = 1 + rgbBytesPerRow
+        var filtered = [UInt8](repeating: 0, count: stride * bandHeight)
+        rgb.withUnsafeBufferPointer { source in
+            filtered.withUnsafeMutableBufferPointer { destination in
+                for output in 0..<bandHeight {
+                    let input = bandHeight - 1 - output
+                    destination[output * stride] = 0   // filter type: None
+                    let from = source.baseAddress! + input * rgbBytesPerRow
+                    let to = destination.baseAddress! + output * stride + 1
+                    to.update(from: from, count: rgbBytesPerRow)
+                }
+            }
+        }
+
+        try feed(filtered)
+        rowsWritten += bandHeight
         flushPendingIDAT()
     }
 
-    /// Compresses one scanline and folds it into the running Adler-32.
-    private func feed(_ scanline: [UInt8]) throws {
-        for byte in scanline {
-            adlerA = (adlerA &+ UInt32(byte)) % 65521
-            adlerB = (adlerB &+ adlerA) % 65521
-        }
-        try scanline.withUnsafeBufferPointer { buffer in
-            stream.pointee.src_ptr = buffer.baseAddress!
+    /// Compresses a run of scanlines and folds it into the running Adler-32.
+    private func feed(_ bytes: [UInt8]) throws {
+        try bytes.withUnsafeBufferPointer { buffer in
+            guard let base = buffer.baseAddress else { return }
+            Self.adler(&adlerA, &adlerB, base, buffer.count)
+            stream.pointee.src_ptr = base
             stream.pointee.src_size = buffer.count
             while stream.pointee.src_size > 0 {
                 let status = compression_stream_process(stream, 0)
                 guard status != COMPRESSION_STATUS_ERROR else { throw WriteError.compressionFailed }
                 if stream.pointee.dst_size == 0 { drainOutput() }
             }
+        }
+    }
+
+    /// Adler-32, deferring the modulo.
+    ///
+    /// The definition takes a remainder after every byte, which for a 24×36 sheet is 233 million
+    /// divisions. 5552 is the largest run of 255s that cannot overflow a `UInt32` accumulator, so
+    /// the remainder is safe to take once per block instead — the standard zlib approach, and the
+    /// reason this costs nothing worth measuring.
+    private static func adler(_ a: inout UInt32, _ b: inout UInt32,
+                              _ bytes: UnsafePointer<UInt8>, _ count: Int) {
+        var index = 0
+        while index < count {
+            let block = min(5552, count - index)
+            for offset in index..<(index + block) {
+                a &+= UInt32(bytes[offset])
+                b &+= a
+            }
+            a %= 65521
+            b %= 65521
+            index += block
         }
     }
 
