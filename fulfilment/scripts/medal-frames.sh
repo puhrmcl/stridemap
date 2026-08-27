@@ -43,12 +43,21 @@ if [[ -z "${PRODIGI_API_KEY:-}" ]]; then
   exit 0
 fi
 
-# The PDF names products in prose as often as in SKUs, so also try the shapes Prodigi's
-# catalog actually uses for framed goods. A 404 here is information, not a failure.
-EXTRA=(
-  "GLOBAL-MEDAL-FRAME" "GLOBAL-MEDALFRAME" "MEDAL-FRAME"
-  "GLOBAL-MF-8X10" "GLOBAL-MF-A4" "GLOBAL-MF-A3"
-)
+# The PDF gives the SKU *prefix* (MEDAL-FRA-CLA) but not the full code, and the bare prefix
+# 404s — the same shape of gap the layflat book had before the raw payload gave up
+# BOOK-FE-A4-L-LF-G. Build the plausible codes from what the PDF does state: one size,
+# 30x40cm / 12x16", with an 8x10" print area. Manufacturing is UK-only, so a region prefix is
+# as likely as GLOBAL. A 404 here is information, not a failure.
+EXTRA=()
+for region in "" "GLOBAL-" "UK-" "EU-"; do
+  for size in "-30X40" "-12X16" "-8X10" ""; do
+    EXTRA+=("${region}MEDAL-FRA-CLA${size}")
+  done
+done
+# Mount colour may be part of the code rather than an attribute.
+for mount in "-BLACK" "-NAVY" "-BLK" "-NVY"; do
+  EXTRA+=("MEDAL-FRA-CLA-30X40${mount}" "UK-MEDAL-FRA-CLA-30X40${mount}")
+done
 
 probe() {
   local sku="$1"

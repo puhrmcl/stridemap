@@ -436,31 +436,38 @@ struct StudioHomeView: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 14).fill(Theme.Palette.bone)
                 if let image = productPreviews[product] {
+                    // Fitted, not filled: the object keeps its own proportions and sits on the
+                    // mat with its own shadow, the way a shop photographs a mixed range. Filling
+                    // cropped a landscape book to a square and lost its shape entirely.
                     Image(uiImage: image)
                         .resizable()
-                        .aspectRatio(contentMode: .fill)
+                        .aspectRatio(contentMode: .fit)
+                        .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
+                        .padding(14)
                         .transition(.opacity)
                 } else {
-                    Image(systemName: product == .yearBook ? "book.pages" : "photo.artframe")
+                    Image(systemName: product.placeholderSymbol)
                         .font(.system(size: 26))
                         .foregroundStyle(Theme.Palette.ink.opacity(0.22))
                 }
             }
-            .aspectRatio(product.tileAspect, contentMode: .fit)
+            .aspectRatio(StudioProduct.tileAspect, contentMode: .fit)
             .frame(maxWidth: .infinity)
             .clipShape(.rect(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14)
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
-            .shadow(color: .black.opacity(0.12), radius: 10, y: 5)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(product.name)
                     .font(.system(.headline, design: .rounded))
                     .foregroundStyle(.primary)
+                // Two lines are reserved whether or not the copy needs them, so every caption
+                // in a row starts and ends on the same line and the price sits at one height.
+                // Without it a one-line product and a two-line one push their neighbours around.
                 Text(product.line)
                     .font(.system(.caption, design: .rounded))
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .lineLimit(2, reservesSpace: true)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(product.priceLine)
                     .font(.system(.caption, design: .rounded).weight(.semibold))
@@ -468,6 +475,8 @@ struct StudioHomeView: View {
                     .padding(.top, 1)
             }
         }
+        // Cards hang from the top of their row rather than centring in it.
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 
     /// Each tile shows the buyer's own history in that product — a stock sample would be a
@@ -489,8 +498,6 @@ struct StudioHomeView: View {
             case .wallArt:
                 var request = MapPrintRequest.make(kind: .artMap, runs: mapped)
                 request.artStyle = .grid
-                // Shown landscape so it shares a row with the book, which only lies that way.
-                request.orientation = .landscape
                 image = await MapPrintRenderer.image(for: request, scale: 0.2)
             }
             if Task.isCancelled { return }
