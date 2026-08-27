@@ -36,6 +36,18 @@ struct EtchRemoteConfig: Codable, Sendable, Equatable {
         /// Shown in place of the order button when `enabled` is false.
         var closedTitle: String
         var closedDetail: String
+
+        /// How long an order takes to arrive, phrased for the product page — "Ships in 2–4
+        /// business days", "Arrives by Dec 22".
+        ///
+        /// **Nil by default, and deliberately so.** This is the question every buyer asks before
+        /// the button, and it is also the one number here that has never been measured: Prodigi's
+        /// production time varies by lab and destination, and the range sheet quotes a target
+        /// rather than an observed figure. Every other number in this file came from a live quote,
+        /// so this one stays empty until real orders have been timed rather than shipping a guess
+        /// the customer would hold us to. The row simply doesn't render while it's nil, and it
+        /// costs a served-document edit — not a release — to turn on once the figure is real.
+        var delivery: String?
     }
 
     struct Prices: Codable, Sendable, Equatable {
@@ -93,7 +105,8 @@ struct EtchRemoteConfig: Codable, Sendable, Equatable {
         ordering: Ordering(
             enabled: true,
             closedTitle: "Ordering opens soon",
-            closedDetail: "Printed to order on archival paper and shipped to your door. Secure checkout with Apple Pay."
+            closedDetail: "Printed to order on archival paper and shipped to your door. Secure checkout with Apple Pay.",
+            delivery: nil
         ),
         prices: Prices(bySKU: [:], yearBookCents: 11900,
                        medalFrameCents: nil, photoWallCents: 19900),

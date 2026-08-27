@@ -147,6 +147,24 @@ enum PrintProduct: String, CaseIterable, Identifiable {
         }
     }
 
+    /// What actually arrives in the box.
+    ///
+    /// Every product page answers this question whether or not it prints it; the ones that don't
+    /// answer it get the question by email instead. Each line is a property of the verified
+    /// Prodigi product, not a marketing claim: the Classic Frame ships assembled and glazed with
+    /// its hanging hardware fitted, the hanger line is two magnetic wood battens and a cord, and
+    /// the fine-art line is a single loose sheet with nothing else in the tube.
+    var whatShips: String {
+        switch self {
+        case .print:
+            return "One print, unframed and unmounted, rolled in a protective tube."
+        case .hanger:
+            return "One print with a pair of solid wood magnetic hangers and a hanging cord."
+        case .framed:
+            return "One framed print, assembled and glazed, with hanging hardware fitted."
+        }
+    }
+
     var symbol: String {
         switch self {
         case .print:  return "doc.richtext"

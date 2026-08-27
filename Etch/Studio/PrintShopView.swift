@@ -81,12 +81,15 @@ struct PrintShopView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 26) {
+                    titleBlock
                     mockup
                     productPicker
                     sizePicker
                     if product.takesFrameFinish { finishPicker }
                     if product.takesHangerFinish { hangerPicker }
                     orderPanel
+                    specs
+                    alsoLike
                 }
                 .padding(20)
             }
@@ -186,6 +189,57 @@ struct PrintShopView: View {
         dismiss()
     }
 
+    // MARK: The title block
+
+    /// The configured product, named and priced, *above* the image.
+    ///
+    /// This is the shape of every product page that sells well, and the one this screen didn't
+    /// have: the old layout showed the mockup first, a caption under it, and the price down in
+    /// the order panel below three pickers — so the price was below the fold and the thing being
+    /// priced had to be reconstructed from three separate controls. A buyer deciding whether to
+    /// keep reading is deciding on the name and the number, and both were somewhere else.
+    ///
+    /// The subtitle names the *whole* configuration — format, size and finish — the way a
+    /// hardware page titles a variant rather than a model. It changes as the pickers change, so
+    /// the top of the page and the bottom can never disagree about what is in the cart.
+    private var titleBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(subjectTitle ?? product.name)
+                .font(.system(.title2, design: .rounded).weight(.bold))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(configurationLine)
+                .font(.system(.subheadline, design: .rounded))
+                .foregroundStyle(.secondary)
+
+            Text(size.price)
+                .font(.system(.title3, design: .rounded).weight(.semibold))
+                .monospacedDigit()
+
+            if let delivery = EtchConfig.current.ordering.delivery, !delivery.isEmpty {
+                Label(delivery, systemImage: "shippingbox")
+                    .font(.system(.footnote, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(.easeInOut(duration: 0.15), value: size)
+    }
+
+    /// "Framed Print · 18 × 24″ · Natural" — every choice the order carries, in one line.
+    ///
+    /// Browsing without a piece leaves the format standing in as the title, so it drops out of
+    /// this line rather than being printed twice in a row.
+    private var configurationLine: String {
+        var parts = subjectTitle == nil ? [size.label] : [product.name, size.label]
+        switch product {
+        case .framed: parts.append(finish.name)
+        case .hanger: parts.append(hangerFinish.name)
+        case .print:  break
+        }
+        return parts.joined(separator: " · ")
+    }
+
     // MARK: The object
 
     /// The piece as a physical object: the artwork in a frame (or as a bare sheet), on a neutral
@@ -215,14 +269,9 @@ struct PrintShopView: View {
                 ArtworkPreviewView(image: productPreviewImage())
             }
 
-            if let subjectTitle {
-                Text(subjectTitle)
-                    .font(.system(.headline, design: .rounded))
-                    .multilineTextAlignment(.center)
-            }
-            Text("\(product.name) · \(size.label)")
-                .font(.system(.subheadline, design: .rounded))
-                .foregroundStyle(.secondary)
+            // No caption here any more — the title block above the image now names the piece and
+            // its whole configuration, and repeating it under the mockup put the same three
+            // facts on screen twice.
         }
     }
 
@@ -351,7 +400,7 @@ struct PrintShopView: View {
 
     private var productPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionLabel("Format")
+            sectionLabel("Format", value: product.name)
             ForEach(PrintProduct.offered) { p in
                 Button { product = p } label: {
                     HStack(spacing: 14) {
@@ -387,7 +436,7 @@ struct PrintShopView: View {
 
     private var sizePicker: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionLabel("Size")
+            sectionLabel("Size", value: size.label)
             HStack(spacing: 10) {
                 ForEach(sizes) { s in
                     Button { size = s } label: {
@@ -416,7 +465,7 @@ struct PrintShopView: View {
 
     private var finishPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionLabel("Frame")
+            sectionLabel("Frame", value: finish.name)
             HStack(spacing: 10) {
                 ForEach(FrameFinish.allCases) { f in
                     Button { finish = f } label: {
@@ -446,7 +495,7 @@ struct PrintShopView: View {
 
     private var hangerPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionLabel("Wood")
+            sectionLabel("Wood", value: hangerFinish.name)
             HStack(spacing: 10) {
                 ForEach(HangerFinish.allCases) { h in
                     Button { hangerFinish = h } label: {
@@ -493,20 +542,10 @@ struct PrintShopView: View {
                     .padding(10)
                     .background(Theme.accent.opacity(0.10), in: .rect(cornerRadius: 10))
             }
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(size.price)
-                        .font(.system(.title2, design: .rounded).weight(.bold))
-                    Text(size.geometry.summary)
-                        .font(.caption2).foregroundStyle(.tertiary)
-                }
-                Spacer()
-            }
-
-            Text(product.material)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // The price and the material line used to live here. Both moved: the price to the
+            // title block above the image, where the decision is actually made, and the material
+            // into the specs disclosure below, where a buyer who wants it can find it without it
+            // sitting between them and the button.
 
             if canOrderHere {
                 if let edition = renderRequest?.edition, !edition.printReady {
@@ -615,11 +654,117 @@ struct PrintShopView: View {
         .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 14))
     }
 
-    private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 11, weight: .semibold, design: .rounded))
-            .tracking(1.6)
-            .textCase(.uppercase)
-            .foregroundStyle(.secondary)
+    /// An option group's heading, carrying what is currently chosen.
+    ///
+    /// "Frame — Natural" rather than "FRAME". The selection is already drawn in the row below as
+    /// a ring around a swatch, but a ring is a weak signal on a page with four groups of them,
+    /// and it is unreadable to anyone who isn't looking straight at it. Naming the value in the
+    /// heading means the page can be understood from the headings alone, which is also what makes
+    /// it legible to VoiceOver in one pass.
+    private func sectionLabel(_ text: String, value: String? = nil) -> some View {
+        HStack(spacing: 6) {
+            Text(text)
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+            if let value {
+                Text("—")
+                    .font(.system(.subheadline, design: .rounded))
+                    .foregroundStyle(.tertiary)
+                Text(value)
+                    .font(.system(.subheadline, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: The detail below the fold
+
+    /// What the object is made of and what turns up in the box, folded away.
+    ///
+    /// A product page has two readers: one who has already decided and wants the button, and one
+    /// who needs to know the paper weight before spending $139. Printing the specs inline serves
+    /// the second and obstructs the first; omitting them serves the first and loses the second.
+    /// Disclosure serves both, and it is where the material line went when it came out from
+    /// between the pickers and the button.
+    private var specs: some View {
+        VStack(spacing: 0) {
+            DisclosureGroup {
+                VStack(alignment: .leading, spacing: 14) {
+                    specRow("Overview", product.tagline)
+                    specRow("Materials", product.material)
+                    specRow("In the box", product.whatShips)
+                    specRow("Print", size.geometry.summary)
+                }
+                .padding(.top, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } label: {
+                Text("Product details")
+                    .font(.system(.headline, design: .rounded))
+            }
+            .tint(.primary)
+        }
+        .padding(16)
+        .background(.regularMaterial, in: .rect(cornerRadius: 18))
+    }
+
+    private func specRow(_ title: String, _ body: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+            Text(body)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The same piece in the formats this buyer isn't looking at.
+    ///
+    /// The formats are already listed as a picker at the top of the page, but a picker is read as
+    /// "which one of these am I configuring" and closes as soon as it's answered. A shelf at the
+    /// foot of the page is read as "what else could this be", which is a different question and
+    /// the one that moves a $59 sheet to a $139 framed object. Tapping a card reconfigures this
+    /// page rather than opening another — it is the same artwork either way, and the mockup
+    /// above is the point of the change.
+    @ViewBuilder private var alsoLike: some View {
+        let others = PrintProduct.offered.filter { $0 != product }
+        if !others.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("The same piece, finished differently")
+                    .font(.system(.headline, design: .rounded))
+                ForEach(others) { other in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.25)) { product = other }
+                    } label: {
+                        HStack(spacing: 14) {
+                            Image(systemName: other.symbol)
+                                .font(.system(size: 19))
+                                .foregroundStyle(Theme.accent)
+                                .frame(width: 42, height: 42)
+                                .background(Theme.accent.opacity(0.10), in: .rect(cornerRadius: 11))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(other.name)
+                                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                Text(other.tagline)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .multilineTextAlignment(.leading)
+                            }
+                            Spacer(minLength: 8)
+                            Text(other.entryPrice)
+                                .font(.system(.footnote, design: .rounded).weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.regularMaterial, in: .rect(cornerRadius: 16))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
     }
 }
