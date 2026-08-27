@@ -93,13 +93,29 @@ jobs:
           # Client credentials: no merchant interaction, because this app acts on its own store.
           # The token lives 24 hours, which is why it is minted per run rather than stored.
           echo "── Exchanging client credentials for an access token"
-          RESPONSE=$(curl -sS --request POST "$SHOP/admin/oauth/access_token" \
+          # Status and body separately, and jq is never allowed to be the thing that fails the
+          # step — an error page is not JSON, and letting jq die on it hides the message that
+          # would have explained why.
+          CODE=$(curl -sS --request POST "$SHOP/admin/oauth/access_token" \
             --header "Content-Type: application/json" --max-time 30 \
-            --data "{\"client_id\":\"$CLIENT_ID\",\"client_secret\":\"$CLIENT_SECRET\",\"grant_type\":\"client_credentials\"}")
-          TOKEN=$(echo "$RESPONSE" | jq -r '.access_token // empty')
+            --data "{\"client_id\":\"$CLIENT_ID\",\"client_secret\":\"$CLIENT_SECRET\",\"grant_type\":\"client_credentials\"}" \
+            -o /tmp/token.json -w "%{http_code}" || echo "000")
+          echo "   HTTP $CODE"
+          TOKEN=$(jq -r '.access_token // empty' /tmp/token.json 2>/dev/null || true)
           if [ -z "$TOKEN" ]; then
-            echo "::error::No access_token came back."
-            echo "$RESPONSE" | jq . 2>/dev/null || echo "$RESPONSE"
+            echo "::error::No access_token came back (HTTP $CODE)."
+            echo "── Response body"
+            # Safe to print: without an access_token in it there is no secret here, and the
+            # message is the whole point.
+            head -c 2000 /tmp/token.json
+            echo ""
+            echo ""
+            echo "Most likely causes, in order:"
+            echo "  * The app is not installed on $SHOP. The client credentials grant acts on"
+            echo "    a store the app is installed on; creating and releasing a version is not"
+            echo "    the same as installing it."
+            echo "  * The client id or secret belongs to a different app or a different"
+            echo "    organisation than this store."
             exit 1
           fi
           echo "::add-mask::$TOKEN"
