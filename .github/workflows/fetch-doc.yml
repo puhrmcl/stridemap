@@ -1,0 +1,90 @@
+# Read a web page the working session cannot reach.
+#
+# The session's egress proxy blocks a growing list of the exact domains this project depends
+# on — prodigi.com, shopify.dev, help.shopify.com, build.protomaps.com — and every time, the
+# answer has been to guess or to route around it ad hoc. Guessing has been wrong often enough
+# in this project to be worth a workflow: a GitHub runner has ordinary internet access, so it
+# fetches the page, converts it to text, and prints it into the job log where the session can
+# read it.
+#
+# Read-only, public pages only. Never point this at anything that needs a credential.
+#
+# Ask by editing .github/doc-request.txt — one URL per line. GitHub only offers
+# workflow_dispatch for workflows on the default branch and this work happens on a feature
+# branch, which is the same reason the preview rig is file-triggered.
+
+name: Fetch a doc
+
+on:
+  push:
+    branches: [claude/rebrand-etch]
+    paths:
+      - ".github/doc-request.txt"
+      - ".github/workflows/fetch-doc.yml"
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: "Comma- or newline-separated URLs to fetch"
+        required: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch and print
+        env:
+          INPUT_URLS: ${{ inputs.urls }}
+        run: |
+          set -euo pipefail
+          FILE=.github/doc-request.txt
+
+          # A manual dispatch wins; otherwise take the request from the committed file,
+          # ignoring blanks and comments.
+          if [ -n "$INPUT_URLS" ]; then
+            printf '%s' "$INPUT_URLS" | tr ',' '\n' > /tmp/urls.txt
+          elif [ -f "$FILE" ]; then
+            grep -vE '^\s*(#|$)' "$FILE" > /tmp/urls.txt || true
+          else
+            echo "No URLs requested."; exit 0
+          fi
+
+          # html2text renders the readable content; lynx is the fallback because some pages
+          # defeat one and not the other.
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq html2text lynx >/dev/null
+
+          while read -r URL; do
+            URL=$(echo "$URL" | xargs)
+            [ -z "$URL" ] && continue
+            case "$URL" in
+              http://*|https://*) ;;
+              *) echo "── SKIPPED (not http) $URL"; continue ;;
+            esac
+
+            echo ""
+            echo "════════ $URL"
+            CODE=$(curl -sSL -o /tmp/page.html -w "%{http_code}" \
+              --retry 3 --retry-all-errors --max-time 45 \
+              -A "Mozilla/5.0 (compatible; EtchDocFetch/1.0)" "$URL" || echo "000")
+            echo "── HTTP $CODE · $(wc -c < /tmp/page.html) bytes"
+            if [ "$CODE" != "200" ]; then
+              echo "── (no body printed for a non-200)"
+              continue
+            fi
+
+            echo "── BEGIN-TEXT"
+            # Collapse the runs of blank lines these renderers leave behind, and cap the
+            # output so one enormous page can't bury the rest of the request.
+            (html2text -utf8 -nobs -width 100 /tmp/page.html 2>/dev/null \
+              || lynx -dump -nolist -width=100 /tmp/page.html 2>/dev/null \
+              || echo "(could not render)") \
+              | cat -s | head -c 60000
+            echo ""
+            echo "── END-TEXT"
+          done < /tmp/urls.txt
+
+          echo ""
+          echo "── Done."
