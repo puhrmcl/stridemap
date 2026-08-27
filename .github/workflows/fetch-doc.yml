@@ -94,10 +94,12 @@ jobs:
             # the answer *is* a link — "submit the request form" is worth nothing without the
             # URL behind it. Print the outbound links separately, deduped.
             echo "── BEGIN-LINKS"
-            grep -oiE 'href="[^"#]+"' /tmp/page.html \
+            # `|| true` because a page with no links makes grep exit 1, and pipefail then
+            # takes the whole job down with it — which is exactly what a Markdown page does.
+            { grep -oiE 'href="[^"#]+"' /tmp/page.html \
               | sed -E 's/^href="//I; s/"$//' \
               | grep -viE '\.(css|js|png|jpg|jpeg|svg|woff2?|ico)$' \
-              | sort -u | head -120
+              | sort -u | head -120; } || true
             echo "── END-LINKS"
           done < /tmp/urls.txt
 
