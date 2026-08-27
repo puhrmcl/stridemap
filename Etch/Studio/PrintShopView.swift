@@ -44,6 +44,9 @@ struct PrintShopView: View {
     /// Full-screen look at the product — tap the mockup to inspect the piece in its frame.
     @State private var showProductPreview = false
 
+    /// Whether the product-details panel is open. Starts open; see `specs`.
+    @State private var specsExpanded = true
+
     /// Non-nil while the pre-checkout pipeline runs; drives the button's progress narration.
     @State private var orderPhase: PrintOrderService.Phase?
     @State private var orderError: String?
@@ -79,19 +82,31 @@ struct PrintShopView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 26) {
-                    titleBlock
-                    mockup
-                    productPicker
-                    sizePicker
-                    if product.takesFrameFinish { finishPicker }
-                    if product.takesHangerFinish { hangerPicker }
-                    orderPanel
-                    specs
-                    alsoLike
+            // Anchored the same way Studio home is, and for the same reason: the page is now
+            // taller than a screen, and CI can only photograph a screenful at a time. Inert
+            // without the environment variable.
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 26) {
+                        titleBlock.id("top")
+                        mockup
+                        productPicker.id("options")
+                        sizePicker
+                        if product.takesFrameFinish { finishPicker }
+                        if product.takesHangerFinish { hangerPicker }
+                        orderPanel.id("order")
+                        specs.id("details")
+                        alsoLike.id("more")
+                    }
+                    .padding(20)
                 }
-                .padding(20)
+                .onAppear {
+                    guard let anchor = ProcessInfo.processInfo
+                        .environment["ETCH_PREVIEW_SCROLL"], !anchor.isEmpty else { return }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        proxy.scrollTo(anchor, anchor: .top)
+                    }
+                }
             }
             .background(Theme.Palette.bone.opacity(0.35).ignoresSafeArea())
             .navigationTitle("Prints")
@@ -688,7 +703,11 @@ struct PrintShopView: View {
     /// between the pickers and the button.
     private var specs: some View {
         VStack(spacing: 0) {
-            DisclosureGroup {
+            // Open by default, the way the reference's "Product Information" is. It sits *below*
+            // the order button, so an expanded panel costs the decided buyer nothing and saves
+            // the undecided one a tap — the tap being the only thing standing between them and
+            // the paper weight they came to check.
+            DisclosureGroup(isExpanded: $specsExpanded) {
                 VStack(alignment: .leading, spacing: 14) {
                     specRow("Overview", product.tagline)
                     specRow("Materials", product.material)

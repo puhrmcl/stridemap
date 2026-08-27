@@ -15,5 +15,5 @@
 # option headings carrying their selected value, the Product details disclosure, and the
 # "same piece, finished differently" shelf at the foot.
 
-screens=prints
+screens=prints,prints@details,prints@more
 appearance=light
