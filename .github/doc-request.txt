@@ -4,15 +4,14 @@
 #
 # Public, read-only pages only.
 
-# Answered: Shopify generates the CSR through its REST Admin API. Kept as a record of the
-# question, commented out so it isn't refetched.
-# https://shopify.dev/docs/storefronts/mobile/create-apple-payment-processing-certificates
+# Refetched for its links, not its prose: the page says to "submit the request form" for the
+# write_mobile_payments and read_mobile_payments scopes, and the Dev Dashboard now rejects both
+# as invalid — which is that approval, pending. The form's URL is the thing that is needed and
+# the text renderers dropped it.
+https://shopify.dev/docs/storefronts/mobile/create-apple-payment-processing-certificates
 
-# Which flow currently yields an Admin API access token: the store admin's "Develop apps"
-# custom app, or the newer Dev Dashboard at dev.shopify.com. Shopify is mid-migration and
-# guessing has already sent the operator down the Partners app-version flow by mistake.
-https://help.shopify.com/en/manual/apps/app-types/custom-apps
-https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens
+# Answered: admin-created custom apps are retired; the client credentials grant replaces them.
+# https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens
 
 # The planet basemap build sizes — the one number docs/basemap.md estimates rather than states.
 # build.protomaps.com/ returned 404 for the bare root; the listing lives one level in.

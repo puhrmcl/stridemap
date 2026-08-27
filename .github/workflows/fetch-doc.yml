@@ -84,6 +84,16 @@ jobs:
               | cat -s | head -c 60000
             echo ""
             echo "── END-TEXT"
+
+            # The renderers above drop href targets, which is fine for prose and useless when
+            # the answer *is* a link — "submit the request form" is worth nothing without the
+            # URL behind it. Print the outbound links separately, deduped.
+            echo "── BEGIN-LINKS"
+            grep -oiE 'href="[^"#]+"' /tmp/page.html \
+              | sed -E 's/^href="//I; s/"$//' \
+              | grep -viE '\.(css|js|png|jpg|jpeg|svg|woff2?|ico)$' \
+              | sort -u | head -120
+            echo "── END-LINKS"
           done < /tmp/urls.txt
 
           echo ""
