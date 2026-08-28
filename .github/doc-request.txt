@@ -27,17 +27,18 @@ https://developer.apple.com/documentation/appstoreconnectapi/bundle-id-capabilit
 # build.protomaps.com/ returned 404 for the bare root; the listing lives one level in.
 https://build.protomaps.com/builds
 
-# The travel journal range. Etch has one bound product (the Year Book, a layflat A4 landscape
-# photo book at $119) and this is a different object at a different price point — a notebook you
-# take with you rather than a book you are given afterwards. Reading the page for what the range
-# sheet never states: the exact SKUs, page counts, paper, binding, and whether the cover print
-# area is one wrap or a front panel. Guessing a SKU off a prefix has failed four times out of
-# four in this project; reading the product page has worked every time.
-https://www.prodigi.com/products/cards-and-stationery/themed-notebooks-and-journals/travel-journals/
+# Answered: travel journals are cover-print-only (interior pages are Prodigi's fixed
+# travel-planning pages), 120pp 100gsm, A4/A5, portrait. PUR paperback and spiral softcover
+# ship EU+US (TJ-A5-PB-C-P, TJ-A5-SB-S-C-P, TJ-A4-PB-C-P, TJ-A4-SB-S-C-P); spiral hardback is
+# EU-only. Pricing needs an account quote — the verify-prodigi rig can ask when it matters.
+# https://www.prodigi.com/products/cards-and-stationery/themed-notebooks-and-journals/travel-journals/
 
 # Metal prints and wall stickers, before either is promised in the app. Metal is asked for as a
 # print finish alongside paper/frame; stickers came with a question mark and deserve an answer
 # from the catalog rather than a guess. The category pages print their outbound links even when
 # the exact slug is wrong, so a near-miss still hands us the right path.
-https://www.prodigi.com/products/wall-art/metal-prints/
-https://www.prodigi.com/products/stickers/
+# Answered: metal is two sub-products (aluminium ships US; dibond UK/US/EU), and stickers
+# split six ways with wall stickers shipping UK/US/EU. SKU tables live one level down:
+https://www.prodigi.com/products/wall-art/metal-prints/aluminium-prints/
+https://www.prodigi.com/products/wall-art/metal-prints/dibond/
+https://www.prodigi.com/products/stickers/wall-stickers/
