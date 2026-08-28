@@ -111,24 +111,43 @@ struct EtchSelectionSheet: View {
         min(116, (contentWidth - spacing * CGFloat(columns - 1)) / CGFloat(columns))
     }
 
+    /// The tallest a sheet's tiles may grow before they scroll instead.
+    ///
+    /// Activity View carries nine options — All, Recent, PRs, Races, Favorites, then a tile per
+    /// place map — which is three rows, and it is the sheet that found this. Clearing the tab bar
+    /// moves a too-tall card up rather than making it fit, so without a ceiling the fix for the
+    /// bottom row would eventually push the header off the top instead. A cap turns "too many
+    /// options" into a scroll, which is a thing a person can deal with, rather than a clipped row,
+    /// which is a thing they cannot.
+    private var maxTileAreaHeight: CGFloat {
+        let screen = UIScreen.main.bounds.height
+        return max(220, screen * 0.46)
+    }
+
     private var card: some View {
         VStack(spacing: 18) {
             SelectionSheetHeader(title: title, onClose: onClose)
-            VStack(spacing: 14) {
-                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                    HStack(spacing: spacing) {
-                        ForEach(row) { SelectionTile(option: $0, width: tileWidth) }
+            ScrollView {
+                VStack(spacing: 14) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                        HStack(spacing: spacing) {
+                            ForEach(row) { SelectionTile(option: $0, width: tileWidth) }
+                        }
+                        .frame(maxWidth: .infinity)   // centre incomplete rows
                     }
-                    .frame(maxWidth: .infinity)   // centre incomplete rows
                 }
+                .background(
+                    GeometryReader { g in
+                        Color.clear
+                            .onAppear { contentWidth = g.size.width }
+                            .onChange(of: g.size.width) { _, w in contentWidth = w }
+                    }
+                )
             }
-            .background(
-                GeometryReader { g in
-                    Color.clear
-                        .onAppear { contentWidth = g.size.width }
-                        .onChange(of: g.size.width) { _, w in contentWidth = w }
-                }
-            )
+            // Only scrolls when it has to: a three-tile sheet keeps its natural height and does
+            // not bounce, so the common case is unchanged.
+            .frame(maxHeight: maxTileAreaHeight)
+            .scrollBounceBehavior(.basedOnSize)
         }
         .bottomDockedCard()
     }
