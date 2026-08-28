@@ -417,26 +417,24 @@ struct HomeView: View {
                     .onChange(of: geo.size.height) { _, h in screenHeight = h }
             }
         )
-        // The docked search sheet plus the floating map controls that track its top edge — both in
-        // one overlay so HomeView's (large) body gains no extra modifier. The sheet is a UIKit motion
-        // shell (`SearchSheetHost`) hosting the SwiftUI search content: UIKit owns the physical
-        // drag/settle (a transform-driven, interruptible sheet), SwiftUI owns the content. The shell
-        // writes the live height into the same `sheetMetrics` bridge the controls and totals pill
-        // already track, so the map stays completely isolated during a drag.
+        // The floating map controls, in one overlay so HomeView's (large) body gains no extra
+        // modifier. `SearchSheetHost` — the UIKit motion shell that used to dock a search sheet
+        // here — is no longer mounted; see below.
         .overlay(alignment: .bottom) {
-            ZStack(alignment: .bottom) {
-                SheetLayer(metrics: sheetMetrics, maxHeight: sheetMaxHeight) {
-                    floatingControls
-                }
-                SearchSheetHost(
-                    maxHeight: sheetMaxHeight,
-                    bottomSafeArea: bottomSafeArea,
-                    reduceMotion: reduceMotion,
-                    appModel: appModel,
-                    modelContainer: modelContext.container,
-                    onHeight: { sheetMetrics.height = $0 }
-                )
-                .ignoresSafeArea()
+            // The docked search sheet is gone; the floating map controls stay.
+            //
+            // That sheet carried a search field and a profile avatar along the bottom of the map,
+            // and both now have better homes: search is the tool beside the tab bar, reachable
+            // from every surface and scoped to the one you are on, and the profile avatar sits in
+            // each surface's own header. Leaving it would have put two search fields and two
+            // profile buttons on one screen, with the tab bar sitting on top of it besides.
+            //
+            // The controls keep their `SheetLayer`, which tracks the sheet's height through
+            // `sheetMetrics`. With nothing writing to it the height stays zero, so they simply
+            // rest at the bottom — the layer costs nothing and stays ready for whatever docks
+            // there next.
+            SheetLayer(metrics: sheetMetrics, maxHeight: sheetMaxHeight) {
+                floatingControls
             }
         }
         .overlay {
@@ -1467,10 +1465,12 @@ private struct SheetFade<Content: View>: View {
     }
 }
 
-/// The floating map controls, tracking the search sheet's top edge. It owns the live-height layout
-/// (reading `SheetMetrics`, which the UIKit sheet shell writes each frame) so a drag re-renders only
-/// this small layer — never HomeView's body, the map, or the run-statistics work. The sheet itself
-/// is a sibling UIKit overlay (`SearchSheetHost`), so this layer no longer embeds it.
+/// The floating map controls, laid out against whatever is docked at the bottom.
+///
+/// It owns the live-height layout, reading `SheetMetrics`, so a drag re-renders only this small
+/// layer — never HomeView's body, the map, or the run-statistics work. Nothing writes a height
+/// now that the search sheet has moved to the tab bar, so the controls simply rest at the bottom;
+/// the isolation is kept because it costs nothing and is what any future dock would need.
 private struct SheetLayer<Controls: View>: View {
     @Bindable var metrics: SheetMetrics
     let maxHeight: CGFloat

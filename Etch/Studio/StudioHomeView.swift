@@ -4,12 +4,11 @@ import UniformTypeIdentifiers
 
 /// Etch Studio's home inside the app — the "Make Lasting" surface. A calm, editorial hub for
 /// turning any activity — a ride, a run, a hike, a race — into art, plus the entry point for
-/// prints. Not a
-/// configurator or a shop: the artwork leads, commerce stays quiet.
+/// prints. The artwork leads; commerce stays quiet.
 struct StudioHomeView: View {
     /// True when Studio is the app's own tab: it draws its wordmark masthead with the avatar and
-    /// the map button, and hides the navigation bar. False when Studio is presented as a sheet
-    /// from somewhere else, which keeps the bar.
+    /// hides the navigation bar. False when Studio is presented as a sheet from somewhere else,
+    /// which keeps the bar.
     var isHome: Bool = false
     /// True when pushed inside the Explore hub's navigation stack (no own NavigationStack).
     var embedded: Bool = false
@@ -189,9 +188,7 @@ struct StudioHomeView: View {
         }
     }
 
-    /// A plain map glyph in the corner that opens the full map (Studio-first mode).
     /// The profile photo, as the whole button.
-    ///
     private var profileButton: some View {
         Button { showProfile = true } label: {
             // Shows the user's chosen photo (like the map search bar); the plain person glyph is
@@ -211,21 +208,6 @@ struct StudioHomeView: View {
                 }
             }
         }
-    }
-
-    /// Reaches the map by selecting its tab rather than presenting it.
-    ///
-    /// This used to open `HomeView(isMapPopup: true)` in a `fullScreenCover`, which tore the map
-    /// down and rebuilt it on every visit — camera reset, tiles re-fetched. A tab keeps it alive,
-    /// and once the basemap is served from R2 that is a bill as well as a stutter.
-    private var mapThumbnailButton: some View {
-        Button { appModel.selectedTab = .map } label: {
-            Image(systemName: "map.fill")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(Theme.accent)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Open map")
     }
 
     /// Parses the picked run file, then hands the best activity to the import form. Prefers an
@@ -392,16 +374,21 @@ struct StudioHomeView: View {
     /// The trade is that the header scrolls away with the page rather than pinning. For a
     /// storefront that reads top to bottom, that is the normal behaviour and arguably the better
     /// one: the buttons are reachable at the top, where a reader starts.
+    /// Wordmark left, profile right — the arrangement the Apple Store uses, and the one the tab
+    /// bar made possible.
+    ///
+    /// The mark used to be centred between a profile button and a map button, which cost it the
+    /// left edge every other heading on the page starts from. The map button is gone entirely:
+    /// reaching the map is what the Map tab is for, and a second door to the same room beside a
+    /// bar that already has one is just a thing to explain.
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
-            profileButton
-            Spacer(minLength: 8)
             Image("BrandLogo")
                 .resizable().scaledToFit()
                 .frame(height: Self.mastheadMarkHeight)
                 .accessibilityLabel("Etch")
             Spacer(minLength: 8)
-            mapThumbnailButton
+            profileButton
         }
         .padding(.horizontal, 20)
     }
