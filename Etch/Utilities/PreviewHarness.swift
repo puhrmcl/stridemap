@@ -203,6 +203,8 @@ struct PreviewHarnessView: View {
                 // are too small to judge a composition by.
                 case let name where name.hasPrefix("wall-art"):
                     MapPrintView(runs: allRuns, kind: .artMap, artStyle: artStyle(from: name))
+                case "city-index":
+                    MapPrintView(runs: allRuns, kind: .cities, cityIndex: true)
                 case "map-studio":      studio(family: .map)
                 case "gallery-studio":  studio(family: .gallery)
                 case "detail":          detail

@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import ShopifyCheckoutSheetKit
 
 /// The aggregate map-print screen: preview a full-history poster, switch between kinds, narrow to
 /// a single state / city / country, choose orientation, and zoom / pan the frame before export.
@@ -41,12 +42,33 @@ struct MapPrintView: View {
     @State private var rendering: Set<String> = []
     @State private var showExport = false
     @State private var showPrints = false
+    /// Cities drawn as the typographic index (printable) rather than pins on a map (screen-only).
+    @State private var cityIndexOn = false
+    /// The direct order path, for the compositions made of our own ink.
+    @State private var showSizeDialog = false
+    @State private var orderPhase: PrintOrderService.Phase?
+    @State private var orderError: String?
+    @State private var checkoutURL: URL?
 
-    init(runs: [Run], kind: MapPrintKind = .allRuns, artStyle: MapArtStyle = .grid) {
+    /// Whether the piece on screen can actually be printed and sold: the Anthology styles and
+    /// the City Index draw nothing but our own ink on our own ground. The map-based prints
+    /// render on Apple snapshots — licensed for screens, not merchandise — so their bag button
+    /// keeps opening the browse-only shop instead of pretending.
+    private var printSafe: Bool {
+        kind.isArt || (kind == .cities && cityIndexOn && focusName == nil)
+    }
+
+    private var canOrder: Bool {
+        printSafe && PrintOrderService.isConfigured && EtchConfig.current.ordering.enabled
+    }
+
+    init(runs: [Run], kind: MapPrintKind = .allRuns, artStyle: MapArtStyle = .grid,
+         cityIndex: Bool = false) {
         self.runs = runs
         _kind = State(initialValue: kind)
-        // The Archive Collection opens Wall Art directly on a chosen style.
+        // The Archive Collection opens the Anthology directly on a chosen style.
         _artStyle = State(initialValue: artStyle)
+        _cityIndexOn = State(initialValue: cityIndex)
     }
 
     // MARK: Places + request
@@ -150,6 +172,7 @@ struct MapPrintView: View {
         req.region = MKCoordinateRegion(center: center,
                                         span: MKCoordinateSpan(latitudeDelta: latSpan, longitudeDelta: lonSpan))
         req.statesUSAOnly = statesUSAOnly && kind == .states && focusName == nil
+        req.cityIndex = cityIndexOn && kind == .cities
         req.showFooter = showDetails || kind.isArt || isSingleState
         return req
     }
@@ -164,7 +187,7 @@ struct MapPrintView: View {
     }
 
     private var currentKey: String {
-        "\(kind.rawValue)-\(focusName ?? "all")-\(orientation.rawValue)-\(artPalette.rawValue)-\(artStyle.rawValue)-\(artWeight.rawValue)-" +
+        "\(kind.rawValue)-\(focusName ?? "all")-\(orientation.rawValue)-\(artPalette.rawValue)-\(artStyle.rawValue)-\(artWeight.rawValue)-\(cityIndexOn)-" +
         "\(artFilterLabel)-\(stateTitle)|\(stateMetricsKey)-\(statesUSAOnly)-\(showDetails)-" +
         String(format: "%.2f-%.2f-%.2f", zoom, panX, panY)
     }
@@ -195,7 +218,9 @@ struct MapPrintView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showPrints = true } label: { Image(systemName: "bag") }
+                    Button {
+                        if canOrder { showSizeDialog = true } else { showPrints = true }
+                    } label: { Image(systemName: "bag") }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showExport = true } label: { Image(systemName: "square.and.arrow.up") }
@@ -208,6 +233,45 @@ struct MapPrintView: View {
                 PrintShopView(subjectTitle: request.title, artwork: rendered[currentKey])
             }
             .task(id: currentKey) { await renderIfNeeded(currentKey) }
+            .confirmationDialog("Order this piece", isPresented: $showSizeDialog, titleVisibility: .visible) {
+                ForEach(PrintProduct.print.sizes) { size in
+                    Button("\(size.label) · \(size.price)") { order(size) }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Fine-art print on \(PrintProduct.print.material).")
+            }
+            .sheet(item: Binding(
+                get: { checkoutURL.map { MapPrintCheckoutTarget(url: $0) } },
+                set: { if $0 == nil { checkoutURL = nil } }
+            )) { target in
+                CheckoutSheet(checkout: target.url)
+                    .title("Checkout")
+                    .colorScheme(.automatic)
+                    .tintColor(UIColor(Theme.accent))
+                    .onCancel { checkoutURL = nil }
+                    .onComplete { _ in checkoutURL = nil; dismiss() }
+                    .onFail { error in
+                        checkoutURL = nil
+                        orderError = error.localizedDescription
+                    }
+                    .interactiveDismissDisabled()
+            }
+            .alert("Couldn't start the order", isPresented: Binding(
+                get: { orderError != nil }, set: { if !$0 { orderError = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: { Text(orderError ?? "") }
+            .overlay {
+                if let orderPhase {
+                    VStack(spacing: 10) {
+                        ProgressView()
+                        Text(orderPhase.label).font(.system(.subheadline, design: .rounded))
+                    }
+                    .padding(24)
+                    .background(.regularMaterial, in: .rect(cornerRadius: 16))
+                }
+            }
             .onChange(of: kind) { focusName = nil; stateTitle = ""; artFilter = .all; statesUSAOnly = false; resetFrame() }
             .onChange(of: focusName) { stateTitle = ""; resetFrame() }
             // Each art style has its own default framing (Home Turf zooms to the home city), so
@@ -283,6 +347,18 @@ struct MapPrintView: View {
                 }
                 .pickerStyle(.segmented)
                 .frame(maxWidth: 240)
+            }
+            if kind == .cities && focusName == nil {
+                // The pinned map is for the screen; the index is the printable form. A segmented
+                // pair rather than a toggle, because these are two different pieces, not one
+                // piece with an option.
+                Picker("Cities as", selection: $cityIndexOn) {
+                    Text("Map").tag(false)
+                    Text("Index").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 240)
+                if cityIndexOn { paletteRow }
             }
             if isSingleState { stateControls }
 
@@ -595,4 +671,42 @@ struct MapPrintView: View {
             rendered[cacheKey] = image
         }
     }
+
+    /// Renders this composition at print resolution — banded, so a 24 × 36 never exists as one
+    /// allocation — freezes it into the fulfilment worker, and opens checkout. Same pipeline,
+    /// same hidden line attributes, same single shape of order the worker already understands.
+    private func order(_ size: PrintSize) {
+        guard orderPhase == nil else { return }
+        let request = request
+        Task {
+            do {
+                orderPhase = .rendering
+                let fileURL = try await MapPrintRenderer.printFile(for: request, geometry: size.geometry)
+                defer { try? FileManager.default.removeItem(at: fileURL) }
+
+                let piece = request.cityIndex ? "cityindex" : "anthology-\(request.artStyle.rawValue)"
+                let cart = try await PrintOrderService.checkout(
+                    fileAt: fileURL,
+                    pixels: size.geometry.trimPixels,
+                    creationID: "\(piece)-\(size.prodigiSKU)-\(UUID().uuidString)",
+                    shopifySKU: size.prodigiSKU,
+                    prodigiSKU: size.prodigiSKU,
+                    productHandle: PrintProduct.print.shopifyHandle,
+                    finishAttribute: "",
+                    onPhase: { orderPhase = $0 }
+                )
+                orderPhase = nil
+                checkoutURL = cart.checkoutURL
+            } catch {
+                orderPhase = nil
+                orderError = error.localizedDescription
+            }
+        }
+    }
 }
+
+private struct MapPrintCheckoutTarget: Identifiable {
+    let url: URL
+    var id: String { url.absoluteString }
+}
+

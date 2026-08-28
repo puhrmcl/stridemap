@@ -208,6 +208,11 @@ struct MapPrintRequest {
     var artPalette: MapArtPalette = .gallery
     var artStyle: MapArtStyle = .grid
     var artWeight: MapArtWeight = .medium
+    /// Cities drawn as a typographic index — every city named, ranked by visits — instead of
+    /// pins on a map. The index is composed entirely of our own type on our own ground, which
+    /// is what makes it the *printable* form of the cities piece: the pinned form draws on an
+    /// Apple snapshot, licensed for screens and not for merchandise.
+    var cityIndex: Bool = false
     /// Single-state print options.
     var isSingleState: Bool = false
     var stateMetrics: [StateMetric] = StateMetric.allCases
@@ -246,7 +251,13 @@ struct MapPrintRequest {
     /// The runs that actually carry a drawable route.
     var mapped: [Run] { runs.filter(\.hasRoute) }
 
-    /// Nominal poster size. Wall Art is a full-bleed 2:3 / 3:2; the rest use the composition size.
+    /// The City Index composes on the same full-bleed 2:3 sheet the art styles use.
+    var posterIndexSize: CGSize {
+        orientation == .landscape ? CGSize(width: 1500, height: 1000)
+                                  : CGSize(width: 1000, height: 1500)
+    }
+
+    /// Nominal poster size. The Anthology is a full-bleed 2:3 / 3:2; the rest use the composition size.
     var posterNominalSize: CGSize {
         if kind.isArt {
             return orientation == .landscape ? CGSize(width: 1500, height: 1000)

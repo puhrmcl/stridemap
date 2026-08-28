@@ -13,6 +13,7 @@ enum MapPrintRenderer {
     /// Preview / working image at the given `ImageRenderer` scale.
     static func image(for request: MapPrintRequest, scale: CGFloat) async -> UIImage? {
         if request.kind.isArt { return artImage(for: request, scale: scale) }
+        if request.kind == .cities && request.cityIndex { return cityIndexImage(for: request, scale: scale) }
         if request.isSingleState { return await stateImage(for: request, scale: scale) }
         let panelSize = CGSize(width: MapPrintComposition.width, height: MapPrintComposition.artHeight)
         let visited = request.kind == .states ? await visitedStateIntensities(request.runs) : [:]
@@ -152,38 +153,42 @@ enum MapPrintRenderer {
     /// Text-free abstract wall art, four ways — always full and balanced whether that's five runs
     /// or five hundred.
     private static func artImage(for request: MapPrintRequest, scale: CGFloat) -> UIImage? {
+        let size = request.posterNominalSize
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        format.opaque = true
+        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            drawArt(request, size: size)
+        }
+    }
+
+    /// The whole art composition, drawn absolutely into `size`. One body serves the screen
+    /// preview and the banded print path — a band is just a translated window onto this same
+    /// drawing, which is what guarantees a banded print cannot differ from the preview.
+    private static func drawArt(_ request: MapPrintRequest, size: CGSize) {
         // Only the Grid draws routes, so only the Grid needs them. The calendar- and
         // distance-based styles take the whole history — which is what lets a treadmill-heavy
         // record still fill a Rings, a Thread or a Strata, exactly as their gates promise.
         let runs = request.artStyle == .grid ? request.mapped : request.runs
-        guard !runs.isEmpty else { return nil }
-        let size = request.posterNominalSize
+        guard !runs.isEmpty, let cg = UIGraphicsGetCurrentContext() else { return }
         let palette = request.artPalette
-
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = scale
-        format.opaque = true
-        let renderer = UIGraphicsImageRenderer(size: size, format: format)
         let ground = UIColor(palette.ground)
         let line = UIColor(palette.line)
         let unit = size.width / 1000
 
-        return renderer.image { context in
-            let cg = context.cgContext
-            ground.setFill()
-            cg.fill(CGRect(origin: .zero, size: size))
+        ground.setFill()
+        cg.fill(CGRect(origin: .zero, size: size))
 
-            let weight = request.artWeight.multiplier
-            switch request.artStyle {
-            case .grid:          drawGrid(runs, size: size, line: line, unit: unit, weight: weight)
-            case .ridgeline:     drawRidgeline(runs, size: size, line: line, ground: ground, unit: unit, weight: weight)
-            case .rings:         drawRings(runs, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark, weight: weight)
-            case .thread:        drawThread(runs, size: size, line: line, unit: unit, weight: weight)
-            case .strata:        drawStrata(runs, size: size, line: line, unit: unit, weight: weight)
-            }
-            // No vignette or gradient finish: the ink on its ground *is* the piece — any overlay
-            // reads as a filter, not a print.
+        let weight = request.artWeight.multiplier
+        switch request.artStyle {
+        case .grid:          drawGrid(runs, size: size, line: line, unit: unit, weight: weight)
+        case .ridgeline:     drawRidgeline(runs, size: size, line: line, ground: ground, unit: unit, weight: weight)
+        case .rings:         drawRings(runs, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark, weight: weight)
+        case .thread:        drawThread(runs, size: size, line: line, unit: unit, weight: weight)
+        case .strata:        drawStrata(runs, size: size, line: line, unit: unit, weight: weight)
         }
+        // No vignette or gradient finish: the ink on its ground *is* the piece — any overlay
+        // reads as a filter, not a print.
     }
 
     /// A geography projector mapping coordinates into the poster, aspect-preserving with margin.
@@ -511,6 +516,134 @@ enum MapPrintRenderer {
                 bar.stroke()
             }
         }
+    }
+
+
+    // MARK: The City Index — every city, as type
+
+    /// The cities piece as a typographic index: every city the history touches, ranked by
+    /// visits, set in columns on the art palette's ground. No map, no pins — which is exactly
+    /// what makes it printable, where the pinned form (an Apple snapshot) is licensed for
+    /// screens only.
+    ///
+    /// The count trails each name as a thin figure rather than a bar or a dot: the piece is a
+    /// record, and a record is read, not measured.
+    static func cityIndexImage(for request: MapPrintRequest, scale: CGFloat) -> UIImage? {
+        let size = request.posterIndexSize
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        format.opaque = true
+        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            drawCityIndex(request, size: size)
+        }
+    }
+
+    private static func drawCityIndex(_ request: MapPrintRequest, size: CGSize) {
+        let palette = request.artPalette
+        UIColor(palette.ground).setFill()
+        UIBezierPath(rect: CGRect(origin: .zero, size: size)).fill()
+
+        var counts: [String: Int] = [:]
+        for run in request.runs {
+            guard let city = run.city, !city.isEmpty else { continue }
+            counts[city, default: 0] += 1
+        }
+        let cities = counts.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
+        guard !cities.isEmpty else { return }
+
+        let ink = UIColor(palette.line)
+        let marginX = size.width * 0.10
+        let marginY = size.height * 0.11
+        let usableW = size.width - marginX * 2
+        let usableH = size.height - marginY * 2
+
+        // Fit by search: the largest type size at which every city fits the sheet, in one
+        // column when the list is short and in two or three when it is long. Auto-fitting is
+        // what keeps ten cities monumental and two hundred still legible — the same promise
+        // the Grid makes about run counts.
+        for columns in [1, 2, 3] {
+            let rows = Int(ceil(Double(cities.count) / Double(columns)))
+            let rowH = usableH / CGFloat(rows)
+            let pointSize = rowH * 0.62
+            guard pointSize >= size.width * 0.014 else { continue }   // unreadably small: add a column
+            let font = UIFont.systemFont(ofSize: pointSize, weight: .semibold)
+            let countFont = UIFont.systemFont(ofSize: pointSize * 0.6, weight: .regular)
+            let colW = (usableW - CGFloat(columns - 1) * usableW * 0.06) / CGFloat(columns)
+
+            // Reject this column count if any name overflows its column.
+            let fits = cities.allSatisfy { city, count in
+                let name = city.uppercased() as NSString
+                let w = name.size(withAttributes: [.font: font]).width
+                    + ("  \(count)" as NSString).size(withAttributes: [.font: countFont]).width
+                return w <= colW
+            }
+            guard fits || columns == 3 else { continue }
+
+            for (i, entry) in cities.enumerated() {
+                let column = i / rows
+                let row = i % rows
+                let x = marginX + CGFloat(column) * (colW + usableW * 0.06)
+                let y = marginY + CGFloat(row) * rowH + (rowH - pointSize) / 2
+                let name = entry.key.uppercased() as NSString
+                name.draw(at: CGPoint(x: x, y: y),
+                          withAttributes: [.font: font, .foregroundColor: ink])
+                let nameW = name.size(withAttributes: [.font: font]).width
+                ("\(entry.value)" as NSString).draw(
+                    at: CGPoint(x: x + nameW + pointSize * 0.35, y: y + pointSize * 0.3),
+                    withAttributes: [.font: countFont,
+                                     .foregroundColor: ink.withAlphaComponent(0.45)])
+            }
+            return
+        }
+    }
+
+    // MARK: The print file — banded, for the pieces made of our own ink
+
+    /// Streams a print-resolution sheet to disk for the compositions that are safe to sell:
+    /// the Anthology styles and the City Index, which draw nothing but our own ink on our own
+    /// ground. The map-based prints stay off this path — their base layer is an Apple
+    /// snapshot, licensed for screens and not for merchandise.
+    ///
+    /// Banded the same way every large sheet in this app is: a 16 × 24 is 4800 × 7200 pixels
+    /// and a 24 × 36 is 7200 × 10800, and neither is ever held as one allocation. Each band
+    /// re-draws the full composition with the context translated — the composition functions
+    /// draw absolutely, so a band is just a window onto the same drawing.
+    static func printFile(for request: MapPrintRequest, geometry: PrintGeometry) async throws -> URL {
+        let width = Int(geometry.trimPixels.width)
+        let height = Int(geometry.trimPixels.height)
+        let full = CGSize(width: CGFloat(width), height: CGFloat(height))
+
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("etch-anthology-\(UUID().uuidString).png")
+        let writer = try PrintFileWriter(width: width, height: height, url: url)
+
+        let bandHeight = 900
+        var top = 0
+        while top < height {
+            try Task.checkCancellation()
+            let rows = min(bandHeight, height - top)
+            let format = UIGraphicsImageRendererFormat()
+            format.opaque = true
+            format.scale = 1
+            let band = UIGraphicsImageRenderer(
+                size: CGSize(width: width, height: rows), format: format
+            ).image { context in
+                context.cgContext.translateBy(x: 0, y: CGFloat(-top))
+                if request.kind == .cities && request.cityIndex {
+                    drawCityIndex(request, size: full)
+                } else {
+                    drawArt(request, size: full)
+                }
+            }
+            guard let cgImage = band.cgImage else {
+                try? FileManager.default.removeItem(at: url)
+                throw PrintFileWriter.WriteError.compressionFailed
+            }
+            try writer.append(band: cgImage, rows: rows)
+            top += rows
+            await Task.yield()
+        }
+        return try writer.finish()
     }
 
     // MARK: Panel

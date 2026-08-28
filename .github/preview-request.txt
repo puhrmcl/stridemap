@@ -11,9 +11,9 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b441: the two new Archive styles, full size — a composition can only be
-# judged rendered, and these are generative. — wordmark left and profile
+# Requested for b443: the two new Anthology styles and the City Index, full size — a
+# generative composition can only be judged rendered. — wordmark left and profile
 # right on Studio, storefront/grid glyphs on the bar, and the map with its docked sheet gone.
 
-screens=wall-art:thread,wall-art:strata,wall-art:rings
+screens=wall-art:thread,wall-art:strata,city-index
 appearance=light
