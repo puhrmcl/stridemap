@@ -88,11 +88,13 @@ enum PrintOrderService {
         prodigiSKU: String,
         productHandle: String,
         finishAttribute: String,
+        contentType: String = "image/png",
         onPhase: (Phase) -> Void
     ) async throws -> ShopifyStorefront.Cart {
         onPhase(.uploading)
         let assetID = UUID().uuidString.lowercased()
-        try await upload(fileAt: fileURL, assetID: assetID, creationID: creationID, pixels: pixels)
+        try await upload(fileAt: fileURL, assetID: assetID, creationID: creationID,
+                         pixels: pixels, contentType: contentType)
 
         onPhase(.openingCheckout)
         let variant = try await ShopifyStorefront.variant(
@@ -128,15 +130,20 @@ enum PrintOrderService {
     /// 24×36 PNG is tens of megabytes and the point was never to hold the whole sheet. The
     /// checksum is folded over the file in chunks for the same reason, and `upload(for:fromFile:)`
     /// streams the body rather than materialising it.
+    /// `contentType` is a parameter rather than a constant because not every product ships a
+    /// PNG. The Year Book is a multi-page PDF — the lab needs the file typed correctly to
+    /// rasterise it, and the worker stores whatever is declared here and serves it back to
+    /// Prodigi under the same type.
     private static func upload(
-        fileAt url: URL, assetID: String, creationID: String, pixels: CGSize
+        fileAt url: URL, assetID: String, creationID: String, pixels: CGSize,
+        contentType: String = "image/png"
     ) async throws {
         let checksum = try streamedSHA256(of: url)
 
         var request = URLRequest(url: CommerceConfig.workerBase.appendingPathComponent("assets/\(assetID)"))
         request.httpMethod = "PUT"
         request.setValue("Bearer \(CommerceConfig.uploadToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("image/png", forHTTPHeaderField: "Content-Type")
+        request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         request.setValue(checksum, forHTTPHeaderField: "X-Checksum-SHA256")
         request.setValue(creationID, forHTTPHeaderField: "X-Creation-ID")
         request.setValue(AppInfo.changeTag, forHTTPHeaderField: "X-Renderer-Version")

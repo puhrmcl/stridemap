@@ -37,4 +37,12 @@ enum BookCatalog {
     static var price: String {
         (Double(priceCents) / 100).formatted(.currency(code: "USD").precision(.fractionLength(0)))
     }
+
+    /// The product's URL handle in Shopify, whose variant carries the retail price at checkout.
+    /// Must match the handle on the store's product page exactly.
+    static let shopifyHandle = "year-book"
+
+    /// What the book is uploaded as. Every other product in the range is a single PNG sheet;
+    /// this one is a multi-page PDF, and the lab rasterises it from the declared type.
+    static let contentType = "application/pdf"
 }
