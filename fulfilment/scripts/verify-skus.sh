@@ -84,10 +84,12 @@ SKUS=(
   # 4x6 / 12x12 / 16x20 / 8x24 / 24x24 — no 2:3 size — and prefix-guessing has failed 4/4 in
   # this project, so these are candidates to CONFIRM OR BURY, not sizes to ship. A miss here is
   # the answer working, not the rig failing.
-  "GLOBAL-MET-12X18:"
-  "GLOBAL-MET-16X24:"
-  "GLOBAL-MET-24X36:"
-  "GLOBAL-MET-16X20:"
+  # All four resolved — the example table was just incomplete, and every size is ~300 DPI 2:3
+  # (12x18 = 3636x5436, 24x36 = 7275x10875). `finish` is the one required attribute; quoted
+  # with the middle of its five values to get real prices this pass.
+  "GLOBAL-MET-12X18:finish=satin"
+  "GLOBAL-MET-16X24:finish=satin"
+  "GLOBAL-MET-24X36:finish=satin"
 
   # Wall stickers — the global product, fulfilled from the nearest lab. Table read live off the
   # product page, so these should all resolve; the quotes are what's actually unknown.
