@@ -34,3 +34,10 @@ https://build.protomaps.com/builds
 # area is one wrap or a front panel. Guessing a SKU off a prefix has failed four times out of
 # four in this project; reading the product page has worked every time.
 https://www.prodigi.com/products/cards-and-stationery/themed-notebooks-and-journals/travel-journals/
+
+# Metal prints and wall stickers, before either is promised in the app. Metal is asked for as a
+# print finish alongside paper/frame; stickers came with a question mark and deserve an answer
+# from the catalog rather than a guess. The category pages print their outbound links even when
+# the exact slug is wrong, so a near-miss still hands us the right path.
+https://www.prodigi.com/products/wall-art/metal-prints/
+https://www.prodigi.com/products/stickers/
