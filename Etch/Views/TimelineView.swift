@@ -6,6 +6,13 @@ import SwiftData
 struct TimelineView: View {
     /// True when pushed inside the Explore hub's navigation stack (no own NavigationStack).
     var embedded: Bool = false
+    /// Written with the date span of whatever is on screen, for the page header to show.
+    ///
+    /// Apple Photos puts this under "Library" and updates it as you scroll — "Aug 23–27, 2021" —
+    /// and it is the detail that makes a wall of thumbnails legible: it tells you *when* you are
+    /// without you having to recognise a photograph. Timeline has the same problem and the same
+    /// answer. Nil while nothing is measured, so the header can fall back to its summary.
+    var visibleSpan: Binding<String?> = .constant(nil)
     @Environment(AppModel.self) private var appModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
@@ -43,6 +50,14 @@ struct TimelineView: View {
                             case .all: allContent
                             }
                         }
+                        // Which tiles are actually on screen, rather than a guess from the scroll
+                        // offset — a lazy grid's offset says nothing reliable about which row you
+                        // are looking at. Only the dated scopes report: Years already prints its
+                        // own year on every card, so a span under the title would say it twice.
+                        .onScrollTargetVisibilityChange(idType: UUID.self) { ids in
+                            guard scope != .years else { visibleSpan.wrappedValue = nil; return }
+                            visibleSpan.wrappedValue = span(forVisible: Set(ids))
+                        }
                         // After a year tile switches us to Months, scroll to that year's start.
                         .task(id: scrollTarget) {
                             guard let target = scrollTarget else { return }
@@ -69,6 +84,42 @@ struct TimelineView: View {
                 if !embedded && !scopedRuns.isEmpty { scopePicker }
             }
         }
+    }
+
+    // MARK: The visible span
+
+    /// "Aug 23–27, 2021" for whatever is on screen, in Photos' own phrasing.
+    ///
+    /// Collapses as far as the dates allow: one day prints once, a span inside a month shares the
+    /// month, a span inside a year shares the year, and only a span crossing years spells both
+    /// ends out. A header that said "Aug 23, 2021 – Aug 27, 2021" would be accurate and unreadable.
+    private func span(forVisible ids: Set<UUID>) -> String? {
+        let dates = scopedRuns.filter { ids.contains($0.id) }.map(\.startDate)
+        guard let first = dates.min(), let last = dates.max() else { return nil }
+
+        let calendar = Calendar.current
+        if calendar.isDate(first, inSameDayAs: last) {
+            return first.formatted(.dateTime.month(.abbreviated).day().year())
+        }
+        let sameYear = calendar.component(.year, from: first) == calendar.component(.year, from: last)
+        let sameMonth = sameYear
+            && calendar.component(.month, from: first) == calendar.component(.month, from: last)
+
+        if sameMonth {
+            let month = first.formatted(.dateTime.month(.abbreviated))
+            let d1 = calendar.component(.day, from: first)
+            let d2 = calendar.component(.day, from: last)
+            let year = calendar.component(.year, from: first)
+            return "\(month) \(d1)–\(d2), \(year)"
+        }
+        if sameYear {
+            let a = first.formatted(.dateTime.month(.abbreviated).day())
+            let b = last.formatted(.dateTime.month(.abbreviated).day())
+            return "\(a) – \(b), \(calendar.component(.year, from: first))"
+        }
+        let a = first.formatted(.dateTime.month(.abbreviated).year())
+        let b = last.formatted(.dateTime.month(.abbreviated).year())
+        return "\(a) – \(b)"
     }
 
     // MARK: Scope control
@@ -122,6 +173,7 @@ struct TimelineView: View {
                 .id(group.id)
             }
         }
+        .scrollTargetLayout()
         .padding(.horizontal, 12)
         .padding(.top, 4)
     }
@@ -172,6 +224,7 @@ struct TimelineView: View {
                 photoTile(run, corner: 4)
             }
         }
+        .scrollTargetLayout()
         .padding(.top, 2)
     }
 

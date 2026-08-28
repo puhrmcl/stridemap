@@ -231,13 +231,23 @@ struct RunDetailView: View {
         .routeFileAttacher(run: run, isPresented: $showRouteImporter)
     }
 
+    /// Both capsules are the same width.
+    ///
+    /// Sized to their own text, "Add location on map" and "Import route file" came out visibly
+    /// different lengths and stacked into a ragged pair. They are two ways of answering one
+    /// question — where was this? — and equal weight is the honest presentation of a choice
+    /// between equals. A fixed width also stops the pair reflowing when the labels are localised.
+    private static let unmappedActionWidth: CGFloat = 230
+
     private func unmappedAction(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: symbol)
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
                 .foregroundStyle(Theme.accent)
-                .padding(.horizontal, 14)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
                 .padding(.vertical, 8)
+                .frame(width: Self.unmappedActionWidth)
                 .background(.regularMaterial, in: .capsule)
         }
         .buttonStyle(.plain)

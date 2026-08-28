@@ -131,10 +131,12 @@ struct EtchTabView: View {
 struct TimelineTab: View {
     @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
     @State private var showAchievements = false
+    /// The date span of whatever Timeline currently has on screen, written by it as you scroll.
+    @State private var visibleSpan: String?
 
     var body: some View {
         NavigationStack {
-            TimelineView(embedded: true)
+            TimelineView(embedded: true, visibleSpan: $visibleSpan)
                 // Header only. Timeline supplies its own Years / Months / All directly beneath,
                 // and that is the page's single scope control.
                 //
@@ -145,7 +147,9 @@ struct TimelineTab: View {
                 // never parallel to. Years, Months and All are three arrangements of one thing;
                 // Achievements is a different thing.
                 .safeAreaInset(edge: .top, spacing: 0) {
-                    EtchPageHeader("Timeline", subtitle: summary) {
+                    // The span while scrolling, the summary otherwise — Photos shows where you
+                    // are when there is a where, and what you have when there isn't.
+                    EtchPageHeader("Timeline", subtitle: visibleSpan ?? summary) {
                         Button { showAchievements = true } label: {
                             Image(systemName: "trophy")
                                 .font(.system(size: 17, weight: .semibold))
@@ -175,8 +179,8 @@ struct TimelineTab: View {
         }
     }
 
-    /// What the history amounts to, under the title — the Photos pattern, where a quiet second
-    /// line tells you what you are looking at without another control.
+    /// What the history amounts to — shown under the title until a scroll reports a date span,
+    /// which is the more useful answer while you are moving through it.
     private var summary: String? {
         guard !runs.isEmpty else { return nil }
         let metres = runs.reduce(0.0) { $0 + $1.distance }

@@ -20,6 +20,13 @@ struct RouteThumbnail: View {
     let run: Run
     var lineWidth: CGFloat = 2.5
 
+    /// The mark for a routeless activity: the treadmill for an indoor run, otherwise whatever
+    /// the activity actually was. `ActivityType.detailIcon` already carries the whole set —
+    /// run, walk, hike, ride, ski, swim, row — so a ride stops being drawn as a runner.
+    private var glyph: String {
+        run.isIndoor ? IndoorGlyph.symbol : run.activityType.detailIcon
+    }
+
     var body: some View {
         ZStack {
             LinearGradient(
@@ -35,19 +42,31 @@ struct RouteThumbnail: View {
                         style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
                     )
                     .padding(10)
-            } else if run.isIndoor {
-                VStack(spacing: 5) {
-                    Image(systemName: IndoorGlyph.symbol)
-                        .font(.system(size: 22, weight: .semibold))
-                    Text("INDOOR")
-                        .font(.system(size: 8, weight: .bold, design: .rounded))
-                        .tracking(1.5)
-                }
-                .foregroundStyle(.secondary)
             } else {
-                Image(systemName: "figure.run")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                // No route: the activity's own glyph, in the route's own blue.
+                //
+                // This used to be a grey `figure.run` on every routeless activity, which was
+                // wrong twice over. Grey read as an error state — a tile apologising for missing
+                // something — when a treadmill run or an untracked race is a perfectly good
+                // activity that simply has no line to draw. And a runner glyph on a ride was
+                // just incorrect, which the library's cycling and hiking made visible.
+                //
+                // Drawn in Theme.Route.recent, the same blue the route lines use, inside a ring:
+                // in a grid of blue lines on dark tiles, a blue mark on a dark tile belongs to
+                // the set. Grey did not.
+                GeometryReader { geo in
+                    let side = min(geo.size.width, geo.size.height)
+                    ZStack {
+                        Circle()
+                            .strokeBorder(Theme.Route.recent.opacity(0.28),
+                                          lineWidth: max(1, side * 0.02))
+                            .frame(width: side * 0.52, height: side * 0.52)
+                        Image(systemName: glyph)
+                            .font(.system(size: side * 0.24, weight: .semibold))
+                            .foregroundStyle(Theme.Route.recent)
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height)
+                }
             }
         }
     }
