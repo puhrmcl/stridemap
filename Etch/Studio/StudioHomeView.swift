@@ -836,8 +836,20 @@ struct StudioHomeView: View {
                         .frame(maxWidth: .infinity)
                         .clipped()
                     // An ink scrim so the type sits on the image the way a gallery caption does.
+                    //
+                    // Shaped with explicit stops rather than an even ramp: the caption block —
+                    // eyebrow, title, subtitle, call to action — occupies the bottom half of the
+                    // tile, and an even three-colour ramp only reached real darkness below the
+                    // title, which left the letterspaced eyebrow sitting on bare map. The scrim
+                    // now arrives at working strength just above the eyebrow and every line of
+                    // type stands on ink.
                     LinearGradient(
-                        colors: [.clear, Theme.Palette.ink.opacity(0.25), Theme.Palette.ink.opacity(0.88)],
+                        stops: [
+                            .init(color: .clear, location: 0),
+                            .init(color: .clear, location: 0.28),
+                            .init(color: Theme.Palette.ink.opacity(0.55), location: 0.52),
+                            .init(color: Theme.Palette.ink.opacity(0.92), location: 1.0)
+                        ],
                         startPoint: .top, endPoint: .bottom
                     )
                     VStack(alignment: .leading, spacing: 7) {
