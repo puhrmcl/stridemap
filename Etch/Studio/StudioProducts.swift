@@ -7,7 +7,7 @@ import UIKit
 /// is a *choice made inside* buying one — the order Tesla uses, and the reason their
 /// configurator is ten taps rather than seventy.
 enum StudioProduct: String, CaseIterable, Identifiable {
-    case mapPoster, galleryPoster, photoWall, medalFrame, yearBook, wallArt
+    case mapPoster, galleryPoster, photoWall, medalFrame, yearBook, wallArt, lithograph
     var id: String { rawValue }
 
     /// The products the storefront currently offers. The medal frame is built but withheld until
@@ -32,6 +32,7 @@ enum StudioProduct: String, CaseIterable, Identifiable {
         case .medalFrame:    return "Medal Frame"
         case .yearBook:      return "Year Book"
         case .wallArt:       return "Anthology"
+        case .lithograph:    return "Lithograph"
         }
     }
 
@@ -44,6 +45,7 @@ enum StudioProduct: String, CaseIterable, Identifiable {
         case .medalFrame:    return "The medal, and the day you earned it."
         case .yearBook:      return "A year of it, bound."
         case .wallArt:       return "Everything you've done, as one object."
+        case .lithograph:    return "Every city you've run, set as type."
         }
     }
 
@@ -82,6 +84,7 @@ enum StudioProduct: String, CaseIterable, Identifiable {
         case .yearBook:   return "book.pages"
         case .photoWall:  return "square.grid.3x3"
         case .medalFrame: return "medal"
+        case .lithograph: return "text.justify.leading"
         default:          return "photo.artframe"
         }
     }
@@ -148,6 +151,26 @@ enum MedalFrameCatalog {
     /// `color`, which is the catalog's inconsistency and not ours to tidy: a quote is rejected
     /// without both attributes, and rejected again if either is spelled the other way.
     static let mountColours = ["Black", "Navy"]
+
+    /// Approximate moulding colours, for mockups only — the order always sends the catalog's own
+    /// strings, never these. Shared by every surface that draws the frame (the medal screen and
+    /// the print shop's format picker), so the two mockups can never disagree about a colour.
+    static func mouldingHex(_ name: String) -> String {
+        switch name {
+        case "black":      return "#1A1A1C"
+        case "brown":      return "#5B4636"
+        case "dark grey":  return "#4A4C50"
+        case "gold":       return "#B08D57"
+        case "light grey": return "#B7B7B7"
+        case "natural":    return "#B58A54"
+        case "silver":     return "#C9CBCD"
+        default:           return "#F1EEE8"   // white
+        }
+    }
+
+    static func mountHex(_ name: String) -> String {
+        name == "Navy" ? "#18355B" : "#1A1A1C"
+    }
 }
 
 /// The Photo Wall's object: a contact sheet, printed as one image, in a classic frame.

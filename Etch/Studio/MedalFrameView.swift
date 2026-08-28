@@ -298,24 +298,9 @@ struct MedalFrameView: View {
 
     // MARK: Colour tables
 
-    /// Approximate moulding colours, for the mockup only — the order sends the catalog's own
-    /// strings, never these.
-    private func mouldingHex(_ name: String) -> String {
-        switch name {
-        case "black":      return "#1A1A1C"
-        case "brown":      return "#5B4636"
-        case "dark grey":  return "#4A4C50"
-        case "gold":       return "#B08D57"
-        case "light grey": return "#B7B7B7"
-        case "natural":    return "#B58A54"
-        case "silver":     return "#C9CBCD"
-        default:           return "#F1EEE8"   // white
-        }
-    }
-
-    private func mountHex(_ name: String) -> String {
-        name == "Navy" ? "#18355B" : "#1A1A1C"
-    }
+    /// Mockup colours live in the catalog now, shared with the print shop's format picker.
+    private func mouldingHex(_ name: String) -> String { MedalFrameCatalog.mouldingHex(name) }
+    private func mountHex(_ name: String) -> String { MedalFrameCatalog.mountHex(name) }
 }
 
 private struct MedalCheckoutTarget: Identifiable {

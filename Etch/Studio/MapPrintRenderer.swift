@@ -728,8 +728,10 @@ enum MapPrintRenderer {
                 cg.restoreGState()
             }
         case .map:
-            // One dot per city at its centroid, area by visits. A dot map, not a road map —
-            // which is what keeps it ours to sell.
+            // One dot per city at its centroid, area by visits, on a map ground drawn from the
+            // boundary geometry the app already embeds — the world's coastlines, the country
+            // most of the history lives in, or its state. Our geometry, our ink: a dot map on
+            // a drawn ground, not a road map, which is what keeps it ours to sell.
             var cityPoints: [String: (lat: Double, lon: Double, n: Int)] = [:]
             for run in request.runs {
                 guard let city = run.city, !city.isEmpty, let c = run.startCoordinate else { continue }
@@ -740,22 +742,89 @@ enum MapPrintRenderer {
             guard !cityPoints.isEmpty else { break }
             let coords = cityPoints.mapValues { CLLocationCoordinate2D(latitude: $0.lat / Double($0.n),
                                                                        longitude: $0.lon / Double($0.n)) }
-            let lats = coords.values.map(\.latitude), lons = coords.values.map(\.longitude)
-            let region = MKCoordinateRegion(
-                center: CLLocationCoordinate2D(latitude: (lats.min()! + lats.max()!) / 2,
-                                               longitude: (lons.min()! + lons.max()!) / 2),
-                span: MKCoordinateSpan(latitudeDelta: max(lats.max()! - lats.min()!, 0.5) * 1.5,
-                                       longitudeDelta: max(lons.max()! - lons.min()!, 0.5) * 1.5))
-            let project = geoProjector(region: region, size: rect.size, margin: 0.8)
+
+            // The ground and its frame, resolved by scope with honest fallbacks: a history
+            // whose anchor city sits outside any US state falls back from State to Country,
+            // and one mid-ocean falls back to the world. The anchor is the most-visited city —
+            // the same city the list below leads with.
+            let anchor = cityPoints.max { $0.value.n < $1.value.n }.map {
+                CLLocationCoordinate2D(latitude: $0.value.lat / Double($0.value.n),
+                                       longitude: $0.value.lon / Double($0.value.n))
+            }
+            var ground: [MKPolygon] = []
+            var groundRect = MKMapRect.null
+            if request.cityIndexMapScope == .state, let anchor,
+               let name = USStateBoundaries.shared.region(containing: anchor),
+               let state = USStateBoundaries.shared.boundaries.first(where: { $0.name == name }) {
+                ground = state.polygons
+                groundRect = state.boundingMapRect
+            }
+            if ground.isEmpty, request.cityIndexMapScope != .world, let anchor,
+               let name = WorldCountryBoundaries.shared.region(containing: anchor),
+               let country = WorldCountryBoundaries.shared.boundaries.first(where: { $0.name == name }) {
+                ground = country.polygons
+                groundRect = country.boundingMapRect
+            }
+            if ground.isEmpty {
+                // Antarctica is real coastline but dead weight on a running poster: no one has
+                // a run there, and it drags the frame south by thirty degrees.
+                for country in WorldCountryBoundaries.shared.boundaries where country.name != "Antarctica" {
+                    ground.append(contentsOf: country.polygons)
+                    groundRect = groundRect.union(country.boundingMapRect)
+                }
+            }
+            let region: MKCoordinateRegion
+            if groundRect.isNull {
+                let lats = coords.values.map(\.latitude), lons = coords.values.map(\.longitude)
+                region = MKCoordinateRegion(
+                    center: CLLocationCoordinate2D(latitude: (lats.min()! + lats.max()!) / 2,
+                                                   longitude: (lons.min()! + lons.max()!) / 2),
+                    span: MKCoordinateSpan(latitudeDelta: max(lats.max()! - lats.min()!, 0.5) * 1.5,
+                                           longitudeDelta: max(lons.max()! - lons.min()!, 0.5) * 1.5))
+            } else {
+                region = MKCoordinateRegion(groundRect)
+            }
+            let project = geoProjector(region: region, size: rect.size, margin: 0.88)
+
+            if let cg = UIGraphicsGetCurrentContext() {
+                cg.saveGState()
+                cg.clip(to: rect)
+                for polygon in ground {
+                    let path = UIBezierPath()
+                    let pts = polygon.points()
+                    for i in 0..<polygon.pointCount {
+                        let p = project(pts[i].coordinate)
+                        let q = CGPoint(x: rect.minX + p.x, y: rect.minY + p.y)
+                        if i == 0 { path.move(to: q) } else { path.addLine(to: q) }
+                    }
+                    path.close()
+                    ink.withAlphaComponent(0.05).setFill()
+                    path.fill()
+                    ink.withAlphaComponent(0.30).setStroke()
+                    path.lineWidth = max(0.8, 1.1 * unit)
+                    path.stroke()
+                }
+                cg.restoreGState()
+            }
+
             let maxN = cityPoints.values.map(\.n).max() ?? 1
             for (city, coordinate) in coords {
                 let p = project(coordinate)
+                guard rect.insetBy(dx: -2, dy: -2)
+                    .contains(CGPoint(x: rect.minX + p.x, y: rect.minY + p.y)) else { continue }
                 let n = cityPoints[city]?.n ?? 1
-                let radius = (6 + 16 * CGFloat(Double(n) / Double(maxN)).squareRoot()) * unit
+                let radius = (5 + 13 * CGFloat(Double(n) / Double(maxN)).squareRoot()) * unit
                 let dot = UIBezierPath(ovalIn: CGRect(x: rect.minX + p.x - radius,
                                                       y: rect.minY + p.y - radius,
                                                       width: radius * 2, height: radius * 2))
-                ink.withAlphaComponent(0.85).setFill()
+                // A hairline of ground around each dot, so a dot on a dense coastline reads as
+                // a mark on the map rather than part of it.
+                UIColor(request.artPalette.ground).setFill()
+                UIBezierPath(ovalIn: CGRect(x: rect.minX + p.x - radius - 1.6 * unit,
+                                            y: rect.minY + p.y - radius - 1.6 * unit,
+                                            width: (radius + 1.6 * unit) * 2,
+                                            height: (radius + 1.6 * unit) * 2)).fill()
+                ink.withAlphaComponent(0.9).setFill()
                 dot.fill()
             }
         case .none:

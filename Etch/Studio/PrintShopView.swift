@@ -31,6 +31,17 @@ struct PrintShopView: View {
     @State private var finish: FrameFinish = .natural
     @State private var hangerFinish: HangerFinish = .natural
 
+    /// The medal display frame, configured alongside the poster formats.
+    ///
+    /// It sits beside `product` rather than inside `PrintProduct` because it breaks every
+    /// assumption that enum encodes: one size instead of three, a 2397 × 3000 aperture instead
+    /// of 2:3, and two colour attributes instead of one finish. What matters is that the *shop*
+    /// treats it as one more format — the whole point being that a piece open in the editor can
+    /// move between a sheet, a frame and the medal frame without leaving the buying flow.
+    @State private var isMedal = false
+    @State private var medalFrameColour = "black"
+    @State private var medalMountColour = "Black"
+
     /// The finish as the order path takes it — one value, so a framed order can never carry a
     /// wood colour or the other way round.
     private var selectedFinish: PrintFinish {
@@ -91,9 +102,18 @@ struct PrintShopView: View {
                         titleBlock.id("top")
                         mockup
                         productPicker.id("options")
-                        sizePicker
-                        if product.takesFrameFinish { finishPicker }
-                        if product.takesHangerFinish { hangerPicker }
+                        if isMedal {
+                            medalColourPicker("Frame", options: MedalFrameCatalog.frameColours,
+                                              selection: $medalFrameColour,
+                                              hex: MedalFrameCatalog.mouldingHex)
+                            medalColourPicker("Mount", options: MedalFrameCatalog.mountColours,
+                                              selection: $medalMountColour,
+                                              hex: MedalFrameCatalog.mountHex)
+                        } else {
+                            sizePicker
+                            if product.takesFrameFinish { finishPicker }
+                            if product.takesHangerFinish { hangerPicker }
+                        }
                         orderPanel.id("order")
                         specs.id("details")
                         alsoLike.id("more")
@@ -122,6 +142,9 @@ struct PrintShopView: View {
             .onChange(of: size) { invalidatePreparedCart() }
             .onChange(of: finish) { invalidatePreparedCart() }
             .onChange(of: hangerFinish) { invalidatePreparedCart() }
+            .onChange(of: isMedal) { invalidatePreparedCart() }
+            .onChange(of: medalFrameColour) { invalidatePreparedCart() }
+            .onChange(of: medalMountColour) { invalidatePreparedCart() }
             .sheet(item: $checkout) { target in
                 CheckoutSheet(checkout: target.url)
                     .title("Checkout")
@@ -165,12 +188,38 @@ struct PrintShopView: View {
         let creation = creationID ?? runID?.uuidString ?? UUID().uuidString
         Task {
             do {
-                let cart = try await PrintOrderService.beginCheckout(
-                    request: renderRequest, creationID: creation,
-                    product: product, size: size,
-                    finish: selectedFinish,
-                    onPhase: { orderPhase = $0 }
-                )
+                let cart: ShopifyStorefront.Cart
+                if isMedal {
+                    // The medal path: the panel re-renders to the frame's own 2397 × 3000
+                    // aperture, and the order carries both of Prodigi's colour attributes —
+                    // the same pipeline the medal screen runs, from inside the shop.
+                    orderPhase = .rendering
+                    var printRequest = renderRequest
+                    let geometry = PrintGeometry(trimWidth: 7.99, trimHeight: 10.0)
+                    printRequest.printAspect = geometry.aspect
+                    printRequest.outputSize = .poster
+                    let fileURL = try await StudioRenderer.printFile(for: printRequest,
+                                                                     geometry: geometry)
+                    defer { try? FileManager.default.removeItem(at: fileURL) }
+                    cart = try await PrintOrderService.checkout(
+                        fileAt: fileURL,
+                        pixels: geometry.trimPixels,
+                        creationID: "medal-\(creation)",
+                        shopifySKU: MedalFrameCatalog.sku,
+                        prodigiSKU: MedalFrameCatalog.sku,
+                        productHandle: MedalFrameCatalog.shopifyHandle,
+                        finishAttribute: medalFrameColour,
+                        mountAttribute: medalMountColour,
+                        onPhase: { orderPhase = $0 }
+                    )
+                } else {
+                    cart = try await PrintOrderService.beginCheckout(
+                        request: renderRequest, creationID: creation,
+                        product: product, size: size,
+                        finish: selectedFinish,
+                        onPhase: { orderPhase = $0 }
+                    )
+                }
                 orderPhase = nil
                 preparedCart = cart
                 if openSheet { checkout = CheckoutTarget(url: cart.checkoutURL) }
@@ -197,7 +246,9 @@ struct PrintShopView: View {
         OrderStore.shared.record(PrintOrder(
             id: UUID(), shopifyOrderID: shopifyID,
             runID: runID ?? UUID(),
-            sku: size.prodigiSKU, productName: product.name, sizeLabel: size.label,
+            sku: isMedal ? MedalFrameCatalog.sku : size.prodigiSKU,
+            productName: isMedal ? "Medal Frame" : product.name,
+            sizeLabel: isMedal ? "12 × 16″" : size.label,
             status: .submitted, placedAt: .now
         ))
         checkout = nil
@@ -219,7 +270,7 @@ struct PrintShopView: View {
     /// the top of the page and the bottom can never disagree about what is in the cart.
     private var titleBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(subjectTitle ?? product.name)
+            Text(subjectTitle ?? (isMedal ? "Medal Frame" : product.name))
                 .font(.system(.title2, design: .rounded).weight(.bold))
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -227,7 +278,7 @@ struct PrintShopView: View {
                 .font(.system(.subheadline, design: .rounded))
                 .foregroundStyle(.secondary)
 
-            Text(size.price)
+            Text(isMedal ? MedalFrameCatalog.price : size.price)
                 .font(.system(.title3, design: .rounded).weight(.semibold))
                 .monospacedDigit()
 
@@ -246,6 +297,12 @@ struct PrintShopView: View {
     /// Browsing without a piece leaves the format standing in as the title, so it drops out of
     /// this line rather than being printed twice in a row.
     private var configurationLine: String {
+        if isMedal {
+            var parts = subjectTitle == nil ? [] : ["Medal Frame"]
+            parts.append("12 × 16″")
+            parts.append("\(medalFrameColour.capitalized) · \(medalMountColour) mount")
+            return parts.joined(separator: " · ")
+        }
         var parts = subjectTitle == nil ? [size.label] : [product.name, size.label]
         switch product {
         case .framed: parts.append(finish.name)
@@ -309,6 +366,35 @@ struct PrintShopView: View {
         }
 
         Group {
+            if isMedal {
+                // The medal display frame: the aperture drawn empty — what hangs there is the
+                // buyer's own medal — and the piece as the printed panel beside it, behind the
+                // snow-white top mount. The same honest mockup the medal screen draws.
+                HStack(spacing: 12) {
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(Color(hex: MedalFrameCatalog.mountHex(medalMountColour)) ?? .black)
+                        .frame(width: 78, height: 106)
+                        .overlay {
+                            Image(systemName: "medal")
+                                .font(.system(size: 23, weight: .light))
+                                .foregroundStyle(.white.opacity(0.22))
+                        }
+                    Group {
+                        if let artwork {
+                            Image(uiImage: artwork).resizable().scaledToFill()
+                        } else {
+                            Rectangle().fill(Theme.Palette.bone)
+                        }
+                    }
+                    .frame(width: 78, height: 106)
+                    .clipped()
+                }
+                .padding(15)
+                .background(Color(white: 0.97))                    // the snow-white top mount
+                .padding(12)                                       // moulding
+                .background(Color(hex: MedalFrameCatalog.mouldingHex(medalFrameColour)) ?? .black)
+                .shadow(color: .black.opacity(0.28), radius: 16, y: 10)
+            } else {
             switch product {
             case .framed:
                 // Full-bleed in the moulding — the verified product (Classic Frame, no mount) has
@@ -332,11 +418,15 @@ struct PrintShopView: View {
                 sheet
                     .shadow(color: .black.opacity(0.22), radius: 12, y: 8)
             }
+            }
         }
-        .scaleEffect(0.55 + 0.45 * relative, anchor: .center)
+        .scaleEffect(isMedal ? 1.0 : 0.55 + 0.45 * relative, anchor: .center)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: size)
         .animation(.easeInOut(duration: 0.2), value: finish)
         .animation(.easeInOut(duration: 0.2), value: hangerFinish)
+        .animation(.easeInOut(duration: 0.2), value: medalFrameColour)
+        .animation(.easeInOut(duration: 0.2), value: medalMountColour)
+        .animation(.easeInOut(duration: 0.25), value: isMedal)
     }
 
     /// The wood strip, drawn at its true proportion of the sheet: 15mm of a 36″ print is 1.6% of
@@ -415,38 +505,90 @@ struct PrintShopView: View {
 
     private var productPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionLabel("Format", value: product.name)
+            sectionLabel("Format", value: isMedal ? "Medal Frame" : product.name)
             ForEach(PrintProduct.offered) { p in
-                Button { product = p } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: p.symbol)
-                            .font(.system(size: 20))
-                            .foregroundStyle(product == p ? .white : Theme.accent)
-                            .frame(width: 44, height: 44)
-                            .background(product == p ? Theme.accent : Theme.accent.opacity(0.10),
-                                        in: .rect(cornerRadius: 12))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(p.name).font(.system(.headline, design: .rounded))
-                            Text(p.tagline)
-                                .font(.footnote).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Spacer(minLength: 0)
-                        if product == p {
-                            Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.accent)
-                        }
-                    }
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.regularMaterial, in: .rect(cornerRadius: 16))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 16)
-                            .strokeBorder(product == p ? Theme.accent.opacity(0.6) : .clear, lineWidth: 1.5)
-                    }
+                formatCard(name: p.name, tagline: p.tagline, symbol: p.symbol,
+                           isSelected: !isMedal && product == p) {
+                    isMedal = false
+                    product = p
                 }
-                .buttonStyle(.plain)
+            }
+            // The medal frame sits in the same list as the paper formats — the request this
+            // answers was being taken from the medal screen into an editor whose only exit
+            // sold posters. One list, every format, switchable mid-edit.
+            if MedalFrameCatalog.isAvailable {
+                formatCard(name: "Medal Frame",
+                           tagline: "Your medal behind its aperture, this piece printed beside it.",
+                           symbol: "medal", isSelected: isMedal) {
+                    isMedal = true
+                }
             }
         }
+    }
+
+    private func formatCard(name: String, tagline: String, symbol: String,
+                            isSelected: Bool, select: @escaping () -> Void) -> some View {
+        Button(action: select) {
+            HStack(spacing: 14) {
+                Image(systemName: symbol)
+                    .font(.system(size: 20))
+                    .foregroundStyle(isSelected ? .white : Theme.accent)
+                    .frame(width: 44, height: 44)
+                    .background(isSelected ? Theme.accent : Theme.accent.opacity(0.10),
+                                in: .rect(cornerRadius: 12))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name).font(.system(.headline, design: .rounded))
+                    Text(tagline)
+                        .font(.footnote).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.accent)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.regularMaterial, in: .rect(cornerRadius: 16))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(isSelected ? Theme.accent.opacity(0.6) : .clear, lineWidth: 1.5)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// The medal frame's two colour rows — the moulding and the mount board — in the shop's own
+    /// swatch style.
+    private func medalColourPicker(_ label: String, options: [String],
+                                   selection: Binding<String>,
+                                   hex: @escaping (String) -> String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionLabel(label, value: selection.wrappedValue.capitalized)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(options, id: \.self) { option in
+                        Button { selection.wrappedValue = option } label: {
+                            Circle()
+                                .fill(Color(hex: hex(option)) ?? .gray)
+                                .frame(width: 32, height: 32)
+                                .overlay(Circle().strokeBorder(.black.opacity(0.15), lineWidth: 0.5))
+                                .padding(3)
+                                .overlay {
+                                    Circle().strokeBorder(
+                                        selection.wrappedValue == option ? Theme.accent : .clear,
+                                        lineWidth: 2
+                                    )
+                                }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(option)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var sizePicker: some View {
@@ -568,7 +710,7 @@ struct PrintShopView: View {
                     // gate rather than a failed order; lifts when our own cartography lands.
                     unavailableNote("This style is coming to print",
                                     detail: "Map styles are being remade with our own cartography for print. Contour, paper, and photo styles are ready to order today.")
-                } else if size.deviceRenderable {
+                } else if isMedal || size.deviceRenderable {
                     // A prepared order pays in one tap. Until one exists the print file has to be
                     // made and frozen first, because a paid order with no artwork behind it is
                     // the one failure this pipeline must never produce — so the wallet buttons
@@ -593,8 +735,9 @@ struct PrintShopView: View {
                                         Text(orderPhase.label)
                                     }
                                 } else {
-                                    Label(offersWallets ? "Continue · \(size.price)"
-                                                        : "Order · \(size.price)",
+                                    let price = isMedal ? MedalFrameCatalog.price : size.price
+                                    Label(offersWallets ? "Continue · \(price)"
+                                                        : "Order · \(price)",
                                           systemImage: "bag")
                                 }
                             }
@@ -709,10 +852,17 @@ struct PrintShopView: View {
             // the paper weight they came to check.
             DisclosureGroup(isExpanded: $specsExpanded) {
                 VStack(alignment: .leading, spacing: 14) {
-                    specRow("Overview", product.tagline)
-                    specRow("Materials", product.material)
-                    specRow("In the box", product.whatShips)
-                    specRow("Print", size.geometry.summary)
+                    if isMedal {
+                        specRow("Overview", "Your medal behind a pre-cut aperture, with this piece printed on the panel beside it. Made in the UK.")
+                        specRow("Materials", "240gsm lustre print · classic wood frame · snow-white top mount · Perspex glaze")
+                        specRow("In the box", "One assembled frame, glazed, with the printed panel mounted. The medal aperture arrives empty — your medal is yours to fit.")
+                        specRow("Print", "8 × 10″ panel · 300 DPI, composed to the frame's own aperture")
+                    } else {
+                        specRow("Overview", product.tagline)
+                        specRow("Materials", product.material)
+                        specRow("In the box", product.whatShips)
+                        specRow("Print", size.geometry.summary)
+                    }
                 }
                 .padding(.top, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -747,43 +897,57 @@ struct PrintShopView: View {
     /// page rather than opening another — it is the same artwork either way, and the mockup
     /// above is the point of the change.
     @ViewBuilder private var alsoLike: some View {
-        let others = PrintProduct.offered.filter { $0 != product }
-        if !others.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("The same piece, finished differently")
-                    .font(.system(.headline, design: .rounded))
-                ForEach(others) { other in
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.25)) { product = other }
-                    } label: {
-                        HStack(spacing: 14) {
-                            Image(systemName: other.symbol)
-                                .font(.system(size: 19))
-                                .foregroundStyle(Theme.accent)
-                                .frame(width: 42, height: 42)
-                                .background(Theme.accent.opacity(0.10), in: .rect(cornerRadius: 11))
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(other.name)
-                                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                                    .foregroundStyle(.primary)
-                                Text(other.tagline)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .multilineTextAlignment(.leading)
-                            }
-                            Spacer(minLength: 8)
-                            Text(other.entryPrice)
-                                .font(.system(.footnote, design: .rounded).weight(.semibold))
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(14)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.regularMaterial, in: .rect(cornerRadius: 16))
-                    }
-                    .buttonStyle(.plain)
+        let others = PrintProduct.offered.filter { isMedal || $0 != product }
+        VStack(alignment: .leading, spacing: 12) {
+            Text("The same piece, finished differently")
+                .font(.system(.headline, design: .rounded))
+            ForEach(others) { other in
+                shelfCard(name: other.name, tagline: other.tagline, symbol: other.symbol,
+                          price: other.entryPrice) {
+                    isMedal = false
+                    product = other
+                }
+            }
+            if !isMedal && MedalFrameCatalog.isAvailable {
+                shelfCard(name: "Medal Frame",
+                          tagline: "Your medal behind its aperture, this piece printed beside it.",
+                          symbol: "medal", price: MedalFrameCatalog.price) {
+                    isMedal = true
                 }
             }
         }
+    }
+
+    private func shelfCard(name: String, tagline: String, symbol: String, price: String,
+                           select: @escaping () -> Void) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.25)) { select() }
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: symbol)
+                    .font(.system(size: 19))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 42, height: 42)
+                    .background(Theme.accent.opacity(0.10), in: .rect(cornerRadius: 11))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name)
+                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text(tagline)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer(minLength: 8)
+                Text(price)
+                    .font(.system(.footnote, design: .rounded).weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.regularMaterial, in: .rect(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
     }
 }

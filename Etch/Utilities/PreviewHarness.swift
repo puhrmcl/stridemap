@@ -203,11 +203,17 @@ struct PreviewHarnessView: View {
                 // are too small to judge a composition by.
                 case let name where name.hasPrefix("wall-art"):
                     MapPrintView(runs: allRuns, kind: .artMap, artStyle: artStyle(from: name))
-                // "city-index:map" opens the tour-poster form with the dot-map hero in place —
-                // the hero is normally chosen by hand, and CI has none.
+                // "city-index:world" (or :country / :state) opens the tour-poster form with the
+                // dot-map hero on that ground — the hero is normally chosen by hand, and CI
+                // has none. Bare "city-index" is the type-only form.
                 case let name where name.hasPrefix("city-index"):
+                    let scope = name.split(separator: ":", maxSplits: 1).count == 2
+                        ? MapPrintRequest.CityIndexMapScope(
+                            rawValue: String(name.split(separator: ":", maxSplits: 1)[1]))
+                        : nil
                     MapPrintView(runs: allRuns, kind: .cities, cityIndex: true,
-                                 indexHero: name.hasSuffix(":map") ? .map : .none)
+                                 indexHero: scope == nil ? .none : .map,
+                                 indexMapScope: scope ?? .world)
                 case "map-studio":      studio(family: .map)
                 case "gallery-studio":  studio(family: .gallery)
                 case "detail":          detail

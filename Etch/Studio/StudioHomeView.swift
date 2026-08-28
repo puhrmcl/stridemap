@@ -28,6 +28,7 @@ struct StudioHomeView: View {
     @State private var showPrints = false
     /// Presenting the photo-wall poster (cover photos of every run that has one).
     @State private var showPhotoWall = false
+    @State private var showLithograph = false
     /// The activity whose medal frame is being configured.
     @State private var medalSubject: Run?
     /// The aggregate map-print kind whose sheet is presented.
@@ -149,6 +150,9 @@ struct StudioHomeView: View {
                 }
             }
             .sheet(item: $mapPrintKind) { MapPrintView(runs: scopedRuns, kind: $0) }
+            .sheet(isPresented: $showLithograph) {
+                MapPrintView(runs: scopedRuns, kind: .cities, cityIndex: true)
+            }
             .sheet(isPresented: $showPhotoWall) { PhotoWallView(runs: scopedRuns) }
             .sheet(item: $medalSubject) { MedalFrameView(run: $0) }
             .sheet(isPresented: $showAddRace) { NavigationStack { AddRaceView() } }
@@ -536,6 +540,7 @@ struct StudioHomeView: View {
         case .photoWall:                              showPhotoWall = true
         case .yearBook:                               showYearBook = true
         case .wallArt:                                mapPrintKind = .artMap
+        case .lithograph:                             showLithograph = true
         }
     }
 
@@ -667,6 +672,13 @@ struct StudioHomeView: View {
             case .wallArt:
                 var request = MapPrintRequest.make(kind: .artMap, runs: mapped)
                 request.artStyle = .grid
+                image = await MapPrintRenderer.image(for: request, scale: 0.2)
+            case .lithograph:
+                // The tile shows the tour-poster form — the dot map crowning the list — because
+                // that is the piece at its most recognisable from across a shelf of tiles.
+                var request = MapPrintRequest.make(kind: .cities, runs: scopedRuns)
+                request.cityIndex = true
+                request.cityIndexHero = .map
                 image = await MapPrintRenderer.image(for: request, scale: 0.2)
             }
             if Task.isCancelled { return }

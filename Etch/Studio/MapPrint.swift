@@ -243,6 +243,22 @@ struct MapPrintRequest {
         }
     }
     var cityIndexHero: CityIndexHero = .none
+    /// What the map hero stands on: the whole world's coastlines, the country most of the
+    /// history lives in, or its state — each drawn from boundary geometry the app already
+    /// embeds, in the piece's own ink, which is what keeps the hero printable where an Apple
+    /// snapshot is not.
+    enum CityIndexMapScope: String, CaseIterable, Identifiable {
+        case world, country, state
+        var id: String { rawValue }
+        var name: String {
+            switch self {
+            case .world:   return "World"
+            case .country: return "Country"
+            case .state:   return "State"
+            }
+        }
+    }
+    var cityIndexMapScope: CityIndexMapScope = .world
     /// The chosen photograph when the hero is `.photo`.
     var cityIndexPhoto: UIImage? = nil
     /// Whether each city carries its totals (activities · miles) or just the count.

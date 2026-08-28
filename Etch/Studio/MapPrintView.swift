@@ -51,6 +51,7 @@ struct MapPrintView: View {
     @State private var cityIndexOn = false
     /// The index's tour-poster hero and per-city totals.
     @State private var indexHero: MapPrintRequest.CityIndexHero = .none
+    @State private var indexMapScope: MapPrintRequest.CityIndexMapScope = .world
     @State private var indexTotals = true
     @State private var indexPhotoItem: PhotosPickerItem?
     @State private var indexPhoto: UIImage?
@@ -75,7 +76,8 @@ struct MapPrintView: View {
     }
 
     init(runs: [Run], kind: MapPrintKind = .allRuns, artStyle: MapArtStyle = .grid,
-         cityIndex: Bool = false, indexHero: MapPrintRequest.CityIndexHero = .none) {
+         cityIndex: Bool = false, indexHero: MapPrintRequest.CityIndexHero = .none,
+         indexMapScope: MapPrintRequest.CityIndexMapScope = .world) {
         self.runs = runs
         _kind = State(initialValue: kind)
         // The Archive Collection opens the Anthology directly on a chosen style.
@@ -83,6 +85,7 @@ struct MapPrintView: View {
         _cityIndexOn = State(initialValue: cityIndex)
         // The preview harness photographs the tour-poster hero without a hand to tap it.
         _indexHero = State(initialValue: indexHero)
+        _indexMapScope = State(initialValue: indexMapScope)
     }
 
     // MARK: Places + request
@@ -188,6 +191,7 @@ struct MapPrintView: View {
         req.statesUSAOnly = statesUSAOnly && kind == .states && focusName == nil
         req.cityIndex = cityIndexOn && kind == .cities
         req.cityIndexHero = cityIndexOn && kind == .cities ? indexHero : .none
+        req.cityIndexMapScope = indexMapScope
         req.cityIndexPhoto = indexPhoto
         req.cityIndexTotals = indexTotals
         req.artCaptionEdge = captionEdge
@@ -208,7 +212,7 @@ struct MapPrintView: View {
 
     private var currentKey: String {
         "\(kind.rawValue)-\(focusName ?? "all")-\(orientation.rawValue)-\(artPalette.rawValue)-\(artStyle.rawValue)-\(artWeight.rawValue)-\(cityIndexOn)-" +
-        "\(artFilterLabel)-\(stateTitle)|\(stateMetricsKey)-\(statesUSAOnly)-\(showDetails)-\(captionEdge.rawValue)\(captionTitle)\(captionSummary)-\(indexHero.rawValue)\(indexTotals)\(indexPhotoStamp)-" +
+        "\(artFilterLabel)-\(stateTitle)|\(stateMetricsKey)-\(statesUSAOnly)-\(showDetails)-\(captionEdge.rawValue)\(captionTitle)\(captionSummary)-\(indexHero.rawValue)\(indexMapScope.rawValue)\(indexTotals)\(indexPhotoStamp)-" +
         String(format: "%.2f-%.2f-%.2f", zoom, panX, panY)
     }
 
@@ -388,6 +392,15 @@ struct MapPrintView: View {
                     }
                     .pickerStyle(.segmented)
                     .frame(maxWidth: 280)
+                    if indexHero == .map {
+                        // What the dots stand on — the world's coastlines, or the country or
+                        // state most of the history lives in, drawn from our own geometry.
+                        Picker("Map of", selection: $indexMapScope) {
+                            ForEach(MapPrintRequest.CityIndexMapScope.allCases) { Text($0.name).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(maxWidth: 280)
+                    }
                     if indexHero == .photo {
                         PhotosPicker(selection: $indexPhotoItem, matching: .images) {
                             Label(indexPhoto == nil ? "Choose a photo" : "Change the photo",
