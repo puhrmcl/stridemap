@@ -388,7 +388,25 @@ struct ActivityPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
 
-    private var mapped: [Run] { runs.scoped(to: scope).filter(\.hasRoute) }
+    /// Narrows the timeline the way the map and the Anthology narrow themselves — the browse is
+    /// the whole history, and a whole history needs a way to be less than whole.
+    enum PickerFilter: Hashable {
+        case all, races, favorites
+        case year(Int)
+        case type(ActivityScope)
+    }
+    @State private var filter: PickerFilter = .all
+
+    private var mapped: [Run] {
+        let base = runs.scoped(to: scope).filter(\.hasRoute)
+        switch filter {
+        case .all:            return base
+        case .races:          return base.filter(\.isRace)
+        case .favorites:      return base.filter(\.isFavorite)
+        case .year(let y):    return base.filter { Calendar.current.component(.year, from: $0.startDate) == y }
+        case .type(let t):    return base.scoped(to: t)
+        }
+    }
     private var stats: RunStatistics { RunStatistics(runs.scoped(to: scope)) }
 
     private var filtered: [Run] {
@@ -462,8 +480,53 @@ struct ActivityPickerSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Cancel") { dismiss() } }
+                if mode == .timeline {
+                    ToolbarItem(placement: .topBarTrailing) { filterMenu }
+                }
             }
         }
+    }
+
+    /// Only options at least one activity answers to are offered, so a choice can never empty
+    /// the sheet — the same rule the Anthology's filter follows.
+    private var filterMenu: some View {
+        let base = runs.scoped(to: scope).filter(\.hasRoute)
+        let years = Set(base.map { Calendar.current.component(.year, from: $0.startDate) }).sorted(by: >)
+        let types = [ActivityScope.runs, .hikes, .rides, .walks]
+            .filter { scope == .all && ActivitySettings.isVisible($0) && !base.scoped(to: $0).isEmpty }
+        return Menu {
+            Button { filter = .all } label: {
+                Label("Everything", systemImage: filter == .all ? "checkmark" : "square.grid.2x2")
+            }
+            if base.contains(where: \.isRace) {
+                Button { filter = .races } label: {
+                    Label("Races", systemImage: filter == .races ? "checkmark" : "flag.checkered")
+                }
+            }
+            if base.contains(where: \.isFavorite) {
+                Button { filter = .favorites } label: {
+                    Label("Favorites", systemImage: filter == .favorites ? "checkmark" : "star")
+                }
+            }
+            if years.count > 1 {
+                Menu("Year") {
+                    ForEach(years, id: \.self) { year in
+                        Button(String(year)) { filter = .year(year) }
+                    }
+                }
+            }
+            if !types.isEmpty {
+                Menu("Activity") {
+                    ForEach(types) { type in
+                        Button(type.label) { filter = .type(type) }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: filter == .all ? "line.3.horizontal.decrease.circle"
+                                             : "line.3.horizontal.decrease.circle.fill")
+        }
+        .accessibilityLabel("Filter the timeline")
     }
 
     @ViewBuilder private func section<Content: View>(

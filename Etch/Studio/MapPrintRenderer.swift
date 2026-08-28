@@ -189,6 +189,67 @@ enum MapPrintRenderer {
         }
         // No vignette or gradient finish: the ink on its ground *is* the piece — any overlay
         // reads as a filter, not a print.
+        drawArtCaption(request, runs: runs, size: size)
+    }
+
+    /// The one line of type the Anthology allows itself: what this body of work is, set small in
+    /// the margin. "GILBERT RUNS · 2019–2026 · 220 ACTIVITIES · 1,482 MI" is the whole grammar —
+    /// the title half and the summary half each optional, the edge chosen, and hidden the
+    /// default because the pieces earned their silence.
+    private static func drawArtCaption(_ request: MapPrintRequest, runs: [Run], size: CGSize) {
+        guard request.artCaptionEdge != .hidden,
+              let cg = UIGraphicsGetCurrentContext() else { return }
+
+        var parts: [String] = []
+        if request.artCaptionShowsTitle, !request.title.isEmpty {
+            parts.append(request.title.uppercased())
+        }
+        if request.artCaptionShowsSummary {
+            let dates = runs.map(\.startDate)
+            let calendar = Calendar.current
+            if let first = dates.min(), let last = dates.max() {
+                let y1 = calendar.component(.year, from: first)
+                let y2 = calendar.component(.year, from: last)
+                parts.append(y1 == y2 ? String(y1) : "\(y1)–\(y2)")
+            }
+            let count = runs.count
+            parts.append(count == 1 ? "1 ACTIVITY" : "\(count) ACTIVITIES")
+            let metres = runs.reduce(0.0) { $0 + $1.distance }
+            parts.append(Format.distance(metres, decimals: 0).uppercased())
+        }
+        guard !parts.isEmpty else { return }
+        let text = parts.joined(separator: "  ·  ") as NSString
+
+        let unit = size.width / 1000
+        let ink = UIColor(request.artPalette.line).withAlphaComponent(0.55)
+        let font = UIFont.systemFont(ofSize: 14 * unit, weight: .semibold)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font, .foregroundColor: ink, .kern: 2.2 * unit
+        ]
+        let drawn = text.size(withAttributes: attributes)
+        let inset = size.width * 0.055
+
+        switch request.artCaptionEdge {
+        case .top:
+            text.draw(at: CGPoint(x: (size.width - drawn.width) / 2, y: inset), withAttributes: attributes)
+        case .bottom:
+            text.draw(at: CGPoint(x: (size.width - drawn.width) / 2,
+                                  y: size.height - inset - drawn.height), withAttributes: attributes)
+        case .left:
+            cg.saveGState()
+            cg.translateBy(x: inset, y: (size.height + drawn.width) / 2)
+            cg.rotate(by: -.pi / 2)
+            text.draw(at: .zero, withAttributes: attributes)
+            cg.restoreGState()
+        case .right:
+            cg.saveGState()
+            cg.translateBy(x: size.width - inset - drawn.height, y: (size.height + drawn.width) / 2)
+            cg.rotate(by: -.pi / 2)
+            text.draw(at: .zero, withAttributes: attributes)
+            cg.restoreGState()
+        case .hidden:
+            break
+        }
     }
 
     /// A geography projector mapping coordinates into the poster, aspect-preserving with margin.

@@ -175,6 +175,26 @@ enum MapArtStyle: String, CaseIterable, Identifiable {
     }
 }
 
+/// Where the Anthology's small data line sits — or nowhere.
+///
+/// The Anthology began text-free on principle, and the principle half-survives: the caption is
+/// off never the piece's subject, one quiet line in the margin saying what the body of work is.
+/// Left and right set the line vertically along that edge, the way a plate mark runs up the
+/// margin of an etching.
+enum ArtCaptionEdge: String, CaseIterable, Identifiable {
+    case hidden, top, bottom, left, right
+    var id: String { rawValue }
+    var name: String {
+        switch self {
+        case .hidden: return "Off"
+        case .top:    return "Top"
+        case .bottom: return "Bottom"
+        case .left:   return "Left"
+        case .right:  return "Right"
+        }
+    }
+}
+
 /// Line weight for the Wall Art — a global multiplier on every stroke/point.
 enum MapArtWeight: String, CaseIterable, Identifiable {
     case fine, medium, bold
@@ -208,6 +228,11 @@ struct MapPrintRequest {
     var artPalette: MapArtPalette = .gallery
     var artStyle: MapArtStyle = .grid
     var artWeight: MapArtWeight = .medium
+    /// The Anthology's data line: where it sits, and which halves it carries.
+    var artCaptionEdge: ArtCaptionEdge = .hidden
+    var artCaptionShowsTitle: Bool = true
+    var artCaptionShowsSummary: Bool = true
+
     /// Cities drawn as a typographic index — every city named, ranked by visits — instead of
     /// pins on a map. The index is composed entirely of our own type on our own ground, which
     /// is what makes it the *printable* form of the cities piece: the pinned form draws on an

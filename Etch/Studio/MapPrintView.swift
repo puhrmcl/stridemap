@@ -17,6 +17,10 @@ struct MapPrintView: View {
     @State private var artWeight: MapArtWeight = .medium
     /// Narrows which runs the Wall Art draws from (all / favorites / races / a year / a place).
     @State private var artFilter: ArtFilter = .all
+    /// The Anthology's data line.
+    @State private var captionEdge: ArtCaptionEdge = .hidden
+    @State private var captionTitle = true
+    @State private var captionSummary = true
 
     /// A subset selector for the Wall Art. Only choices that actually match runs are offered.
     enum ArtFilter: Hashable {
@@ -173,6 +177,9 @@ struct MapPrintView: View {
                                         span: MKCoordinateSpan(latitudeDelta: latSpan, longitudeDelta: lonSpan))
         req.statesUSAOnly = statesUSAOnly && kind == .states && focusName == nil
         req.cityIndex = cityIndexOn && kind == .cities
+        req.artCaptionEdge = captionEdge
+        req.artCaptionShowsTitle = captionTitle
+        req.artCaptionShowsSummary = captionSummary
         req.showFooter = showDetails || kind.isArt || isSingleState
         return req
     }
@@ -188,7 +195,7 @@ struct MapPrintView: View {
 
     private var currentKey: String {
         "\(kind.rawValue)-\(focusName ?? "all")-\(orientation.rawValue)-\(artPalette.rawValue)-\(artStyle.rawValue)-\(artWeight.rawValue)-\(cityIndexOn)-" +
-        "\(artFilterLabel)-\(stateTitle)|\(stateMetricsKey)-\(statesUSAOnly)-\(showDetails)-" +
+        "\(artFilterLabel)-\(stateTitle)|\(stateMetricsKey)-\(statesUSAOnly)-\(showDetails)-\(captionEdge.rawValue)\(captionTitle)\(captionSummary)-" +
         String(format: "%.2f-%.2f-%.2f", zoom, panX, panY)
     }
 
@@ -342,6 +349,7 @@ struct MapPrintView: View {
                 artFilterMenu
                 styleStrip
                 paletteRow
+                captionMenu
                 Picker("Weight", selection: $artWeight) {
                     ForEach(MapArtWeight.allCases) { Text($0.name).tag($0) }
                 }
@@ -443,6 +451,23 @@ struct MapPrintView: View {
             }
         } label: {
             menuChip(icon: "scope", text: focusName ?? "All \(kind.name)")
+        }
+    }
+
+    /// The data line's controls — a menu, because it is secondary to the piece and hierarchical
+    /// (an edge, then which halves), which is the shape the b442 rebuild reserved menus for.
+    private var captionMenu: some View {
+        Menu {
+            Picker("Caption", selection: $captionEdge) {
+                ForEach(ArtCaptionEdge.allCases) { Text($0.name).tag($0) }
+            }
+            if captionEdge != .hidden {
+                Toggle("Title", isOn: $captionTitle)
+                Toggle("Dates & totals", isOn: $captionSummary)
+            }
+        } label: {
+            menuChip(icon: "textformat.size.smaller",
+                     text: captionEdge == .hidden ? "No caption" : "Caption · \(captionEdge.name)")
         }
     }
 
