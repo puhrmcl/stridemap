@@ -401,6 +401,7 @@ struct MapPrintView: View {
 
     private var descriptorText: String {
         if kind.isArt { return artStyle.descriptor }
+        if kind == .cities && cityIndexOn { return "Every city, ranked by visits — set as type." }
         if focusName != nil { return "A single \(singularKindName), framed to its runs." }
         return kind.descriptor
     }
@@ -408,10 +409,10 @@ struct MapPrintView: View {
     /// When the zoom control applies — the map-based prints only. The remaining art styles are
     /// all fixed compositions (a contact sheet, a stacked chain, tree rings): each frames itself,
     /// so a zoom would only let a person break a layout the renderer already made correctly.
-    private var zoomRelevant: Bool { !kind.isArt }
+    private var zoomRelevant: Bool { !kind.isArt && !(kind == .cities && cityIndexOn) }
 
     /// When drag-to-pan applies — only the geography-framed views, for the same reason.
-    private var panRelevant: Bool { !kind.isArt }
+    private var panRelevant: Bool { zoomRelevant }
 
     private var singularKindName: String {
         switch kind {

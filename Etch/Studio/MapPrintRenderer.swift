@@ -394,7 +394,7 @@ enum MapPrintRenderer {
                                       y: center.y + direction.y * ringInner))
                 tick.addLine(to: CGPoint(x: center.x + direction.x * (ringInner + length),
                                          y: center.y + direction.y * (ringInner + length)))
-                line.withAlphaComponent(run.isRace ? 1.0 : 0.62).setStroke()
+                line.withAlphaComponent(run.isRace ? 1.0 : 0.72).setStroke()
                 tick.lineWidth = run.isRace ? tickWidth * 1.9 : tickWidth
                 tick.lineCapStyle = .butt
                 tick.stroke()
@@ -427,10 +427,14 @@ enum MapPrintRenderer {
         // Rows from the sheet's own shape: a portrait 2:3 gets 12, a landscape 3:2 gets 6 —
         // the line stays airy rather than packing tighter as the history grows, because the
         // scale (miles per point) absorbs the growth instead.
-        let rows = max(5, Int((size.height / size.width * 8).rounded()))
+        let rows = max(4, Int((size.height / size.width * 6).rounded()))
         let rowH = usableH / CGFloat(rows - 1 == 0 ? 1 : rows - 1)
         let threadLength = usableW * CGFloat(rows)
-        let amplitude = min(rowH * 0.34, usableH * 0.06)
+        // Rendered proof forced both numbers down: at 8 rows per portrait sheet and a third of
+        // the row as amplitude, two hundred activities of sawtooth elevation read as static
+        // noise, not as a drawn line. Fewer rows give the line air; a sixth of the row keeps
+        // the modulation a suggestion of terrain rather than a seismograph.
+        let amplitude = min(rowH * 0.16, usableH * 0.035)
 
         // Cumulative length along the thread → a point on the sheet, alternating direction
         // per row so the line turns back on itself rather than teleporting.
@@ -449,16 +453,27 @@ enum MapPrintRenderer {
         for run in ordered {
             let span = CGFloat(max(run.distance, 1) / total) * threadLength
             let elev = run.elevationSeries
-            let samples = max(2, min(elev.count, 48))
+            // Sample density follows the stretch's drawn length, so a two-mile run occupying
+            // twenty points of thread gets three gentle kinks rather than forty-eight — the
+            // jaggedness in the first render came almost entirely from oversampling short
+            // stretches.
+            let samples = max(3, min(24, Int(span / 16)))
             let minV = elev.min() ?? 0
             let spanV = max((elev.max() ?? 0) - minV, 1)
-            for i in 0 ..< samples {
+            var rises: [CGFloat] = (0 ..< samples).map { i in
+                guard elev.count > 4 else { return 0 }
                 let t = CGFloat(i) / CGFloat(samples - 1)
-                var rise: CGFloat = 0
-                if elev.count > 4 {
-                    let v = elev[min(Int(t * CGFloat(elev.count - 1)), elev.count - 1)]
-                    rise = (CGFloat((v - minV) / spanV) - 0.5) * 2 * amplitude
+                let v = elev[min(Int(t * CGFloat(elev.count - 1)), elev.count - 1)]
+                return (CGFloat((v - minV) / spanV) - 0.5) * 2 * amplitude
+            }
+            // A three-point average — terrain, not telemetry.
+            if rises.count > 2 {
+                rises = rises.indices.map { i in
+                    (rises[max(0, i-1)] + rises[i] + rises[min(rises.count-1, i+1)]) / 3
                 }
+            }
+            for (i, rise) in rises.enumerated() {
+                let t = CGFloat(i) / CGFloat(samples - 1)
                 let p = point(at: cursor + t * span, rise: rise)
                 if started { path.addLine(to: p) } else { path.move(to: p); started = true }
             }
@@ -488,8 +503,11 @@ enum MapPrintRenderer {
         let marginY = size.height * 0.12
         let usableW = size.width - marginX * 2
         let bandH = (size.height - marginY * 2) / CGFloat(years.count)
-        let barMax = bandH * 0.72
-        let barWidth = 1.8 * unit * weight
+        // Square-root scaling, or the marathon owns the ceiling and every daily run becomes a
+        // stub at the floor — which is exactly how the first render read. The root compresses
+        // the outliers and lets an ordinary week stand at half height.
+        let barMax = bandH * 0.82
+        let barWidth = 2.6 * unit * weight
 
         for (index, year) in years.enumerated() {
             let baseline = marginY + CGFloat(index + 1) * bandH - bandH * 0.10
@@ -506,11 +524,11 @@ enum MapPrintRenderer {
             for run in byYear[year] ?? [] {
                 let day = calendar.ordinality(of: .day, in: .year, for: run.startDate) ?? 1
                 let x = marginX + usableW * CGFloat(day - 1) / 365.0
-                let height = max(2 * unit, barMax * CGFloat(run.distance / maxDistance))
+                let height = max(3 * unit, barMax * CGFloat((run.distance / maxDistance).squareRoot()))
                 let bar = UIBezierPath()
                 bar.move(to: CGPoint(x: x, y: baseline))
                 bar.addLine(to: CGPoint(x: x, y: baseline - height))
-                line.withAlphaComponent(run.isRace ? 1.0 : 0.62).setStroke()
+                line.withAlphaComponent(run.isRace ? 1.0 : 0.72).setStroke()
                 bar.lineWidth = run.isRace ? barWidth * 1.4 : barWidth
                 bar.lineCapStyle = .round
                 bar.stroke()
