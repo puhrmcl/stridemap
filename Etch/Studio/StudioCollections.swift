@@ -216,6 +216,15 @@ enum StudioCollections {
             styles.append(.ridgeline)
         }
         if runs.count >= gates.ringsMinRuns { styles.append(.rings) }
+        // Thread and Strata gate locally rather than from the served document: adding fields to
+        // ArchiveGates would make older served documents undecodable (its fields are
+        // non-optional), and these two thresholds are structural rather than tunable — a Thread
+        // of five activities is a squiggle, and Strata *is* the comparison between years, so one
+        // year of history has nothing to compare.
+        if runs.count >= 15 { styles.append(.thread) }
+        if runs.count >= 40 && Set(runs.map { Calendar.current.component(.year, from: $0.startDate) }).count >= 2 {
+            styles.append(.strata)
+        }
         return styles
     }
 

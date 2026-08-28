@@ -6,13 +6,14 @@
 #
 # screens:    studio, home, archive, course, summit, yearbook, prints, wall-art,
 #             map-studio, gallery-studio, detail
-#             wall-art accepts a style: wall-art:grid, wall-art:ridgeline, wall-art:rings
+#             wall-art accepts a style: wall-art:grid, wall-art:ridgeline, wall-art:rings,
+#             wall-art:thread, wall-art:strata
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b437: Timeline's All grid with map backgrounds behind the photoless runs,
-# the live date span in the header, and the activity glyph on routeless tiles. — wordmark left and profile
+# Requested for b441: the two new Archive styles, full size — a composition can only be
+# judged rendered, and these are generative. — wordmark left and profile
 # right on Studio, storefront/grid glyphs on the bar, and the map with its docked sheet gone.
 
-screens=tabs@timeline,tabs@studio
+screens=wall-art:thread,wall-art:strata,wall-art:rings
 appearance=light

@@ -152,7 +152,10 @@ enum MapPrintRenderer {
     /// Text-free abstract wall art, four ways — always full and balanced whether that's five runs
     /// or five hundred.
     private static func artImage(for request: MapPrintRequest, scale: CGFloat) -> UIImage? {
-        let runs = request.mapped
+        // Only the Grid draws routes, so only the Grid needs them. The calendar- and
+        // distance-based styles take the whole history — which is what lets a treadmill-heavy
+        // record still fill a Rings, a Thread or a Strata, exactly as their gates promise.
+        let runs = request.artStyle == .grid ? request.mapped : request.runs
         guard !runs.isEmpty else { return nil }
         let size = request.posterNominalSize
         let palette = request.artPalette
@@ -175,6 +178,8 @@ enum MapPrintRenderer {
             case .grid:          drawGrid(runs, size: size, line: line, unit: unit, weight: weight)
             case .ridgeline:     drawRidgeline(runs, size: size, line: line, ground: ground, unit: unit, weight: weight)
             case .rings:         drawRings(runs, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark, weight: weight)
+            case .thread:        drawThread(runs, size: size, line: line, unit: unit, weight: weight)
+            case .strata:        drawStrata(runs, size: size, line: line, unit: unit, weight: weight)
             }
             // No vignette or gradient finish: the ink on its ground *is* the piece — any overlay
             // reads as a filter, not a print.
@@ -396,6 +401,116 @@ enum MapPrintRenderer {
         UIBezierPath(ovalIn: CGRect(x: center.x - eyeRadius, y: center.y - eyeRadius,
                                     width: eyeRadius * 2, height: eyeRadius * 2)).fill()
         cg.setBlendMode(.normal)
+    }
+
+    // MARK: Thread — the whole history as one unbroken line
+
+    /// Every activity in date order becomes a stretch of a single continuous line, its length
+    /// proportional to its distance, wrapped boustrophedon across the sheet like text. Where an
+    /// activity recorded elevation, its stretch carries the profile as a gentle vertical
+    /// modulation; a flat stretch is simply a flat road. The claim the piece makes is literal:
+    /// this is every mile, as one line that never lifts off the paper.
+    private static func drawThread(_ runs: [Run], size: CGSize, line: UIColor, unit: CGFloat, weight: CGFloat) {
+        let ordered = runs.sorted { $0.startDate < $1.startDate }
+        let total = ordered.reduce(0.0) { $0 + max($1.distance, 1) }
+        guard total > 0 else { return }
+
+        let marginX = size.width * 0.10
+        let marginY = size.height * 0.12
+        let usableW = size.width - marginX * 2
+        let usableH = size.height - marginY * 2
+        // Rows from the sheet's own shape: a portrait 2:3 gets 12, a landscape 3:2 gets 6 —
+        // the line stays airy rather than packing tighter as the history grows, because the
+        // scale (miles per point) absorbs the growth instead.
+        let rows = max(5, Int((size.height / size.width * 8).rounded()))
+        let rowH = usableH / CGFloat(rows - 1 == 0 ? 1 : rows - 1)
+        let threadLength = usableW * CGFloat(rows)
+        let amplitude = min(rowH * 0.34, usableH * 0.06)
+
+        // Cumulative length along the thread → a point on the sheet, alternating direction
+        // per row so the line turns back on itself rather than teleporting.
+        func point(at length: CGFloat, rise: CGFloat) -> CGPoint {
+            let clamped = min(max(length, 0), threadLength - 0.001)
+            let row = Int(clamped / usableW)
+            let frac = clamped - CGFloat(row) * usableW
+            let x = row.isMultiple(of: 2) ? marginX + frac : marginX + usableW - frac
+            let y = marginY + CGFloat(row) * rowH - rise
+            return CGPoint(x: x, y: y)
+        }
+
+        let path = UIBezierPath()
+        var cursor: CGFloat = 0
+        var started = false
+        for run in ordered {
+            let span = CGFloat(max(run.distance, 1) / total) * threadLength
+            let elev = run.elevationSeries
+            let samples = max(2, min(elev.count, 48))
+            let minV = elev.min() ?? 0
+            let spanV = max((elev.max() ?? 0) - minV, 1)
+            for i in 0 ..< samples {
+                let t = CGFloat(i) / CGFloat(samples - 1)
+                var rise: CGFloat = 0
+                if elev.count > 4 {
+                    let v = elev[min(Int(t * CGFloat(elev.count - 1)), elev.count - 1)]
+                    rise = (CGFloat((v - minV) / spanV) - 0.5) * 2 * amplitude
+                }
+                let p = point(at: cursor + t * span, rise: rise)
+                if started { path.addLine(to: p) } else { path.move(to: p); started = true }
+            }
+            cursor += span
+        }
+
+        line.withAlphaComponent(0.95).setStroke()
+        path.lineWidth = 2.0 * unit * weight
+        path.lineJoinStyle = .round
+        path.lineCapStyle = .round
+        path.stroke()
+    }
+
+    // MARK: Strata — the years as sediment layers
+
+    /// One horizontal band per year, oldest at the top, every activity a vertical bar at its day
+    /// of the year with height proportional to distance — the record reads as strata: thick
+    /// seasons, thin seasons, the marathon block visible as a ridge in its layer. Races strike
+    /// at full strength, the same convention Rings uses.
+    private static func drawStrata(_ runs: [Run], size: CGSize, line: UIColor, unit: CGFloat, weight: CGFloat) {
+        let calendar = Calendar.current
+        let byYear = Dictionary(grouping: runs) { calendar.component(.year, from: $0.startDate) }
+        let years = byYear.keys.sorted()
+        guard !years.isEmpty, let maxDistance = runs.map(\.distance).max(), maxDistance > 0 else { return }
+
+        let marginX = size.width * 0.10
+        let marginY = size.height * 0.12
+        let usableW = size.width - marginX * 2
+        let bandH = (size.height - marginY * 2) / CGFloat(years.count)
+        let barMax = bandH * 0.72
+        let barWidth = 1.8 * unit * weight
+
+        for (index, year) in years.enumerated() {
+            let baseline = marginY + CGFloat(index + 1) * bandH - bandH * 0.10
+
+            // The layer's floor — faint, so the bars sit on something without the rule
+            // competing with them.
+            let rule = UIBezierPath()
+            rule.move(to: CGPoint(x: marginX, y: baseline))
+            rule.addLine(to: CGPoint(x: marginX + usableW, y: baseline))
+            line.withAlphaComponent(0.15).setStroke()
+            rule.lineWidth = 1.0 * unit
+            rule.stroke()
+
+            for run in byYear[year] ?? [] {
+                let day = calendar.ordinality(of: .day, in: .year, for: run.startDate) ?? 1
+                let x = marginX + usableW * CGFloat(day - 1) / 365.0
+                let height = max(2 * unit, barMax * CGFloat(run.distance / maxDistance))
+                let bar = UIBezierPath()
+                bar.move(to: CGPoint(x: x, y: baseline))
+                bar.addLine(to: CGPoint(x: x, y: baseline - height))
+                line.withAlphaComponent(run.isRace ? 1.0 : 0.62).setStroke()
+                bar.lineWidth = run.isRace ? barWidth * 1.4 : barWidth
+                bar.lineCapStyle = .round
+                bar.stroke()
+            }
+        }
     }
 
     // MARK: Panel

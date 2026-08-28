@@ -137,12 +137,20 @@ enum MapArtStyle: String, CaseIterable, Identifiable {
     case ridgeline
     /// The years as tree rings — every run a tick placed by its day in the year.
     case rings
+    /// The whole history as one continuous line, wrapped across the sheet — each activity a
+    /// stretch of it proportional to its distance, carrying its own elevation profile.
+    case thread
+    /// One band per year, every activity a bar at its day of the year, height by distance —
+    /// the years as sediment layers.
+    case strata
     var id: String { rawValue }
     var name: String {
         switch self {
         case .grid:          return "Grid"
         case .ridgeline:     return "Ridgeline"
         case .rings:         return "Rings"
+        case .thread:        return "Thread"
+        case .strata:        return "Strata"
         }
     }
     var descriptor: String {
@@ -150,6 +158,8 @@ enum MapArtStyle: String, CaseIterable, Identifiable {
         case .grid:          return "Every run as its own glyph, in a grid."
         case .ridgeline:     return "Every climb stacked — your elevations as one mountain chain."
         case .rings:         return "Your years as tree rings — every run a mark in its season."
+        case .thread:        return "Every mile as one unbroken line."
+        case .strata:        return "Your years in layers — every day's distance, banked."
         }
     }
 }
