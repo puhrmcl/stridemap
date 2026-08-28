@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS order_items (
   asset_id    TEXT NOT NULL REFERENCES assets(id),
   sku         TEXT NOT NULL,                    -- Prodigi SKU for product+size
   frame       TEXT,                             -- Prodigi frame/wood colour attribute, where it applies
+  mount       TEXT,                             -- Prodigi mountColor, medal frames only
   quantity    INTEGER NOT NULL DEFAULT 1,       -- copies of this piece; Prodigi's `copies`
   price_cents INTEGER,                          -- line total as Shopify charged it
   UNIQUE(order_id, asset_id)

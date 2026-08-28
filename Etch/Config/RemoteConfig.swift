@@ -57,9 +57,11 @@ struct EtchRemoteConfig: Codable, Sendable, Equatable {
         var bySKU: [String: Int]
         /// The Year Book's retail price in USD cents.
         var yearBookCents: Int
-        /// The medal frame's retail price in USD cents. Optional because the rung isn't set
-        /// until a real quote lands — its wholesale is the highest in the range and it ships
-        /// from the UK, so guessing it would be guessing at a loss.
+        /// The medal frame's retail price in USD cents.
+        ///
+        /// $249, set against a $150.90 landed cost — 36.4% after payment fees, the thinnest rung
+        /// in the range. Still optional, because nil is the kill switch: clearing it unlists the
+        /// product from the served document if UK shipping moves and the rung stops working.
         var medalFrameCents: Int?
         /// The Photo Wall's multi-photo frame, in USD cents.
         ///
@@ -109,7 +111,7 @@ struct EtchRemoteConfig: Codable, Sendable, Equatable {
             delivery: nil
         ),
         prices: Prices(bySKU: [:], yearBookCents: 11900,
-                       medalFrameCents: nil, photoWallCents: 19900),
+                       medalFrameCents: 24900, photoWallCents: 19900),
         basemapReady: false,
         archive: ArchiveGates(
             gridMinRoutedRuns: 20,

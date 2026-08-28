@@ -88,6 +88,11 @@ enum PrintOrderService {
         prodigiSKU: String,
         productHandle: String,
         finishAttribute: String,
+        /// Prodigi's second attribute, where a product has one. The medal frame is the only item
+        /// in the range that does: it needs `color` for the moulding *and* `mountColor` for the
+        /// board behind the medal, and a quote is rejected if either is missing. Empty for
+        /// everything else, and the worker omits it rather than sending a blank.
+        mountAttribute: String = "",
         contentType: String = "image/png",
         onPhase: (Phase) -> Void
     ) async throws -> ShopifyStorefront.Cart {
@@ -108,6 +113,7 @@ enum PrintOrderService {
                 "_etch_creation_id": creationID,
                 "_etch_sku": prodigiSKU,
                 "_etch_frame": finishAttribute,
+                "_etch_mount": mountAttribute,
             ]
         )
     }

@@ -126,12 +126,19 @@ enum MedalFrameCatalog {
     /// line. At the range's usual 55% margin the rung would be about $335, roughly three Year
     /// Books, which is a different shop from the one the rest of the catalogue describes.
     ///
-    /// So no price is set here. `prices.medalFrameCents` stays nil and the product stays unlisted
-    /// until that is a deliberate decision rather than a default.
+    /// **Set at $249**, deliberately below that. It earns 39.4% gross, 36.4% after payment fees —
+    /// $90.58 a frame — against the 45–62% the rest of the range makes. The trade was made with
+    /// the numbers in view: a medal frame is bought once, for a race someone trained a year for,
+    /// and pricing it like three Year Books loses the sale rather than the margin. It is the
+    /// thinnest rung in the catalogue and the first one a shipping change should be re-checked
+    /// against; `prices.medalFrameCents` moves it from the served document without a build.
     static var price: String {
         guard let cents = EtchConfig.current.prices.medalFrameCents else { return "—" }
         return (Double(cents) / 100).formatted(.currency(code: "USD").precision(.fractionLength(0)))
     }
+
+    /// The product's URL handle in Shopify, whose variant carries the retail price at checkout.
+    static let shopifyHandle = "medal-frame"
 
     /// Frame colour — the `color` attribute, in the exact strings the catalog accepts.
     static let frameColours = ["black", "brown", "dark grey", "gold",

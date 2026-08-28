@@ -138,7 +138,9 @@ struct TimelineView: View {
             .buttonStyle(.plain)
             .padding(.bottom, 6)
         }
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
+        // Months keeps three columns — it is the browsing scope, where a tile has to be big
+        // enough to recognise a route from — but the gutters tighten to match All.
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: 3), spacing: 3) {
             ForEach(monthRuns.dropFirst()) { run in
                 Button { open(run) } label: {
                     Color.clear
@@ -154,14 +156,23 @@ struct TimelineView: View {
 
     // MARK: All
 
+    /// All, at Apple Photos' density: five columns, hairline gutters, edge to edge.
+    ///
+    /// Four columns inside an 8pt margin left the grid reading as a panel of thumbnails on a
+    /// page. Photos runs its tiles to the screen edges with 2pt between them, and the effect is
+    /// not that the pictures are smaller — it is that the page stops being a container and starts
+    /// being the pictures. On a history of several hundred activities that is the difference
+    /// between browsing and scrolling.
+    ///
+    /// Corner radius drops with the tile: a 6pt round on a 90pt tile is a detail, and on a 72pt
+    /// tile it is a shape.
     private var allContent: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 4), spacing: 4) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 5), spacing: 2) {
             ForEach(scopedRuns) { run in
-                photoTile(run, corner: 6)
+                photoTile(run, corner: 4)
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.top, 4)
+        .padding(.top, 2)
     }
 
     // MARK: Pieces

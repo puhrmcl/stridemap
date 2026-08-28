@@ -28,6 +28,8 @@ struct StudioHomeView: View {
     @State private var showPrints = false
     /// Presenting the photo-wall poster (cover photos of every run that has one).
     @State private var showPhotoWall = false
+    /// The activity whose medal frame is being configured.
+    @State private var medalSubject: Run?
     /// The aggregate map-print kind whose sheet is presented.
     @State private var mapPrintKind: MapPrintKind?
     /// Presenting the "add a race from the library" flow.
@@ -148,6 +150,7 @@ struct StudioHomeView: View {
             }
             .sheet(item: $mapPrintKind) { MapPrintView(runs: scopedRuns, kind: $0) }
             .sheet(isPresented: $showPhotoWall) { PhotoWallView(runs: scopedRuns) }
+            .sheet(item: $medalSubject) { MedalFrameView(run: $0) }
             .sheet(isPresented: $showAddRace) { NavigationStack { AddRaceView() } }
             .sheet(item: $importDraft) { draft in
                 NavigationStack {
@@ -497,9 +500,14 @@ struct StudioHomeView: View {
         .sheet(item: $pickingFor) { product in
             ActivityPickerSheet(runs: runs, scope: scope) { run in
                 // The picker dismisses itself; give it a beat before the editor rises.
+                // The medal frame is not composed in the poster editor: its aperture is
+                // 2397 × 3000 rather than 2:3, and it takes two colours instead of one. It gets
+                // its own screen once a subject is chosen.
+                let isMedal = product == .medalFrame
                 let family = product.family
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                    studioPreset = StudioSubjectPick(run: run, family: family)
+                    if isMedal { medalSubject = run }
+                    else { studioPreset = StudioSubjectPick(run: run, family: family) }
                 }
             }
         }

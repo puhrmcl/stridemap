@@ -135,26 +135,28 @@ jobs:
       # `schema.sql` builds a correct database from nothing and cannot alter an existing table,
       # so anything that changes a live table lives in migrations/ and is applied here, tracked in
       # schema_migrations. Without this the deploy silently ships code whose tables are the wrong
-      # shape — which is exactly what happened when orders gained items: order_items was created
-      # by the bootstrap while `orders` kept its old NOT NULL line columns, and the first real
-      # order would have failed its insert.
+      # shape — which is exactly what happened when orders gained items.
       - name: Apply pending migrations
         run: |
           set -euo pipefail
           [ -d migrations ] || { echo "No migrations directory — nothing to do."; exit 0; }
 
           d1() { npx wrangler d1 execute etch-fulfilment --remote --yes "$@"; }
-
-          # A database created fresh by the step above already has the post-migration schema, so
-          # migrations that only reshape old tables must not run against it. `orders.creation_id`
-          # exists only on the pre-items shape and is the honest test for which one this is.
-          if d1 --json --command "PRAGMA table_info(orders);" | grep -q '"name": *"creation_id"'; then
-            echo "Pre-items schema detected — reshaping migrations apply."
-          else
-            echo "Schema already has orders-as-header; marking 001 applied without running it."
+          has_col() {
+            d1 --json --command "PRAGMA table_info($1);" | grep -q "\"name\": *\"$2\""
+          }
+          mark() {
             d1 --command "INSERT OR IGNORE INTO schema_migrations (name, applied_at)
-                          VALUES ('001-multi-item-orders.sql', datetime('now'));"
-          fi
+                          VALUES ('$1', datetime('now'));" >/dev/null
+            echo "· marked $1 (schema already has its end state)"
+          }
+
+          # A database the bootstrap just created already carries every migration's end state, so
+          # running one against it would fail — 001 on a missing column, 002 on a duplicate one.
+          # Each migration therefore declares how to recognise "already done" and is marked
+          # without running. Adding a migration means adding one line here.
+          if ! has_col orders creation_id; then mark "001-multi-item-orders.sql"; fi
+          if has_col order_items mount;    then mark "002-order-item-mount.sql"; fi
 
           APPLIED=$(d1 --json --command "SELECT name FROM schema_migrations;" \
             | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{
@@ -167,7 +169,7 @@ jobs:
             echo "── applying $name"
             d1 --file="$file"
             d1 --command "INSERT OR IGNORE INTO schema_migrations (name, applied_at)
-                          VALUES ('$name', datetime('now'));"
+                          VALUES ('$name', datetime('now'));" >/dev/null
             echo "── applied $name"
           done
 

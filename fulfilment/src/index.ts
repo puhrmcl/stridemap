@@ -377,7 +377,10 @@ async function shopifyWebhook(request: Request, env: Env): Promise<Response> {
     assetID: prop(line, "_etch_asset_id")!,
     creationID: prop(line, "_etch_creation_id") ?? "unknown",
     sku: prop(line, "_etch_sku"),
-    frame: prop(line, "_etch_frame") ?? null,
+    frame: prop(line, "_etch_frame") || null,
+    // Prodigi's second attribute. Only the medal frame sends one; `|| null` rather than `??`
+    // so an empty string from every other product stores as null instead of "".
+    mount: prop(line, "_etch_mount") || null,
     quantity: line.quantity ?? 1,
     priceCents: Math.round(parseFloat(line.price ?? "0") * 100) * (line.quantity ?? 1),
   }));
@@ -417,11 +420,11 @@ async function shopifyWebhook(request: Request, env: Env): Promise<Response> {
     items.map((item) =>
       env.LEDGER.prepare(
         `INSERT OR IGNORE INTO order_items
-           (order_id, creation_id, asset_id, sku, frame, quantity, price_cents)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+           (order_id, creation_id, asset_id, sku, frame, mount, quantity, price_cents)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
         row?.id ?? 0, item.creationID, item.assetID, item.sku!,
-        item.frame, item.quantity, item.priceCents
+        item.frame, item.mount, item.quantity, item.priceCents
       )
     )
   );
@@ -457,7 +460,7 @@ async function submitToProdigi(
   // checkout for the customer.
   const lines = await env.LEDGER
     .prepare(
-      `SELECT creation_id, asset_id, sku, frame, quantity
+      `SELECT creation_id, asset_id, sku, frame, mount, quantity
        FROM order_items WHERE order_id = ? ORDER BY id`
     )
     .bind(Number(order.id))
@@ -473,7 +476,13 @@ async function submitToProdigi(
       sku: String(line.sku),
       copies: Number(line.quantity ?? 1),
       sizing: "fillPrintArea",
-      attributes: line.frame ? { color: String(line.frame) } : {},
+      // Prodigi rejects a medal-frame quote unless BOTH attributes are present, and rejects it
+      // again if either is spelled the other way — `color` lowercase, `mountColor` capitalised.
+      // The catalog's inconsistency, carried faithfully rather than tidied.
+      attributes: {
+        ...(line.frame ? { color: String(line.frame) } : {}),
+        ...(line.mount ? { mountColor: String(line.mount) } : {}),
+      },
       assets: [
         { printArea: "default", url: await signedAssetURL(env, origin, String(line.asset_id)) },
       ],
