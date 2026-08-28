@@ -26,6 +26,20 @@ npx wrangler secret put UPLOAD_TOKEN        # generate: openssl rand -hex 32
 npx wrangler deploy
 ```
 
+### Upgrading a database created before multi-item orders
+
+`schema.sql` is a bootstrap of `CREATE TABLE IF NOT EXISTS`, so it fixes new databases and leaves
+existing ones untouched. A database created before orders became headers-plus-items needs its
+migration run once:
+
+```bash
+npx wrangler d1 execute etch-fulfilment --file=migrations/001-multi-item-orders.sql --remote
+```
+
+With no orders yet placed, dropping `orders` and re-running `schema.sql` is equally correct and
+quicker. Either way it must happen **before** deploying the worker: the new code writes
+`order_items`, which the old schema has no table for.
+
 Then point:
 - Shopify webhook `orders/paid` → `https://…workers.dev/webhooks/shopify`
 - Prodigi callback URL → `https://…workers.dev/webhooks/prodigi?token=<UPLOAD_TOKEN>`

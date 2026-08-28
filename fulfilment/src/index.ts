@@ -12,11 +12,15 @@
  *   The app shows honest status
  *     → GET /orders/by-shopify/:id
  *
- * Three invariants live here and nowhere else:
+ * Four invariants live here and nowhere else:
  *   1. IMMUTABILITY — an asset referenced by an order is frozen; uploads to its id are refused.
  *   2. IDEMPOTENCY — every webhook can arrive twice; nothing charges, prints, or numbers twice.
  *   3. NO SPLIT BRAIN — a paid order that fails Prodigi submission stays visible as `failed`
  *      with the error preserved, retriable via /admin/retry, never silently lost.
+ *   4. NOTHING PAID GOES UNPRINTED — an order is a header plus N items, and every Etch line in
+ *      the Shopify payload becomes one. This used to read the first line and drop the others,
+ *      which was safe only because the app could not build a multi-line cart; the server now
+ *      holds that guarantee itself rather than borrowing it from the client.
  *
  * Endpoints:
  *   GET  /health
@@ -297,28 +301,49 @@ async function shopifyWebhook(request: Request, env: Env): Promise<Response> {
   if (!seen.meta.changes) return json({ ok: true, duplicate: true });
 
   const order = JSON.parse(new TextDecoder().decode(raw)) as ShopifyOrder;
-  const line = order.line_items?.find((item) => prop(item, "_etch_asset_id"));
-  if (!line) return json({ ok: true, skipped: "no_etch_line_item" });
 
-  const assetID = prop(line, "_etch_asset_id")!;
-  const creationID = prop(line, "_etch_creation_id") ?? "unknown";
-  const sku = prop(line, "_etch_sku");
-  const frame = prop(line, "_etch_frame") ?? null;
-  if (!sku) return json({ ok: true, skipped: "no_sku_property" });
+  // EVERY Etch line, not the first.
+  //
+  // This was `.find(...)`, which took one line and discarded the rest. Nothing caught it because
+  // the app could only ever build a single-line cart — the server's correctness rested on a
+  // client-side limitation, which is the wrong place for it. A customer buying a book, a race
+  // print and a medal frame together would have paid for three and received one, silently, with
+  // the ledger agreeing that the order was complete.
+  const lines = (order.line_items ?? []).filter((item) => prop(item, "_etch_asset_id"));
+  if (lines.length === 0) return json({ ok: true, skipped: "no_etch_line_item" });
 
-  // Freeze the asset the moment money has moved against it (§33).
-  await env.LEDGER.prepare("UPDATE assets SET frozen = 1 WHERE id = ?").bind(assetID).run();
+  // A line without a SKU cannot be produced. Refusing the whole order is deliberate: partial
+  // fulfilment of a paid basket is the failure being fixed here, so a malformed line stops
+  // everything and surfaces, rather than quietly shipping the lines that happened to parse.
+  const items = lines.map((line) => ({
+    assetID: prop(line, "_etch_asset_id")!,
+    creationID: prop(line, "_etch_creation_id") ?? "unknown",
+    sku: prop(line, "_etch_sku"),
+    frame: prop(line, "_etch_frame") ?? null,
+    quantity: line.quantity ?? 1,
+    priceCents: Math.round(parseFloat(line.price ?? "0") * 100) * (line.quantity ?? 1),
+  }));
+  if (items.some((item) => !item.sku)) {
+    return json({ ok: true, skipped: "no_sku_property" });
+  }
+
+  // Freeze every asset the moment money has moved against it (§33).
+  await env.LEDGER.batch(
+    items.map((item) =>
+      env.LEDGER.prepare("UPDATE assets SET frozen = 1 WHERE id = ?").bind(item.assetID)
+    )
+  );
 
   const inserted = await env.LEDGER
     .prepare(
       `INSERT OR IGNORE INTO orders
-         (shopify_order_id, creation_id, asset_id, sku, frame, quantity, status,
-          price_cents, currency, recipient_json, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'submitted', ?, ?, ?, ?, ?)`
+         (shopify_order_id, status, price_cents, currency, recipient_json, created_at, updated_at)
+       VALUES (?, 'submitted', ?, ?, ?, ?, ?)`
     )
     .bind(
-      String(order.id), creationID, assetID, sku, frame, line.quantity ?? 1,
-      Math.round(parseFloat(line.price ?? "0") * 100), order.currency ?? "USD",
+      String(order.id),
+      items.reduce((total, item) => total + item.priceCents, 0),
+      order.currency ?? "USD",
       JSON.stringify(order.shipping_address ?? {}), now(), now()
     ).run();
   if (!inserted.meta.changes) return json({ ok: true, duplicate: true });
@@ -327,6 +352,21 @@ async function shopifyWebhook(request: Request, env: Env): Promise<Response> {
     .prepare("SELECT id FROM orders WHERE shopify_order_id = ?")
     .bind(String(order.id)).first<{ id: number }>();
   const etchNumber = `ETCH-${10000 + (row?.id ?? 0)}`;
+
+  // The pieces. Written after the header so `order_id` exists to point at, and only once the
+  // header insert reported a change — a redelivered webhook has already returned above.
+  await env.LEDGER.batch(
+    items.map((item) =>
+      env.LEDGER.prepare(
+        `INSERT OR IGNORE INTO order_items
+           (order_id, creation_id, asset_id, sku, frame, quantity, price_cents)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        row?.id ?? 0, item.creationID, item.assetID, item.sku!,
+        item.frame, item.quantity, item.priceCents
+      )
+    )
+  );
 
   // Submit to Prodigi. A failure here NEVER loses the paid order: it stays `failed`
   // with the error preserved, and /admin/retry re-runs exactly this step (§39).
@@ -352,8 +392,35 @@ async function submitToProdigi(
   if (!order) throw new Error("order_row_missing");
   if (order.prodigi_order_id) return; // already submitted — idempotent retry
 
+  // Every piece in the order, as one Prodigi order. Prodigi's `items` array has always accepted
+  // this; the worker was the thing insisting an order held one object. One order also means one
+  // shipping charge where the pieces come from the same production facility — Prodigi still
+  // splits across facilities when it has to, which is its routing decision rather than a second
+  // checkout for the customer.
+  const lines = await env.LEDGER
+    .prepare(
+      `SELECT creation_id, asset_id, sku, frame, quantity
+       FROM order_items WHERE order_id = ? ORDER BY id`
+    )
+    .bind(Number(order.id))
+    .all<Record<string, unknown>>();
+  if (!lines.results?.length) throw new Error("order_has_no_items");
+
   const address = JSON.parse(String(order.recipient_json ?? "{}")) as Record<string, string | null>;
-  const assetURL = await signedAssetURL(env, origin, String(order.asset_id));
+
+  // Signed per asset. The URLs expire, so they are minted at submission rather than stored.
+  const prodigiItems = await Promise.all(
+    lines.results.map(async (line) => ({
+      merchantReference: String(line.creation_id),
+      sku: String(line.sku),
+      copies: Number(line.quantity ?? 1),
+      sizing: "fillPrintArea",
+      attributes: line.frame ? { color: String(line.frame) } : {},
+      assets: [
+        { printArea: "default", url: await signedAssetURL(env, origin, String(line.asset_id)) },
+      ],
+    }))
+  );
 
   const body = {
     merchantReference: etchNumber,
@@ -369,16 +436,7 @@ async function submitToProdigi(
         stateOrCounty: address.province_code ?? undefined,
       },
     },
-    items: [
-      {
-        merchantReference: String(order.creation_id),
-        sku: String(order.sku),
-        copies: Number(order.quantity ?? 1),
-        sizing: "fillPrintArea",
-        attributes: order.frame ? { color: String(order.frame) } : {},
-        assets: [{ printArea: "default", url: assetURL }],
-      },
-    ],
+    items: prodigiItems,
   };
 
   const response = await fetch(`${env.PRODIGI_BASE}/v4.0/Orders`, {
@@ -467,7 +525,7 @@ async function prodigiWebhook(request: Request, env: Env, url: URL): Promise<Res
 async function orderStatus(env: Env, shopifyOrderID: string): Promise<Response> {
   const order = await env.LEDGER
     .prepare(
-      `SELECT id, status, tracking_url, carrier, sku, frame, created_at, updated_at
+      `SELECT id, status, tracking_url, carrier, created_at, updated_at
        FROM orders WHERE shopify_order_id = ?`
     )
     .bind(shopifyOrderID)
