@@ -133,15 +133,24 @@ struct TimelineTab: View {
                 case .achievements: HighlightsView(embedded: true)
                 }
             }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                Picker("", selection: $pane) {
-                    ForEach(Pane.allCases, id: \.self) { Text($0.title).tag($0) }
+            // In the navigation bar, not the content.
+            //
+            // This started as a segmented control inset at the top of the content, which put two
+            // of them on one screen: Timeline carries its own Years / Months / All along the
+            // bottom, and the floating tab bar now crowds that. Two segmented controls competing
+            // down a single screen is the reader having to work out which one they are arguing
+            // with. The bar is the right home for the one that chooses *what you are looking at*;
+            // the content keeps the one that chooses *how it is arranged*.
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Picker("", selection: $pane) {
+                        ForEach(Pane.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 260)
                 }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 8)
-                .background(.bar)
             }
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
