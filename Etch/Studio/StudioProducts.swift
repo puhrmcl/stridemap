@@ -31,7 +31,7 @@ enum StudioProduct: String, CaseIterable, Identifiable {
         case .photoWall:     return "Photo Wall"
         case .medalFrame:    return "Medal Frame"
         case .yearBook:      return "Year Book"
-        case .wallArt:       return "Wall Art"
+        case .wallArt:       return "Anthology"
         }
     }
 

@@ -269,11 +269,20 @@ struct MapPrintView: View {
                 if kind.supportsSinglePlace, !focusPlaces.isEmpty { placeMenu }
             }
             if kind.isArt {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) { artFilterMenu; styleMenu; paletteMenu; weightMenu }
-                        .padding(.horizontal, 2)
+                // The old row was four identical dropdown chips — filter, style, palette,
+                // weight — scrolling sideways in a strip, every option hidden behind a tap and
+                // nothing saying which chip held what. The choices now wear their own shapes:
+                // styles are labeled tiles, palettes are the colours themselves, weight is a
+                // three-way segment, and only the filter — genuinely hierarchical — remains a
+                // menu. A control whose options are visible does not have to be explained.
+                artFilterMenu
+                styleStrip
+                paletteRow
+                Picker("Weight", selection: $artWeight) {
+                    ForEach(MapArtWeight.allCases) { Text($0.name).tag($0) }
                 }
-                .frame(maxWidth: 360)
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 240)
             }
             if isSingleState { stateControls }
 
@@ -360,34 +369,75 @@ struct MapPrintView: View {
         }
     }
 
-    private var paletteMenu: some View {
-        Menu {
-            Picker("Palette", selection: $artPalette) {
-                ForEach(MapArtPalette.allCases) { Text($0.name).tag($0) }
+    /// The styles as labeled tiles in a horizontal strip — every option on the table at once,
+    /// the chosen one ringed, the same selection language the Map Type sheet uses.
+    private var styleStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(MapArtStyle.allCases) { style in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { artStyle = style }
+                    } label: {
+                        VStack(spacing: 5) {
+                            Image(systemName: style.symbol)
+                                .font(.system(size: 18, weight: .semibold))
+                                .frame(height: 22)
+                            Text(style.name)
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        }
+                        .foregroundStyle(artStyle == style ? Theme.accent : .secondary)
+                        .frame(width: 76)
+                        .padding(.vertical, 10)
+                        .background(
+                            artStyle == style ? Theme.accent.opacity(0.14) : Color.primary.opacity(0.05),
+                            in: .rect(cornerRadius: 12)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 12)
+                                .strokeBorder(artStyle == style ? Theme.accent : .clear, lineWidth: 1.5)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(style.name). \(style.descriptor)")
+                }
             }
-        } label: {
-            menuChip(icon: "paintpalette", text: artPalette.name)
+            .padding(.horizontal, 24)
         }
+        .padding(.horizontal, -24)
     }
 
-    private var styleMenu: some View {
-        Menu {
-            Picker("Style", selection: $artStyle) {
-                ForEach(MapArtStyle.allCases) { Text($0.name).tag($0) }
+    /// The palettes as themselves: a swatch per palette, ground colour filled, line colour as the
+    /// dot — the option *is* its preview, so it needs no name until it is chosen.
+    private var paletteRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(MapArtPalette.allCases) { palette in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { artPalette = palette }
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(palette.ground)
+                                .overlay(Circle().strokeBorder(.black.opacity(0.15), lineWidth: 0.5))
+                            Circle()
+                                .fill(palette.line)
+                                .frame(width: 12, height: 12)
+                        }
+                        .frame(width: 32, height: 32)
+                        .padding(3)
+                        .overlay {
+                            Circle().strokeBorder(
+                                artPalette == palette ? Theme.accent : .clear, lineWidth: 2
+                            )
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(palette.name)
+                }
             }
-        } label: {
-            menuChip(icon: "wand.and.stars", text: artStyle.name)
+            .padding(.horizontal, 24)
         }
-    }
-
-    private var weightMenu: some View {
-        Menu {
-            Picker("Weight", selection: $artWeight) {
-                ForEach(MapArtWeight.allCases) { Text($0.name).tag($0) }
-            }
-        } label: {
-            menuChip(icon: "lineweight", text: artWeight.name)
-        }
+        .padding(.horizontal, -24)
     }
 
     /// Narrows the Wall Art to a subset of runs. Only options that match at least one run are

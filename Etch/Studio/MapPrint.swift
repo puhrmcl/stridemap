@@ -8,7 +8,7 @@ enum MapPrintKind: String, CaseIterable, Identifiable {
 
     var name: String {
         switch self {
-        case .artMap:    return "Wall Art"
+        case .artMap:    return "Anthology"
         case .allRuns:   return "All Runs"
         case .states:    return "States"
         case .cities:    return "Cities"
@@ -19,7 +19,7 @@ enum MapPrintKind: String, CaseIterable, Identifiable {
 
     var descriptor: String {
         switch self {
-        case .artMap:    return "Every route as abstract line art — no map, no words."
+        case .artMap:    return "The body of work as one abstract piece — no map, no words."
         case .allRuns:   return "Every route you've run, on one map."
         case .states:    return "The states you've run in, filled."
         case .cities:    return "Every city you've run in, pinned."
@@ -160,6 +160,17 @@ enum MapArtStyle: String, CaseIterable, Identifiable {
         case .rings:         return "Your years as tree rings — every run a mark in its season."
         case .thread:        return "Every mile as one unbroken line."
         case .strata:        return "Your years in layers — every day's distance, banked."
+        }
+    }
+    /// A glyph that gestures at the composition, for the style tiles. The rendered thumbnail is
+    /// the real preview; the symbol only has to tell five tiles apart at a glance.
+    var symbol: String {
+        switch self {
+        case .grid:      return "square.grid.3x3"
+        case .ridgeline: return "mountain.2"
+        case .rings:     return "circle.circle"
+        case .thread:    return "scribble.variable"
+        case .strata:    return "chart.bar.fill"
         }
     }
 }
