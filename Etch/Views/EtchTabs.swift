@@ -135,24 +135,26 @@ struct TimelineTab: View {
                 case .achievements: HighlightsView(embedded: true)
                 }
             }
-            // In the navigation bar, not the content.
+            // The shared header, then the pane picker beneath it.
             //
-            // This started as a segmented control inset at the top of the content, which put two
-            // of them on one screen: Timeline carries its own Years / Months / All along the
-            // bottom, and the floating tab bar now crowds that. Two segmented controls competing
-            // down a single screen is the reader having to work out which one they are arguing
-            // with. The bar is the right home for the one that chooses *what you are looking at*;
-            // the content keeps the one that chooses *how it is arranged*.
-            .toolbar {
-                ToolbarItem(placement: .principal) {
+            // The picker briefly lived in the navigation bar, which solved one problem and made
+            // another: with a content header on every other surface, Timeline would have been the
+            // one page whose controls were in the chrome. Under the header it is plainly a
+            // sub-navigation of *this* page, and it stays well clear of Timeline's own
+            // Years / Months / All at the foot.
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 10) {
+                    EtchPageHeader("Timeline")
                     Picker("", selection: $pane) {
                         ForEach(Pane.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
                     .pickerStyle(.segmented)
-                    .frame(maxWidth: 260)
+                    .padding(.horizontal, 20)
                 }
+                .padding(.bottom, 10)
+                .background(.bar)
             }
-            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 }

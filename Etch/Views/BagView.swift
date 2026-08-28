@@ -33,8 +33,15 @@ struct BagView: View {
                     .listStyle(.insetGrouped)
                 }
             }
-            .navigationTitle("Bag")
-            .navigationBarTitleDisplayMode(.large)
+            // The shared header rather than a large navigation title: the same masthead every
+            // surface but the map wears, so moving between tabs changes the words and nothing
+            // else.
+            .safeAreaInset(edge: .top, spacing: 0) {
+                EtchPageHeader("Bag")
+                    .padding(.bottom, 10)
+                    .background(.bar)
+            }
+            .toolbar(.hidden, for: .navigationBar)
             .refreshable { await refresh() }
             .task { await refresh() }
         }

@@ -6,9 +6,9 @@ import UniformTypeIdentifiers
 /// turning any activity — a ride, a run, a hike, a race — into art, plus the entry point for
 /// prints. The artwork leads; commerce stays quiet.
 struct StudioHomeView: View {
-    /// True when Studio is the app's own tab: it draws its wordmark masthead with the avatar and
-    /// hides the navigation bar. False when Studio is presented as a sheet from somewhere else,
-    /// which keeps the bar.
+    /// True when Studio is the app's own tab: it draws the shared page header and hides the
+    /// navigation bar. False when Studio is presented as a sheet from somewhere else, which keeps
+    /// the bar and shows the wordmark instead (see `intro`).
     var isHome: Bool = false
     /// True when pushed inside the Explore hub's navigation stack (no own NavigationStack).
     var embedded: Bool = false
@@ -18,10 +18,6 @@ struct StudioHomeView: View {
     @Environment(AppModel.self) private var appModel
     @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
 
-    @State private var showProfile = false
-    /// The user's chosen profile photo (shared with the profile page and map search bar), so the
-    /// Studio-first toolbar avatar shows it too.
-    @AppStorage("profileImageData") private var profileImageData: Data?
     /// Posters the user kept, newest edit first.
     @Query(sort: \SavedPoster.updatedAt, order: .reverse) private var savedPosters: [SavedPoster]
 
@@ -123,12 +119,12 @@ struct StudioHomeView: View {
                     }
                 }
             }
-            // The logo wordmark leads the page, so keep the bar title inline and blank.
+            // The page header lives in the content, so the bar carries no title of its own.
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
-            // Studio-first builds its own header in the content (see `header`), so the bar is
-            // hidden entirely rather than left empty. Sheet mode keeps its bar (and has no close
-            // button — swipe it down).
+            // As a tab, Studio builds its own header in the content (see `header`), so the bar
+            // is hidden entirely rather than left empty. Sheet mode keeps its bar (and has no
+            // close button — swipe it down).
             .toolbar(isHome ? .hidden : .automatic, for: .navigationBar)
             // A different scope is a different library, so its hero starts at the top rather
             // than wherever "Show another" had wandered to in the previous one.
@@ -144,7 +140,6 @@ struct StudioHomeView: View {
                 guard await settled(for: .seconds(2)) else { return }
                 await WeatherBackfill.run(context: modelContext)
             }
-            .sheet(isPresented: $showProfile) { ProfileView() }
             .sheet(item: $studioRun) { StudioView(run: $0) }
             .sheet(item: $openedPoster) { poster in
                 if let run = run(for: poster) {
@@ -183,28 +178,6 @@ struct StudioHomeView: View {
                     ProgressView("Reading file…")
                         .padding(24)
                         .background(.regularMaterial, in: .rect(cornerRadius: 16))
-                }
-            }
-        }
-    }
-
-    /// The profile photo, as the whole button.
-    private var profileButton: some View {
-        Button { showProfile = true } label: {
-            // Shows the user's chosen photo (like the map search bar); the plain person glyph is
-            // the placeholder before one is set.
-            ProfileAvatar(size: 36) {
-                Image(systemName: "person.crop.circle")
-                    .font(.system(size: 32))
-                    .foregroundStyle(Theme.accent)
-            }
-        }
-        .buttonStyle(.plain)
-        // Long-press to remove the photo without opening the profile page.
-        .contextMenu {
-            if profileImageData != nil {
-                Button(role: .destructive) { profileImageData = nil } label: {
-                    Label("Remove Photo", systemImage: "trash")
                 }
             }
         }
@@ -374,23 +347,14 @@ struct StudioHomeView: View {
     /// The trade is that the header scrolls away with the page rather than pinning. For a
     /// storefront that reads top to bottom, that is the normal behaviour and arguably the better
     /// one: the buttons are reachable at the top, where a reader starts.
-    /// Wordmark left, profile right — the arrangement the Apple Store uses, and the one the tab
-    /// bar made possible.
+    /// The shared masthead: "Studio" on the left, the avatar on the right.
     ///
-    /// The mark used to be centred between a profile button and a map button, which cost it the
-    /// left edge every other heading on the page starts from. The map button is gone entirely:
-    /// reaching the map is what the Map tab is for, and a second door to the same room beside a
-    /// bar that already has one is just a thing to explain.
+    /// The wordmark is gone from here. It had been the page's title, which meant Studio was the
+    /// one tab whose heading was a logo rather than a name — and once every other surface gained
+    /// the same header, a mark in that slot read as a different kind of page rather than a
+    /// branded one. The brand still opens the app; the shop is now just labelled like a shop.
     private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image("BrandLogo")
-                .resizable().scaledToFit()
-                .frame(height: Self.mastheadMarkHeight)
-                .accessibilityLabel("Etch")
-            Spacer(minLength: 8)
-            profileButton
-        }
-        .padding(.horizontal, 20)
+        EtchPageHeader("Studio")
     }
 
     // MARK: Intro
