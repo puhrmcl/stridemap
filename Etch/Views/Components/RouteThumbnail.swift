@@ -130,6 +130,28 @@ struct RouteMapTile: View {
             }
             .task(id: sizeKey(geo.size)) {
                 guard geo.size.width > 1, geo.size.height > 1 else { return }
+
+                // Spread the cold burst.
+                //
+                // This tile used to appear once per screen — the year hero — and could ask for
+                // its snapshot the moment it existed. Timeline's All grid is five columns now, so
+                // roughly forty of these come on screen together and every one of them starts an
+                // MKMapSnapshotter. MapKit throttles under that and answers the surplus with an
+                // error, which would show as a grid pocked with bare route drawings that never
+                // fill in.
+                //
+                // A short random wait spreads the same forty requests across half a second.
+                // It is a smoother, not a limiter: a hard semaphore would be stricter, but the
+                // waiter has to survive cancellation, and in a lazy grid tiles are cancelled
+                // constantly as they scroll away — a continuation left unresumed there is a
+                // leak. `Task.sleep` is cancellation-aware, so a tile that leaves the screen
+                // during its wait simply stops.
+                //
+                // Everything is cached by run + size in `PosterMap.tileImage`, so this cost is
+                // paid once per tile per size and scrolling back is instant.
+                try? await Task.sleep(for: .milliseconds(Int.random(in: 0...500)))
+                guard !Task.isCancelled else { return }
+
                 image = await PosterMap.tileImage(for: run, size: geo.size)
             }
         }

@@ -221,7 +221,14 @@ struct TimelineView: View {
     private var allContent: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 5), spacing: 2) {
             ForEach(scopedRuns) { run in
-                photoTile(run, corner: 4)
+                // A run with no photograph shows where it happened rather than a bare line.
+                //
+                // The flat route drawing is a shape with no place attached: two loops of similar
+                // size are indistinguishable, which in a grid of hundreds is most of them. On a
+                // map you recognise the neighbourhood before you have read anything. Runs with a
+                // photograph still lead with it, and routeless ones keep their activity glyph —
+                // RunTileImage already cascades photo → map → drawing.
+                photoTile(run, corner: 4, mapFallback: true)
             }
         }
         .scrollTargetLayout()
@@ -234,7 +241,8 @@ struct TimelineView: View {
     /// tile is a square sized to its column. A clear sizing container defines the frame and the
     /// image sits in an overlay that's clipped to it — so `scaledToFill` can never overflow the
     /// layout (which is what made tiles overlap).
-    private func photoTile(_ run: Run, corner: CGFloat, height: CGFloat? = nil) -> some View {
+    private func photoTile(_ run: Run, corner: CGFloat, height: CGFloat? = nil,
+                           mapFallback: Bool = false) -> some View {
         Button { open(run) } label: {
             Group {
                 if let height {
@@ -243,7 +251,7 @@ struct TimelineView: View {
                     Color.clear.aspectRatio(1, contentMode: .fit)
                 }
             }
-            .overlay { RunTileImage(run: run) }
+            .overlay { RunTileImage(run: run, mapFallback: mapFallback) }
             .clipShape(.rect(cornerRadius: corner))
             .contentShape(.rect)
         }
