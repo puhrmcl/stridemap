@@ -11,9 +11,9 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b449: the Lithograph tile on the storefront, the medal frame inside
-# the print shop's format list, and the dot-map hero on its three new grounds —
-# world coastlines, the country, and the state.
+# Requested for b451: the Country ground reframed off Alaska, the State ground with
+# its out-of-state dots dropped, and the Lithograph tile itself — the b449 studio
+# shot stopped above the product grid.
 
-screens=studio,prints@options,city-index:world,city-index:country,city-index:state
+screens=studio@products,city-index:country,city-index:state,city-index:world
 appearance=light

@@ -772,6 +772,20 @@ enum MapPrintRenderer {
                     ground.append(contentsOf: country.polygons)
                     groundRect = groundRect.union(country.boundingMapRect)
                 }
+            } else {
+                // Frame only the pieces of the ground this history actually touches. A
+                // country's outlying parts are real geography and terrible framing: Alaska
+                // against the lower 48 doubles the extent and shrinks the states somebody has
+                // run in to a corner — which is exactly what the first render of this did.
+                // Keeping the polygons that hold a city frames the map on the ground the buyer
+                // has covered, and lets Alaska back in the day they run there.
+                let occupied = ground.filter { polygon in
+                    coords.values.contains { polygon.contains(MKMapPoint($0)) }
+                }
+                if !occupied.isEmpty {
+                    ground = occupied
+                    groundRect = occupied.reduce(MKMapRect.null) { $0.union($1.boundingMapRect) }
+                }
             }
             let region: MKCoordinateRegion
             if groundRect.isNull {
@@ -798,17 +812,25 @@ enum MapPrintRenderer {
                         if i == 0 { path.move(to: q) } else { path.addLine(to: q) }
                     }
                     path.close()
-                    ink.withAlphaComponent(0.05).setFill()
+                    ink.withAlphaComponent(0.07).setFill()
                     path.fill()
-                    ink.withAlphaComponent(0.30).setStroke()
+                    ink.withAlphaComponent(0.38).setStroke()
                     path.lineWidth = max(0.8, 1.1 * unit)
                     path.stroke()
                 }
                 cg.restoreGState()
             }
 
-            let maxN = cityPoints.values.map(\.n).max() ?? 1
-            for (city, coordinate) in coords {
+            // A city off the drawn ground is not drawn on it. On the world map everything is
+            // on the map by definition; inside a country or a state outline, a city beyond the
+            // border would sit in blank paper with nothing to locate it against — which reads
+            // as a misprint, not as a place. The list beneath still names every city: the map
+            // is the scope, the list is the record.
+            let plotted = request.cityIndexMapScope == .world || ground.isEmpty
+                ? coords
+                : coords.filter { _, c in ground.contains { $0.contains(MKMapPoint(c)) } }
+            let maxN = plotted.keys.compactMap { cityPoints[$0]?.n }.max() ?? 1
+            for (city, coordinate) in plotted {
                 let p = project(coordinate)
                 guard rect.insetBy(dx: -2, dy: -2)
                     .contains(CGPoint(x: rect.minX + p.x, y: rect.minY + p.y)) else { continue }
