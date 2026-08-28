@@ -488,6 +488,11 @@ struct StudioHomeView: View {
                 ForEach(StudioProduct.offered) { product in
                     Button { open(product) } label: { productCard(product) }
                         .buttonStyle(.plain)
+                        // Each tile is its own scroll anchor, so CI can photograph a product
+                        // that sits below the fold — "studio@lithograph" opens on that row.
+                        // The section anchors above can only reveal what follows them, and the
+                        // grid is now four rows deep.
+                        .id(product.rawValue)
                 }
             }
             finishes
