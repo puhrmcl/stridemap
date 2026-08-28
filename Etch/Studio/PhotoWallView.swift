@@ -274,6 +274,14 @@ struct PhotoWallView: View {
         .background(.regularMaterial)
     }
 
+    /// Whether this build can actually take the order: the frame is listed, the storefront
+    /// credentials are present, and the served kill switch is open.
+    private var canOrder: Bool {
+        MultiPhotoFrameCatalog.isAvailable
+            && PrintOrderService.isConfigured
+            && EtchConfig.current.ordering.enabled
+    }
+
     /// Order the wall as the multi-photo frame it is composed for.
     ///
     /// Until now this screen could only share a picture of the wall, which made the Photo Wall the
@@ -283,8 +291,29 @@ struct PhotoWallView: View {
     /// The order renders at the frame's own resolution (5905 × 8858 for the 20 × 30″), which is why
     /// it goes through the banded writer rather than an image: that sheet is a 209 MB bitmap.
     @ViewBuilder private var orderButton: some View {
-        if MultiPhotoFrameCatalog.isAvailable, PrintOrderService.isConfigured,
-           EtchConfig.current.ordering.enabled, !shown.isEmpty {
+        if !shown.isEmpty, !canOrder {
+            // Say why, rather than vanish.
+            //
+            // This whole block used to be one `if` with four conditions, so a missing storefront
+            // token simply removed the button — and a screen that lets you compose a wall and
+            // then offers only "share" reads as a product you cannot buy rather than a shop that
+            // is briefly shut. `PrintShopView` has always explained itself in this situation;
+            // this screen now does too, in the same words.
+            VStack(spacing: 6) {
+                Label(EtchConfig.current.ordering.closedTitle, systemImage: "clock")
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .foregroundStyle(Theme.accent)
+                Text(EtchConfig.current.ordering.closedDetail)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(14)
+            .frame(maxWidth: 340)
+            .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 14))
+        }
+
+        if canOrder, !shown.isEmpty {
             Button(action: order) {
                 Group {
                     if let orderPhase {

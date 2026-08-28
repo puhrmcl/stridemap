@@ -99,17 +99,38 @@ struct ScopedSearchView: View {
 
     private var trimmed: String { query.trimmingCharacters(in: .whitespaces) }
 
+    /// Everything an activity knows, not just its name and its city.
+    ///
+    /// The old search read four string fields, which meant the things people actually remember an
+    /// activity by were unfindable: how far it was, what they wrote about it afterwards, whether
+    /// it was a ride or a hike. "13.1", "marathon", "knee", "2024" and "ride" all now land.
+    ///
+    /// Numbers are matched on their *formatted* text rather than parsed, so what you can see is
+    /// what you can search — "13.1" finds the half because that is what the app printed, and a
+    /// unit change moves the search with it instead of leaving it behind.
     private var matchingRuns: [Run] {
         let q = trimmed.lowercased()
         guard !q.isEmpty else { return [] }
         return runs.filter { run in
-            run.name.lowercased().contains(q)
-                || (run.city?.lowercased().contains(q) ?? false)
-                || (run.state?.lowercased().contains(q) ?? false)
-                || (run.country?.lowercased().contains(q) ?? false)
-                || Format.date(run.startDate).lowercased().contains(q)
-                || (run.isRace && "race".contains(q))
+            haystack(for: run).contains(q)
         }
+    }
+
+    private func haystack(for run: Run) -> String {
+        var parts: [String] = [
+            run.name,
+            run.city ?? "", run.state ?? "", run.country ?? "",
+            run.notes ?? "",
+            run.activityType.rawValue,
+            Format.date(run.startDate),
+            String(Calendar.current.component(.year, from: run.startDate)),
+            // Both the number alone and the number with its unit, so "13.1" and "13.1 mi" work.
+            Format.distance(run.distance),
+            String(format: "%.1f", Format.distanceValue(run.distance)),
+            Format.elevationGain(run.elevationGain)
+        ]
+        if run.isRace { parts.append("race") }
+        return parts.joined(separator: " ").lowercased()
     }
 
     /// The catalogue, by the names a customer would type — the product, not the SKU.
@@ -129,8 +150,10 @@ struct ScopedSearchView: View {
             Text(run.name)
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
                 .foregroundStyle(.primary)
-            Text([Format.date(run.startDate), run.city, run.state]
-                    .compactMap { $0 }.joined(separator: " · "))
+            // Distance is on the row because it is now searchable: a result you matched on
+            // "13.1" should show you the 13.1, or the match looks like a mistake.
+            Text([Format.date(run.startDate), Format.distance(run.distance), run.city, run.state]
+                    .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

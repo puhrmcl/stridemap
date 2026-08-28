@@ -32,14 +32,16 @@ enum EtchTab: String, Hashable, CaseIterable, Identifiable {
 
     /// Tab glyphs, chosen to sit together rather than one at a time.
     ///
-    /// `photo.artframe` was a hard rectangle beside a rounded bag and a rounded map, and it read
-    /// as the odd one out on a bar whose whole look is soft capsules. `storefront` is rounded,
-    /// current, and says what the tab is — Studio is where the shop lives.
+    /// Studio stays a canvas — the tab is where you *make* something, and a shopfront said only
+    /// that you could buy one. `photo.artframe` was the wrong canvas though: a hard rectangle
+    /// with a heavy frame, beside a rounded bag and a rounded map, on a bar whose whole look is
+    /// soft capsules. `photo` is the same idea drawn minimally, with the rounded corners the rest
+    /// of the set has.
     var symbol: String {
         switch self {
         case .map:      return "map"
         case .timeline: return "rectangle.grid.2x2"
-        case .studio:   return "storefront"
+        case .studio:   return "photo"
         case .bag:      return "bag"
         case .search:   return "magnifyingglass"
         }
