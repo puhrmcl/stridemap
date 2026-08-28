@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import PhotosUI
 import ShopifyCheckoutSheetKit
 
 /// The aggregate map-print screen: preview a full-history poster, switch between kinds, narrow to
@@ -48,6 +49,13 @@ struct MapPrintView: View {
     @State private var showPrints = false
     /// Cities drawn as the typographic index (printable) rather than pins on a map (screen-only).
     @State private var cityIndexOn = false
+    /// The index's tour-poster hero and per-city totals.
+    @State private var indexHero: MapPrintRequest.CityIndexHero = .none
+    @State private var indexTotals = true
+    @State private var indexPhotoItem: PhotosPickerItem?
+    @State private var indexPhoto: UIImage?
+    /// Bumped when a new photo lands, so the render cache key changes with it.
+    @State private var indexPhotoStamp = 0
     /// The direct order path, for the compositions made of our own ink.
     @State private var showSizeDialog = false
     @State private var orderPhase: PrintOrderService.Phase?
@@ -177,6 +185,9 @@ struct MapPrintView: View {
                                         span: MKCoordinateSpan(latitudeDelta: latSpan, longitudeDelta: lonSpan))
         req.statesUSAOnly = statesUSAOnly && kind == .states && focusName == nil
         req.cityIndex = cityIndexOn && kind == .cities
+        req.cityIndexHero = cityIndexOn && kind == .cities ? indexHero : .none
+        req.cityIndexPhoto = indexPhoto
+        req.cityIndexTotals = indexTotals
         req.artCaptionEdge = captionEdge
         req.artCaptionShowsTitle = captionTitle
         req.artCaptionShowsSummary = captionSummary
@@ -195,7 +206,7 @@ struct MapPrintView: View {
 
     private var currentKey: String {
         "\(kind.rawValue)-\(focusName ?? "all")-\(orientation.rawValue)-\(artPalette.rawValue)-\(artStyle.rawValue)-\(artWeight.rawValue)-\(cityIndexOn)-" +
-        "\(artFilterLabel)-\(stateTitle)|\(stateMetricsKey)-\(statesUSAOnly)-\(showDetails)-\(captionEdge.rawValue)\(captionTitle)\(captionSummary)-" +
+        "\(artFilterLabel)-\(stateTitle)|\(stateMetricsKey)-\(statesUSAOnly)-\(showDetails)-\(captionEdge.rawValue)\(captionTitle)\(captionSummary)-\(indexHero.rawValue)\(indexTotals)\(indexPhotoStamp)-" +
         String(format: "%.2f-%.2f-%.2f", zoom, panX, panY)
     }
 
@@ -366,7 +377,42 @@ struct MapPrintView: View {
                 }
                 .pickerStyle(.segmented)
                 .frame(maxWidth: 240)
-                if cityIndexOn { paletteRow }
+                if cityIndexOn {
+                    paletteRow
+                    // The tour-poster options: what crowns the sheet, and whether each city
+                    // carries its miles as well as its count.
+                    Picker("Hero", selection: $indexHero) {
+                        ForEach(MapPrintRequest.CityIndexHero.allCases) { Text($0.name).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 280)
+                    if indexHero == .photo {
+                        PhotosPicker(selection: $indexPhotoItem, matching: .images) {
+                            Label(indexPhoto == nil ? "Choose a photo" : "Change the photo",
+                                  systemImage: "photo")
+                                .font(.system(.footnote, design: .rounded).weight(.semibold))
+                                .foregroundStyle(Theme.accent)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(Theme.accent.opacity(0.10), in: .capsule)
+                        }
+                        .onChange(of: indexPhotoItem) { _, item in
+                            guard let item else { return }
+                            Task {
+                                if let data = try? await item.loadTransferable(type: Data.self),
+                                   let image = UIImage(data: data) {
+                                    indexPhoto = image
+                                    indexPhotoStamp += 1
+                                }
+                            }
+                        }
+                    }
+                    Toggle("Miles at each city", isOn: $indexTotals)
+                        .toggleStyle(.switch)
+                        .tint(Theme.accent)
+                        .font(.system(.subheadline, design: .rounded))
+                        .frame(maxWidth: 280)
+                }
             }
             if isSingleState { stateControls }
 

@@ -623,37 +623,56 @@ enum MapPrintRenderer {
         UIBezierPath(rect: CGRect(origin: .zero, size: size)).fill()
 
         var counts: [String: Int] = [:]
+        var metres: [String: Double] = [:]
         for run in request.runs {
             guard let city = run.city, !city.isEmpty else { continue }
             counts[city, default: 0] += 1
+            metres[city, default: 0] += run.distance
         }
         let cities = counts.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
         guard !cities.isEmpty else { return }
 
         let ink = UIColor(palette.line)
         let marginX = size.width * 0.10
-        let marginY = size.height * 0.11
+        var marginY = size.height * 0.11
+        var usableH = size.height - marginY * 2
         let usableW = size.width - marginX * 2
-        let usableH = size.height - marginY * 2
+
+        // The tour-poster layout: a hero across the top of the sheet — the cities as a dot map
+        // in the piece's own ink, or the buyer's photograph — with the list set beneath it the
+        // way a tour bill lists its dates. The hero takes the top 42%; the type keeps the rest.
+        if request.cityIndexHero != .none {
+            let heroRect = CGRect(x: 0, y: 0, width: size.width, height: size.height * 0.42)
+            drawCityIndexHero(request, in: heroRect, ink: ink, sheet: size)
+            marginY = size.height * 0.05
+            usableH = size.height - heroRect.height - marginY - size.height * 0.09
+        }
+        let listTop = request.cityIndexHero == .none ? marginY : size.height * 0.42 + marginY
 
         // Fit by search: the largest type size at which every city fits the sheet, in one
         // column when the list is short and in two or three when it is long. Auto-fitting is
         // what keeps ten cities monumental and two hundred still legible — the same promise
         // the Grid makes about run counts.
+        func detail(for city: String, count: Int) -> String {
+            guard request.cityIndexTotals else { return "\(count)" }
+            let miles = Format.distance(metres[city] ?? 0, decimals: 0)
+            return "\(count) · \(miles)"
+        }
+
         for columns in [1, 2, 3] {
             let rows = Int(ceil(Double(cities.count) / Double(columns)))
             let rowH = usableH / CGFloat(rows)
             let pointSize = rowH * 0.62
             guard pointSize >= size.width * 0.014 else { continue }   // unreadably small: add a column
             let font = UIFont.systemFont(ofSize: pointSize, weight: .semibold)
-            let countFont = UIFont.systemFont(ofSize: pointSize * 0.6, weight: .regular)
+            let countFont = UIFont.systemFont(ofSize: pointSize * 0.55, weight: .regular)
             let colW = (usableW - CGFloat(columns - 1) * usableW * 0.06) / CGFloat(columns)
 
             // Reject this column count if any name overflows its column.
             let fits = cities.allSatisfy { city, count in
                 let name = city.uppercased() as NSString
                 let w = name.size(withAttributes: [.font: font]).width
-                    + ("  \(count)" as NSString).size(withAttributes: [.font: countFont]).width
+                    + ("  \(detail(for: city, count: count))" as NSString).size(withAttributes: [.font: countFont]).width
                 return w <= colW
             }
             guard fits || columns == 3 else { continue }
@@ -662,17 +681,73 @@ enum MapPrintRenderer {
                 let column = i / rows
                 let row = i % rows
                 let x = marginX + CGFloat(column) * (colW + usableW * 0.06)
-                let y = marginY + CGFloat(row) * rowH + (rowH - pointSize) / 2
+                let y = listTop + CGFloat(row) * rowH + (rowH - pointSize) / 2
                 let name = entry.key.uppercased() as NSString
                 name.draw(at: CGPoint(x: x, y: y),
                           withAttributes: [.font: font, .foregroundColor: ink])
                 let nameW = name.size(withAttributes: [.font: font]).width
-                ("\(entry.value)" as NSString).draw(
-                    at: CGPoint(x: x + nameW + pointSize * 0.35, y: y + pointSize * 0.3),
+                (detail(for: entry.key, count: entry.value) as NSString).draw(
+                    at: CGPoint(x: x + nameW + pointSize * 0.35, y: y + pointSize * 0.34),
                     withAttributes: [.font: countFont,
                                      .foregroundColor: ink.withAlphaComponent(0.45)])
             }
             return
+        }
+    }
+
+    /// The hero above the list: the buyer's photograph aspect-filled, or every city as a dot
+    /// placed by geography in the piece's own ink — sized by visits, our ground, our ink,
+    /// printable. The photograph is drawn as supplied; the dot map is drawn like everything
+    /// else in the Anthology.
+    private static func drawCityIndexHero(_ request: MapPrintRequest, in rect: CGRect,
+                                          ink: UIColor, sheet: CGSize) {
+        let unit = sheet.width / 1000
+        switch request.cityIndexHero {
+        case .photo:
+            guard let photo = request.cityIndexPhoto, photo.size.width > 0 else { break }
+            let scale = max(rect.width / photo.size.width, rect.height / photo.size.height)
+            let drawn = CGSize(width: photo.size.width * scale, height: photo.size.height * scale)
+            if let cg = UIGraphicsGetCurrentContext() {
+                cg.saveGState()
+                cg.clip(to: rect)
+                photo.draw(in: CGRect(x: rect.midX - drawn.width / 2,
+                                      y: rect.midY - drawn.height / 2,
+                                      width: drawn.width, height: drawn.height))
+                cg.restoreGState()
+            }
+        case .map:
+            // One dot per city at its centroid, area by visits. A dot map, not a road map —
+            // which is what keeps it ours to sell.
+            var cityPoints: [String: (lat: Double, lon: Double, n: Int)] = [:]
+            for run in request.runs {
+                guard let city = run.city, !city.isEmpty, let c = run.startCoordinate else { continue }
+                var entry = cityPoints[city] ?? (0, 0, 0)
+                entry.lat += c.latitude; entry.lon += c.longitude; entry.n += 1
+                cityPoints[city] = entry
+            }
+            guard !cityPoints.isEmpty else { break }
+            let coords = cityPoints.mapValues { CLLocationCoordinate2D(latitude: $0.lat / Double($0.n),
+                                                                       longitude: $0.lon / Double($0.n)) }
+            let lats = coords.values.map(\.latitude), lons = coords.values.map(\.longitude)
+            let region = MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: (lats.min()! + lats.max()!) / 2,
+                                               longitude: (lons.min()! + lons.max()!) / 2),
+                span: MKCoordinateSpan(latitudeDelta: max(lats.max()! - lats.min()!, 0.5) * 1.5,
+                                       longitudeDelta: max(lons.max()! - lons.min()!, 0.5) * 1.5))
+            let project = geoProjector(region: region, size: rect.size, margin: 0.8)
+            let maxN = cityPoints.values.map(\.n).max() ?? 1
+            for (city, coordinate) in coords {
+                let p = project(coordinate)
+                let n = cityPoints[city]?.n ?? 1
+                let radius = (6 + 16 * CGFloat(Double(n) / Double(maxN)).squareRoot()) * unit
+                let dot = UIBezierPath(ovalIn: CGRect(x: rect.minX + p.x - radius,
+                                                      y: rect.minY + p.y - radius,
+                                                      width: radius * 2, height: radius * 2))
+                ink.withAlphaComponent(0.85).setFill()
+                dot.fill()
+            }
+        case .none:
+            break
         }
     }
 

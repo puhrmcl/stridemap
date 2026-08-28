@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import UIKit
 
 /// An aggregate map print — the whole running history rendered as one poster.
 enum MapPrintKind: String, CaseIterable, Identifiable {
@@ -228,6 +229,25 @@ struct MapPrintRequest {
     var artPalette: MapArtPalette = .gallery
     var artStyle: MapArtStyle = .grid
     var artWeight: MapArtWeight = .medium
+    /// The City Index's hero — the tour-poster layout: an image across the top of the sheet,
+    /// the cities listed like dates beneath it.
+    enum CityIndexHero: String, CaseIterable, Identifiable {
+        case none, map, photo
+        var id: String { rawValue }
+        var name: String {
+            switch self {
+            case .none:  return "Type only"
+            case .map:   return "Map"
+            case .photo: return "Photo"
+            }
+        }
+    }
+    var cityIndexHero: CityIndexHero = .none
+    /// The chosen photograph when the hero is `.photo`.
+    var cityIndexPhoto: UIImage? = nil
+    /// Whether each city carries its totals (activities · miles) or just the count.
+    var cityIndexTotals: Bool = true
+
     /// The Anthology's data line: where it sits, and which halves it carries.
     var artCaptionEdge: ArtCaptionEdge = .hidden
     var artCaptionShowsTitle: Bool = true

@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import ShopifyCheckoutSheetKit
 
 /// The medal display frame: the medal itself behind a pre-cut aperture, with a printed panel of
@@ -20,6 +21,10 @@ struct MedalFrameView: View {
     let run: Run
 
     @Environment(\.dismiss) private var dismiss
+    /// Kept posters, newest edit first — the panel adopts this run's latest one automatically.
+    @Query(sort: \SavedPoster.updatedAt, order: .reverse) private var savedPosters: [SavedPoster]
+    /// Presents the full Studio editor on the panel's recipe.
+    @State private var customizing = false
 
     @State private var frameColour = "black"
     @State private var mountColour = "Black"
@@ -41,11 +46,39 @@ struct MedalFrameView: View {
             && EtchConfig.current.ordering.enabled
     }
 
+    /// The panel's composition: the run's most recently edited kept poster when one exists,
+    /// else the default recipe.
+    ///
+    /// This is what makes the panel customizable without this screen growing an editor: the
+    /// Customize button opens the real Studio editor — every edition, layout, title and data
+    /// control it already has — and whatever is kept there becomes the panel, here and in the
+    /// order. One editor in the app, not a second smaller one to maintain beside it.
+    private var savedRecipe: SavedPoster? {
+        savedPosters.first { $0.runID == run.id }
+    }
+    private var panelConfig: PosterConfig {
+        savedRecipe.map { PosterConfig(poster: $0) } ?? PosterConfig.makeDefault(for: run)
+    }
+    /// Re-render trigger: a different poster, or a newer edit of the same one.
+    private var recipeKey: String {
+        savedRecipe.map { "\($0.id)-\($0.updatedAt.timeIntervalSinceReferenceDate)" } ?? "default"
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
                     mockup
+                    Button { customizing = true } label: {
+                        Label(savedRecipe == nil ? "Customize the print" : "Edit the print",
+                              systemImage: "slider.horizontal.3")
+                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                            .foregroundStyle(Theme.accent)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 9)
+                            .background(Theme.accent.opacity(0.10), in: .capsule)
+                    }
+                    .buttonStyle(.plain)
                     colourPicker("Frame", options: MedalFrameCatalog.frameColours,
                                  selection: $frameColour, hex: mouldingHex)
                     colourPicker("Mount", options: MedalFrameCatalog.mountColours,
@@ -60,7 +93,10 @@ struct MedalFrameView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
             }
-            .task(id: run.id) { await renderPanel() }
+            .task(id: recipeKey) { await renderPanel() }
+            .sheet(isPresented: $customizing, onDismiss: { panel = nil }) {
+                StudioView(run: run, poster: savedRecipe)
+            }
             .sheet(item: Binding(
                 get: { checkoutURL.map { MedalCheckoutTarget(url: $0) } },
                 set: { if $0 == nil { checkoutURL = nil } }
@@ -227,7 +263,7 @@ struct MedalFrameView: View {
         Task {
             do {
                 orderPhase = .rendering
-                var request = PosterConfig.makeDefault(for: run).request(for: run)
+                var request = panelConfig.request(for: run)
                 request.printAspect = geometry.aspect
                 request.outputSize = .poster
 
@@ -255,7 +291,7 @@ struct MedalFrameView: View {
     }
 
     private func renderPanel() async {
-        var request = PosterConfig.makeDefault(for: run).request(for: run)
+        var request = panelConfig.request(for: run)
         request.printAspect = geometry.aspect
         panel = await StudioRenderer.image(for: request, scale: 0.4)
     }
