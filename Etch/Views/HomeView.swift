@@ -54,10 +54,6 @@ enum LocationOverlay: String, CaseIterable, Identifiable {
 
 /// Full-screen map with floating glass controls. The map is the product; chrome floats.
 struct HomeView: View {
-    /// True when the map is presented as a popup from Studio-first mode: the bottom bar (Timeline /
-    /// Achievements / Studio / Profile) is hidden and a close button returns to Studio.
-    var isMapPopup: Bool = false
-
     @Environment(AppModel.self) private var appModel
     @Environment(SyncService.self) private var sync
     @Environment(\.dismiss) private var dismiss
@@ -568,9 +564,6 @@ struct HomeView: View {
             ZStack {
                 totalsPill
                 HStack(spacing: 8) {
-                    if isMapPopup {
-                        GlassIconButton(systemName: "xmark") { dismiss() }
-                    }
                     Spacer(minLength: 8)
                     if sync.isSyncing {
                         GlassContainer(padding: 10, cornerRadius: 18) {

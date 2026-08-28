@@ -53,13 +53,6 @@ struct ProfileView: View {
                     row(title: "Settings", subtitle: "Account, units, sync, and more",
                         systemName: "gearshape") { showSettings = true }
                 }
-
-                Section {
-                    AppFocusToggle(studioIsHome: $appModel.studioIsHome)
-                        .padding(.vertical, 10)
-                } header: {
-                    Text("App Focus")
-                }
             }
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)

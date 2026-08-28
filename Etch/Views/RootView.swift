@@ -73,11 +73,14 @@ struct RootView: View {
                 if !didCompleteSetup || allActivitiesOff {
                     SetupView()
                         .transition(.opacity)
-                } else if appModel.studioIsHome {
-                    StudioHomeView(isHome: true)
-                        .transition(.opacity)
                 } else {
-                    HomeView()
+                    // One root with four destinations, replacing the `studioIsHome` fork.
+                    //
+                    // That preference asked people to choose which half of the app they wanted,
+                    // and then honoured the choice by hiding the other half behind a modal. It is
+                    // the kind of setting you add when the navigation cannot hold both things —
+                    // so the fix was the navigation, not a better default.
+                    EtchTabView()
                         .transition(.opacity)
                 }
             } else {
@@ -86,7 +89,6 @@ struct RootView: View {
             }
         }
         .animation(Theme.gentle, value: isReady)
-        .animation(Theme.gentle, value: appModel.studioIsHome)
         .animation(Theme.gentle, value: allActivitiesOff)
         .animation(Theme.gentle, value: didCompleteSetup)
         .task(id: isReady) {

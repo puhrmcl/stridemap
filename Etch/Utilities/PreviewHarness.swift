@@ -187,6 +187,10 @@ struct PreviewHarnessView: View {
             } else {
                 switch screen {
                 case "home":            HomeView()
+                // The whole shell rather than one surface — the only way CI can photograph the
+                // tab bar, since every other case renders a view directly and never sees it.
+                // "tabs@studio" opens the shell on that tab.
+                case let name where name.hasPrefix("tabs"): EtchTabView()
                 case "archive":         CollectionBrowserView(collection: .archive, runs: allRuns)
                 case "course":          CollectionBrowserView(collection: .course, runs: allRuns)
                 case "summit":          CollectionBrowserView(collection: .summit, runs: allRuns)

@@ -27,7 +27,6 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                appFocusSection
                 activitiesSection
                 sourcesSection
                 syncSection
@@ -276,16 +275,6 @@ struct SettingsView: View {
             // Surface everything else (not configured / redirect / server) so failures are
             // visible instead of the button silently doing nothing.
             connectError = error.localizedDescription
-        }
-    }
-
-    private var appFocusSection: some View {
-        @Bindable var appModel = appModel
-        return Section {
-            AppFocusToggle(studioIsHome: $appModel.studioIsHome)
-                .padding(.vertical, 10)
-        } header: {
-            Text("App Focus")
         }
     }
 

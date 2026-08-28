@@ -11,9 +11,8 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b422: the rebuilt product detail page — title and price above the image,
-# option headings carrying their selected value, the Product details disclosure, and the
-# "same piece, finished differently" shelf at the foot.
+# Requested for b428: the tab shell. Four destinations on the bar plus the detached search,
+# photographed on each tab — "tabs@studio" opens the shell on Studio.
 
-screens=prints,prints@details,prints@more
+screens=tabs@map,tabs@timeline,tabs@studio,tabs@bag
 appearance=light

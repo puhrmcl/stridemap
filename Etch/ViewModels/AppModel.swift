@@ -22,12 +22,19 @@ final class AppModel {
     private(set) var mapContentRevision = 0
     func bumpMapContent() { mapContentRevision &+= 1 }
 
-    /// Studio-first mode: Studio is the home page, the map becomes a popup. Held here (rather than
-    /// only in `@AppStorage`) so a change made deep inside nested sheets — Profile → Settings —
-    /// propagates to `RootView` immediately instead of waiting for the next app launch. Persisted
-    /// under the same `studioIsHome` key so the choice survives relaunches.
-    var studioIsHome: Bool = UserDefaults.standard.bool(forKey: "studioIsHome") {
-        didSet { UserDefaults.standard.set(studioIsHome, forKey: "studioIsHome") }
+    /// Which of the four destinations is showing.
+    ///
+    /// Held here rather than as `@State` inside the tab view so any surface can move the app —
+    /// Studio's masthead button reaches the map by selecting a tab, not by presenting one. Its
+    /// predecessor, `studioIsHome`, did the opposite: it asked which half of the app you wanted
+    /// and hid the other behind a modal. Persisted, because the tab you were on is a place, and
+    /// returning to the app should return you to it.
+    var selectedTab: EtchTab = EtchTab(rawValue: UserDefaults.standard.string(forKey: "etchSelectedTab") ?? "") ?? .map {
+        didSet {
+            // `.search` is a tool you pass through, never somewhere to be restored to.
+            guard selectedTab != .search else { return }
+            UserDefaults.standard.set(selectedTab.rawValue, forKey: "etchSelectedTab")
+        }
     }
 
     /// Which full-screen surface (if any) is presented over the map.

@@ -1,0 +1,144 @@
+import SwiftUI
+import SwiftData
+
+/// One search, scoped by where you were standing.
+///
+/// The scope changes with the tab; the tool never does. That distinction is the whole design: a
+/// corner button that finds activities on one tab and *becomes map controls* on another is two
+/// buttons wearing one coat, and it destroys the muscle memory a fixed position exists to build.
+/// So this always searches, and only its results belong to where you came from.
+///
+/// The scope is shown, never implied. A chip names where it is looking and turns off to search
+/// everything — because scope you cannot see reads as a bug the first time someone looks for their
+/// marathon from Studio and is told there is nothing.
+struct ScopedSearchView: View {
+    /// The tab the person was on when they reached for search.
+    var scope: EtchTab
+
+    @Environment(AppModel.self) private var appModel
+    @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
+
+    @State private var query = ""
+    /// False once the chip is dismissed — the search then covers everything.
+    @State private var scoped = true
+
+    private var activeScope: EtchTab? { scoped ? scope : nil }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if !trimmed.isEmpty {
+                    if !matchingRuns.isEmpty && includesActivities {
+                        Section("Activities") {
+                            ForEach(matchingRuns.prefix(20), id: \.id) { run in
+                                Button { open(run) } label: { runRow(run) }
+                                    .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    if !matchingProducts.isEmpty && includesProducts {
+                        Section("Products") {
+                            ForEach(matchingProducts, id: \.self) { name in
+                                Label(name, systemImage: "photo.artframe")
+                            }
+                        }
+                    }
+                    if matchingRuns.isEmpty && matchingProducts.isEmpty {
+                        ContentUnavailableView.search(text: trimmed)
+                    }
+                }
+            }
+            .listStyle(.plain)
+            .navigationTitle("Search")
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $query, prompt: scope.searchPrompt)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if scoped { scopeChip }
+            }
+        }
+    }
+
+    /// "Searching in Studio ⊗" — the scope made visible, and removable.
+    private var scopeChip: some View {
+        HStack(spacing: 8) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) { scoped = false }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: scope.symbol).font(.system(size: 11, weight: .semibold))
+                    Text("in \(scope.title)")
+                        .font(.system(.footnote, design: .rounded).weight(.semibold))
+                    Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
+                }
+                .padding(.horizontal, 11).padding(.vertical, 6)
+                .background(Theme.accent.opacity(0.12), in: .capsule)
+                .foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Searching in \(scope.title). Tap to search everything.")
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 8)
+        .background(.bar)
+    }
+
+    // MARK: What each scope admits
+
+    /// Activities are the answer nearly everywhere — the Map wants them pinned, the Timeline wants
+    /// them by date — so only an unscoped Studio search leaves them out.
+    private var includesActivities: Bool {
+        guard let activeScope else { return true }
+        return activeScope != .studio
+    }
+
+    private var includesProducts: Bool {
+        guard let activeScope else { return true }
+        return activeScope == .studio || activeScope == .bag
+    }
+
+    private var trimmed: String { query.trimmingCharacters(in: .whitespaces) }
+
+    private var matchingRuns: [Run] {
+        let q = trimmed.lowercased()
+        guard !q.isEmpty else { return [] }
+        return runs.filter { run in
+            run.name.lowercased().contains(q)
+                || (run.city?.lowercased().contains(q) ?? false)
+                || (run.state?.lowercased().contains(q) ?? false)
+                || (run.country?.lowercased().contains(q) ?? false)
+                || Format.date(run.startDate).lowercased().contains(q)
+                || (run.isRace && "race".contains(q))
+        }
+    }
+
+    /// The catalogue, by the names a customer would type — the product, not the SKU.
+    private var matchingProducts: [String] {
+        let q = trimmed.lowercased()
+        guard !q.isEmpty else { return [] }
+        var names = StudioProduct.offered.map(\.name)
+        names += PrintProduct.offered.map(\.name)
+        names += PrintProduct.offered.flatMap { product in
+            product.sizes.map { "\(product.name) · \($0.label)" }
+        }
+        return names.filter { $0.lowercased().contains(q) }
+    }
+
+    private func runRow(_ run: Run) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(run.name)
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .foregroundStyle(.primary)
+            Text([Format.date(run.startDate), run.city, run.state]
+                    .compactMap { $0 }.joined(separator: " · "))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// Selecting focuses the map on the run. Search is a way of arriving somewhere, which is the
+    /// reason it is a tool beside the tabs rather than a fifth one among them.
+    private func open(_ run: Run) {
+        appModel.select(run)
+    }
+}

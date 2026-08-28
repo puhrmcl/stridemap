@@ -7,8 +7,9 @@ import UniformTypeIdentifiers
 /// prints. Not a
 /// configurator or a shop: the artwork leads, commerce stays quiet.
 struct StudioHomeView: View {
-    /// True when Studio is the app's home (Studio-first mode): shows a profile button and a mini-map
-    /// to reach the map, instead of the "Done" button that dismisses the sheet.
+    /// True when Studio is the app's own tab: it draws its wordmark masthead with the avatar and
+    /// the map button, and hides the navigation bar. False when Studio is presented as a sheet
+    /// from somewhere else, which keeps the bar.
     var isHome: Bool = false
     /// True when pushed inside the Explore hub's navigation stack (no own NavigationStack).
     var embedded: Bool = false
@@ -18,7 +19,6 @@ struct StudioHomeView: View {
     @Environment(AppModel.self) private var appModel
     @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
 
-    @State private var showMap = false
     @State private var showProfile = false
     /// The user's chosen profile photo (shared with the profile page and map search bar), so the
     /// Studio-first toolbar avatar shows it too.
@@ -134,7 +134,6 @@ struct StudioHomeView: View {
             // A different scope is a different library, so its hero starts at the top rather
             // than wherever "Show another" had wandered to in the previous one.
             .onChange(of: scope) { heroOffset = 0 }
-            .fullScreenCover(isPresented: $showMap) { HomeView(isMapPopup: true) }
             // Weather backfill sweep: each visit fills the next batch of runs from WeatherKit's
             // historical weather (idempotent; source-recorded values always win).
             //
@@ -214,8 +213,13 @@ struct StudioHomeView: View {
         }
     }
 
+    /// Reaches the map by selecting its tab rather than presenting it.
+    ///
+    /// This used to open `HomeView(isMapPopup: true)` in a `fullScreenCover`, which tore the map
+    /// down and rebuilt it on every visit — camera reset, tiles re-fetched. A tab keeps it alive,
+    /// and once the basemap is served from R2 that is a bill as well as a stutter.
     private var mapThumbnailButton: some View {
-        Button { showMap = true } label: {
+        Button { appModel.selectedTab = .map } label: {
             Image(systemName: "map.fill")
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(Theme.accent)

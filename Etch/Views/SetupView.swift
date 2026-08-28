@@ -24,7 +24,6 @@ struct SetupView: View {
                 VStack(spacing: 28) {
                     header
                     activitiesCard
-                    defaultViewCard
                     continueButton
                 }
                 .padding(.horizontal, 24)
@@ -74,18 +73,6 @@ struct SetupView: View {
         .tint(Theme.accent)
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
-    }
-
-    // MARK: Default view
-
-    private var defaultViewCard: some View {
-        @Bindable var appModel = appModel
-        return VStack(alignment: .leading, spacing: 8) {
-            sectionLabel("App Focus")
-            AppFocusToggle(studioIsHome: $appModel.studioIsHome)
-                .padding(18)
-                .background(.regularMaterial, in: .rect(cornerRadius: 18))
-        }
     }
 
     private var continueButton: some View {
