@@ -16,8 +16,10 @@ import SwiftUI
 /// fallback because the static splash was never a compromise.
 struct SplashView: View {
     /// The icon's own deep navy — one splash in both modes, seamless with the system launch
-    /// screen (which uses the same ground and the same cream wordmark).
-    private static let ground = Color(red: 8 / 255, green: 30 / 255, blue: 54 / 255)
+    /// screen, which uses the same ground and the same wordmark. Sampled from the icon
+    /// artwork itself (#011133), so the three surfaces cannot drift apart: change the icon and
+    /// this number changes with it.
+    private static let ground = Color(red: 1 / 255, green: 17 / 255, blue: 51 / 255)
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
