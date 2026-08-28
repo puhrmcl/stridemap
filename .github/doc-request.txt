@@ -26,3 +26,11 @@ https://developer.apple.com/documentation/appstoreconnectapi/bundle-id-capabilit
 # The planet basemap build sizes — the one number docs/basemap.md estimates rather than states.
 # build.protomaps.com/ returned 404 for the bare root; the listing lives one level in.
 https://build.protomaps.com/builds
+
+# The travel journal range. Etch has one bound product (the Year Book, a layflat A4 landscape
+# photo book at $119) and this is a different object at a different price point — a notebook you
+# take with you rather than a book you are given afterwards. Reading the page for what the range
+# sheet never states: the exact SKUs, page counts, paper, binding, and whether the cover print
+# area is one wrap or a front panel. Guessing a SKU off a prefix has failed four times out of
+# four in this project; reading the product page has worked every time.
+https://www.prodigi.com/products/cards-and-stationery/themed-notebooks-and-journals/travel-journals/
