@@ -79,6 +79,22 @@ SKUS=(
   "GLOBAL-MPF-20X30:color=black"
   "GLOBAL-MPFM-16X24:color=black,mountColor=Snow white"
   "GLOBAL-MPFM-24X36:color=black,mountColor=Snow white"
+
+  # Metal prints (aluminium, ChromaLuxe, ships US). The product page's example table shows only
+  # 4x6 / 12x12 / 16x20 / 8x24 / 24x24 — no 2:3 size — and prefix-guessing has failed 4/4 in
+  # this project, so these are candidates to CONFIRM OR BURY, not sizes to ship. A miss here is
+  # the answer working, not the rig failing.
+  "GLOBAL-MET-12X18:"
+  "GLOBAL-MET-16X24:"
+  "GLOBAL-MET-24X36:"
+  "GLOBAL-MET-16X20:"
+
+  # Wall stickers — the global product, fulfilled from the nearest lab. Table read live off the
+  # product page, so these should all resolve; the quotes are what's actually unknown.
+  "WALL-STKR-A4:"
+  "WALL-STKR-400X500:"
+  "WALL-STKR-600X600:"
+  "WALL-STKR-800X800:"
   # Poster hanger — the confirmed 24x36 portrait, plus the two sizes the finish
   # needs before it can be offered at all. 12X18 and 16X24 were not on the product
   # page; these probe the naming pattern the confirmed codes establish
