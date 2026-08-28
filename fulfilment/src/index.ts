@@ -121,7 +121,65 @@ export default {
       return json({ error: "internal" }, 500);
     }
   },
+
+  async scheduled(_event: ScheduledController, env: Env): Promise<void> {
+    await sweepUnsoldAssets(env);
+  },
 } satisfies ExportedHandler<Env>;
+
+/**
+ * Delete uploads that no order ever claimed.
+ *
+ * The pipeline uploads the print file *before* payment, deliberately — a paid order with no
+ * artwork behind it is the one failure this worker must never produce. The cost of that ordering
+ * is that every abandoned checkout leaves a full-resolution sheet in R2, and a 24 × 36 is tens of
+ * megabytes. One is nothing. A cart, which invites someone to assemble three pieces and then
+ * think about it overnight, turns that into a bill that grows forever and is never noticed,
+ * because nothing in the system ever looked at it.
+ *
+ * `frozen = 1` is set the instant money moves against an asset, so frozen is exactly the set that
+ * must survive. Everything else older than the window is a checkout that did not happen.
+ *
+ * The window is generous on purpose: a buyer who prepares an order, closes the app and returns
+ * the next morning must still find their file, and a Shopify webhook that is slow or retried must
+ * never race a delete. Two days is far longer than either needs.
+ */
+const UNSOLD_ASSET_TTL_DAYS = 2;
+
+async function sweepUnsoldAssets(env: Env): Promise<void> {
+  const cutoff = new Date(Date.now() - UNSOLD_ASSET_TTL_DAYS * 86_400_000).toISOString();
+
+  // Bounded per run: a sweep that tried to delete an unbounded backlog in one invocation would
+  // hit the Worker's limits and delete nothing. Nightly runs drain any backlog across days.
+  const stale = await env.LEDGER
+    .prepare(
+      `SELECT id FROM assets
+       WHERE frozen = 0 AND created_at < ?
+         AND id NOT IN (SELECT asset_id FROM order_items)
+       ORDER BY created_at LIMIT 500`
+    )
+    .bind(cutoff)
+    .all<{ id: string }>();
+
+  const ids = stale.results?.map((row) => row.id) ?? [];
+  if (ids.length === 0) return;
+
+  // R2 first. An orphaned object with no row is invisible and costs money forever; a row whose
+  // object is already gone is harmless and will be cleaned on the next pass. Order the failure.
+  for (const id of ids) {
+    try {
+      await env.ASSETS.delete(`assets/${id}`);
+    } catch (error) {
+      console.error("sweep_r2_delete_failed", id, error);
+      return; // leave the row so this asset is retried tomorrow rather than lost track of
+    }
+  }
+
+  await env.LEDGER.batch(
+    ids.map((id) => env.LEDGER.prepare("DELETE FROM assets WHERE id = ? AND frozen = 0").bind(id))
+  );
+  console.log("sweep_unsold_assets", { deleted: ids.length, cutoff });
+}
 
 class HttpError extends Error {
   constructor(readonly status: number, message: string) { super(message); }

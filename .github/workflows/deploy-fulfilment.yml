@@ -132,6 +132,45 @@ jobs:
       - name: Apply schema
         run: npx wrangler d1 execute etch-fulfilment --remote --file=schema.sql --yes
 
+      # `schema.sql` builds a correct database from nothing and cannot alter an existing table,
+      # so anything that changes a live table lives in migrations/ and is applied here, tracked in
+      # schema_migrations. Without this the deploy silently ships code whose tables are the wrong
+      # shape — which is exactly what happened when orders gained items: order_items was created
+      # by the bootstrap while `orders` kept its old NOT NULL line columns, and the first real
+      # order would have failed its insert.
+      - name: Apply pending migrations
+        run: |
+          set -euo pipefail
+          [ -d migrations ] || { echo "No migrations directory — nothing to do."; exit 0; }
+
+          d1() { npx wrangler d1 execute etch-fulfilment --remote --yes "$@"; }
+
+          # A database created fresh by the step above already has the post-migration schema, so
+          # migrations that only reshape old tables must not run against it. `orders.creation_id`
+          # exists only on the pre-items shape and is the honest test for which one this is.
+          if d1 --json --command "PRAGMA table_info(orders);" | grep -q '"name": *"creation_id"'; then
+            echo "Pre-items schema detected — reshaping migrations apply."
+          else
+            echo "Schema already has orders-as-header; marking 001 applied without running it."
+            d1 --command "INSERT OR IGNORE INTO schema_migrations (name, applied_at)
+                          VALUES ('001-multi-item-orders.sql', datetime('now'));"
+          fi
+
+          APPLIED=$(d1 --json --command "SELECT name FROM schema_migrations;" \
+            | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{
+                const r=JSON.parse(s); const rows=(r[0]&&r[0].results)||r.results||[];
+                process.stdout.write(rows.map(x=>x.name).join(" "));});')
+
+          for file in $(ls migrations/*.sql | sort); do
+            name=$(basename "$file")
+            case " $APPLIED " in *" $name "*) echo "· $name already applied"; continue;; esac
+            echo "── applying $name"
+            d1 --file="$file"
+            d1 --command "INSERT OR IGNORE INTO schema_migrations (name, applied_at)
+                          VALUES ('$name', datetime('now'));"
+            echo "── applied $name"
+          done
+
       - name: Sync worker secrets
         env:
           PRODIGI_API_KEY: ${{ secrets.PRODIGI_API_KEY }}

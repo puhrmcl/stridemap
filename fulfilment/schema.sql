@@ -59,6 +59,15 @@ CREATE TABLE IF NOT EXISTS order_items (
   UNIQUE(order_id, asset_id)
 );
 
+-- Which files in `migrations/` have run. `schema.sql` is `CREATE TABLE IF NOT EXISTS`
+-- throughout, so it builds a correct database from nothing and changes an existing one not at
+-- all — which is exactly what you want from a bootstrap and useless for altering a live table.
+-- Migrations cover that second case, and this table is how the deploy knows which are pending.
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  name       TEXT PRIMARY KEY,
+  applied_at TEXT NOT NULL
+);
+
 -- Processed webhook deliveries (§39: assume every event can arrive more than once).
 CREATE TABLE IF NOT EXISTS webhook_events (
   id          TEXT PRIMARY KEY,                 -- "<source>:<delivery id>"

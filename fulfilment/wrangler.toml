@@ -22,6 +22,13 @@ compatibility_date = "2025-01-01"
 # Point the Shopify orders/paid webhook and Prodigi callbacks at it, and put the URL
 # in the iOS fulfilment provider when that adapter goes live.
 
+# Nightly sweep of unsold uploads. A print file is uploaded *before* payment, so every
+# abandoned checkout leaves tens of megabytes in R2 that no order will ever reference.
+# One order is nothing; a cart that lets someone build a basket and walk away is a bill
+# that grows quietly and forever. 03:00 UTC, off the traffic peak.
+[triggers]
+crons = ["0 3 * * *"]
+
 [vars]
 # Prodigi API base. Sandbox by default — flip to https://api.prodigi.com when live.
 PRODIGI_BASE = "https://api.sandbox.prodigi.com"

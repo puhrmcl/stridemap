@@ -26,19 +26,20 @@ npx wrangler secret put UPLOAD_TOKEN        # generate: openssl rand -hex 32
 npx wrangler deploy
 ```
 
-### Upgrading a database created before multi-item orders
+### Schema changes
 
-`schema.sql` is a bootstrap of `CREATE TABLE IF NOT EXISTS`, so it fixes new databases and leaves
-existing ones untouched. A database created before orders became headers-plus-items needs its
-migration run once:
+`schema.sql` is a bootstrap of `CREATE TABLE IF NOT EXISTS`: it builds a correct database from
+nothing and alters an existing one not at all. Anything that reshapes a live table goes in
+`migrations/` instead, and the **Deploy fulfilment worker** workflow applies pending ones before
+it deploys, tracking them in `schema_migrations`. Adding a migration is therefore just adding the
+file — no separate step to remember, which matters because forgetting it ships code whose tables
+are the wrong shape.
+
+To run one by hand against a database:
 
 ```bash
 npx wrangler d1 execute etch-fulfilment --file=migrations/001-multi-item-orders.sql --remote
 ```
-
-With no orders yet placed, dropping `orders` and re-running `schema.sql` is equally correct and
-quicker. Either way it must happen **before** deploying the worker: the new code writes
-`order_items`, which the old schema has no table for.
 
 Then point:
 - Shopify webhook `orders/paid` → `https://…workers.dev/webhooks/shopify`
