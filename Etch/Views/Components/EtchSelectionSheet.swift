@@ -130,18 +130,6 @@ struct EtchSelectionSheet: View {
                 }
             )
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 18)
-        .padding(.bottom, 36)
-        .frame(maxWidth: .infinity)
-        .background(
-            .regularMaterial,
-            in: UnevenRoundedRectangle(topLeadingRadius: 38, topTrailingRadius: 38, style: .continuous)
-        )
-        .overlay(
-            UnevenRoundedRectangle(topLeadingRadius: 38, topTrailingRadius: 38, style: .continuous)
-                .strokeBorder(.separator.opacity(0.3), lineWidth: 0.5)
-        )
-        .shadow(color: .black.opacity(0.18), radius: 20, y: -2)
+        .bottomDockedCard()
     }
 }
