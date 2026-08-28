@@ -130,38 +130,17 @@ struct MedalFrameView: View {
     /// there is the buyer's own, and a mockup that supplies one would be showing them something
     /// they are not being sent.
     private var mockup: some View {
-        let moulder: CGFloat = 14
-        return VStack(spacing: 0) {
-            HStack(spacing: 14) {
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(hex: mountHex(mountColour)) ?? .black)
-                    .frame(width: 92, height: 126)
-                    .overlay {
-                        Image(systemName: "medal")
-                            .font(.system(size: 26, weight: .light))
-                            .foregroundStyle(.white.opacity(0.22))
-                    }
-                Group {
-                    if let panel {
-                        Image(uiImage: panel).resizable().scaledToFill()
-                    } else {
-                        Rectangle().fill(Theme.Palette.bone)
-                            .overlay { ProgressView() }
-                    }
-                }
-                .frame(width: 92, height: 126)
-                .clipped()
+        MedalFrameMockup(panel: panel, frameColour: frameColour, mountColour: mountColour)
+            .overlay {
+                // The panel is still composing: say so over the stock rather than leaving a
+                // blank rectangle that looks like the finished product.
+                if panel == nil { ProgressView() }
             }
-            .padding(18)
-            .background(Color(white: 0.97))            // the snow-white top mount
-            .padding(moulder)
-            .background(Color(hex: mouldingHex(frameColour)) ?? .black)
             .shadow(color: .black.opacity(0.28), radius: 16, y: 10)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 18)
-        .animation(.easeInOut(duration: 0.2), value: frameColour)
-        .animation(.easeInOut(duration: 0.2), value: mountColour)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 18)
+            .animation(.easeInOut(duration: 0.2), value: frameColour)
+            .animation(.easeInOut(duration: 0.2), value: mountColour)
     }
 
     private func colourPicker(_ label: String, options: [String],

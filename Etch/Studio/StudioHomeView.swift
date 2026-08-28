@@ -662,10 +662,17 @@ struct StudioHomeView: View {
             if Task.isCancelled { return }
             let image: UIImage?
             switch product {
-            case .mapPoster, .galleryPoster, .medalFrame:
+            case .mapPoster, .galleryPoster:
                 var recipe = PosterConfig.makeDefault(for: subject)
                 recipe.family = product.family
                 image = await StudioRenderer.image(for: recipe.request(for: subject), scale: 0.34)
+            case .medalFrame:
+                // The frame, not a poster: this product ships a moulding with a window cut for
+                // the medal, and a tile showing a bare print is a tile for a different object.
+                var recipe = PosterConfig.makeDefault(for: subject)
+                recipe.family = .map
+                let panel = await StudioRenderer.image(for: recipe.request(for: subject), scale: 0.2)
+                image = MedalFrameMockup.image(panel: panel)
             case .yearBook:
                 let year = Calendar.current.component(.year, from: subject.startDate)
                 let plan = BookPlan.make(year: year, runs: runs)

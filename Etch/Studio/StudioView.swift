@@ -1,14 +1,25 @@
 import SwiftUI
 import SwiftData
 
-/// Etch Studio's poster editor, remodelled around two products — a **Map** poster and a **Gallery**
-/// poster — each refined through a small, tabbed control tray (Style · Text · Data · Export) beneath
-/// a live preview. Deliberately editorial: the artwork is the hero, chrome stays quiet, and one
-/// decision is made at a time.
+/// Etch Studio's poster editor.
+///
+/// Two products — a **Map** poster and a **Gallery** poster — refined through three sections
+/// beneath a persistent live preview: **Design** (choose a starting point), **Content** (decide
+/// what the poster says), **Customize** (refine how it says it).
+///
+/// The sections replaced Style · Text · Data · Export, which had become a settings form: every
+/// property the composition owned was exposed at the same altitude, on four flat screens, in the
+/// renderer's vocabulary rather than the reader's. Nothing was removed in the change — the
+/// granular controls moved one level down, behind the decision they belong to, so a first poster
+/// is a handful of taps on pictures and the hundredth can still be tuned to the letter.
+///
+/// Export stopped being a workspace and became what it always was: an action. Share and Order sit
+/// permanently under the artwork; the share *format* is a setting inside Customize, where the
+/// other settings live.
 struct StudioView: View {
     let run: Run
-    /// When opened from a kept poster, its stored recipe seeds the editor and future saves update it
-    /// in place instead of creating a duplicate.
+    /// When opened from a kept poster, its stored recipe seeds the editor and future saves update
+    /// it in place instead of creating a duplicate.
     private let existingPoster: SavedPoster?
 
     @Environment(\.dismiss) private var dismiss
@@ -17,31 +28,8 @@ struct StudioView: View {
     /// The single source of truth the whole editor binds to.
     @State private var config: PosterConfig
 
-    /// Which control tab is showing.
-    private enum Tab: String, CaseIterable, Identifiable {
-        case style, text, data, export
-        var id: String { rawValue }
-        var name: String {
-            switch self {
-            case .style: return "Style"
-            case .text: return "Text"
-            case .data: return "Data"
-            case .export: return "Export"
-            }
-        }
-        var icon: String {
-            switch self {
-            case .style: return "paintpalette"
-            case .text: return "textformat"
-            case .data: return "chart.bar"
-            case .export: return "square.and.arrow.up"
-            }
-        }
-    }
-    @State private var tab: Tab = .style
-    /// The editor opens clean — just the artwork and the primary actions. Customize reveals the
-    /// control tray for the 20% who want to go deeper; everyone else shares or orders in two taps.
-    @State private var isCustomizing = false
+    @State private var section: StudioSection = .design
+    @State private var detent: StudioTrayDetent = .medium
 
     @State private var showPrints = false
     @State private var showExport = false
@@ -62,6 +50,16 @@ struct StudioView: View {
     /// True when the last render came back nil, so the canvas can explain itself.
     @State private var renderFailed = false
 
+    /// Which data element the metric picker is open for.
+    @State private var editingSlot: StudioContentTarget?
+    /// Which Gallery frame is choosing its photo.
+    @State private var photoPickingFrame: FramePickTarget?
+    /// A frame waiting for a newly added library photo — Add Photo from the frame picker lands
+    /// the new photo straight into that frame.
+    @State private var pendingPhotoFrame: Int?
+
+    @State private var chooserThumbs: [PosterFamily: UIImage] = [:]
+
     /// The navigation spine: the product chooser is the root; picking Map or Gallery pushes the
     /// editor for that product. A saved poster or curated preset skips the chooser — its family
     /// is part of its identity — by seeding the path.
@@ -77,7 +75,7 @@ struct StudioView: View {
             _path = State(initialValue: [config.family])
         } else if let preset {
             // A curated entry (a Studio collection) opens on its authored recipe — the piece
-            // already looks finished; the tray refines it.
+            // already looks finished; the sections refine it.
             _config = State(initialValue: preset)
             _path = State(initialValue: [preset.family])
         } else {
@@ -85,12 +83,6 @@ struct StudioView: View {
             _path = State(initialValue: [])
         }
     }
-
-    private let pathSwatches: [Color] = [
-        Theme.Palette.blue, Theme.Palette.ink, Theme.Palette.bone, Theme.Palette.brass, Theme.Palette.sage
-    ]
-    private let textSwatches: [Color] = [Theme.Palette.ink, Theme.Palette.bone, Theme.Palette.brass]
-    private let groundSwatches: [Color] = [Theme.Palette.bone, Theme.Palette.ink, Theme.Palette.forest]
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -108,22 +100,31 @@ struct StudioView: View {
 
     // MARK: Editor
 
-    /// One product's editor. The family is decided before arriving here — the tray, the style
-    /// strip, and every control belong to this product alone.
+    /// One product's editor. The family is decided before arriving here — every control belongs to
+    /// this product alone.
     ///
     /// The render tasks and every editor-owned sheet live *here*, on the pushed screen — not on
     /// the navigation root. A pushed destination covers the root and SwiftUI cancels the covered
     /// view's `task(id:)`s, so a root-attached render task goes quiet the moment the editor
     /// appears and no edit ever re-renders the preview.
     private func editor(for family: PosterFamily) -> some View {
-        VStack(spacing: 0) {
-            preview
-            if isCustomizing {
-                Divider()
-                trayTabBar
-                tray
-            } else {
+        GeometryReader { geo in
+            VStack(spacing: 0) {
+                preview
                 actionBar
+                StudioEditorTray(detent: $detent, availableHeight: geo.size.height) {
+                    VStack(spacing: 0) {
+                        StudioSectionPicker(section: $section) { raise(to: .medium) }
+                            .padding(.bottom, 2)
+                        ScrollView {
+                            sectionContent
+                                .padding(.horizontal, 20)
+                                .padding(.top, 10)
+                                .padding(.bottom, 28)
+                        }
+                        .scrollBounceBehavior(.basedOnSize)
+                    }
+                }
             }
         }
         .background(Color(.systemGroupedBackground))
@@ -186,6 +187,35 @@ struct StudioView: View {
         }
     }
 
+    @ViewBuilder private var sectionContent: some View {
+        switch section {
+        case .design:
+            StudioDesignEditor(run: run, config: $config, onNeedRoom: { raise(to: .medium) })
+        case .content:
+            StudioContentEditor(
+                run: run, config: $config,
+                onEditMetric: { editingSlot = $0 },
+                onAddPhoto: {
+                    Task { await PhotoLibrary.requestAuthorization(); showPhotoPicker = true }
+                },
+                onPickFramePhoto: { photoPickingFrame = FramePickTarget(frame: $0) }
+            )
+        case .customize:
+            // A sub-editor wants the room a drill-down implies, so opening one raises the tray
+            // rather than making the user resize it by hand first.
+            StudioCustomizeEditor(run: run, config: $config, onNeedRoom: { raise(to: .expanded) })
+        }
+    }
+
+    /// Grows the tray to at least the given stop, never shrinking it — a control asking for room
+    /// should not take room away from someone who had already opened the tray wider.
+    private func raise(to target: StudioTrayDetent) {
+        let order: [StudioTrayDetent] = [.collapsed, .medium, .expanded]
+        guard let current = order.firstIndex(of: detent),
+              let wanted = order.firstIndex(of: target), wanted > current else { return }
+        withAnimation(.interpolatingSpring(stiffness: 320, damping: 30)) { detent = target }
+    }
+
     // MARK: Product chooser
 
     /// The fork: Map or Gallery, chosen before any editing — two different objects, two different
@@ -211,8 +241,6 @@ struct StudioView: View {
         .background(Color(.systemGroupedBackground))
         .task { await renderChooserThumbnails() }
     }
-
-    @State private var chooserThumbs: [PosterFamily: UIImage] = [:]
 
     private func productCard(_ family: PosterFamily, name: String, line: String) -> some View {
         Button {
@@ -294,6 +322,7 @@ struct StudioView: View {
         }
         ToolbarItem(placement: .topBarTrailing) {
             Button { showPrints = true } label: { Image(systemName: "bag") }
+                .accessibilityLabel("Order a print")
         }
     }
 
@@ -354,269 +383,69 @@ struct StudioView: View {
                                         .multilineTextAlignment(.center)
                                         .padding(.horizontal, 26)
                                 } else {
-                                ProgressView().tint(config.edition.accent)
-                                Text("Composing…")
-                                    .font(.system(.footnote, design: .rounded))
-                                    .foregroundStyle(.secondary)
+                                    ProgressView().tint(config.edition.accent)
+                                    Text("Composing…")
+                                        .font(.system(.footnote, design: .rounded))
+                                        .foregroundStyle(.secondary)
                                 }
                             }
                         }
                         .shadow(color: .black.opacity(0.12), radius: 16, y: 8)
                 }
             }
-            .padding(.horizontal, 30)
+            .padding(.horizontal, 26)
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: Action bar — the clean editor's whole surface: order, share, or open the tray.
+    // MARK: Action bar
 
+    /// Share and Order, permanently under the artwork.
+    ///
+    /// These were a whole tab. A tab is a place you go to configure something, and neither of
+    /// these is a configuration — they are the two ways a finished piece leaves the editor, and
+    /// burying them behind a segment meant the primary conversion path was three taps from the
+    /// poster. The one genuine setting that tab held (the share canvas) moved to Customize →
+    /// Advanced, with the other settings.
     private var actionBar: some View {
-        VStack(spacing: 10) {
+        HStack(spacing: 10) {
+            Button { showExport = true } label: {
+                Label("Share", systemImage: "square.and.arrow.up")
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .foregroundStyle(Theme.accent)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(Theme.accent.opacity(0.12), in: .capsule)
+            }
+            .buttonStyle(.plain)
+
             Button { showPrints = true } label: {
                 Label("Order Print", systemImage: "bag")
                     .font(.system(.subheadline, design: .rounded).weight(.semibold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 50)
+                    .frame(height: 44)
                     .background(Theme.accent, in: .capsule)
             }
             .buttonStyle(.plain)
-
-            HStack(spacing: 10) {
-                Button { withAnimation(.easeInOut(duration: 0.22)) { isCustomizing = true } } label: {
-                    Label("Customize", systemImage: "slider.horizontal.3")
-                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                        .foregroundStyle(Theme.accent)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .background(Theme.accent.opacity(0.12), in: .capsule)
-                }
-                .buttonStyle(.plain)
-
-                Button { showExport = true } label: {
-                    Label("Share", systemImage: "square.and.arrow.up")
-                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                        .foregroundStyle(Theme.accent)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .background(Theme.accent.opacity(0.12), in: .capsule)
-                }
-                .buttonStyle(.plain)
-            }
         }
         .padding(.horizontal, 24)
-        .padding(.top, 12)
-        .padding(.bottom, 10)
-        .background(.regularMaterial)
+        .padding(.bottom, 12)
     }
 
-    // MARK: Tray
+    // MARK: Gallery frame photo picking
 
-    private var trayTabBar: some View {
-        HStack(spacing: 0) {
-            ForEach(Tab.allCases) { t in
-                Button { withAnimation(.easeInOut(duration: 0.18)) { tab = t } } label: {
-                    VStack(spacing: 3) {
-                        Image(systemName: t.icon).font(.system(size: 16, weight: .semibold))
-                        Text(t.name).font(.system(size: 11, weight: .semibold, design: .rounded))
-                    }
-                    .foregroundStyle(tab == t ? Theme.accent : Color.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                }
-                .buttonStyle(.plain)
-            }
-            // Back to the clean view — the tray folds away and the action bar returns.
-            Button { withAnimation(.easeInOut(duration: 0.22)) { isCustomizing = false } } label: {
-                Image(systemName: "chevron.down.circle.fill")
-                    .font(.system(size: 22))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 6)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Hide controls")
-        }
-        .padding(.horizontal, 12)
-        .padding(.top, 6)
+    struct FramePickTarget: Identifiable {
+        let frame: Int
+        var id: Int { frame }
     }
 
-    private var tray: some View {
-        ScrollView {
-            VStack(spacing: 14) {
-                switch tab {
-                case .style:  styleTab
-                case .text:   textTab
-                case .data:   dataTab
-                case .export: exportTab
-                }
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 8)
-            .padding(.bottom, 16)
-        }
-        .frame(height: 250)
-        .scrollBounceBehavior(.basedOnSize)
-        .background(.regularMaterial)
-    }
-
-    // MARK: Style tab
-
-    @ViewBuilder private var styleTab: some View {
-        // Lead with the piece itself, rendered through every curated style. Choosing a finished
-        // look is the first decision; the controls beneath refine it.
-        EditionGalleryStrip(run: run, config: $config)
-        if config.family == .map {
-            // The layout beneath the map — sits directly under the style strip.
-            chipRow("Layout", MapLayout.allCases, selection: $config.mapLayout,
-                    label: { $0.name }, icon: { $0.icon })
-            if config.mapLayout == .photo { mapPhotoControls }
-        } else {
-            // The style strip above already picks the Gallery design, so no second control for it.
-            galleryFramesEditor
-            addPhotoButton
-        }
-        colorModeToggle
-        orientationPicker
-        // Where the data sits relative to the art — only meaningful in landscape (portrait always
-        // stacks the data beneath the art).
-        if config.orientation == .landscape { dataPlacementPicker }
-    }
-
-    /// Photo controls for the map Photo layout — how many photos, plus Add Photo.
-    private var mapPhotoControls: some View {
-        VStack(spacing: 8) {
-            Stepper("Photos: \(config.mapPhotoCount)", value: $config.mapPhotoCount, in: 1...3)
-                .font(.system(.subheadline, design: .rounded))
-                .frame(maxWidth: 300)
-            addPhotoButton
-        }
-        .frame(maxWidth: 340)
-    }
-
-    /// Adds a photo from the library to this run — so it appears in the poster *and* in the run's
-    /// activity details (both read `Run.photoReferences`).
-    private var addPhotoButton: some View {
-        Button {
-            Task { await PhotoLibrary.requestAuthorization(); showPhotoPicker = true }
-        } label: {
-            Label(run.photoReferences.isEmpty ? "Add Photo" : "Add Photo · \(run.photoReferences.count) on run",
-                  systemImage: "photo.badge.plus")
-                .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                .foregroundStyle(Theme.accent)
-                .frame(maxWidth: 300)
-                .frame(height: 44)
-                .background(Theme.accent.opacity(0.12), in: .capsule)
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// Landscape only: place the data column left / right of the art, or across the top / bottom.
-    private var dataPlacementPicker: some View {
-        VStack(spacing: 6) {
-            Text("DATA POSITION")
-                .font(.system(size: 11, weight: .semibold)).tracking(1.5)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Picker("Data position", selection: $config.dataPlacement) {
-                ForEach(StudioDataPlacement.allCases) { p in
-                    Image(systemName: p.symbol).tag(p)
-                }
-            }
-            .pickerStyle(.segmented)
-        }
-        .frame(maxWidth: 340)
-    }
-
-    private var colorModeToggle: some View {
-        Picker("Colour", selection: $config.monochrome) {
-            Text("Colour").tag(false)
-            Text("B & W").tag(true)
-        }
-        .pickerStyle(.segmented)
-        .frame(maxWidth: 320)
-    }
-
-    private var orientationPicker: some View {
-        Picker("Orientation", selection: $config.orientation) {
-            ForEach(StudioOrientation.allCases) { Label($0.name, systemImage: $0.symbol).tag($0) }
-        }
-        .pickerStyle(.segmented)
-        .frame(maxWidth: 320)
-    }
-
-    /// Per-frame media pickers for the Gallery product — each frame shows a Photo, the Map, the
-    /// Route line, or the Elevation profile.
-    private var galleryFramesEditor: some View {
-        VStack(spacing: 6) {
-            Text("FRAMES")
-                .font(.system(size: 11, weight: .semibold)).tracking(1.5)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            HStack(spacing: 8) {
-                ForEach(0..<config.galleryDesign.frameCount, id: \.self) { i in
-                    Menu {
-                        Picker("Frame", selection: frameBinding(i)) {
-                            ForEach(GalleryTileKind.allCases) { kind in
-                                Label(kind.name, systemImage: kind.icon).tag(kind)
-                            }
-                        }
-                        // A photo frame: pick which photo it shows from a thumbnail gallery of
-                        // everything on the run (or add a new one straight into this frame).
-                        if frameKind(i) == .photo {
-                            Button {
-                                photoPickingFrame = FramePickTarget(frame: i)
-                            } label: {
-                                Label("Choose Photo…", systemImage: "photo.on.rectangle.angled")
-                            }
-                        }
-                    } label: {
-                        let kind = frameKind(i)
-                        VStack(spacing: 3) {
-                            Image(systemName: kind.icon).font(.system(size: 15, weight: .semibold))
-                            Text(frameLabel(i, kind)).font(.system(size: 10, weight: .semibold))
-                        }
-                        .foregroundStyle(Theme.accent)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 46)
-                        .background(Theme.accent.opacity(0.1), in: .rect(cornerRadius: 8))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .frame(maxWidth: 340)
-    }
-
-    private func frameKind(_ i: Int) -> GalleryTileKind {
-        let frames = config.resolvedFrames
-        return i < frames.count ? frames[i] : .photo
-    }
-
-    /// The frame chip's caption — photo frames name which photo they show once there's a choice.
-    private func frameLabel(_ i: Int, _ kind: GalleryTileKind) -> String {
-        guard kind == .photo, run.photoReferences.count > 1 else { return kind.name }
-        return "Photo \(effectivePhotoPick(i) + 1)"
-    }
-
-    /// The photo index frame `i` currently shows: its explicit pick, or automatic order (the k-th
-    /// photo frame shows the k-th photo).
     private func effectivePhotoPick(_ i: Int) -> Int {
         let picks = config.resolvedPhotoPicks
         if i < picks.count, picks[i] >= 0 { return picks[i] }
         return config.resolvedFrames.prefix(i).filter { $0 == .photo }.count
     }
-
-    /// Which Gallery frame is choosing its photo, driving the thumbnail picker sheet.
-    private struct FramePickTarget: Identifiable {
-        let frame: Int
-        var id: Int { frame }
-    }
-    @State private var photoPickingFrame: FramePickTarget?
-    /// A frame waiting for a newly added library photo — Add Photo from the frame picker lands
-    /// the new photo straight into that frame.
-    @State private var pendingPhotoFrame: Int?
 
     private func assignPhoto(_ index: Int, toFrame frame: Int) {
         var picks = config.resolvedPhotoPicks
@@ -625,242 +454,9 @@ struct StudioView: View {
         config.galleryPhotoPicks = picks
     }
 
-    private func frameBinding(_ i: Int) -> Binding<GalleryTileKind> {
-        Binding(
-            get: { frameKind(i) },
-            set: { newValue in
-                var frames = config.resolvedFrames
-                guard frames.indices.contains(i) else { return }
-                frames[i] = newValue
-                config.galleryFrames = frames
-            }
-        )
-    }
+    // MARK: Data slots
 
-    // MARK: Text tab
-
-    @ViewBuilder private var textTab: some View {
-        // Three free lines, named for what they are — each defaults to the run's title / place /
-        // date but is fully editable, can be hidden, and carries its own size.
-        toggleFieldRow("Text 1", show: $config.showTitle, text: $config.title,
-                       placeholder: run.name, scale: $config.titleScale)
-        toggleFieldRow("Text 2", show: $config.showLocation, text: $config.location,
-                       placeholder: derivedPlace, scale: $config.locationScale)
-        // The Gallery sheet's masthead carries only the title and place — no date line and no
-        // headline block — so those controls only appear for the Map product.
-        if config.family == .map {
-            toggleFieldRow("Text 3", show: $config.showDate, text: $config.date,
-                           placeholder: Format.date(run.startDate), scale: $config.dateScale)
-        }
-        fontPicker
-        // Size, at every altitude: each line has its own Aa menu above; these rows size the big
-        // headline block and the data rows, and All Text scales everything together.
-        if config.family == .map {
-            scaleRow("Headline", $config.heroScale)
-        }
-        scaleRow("Data", $config.statScale)
-        scaleRow("All Text", $config.textScale)
-        colorRow("Text", selection: $config.textColor, swatches: textSwatches, fallback: config.edition.ink)
-        colorRow("Panel", selection: $config.groundColor, swatches: groundSwatches, fallback: config.edition.ground)
-        colorRow("Path", selection: $config.routeColor, swatches: pathSwatches, fallback: config.edition.route)
-    }
-
-    private var derivedPlace: String {
-        [run.city, run.state].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
-    }
-
-    /// A size row for one text element (S … XL as a multiplier on the designed size).
-    private func scaleRow(_ title: String, _ scale: Binding<CGFloat>) -> some View {
-        HStack(spacing: 10) {
-            Text(title)
-                .font(.system(.caption, design: .rounded).weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 62, alignment: .leading)
-            Picker(title, selection: scale) {
-                Text("S").tag(CGFloat(0.85))
-                Text("M").tag(CGFloat(1.0))
-                Text("L").tag(CGFloat(1.15))
-                Text("XL").tag(CGFloat(1.3))
-            }
-            .pickerStyle(.segmented)
-        }
-        .frame(maxWidth: 340)
-    }
-
-    /// The curated per-line size steps — a wider range than the row pickers, since a single line
-    /// (a date, say) can go genuinely small or genuinely large without unbalancing the piece.
-    private static let lineScaleSteps: [(name: String, value: CGFloat)] = [
-        ("Extra Small", 0.7), ("Small", 0.85), ("Medium", 1.0),
-        ("Large", 1.15), ("Extra Large", 1.3), ("Huge", 1.5)
-    ]
-
-    /// A compact Aa menu choosing one text line's size.
-    private func lineSizeMenu(_ scale: Binding<CGFloat>) -> some View {
-        Menu {
-            ForEach(Self.lineScaleSteps, id: \.value) { step in
-                Button { scale.wrappedValue = step.value } label: {
-                    if abs(scale.wrappedValue - step.value) < 0.01 {
-                        Label(step.name, systemImage: "checkmark")
-                    } else {
-                        Text(step.name)
-                    }
-                }
-            }
-        } label: {
-            Image(systemName: "textformat.size")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Theme.accent)
-                .frame(width: 28, height: 28)
-                .background(Theme.accent.opacity(0.10), in: .rect(cornerRadius: 8))
-        }
-        .menuStyle(.borderlessButton)
-    }
-
-    private var fontPicker: some View {
-        HStack(spacing: 10) {
-            Text("Font")
-                .font(.system(.caption, design: .rounded).weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 62, alignment: .leading)
-            ForEach(PosterFont.allCases) { face in
-                Button { config.font = face } label: {
-                    VStack(spacing: 2) {
-                        Text(face.sample)
-                            .font(.system(size: 20, weight: face.titleWeight, design: face.design))
-                        Text(face.name)
-                            .font(.system(size: 9, weight: .semibold))
-                    }
-                    .foregroundStyle(config.font == face ? .white : Color.primary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(config.font == face ? Theme.accent : Color.secondary.opacity(0.12),
-                                in: .rect(cornerRadius: 10))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .frame(maxWidth: 340)
-    }
-
-    // MARK: Data tab
-
-    /// Which data slot is being retuned in the complication picker.
-    private enum SlotTarget: Identifiable {
-        case hero
-        case slot(Int)
-        case add
-        var id: String {
-            switch self {
-            case .hero: return "hero"
-            case .slot(let i): return "slot-\(i)"
-            case .add: return "add"
-            }
-        }
-    }
-    @State private var editingSlot: SlotTarget?
-
-    @ViewBuilder private var dataTab: some View {
-        // The complication model: a headline slot and up to four data slots, each tap-retuned
-        // from everything this activity tracked — the watch-face pattern, on paper. The Gallery
-        // sheet has no headline block (its masthead is the title and place; data lives in the
-        // slots), so the headline control only appears for the Map product.
-        if config.family == .map {
-            VStack(spacing: 6) {
-                Text("HEADLINE")
-                    .font(.system(size: 11, weight: .semibold)).tracking(1.5)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Button { editingSlot = .hero } label: { slotChip(config.heroMetric) }
-                    .buttonStyle(.plain)
-            }
-            .frame(maxWidth: 340)
-        }
-
-        VStack(spacing: 6) {
-            Text("DATA POINTS")
-                .font(.system(size: 11, weight: .semibold)).tracking(1.5)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            HStack(spacing: 8) {
-                ForEach(0..<4, id: \.self) { i in
-                    if i < config.dataSlots.count {
-                        Button { editingSlot = .slot(i) } label: { slotChip(config.dataSlots[i]) }
-                            .buttonStyle(.plain)
-                    } else if i == config.dataSlots.count {
-                        Button { editingSlot = .add } label: { addSlotTile }
-                            .buttonStyle(.plain)
-                    } else {
-                        emptySlotTile
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: 340)
-
-        // The small captions under the numbers (TIME, PACE, the headline's MILES). Off gives the
-        // bare-numbers minimal look — the values speak for themselves.
-        Toggle(isOn: $config.showStatLabels) {
-            Label("Data labels", systemImage: "textformat.abc")
-                .font(.system(.subheadline, design: .rounded))
-        }
-        .tint(Theme.accent)
-        .frame(maxWidth: 300)
-
-        Toggle(isOn: $config.showElevation) {
-            Label("Elevation profile", systemImage: "mountain.2")
-                .font(.system(.subheadline, design: .rounded))
-        }
-        .tint(Theme.accent)
-        .frame(maxWidth: 300)
-
-        // Pace band needs per-point timing — only offered when this activity recorded it
-        // (HealthKit routes and GPX imports carry it; older imports may not).
-        if run.hasPaceSeries {
-            Toggle(isOn: $config.showPace) {
-                Label("Pace profile", systemImage: "speedometer")
-                    .font(.system(.subheadline, design: .rounded))
-            }
-            .tint(Theme.accent)
-            .frame(maxWidth: 300)
-        }
-
-        if run.hasWeather {
-            Toggle(isOn: $config.includeWeather) {
-                Label("Include weather", systemImage: "cloud.sun")
-                    .font(.system(.subheadline, design: .rounded))
-            }
-            .tint(Theme.accent)
-            .frame(maxWidth: 300)
-        }
-    }
-
-    /// The "+" tile — appends the next sensible unused metric or opens the gallery directly.
-    private var addSlotTile: some View {
-        VStack(spacing: 2) {
-            Image(systemName: "plus")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(Theme.accent)
-            Text("ADD")
-                .font(.system(size: 9, weight: .semibold)).tracking(1)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .padding(.horizontal, 6)
-        .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10)
-            .strokeBorder(Theme.accent.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
-    }
-
-    /// A future slot position, visible but inert — the composition holds four at most.
-    private var emptySlotTile: some View {
-        RoundedRectangle(cornerRadius: 10)
-            .strokeBorder(Color.secondary.opacity(0.18), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-            .frame(maxWidth: .infinity)
-            .frame(height: 48)
-    }
-
-    private func currentMetric(for target: SlotTarget) -> StatMetric {
+    private func currentMetric(for target: StudioContentTarget) -> StatMetric {
         switch target {
         case .hero:
             return config.heroMetric
@@ -871,8 +467,8 @@ struct StudioView: View {
         }
     }
 
-    /// Applies a complication-picker choice to the targeted slot.
-    private func applyMetric(_ metric: StatMetric, to target: SlotTarget) {
+    /// Applies a metric-picker choice to the targeted element.
+    private func applyMetric(_ metric: StatMetric, to target: StudioContentTarget) {
         switch target {
         case .hero:
             config.heroMetric = metric
@@ -883,176 +479,6 @@ struct StudioView: View {
             guard config.dataSlots.count < 4 else { return }
             config.dataSlots.append(metric)
         }
-    }
-
-    // MARK: Export tab
-
-    @ViewBuilder private var exportTab: some View {
-        Picker("Output", selection: $config.outputSize) {
-            ForEach(StudioOutputSize.allCases) { size in
-                Label(size.name, systemImage: size.symbol).tag(size)
-            }
-        }
-        .pickerStyle(.segmented)
-        .frame(maxWidth: 340)
-
-        Text("Poster keeps print proportions; Square / Feed / Story mat it onto a social canvas.")
-            .font(.system(.caption, design: .rounded))
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: 320)
-
-        Button { showExport = true } label: {
-            Label("Share / Save Image", systemImage: "square.and.arrow.up")
-                .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: 300)
-                .frame(height: 46)
-                .background(Theme.accent, in: .capsule)
-        }
-        .buttonStyle(.plain)
-
-        Button { showPrints = true } label: {
-            Label("Order a Print", systemImage: "bag")
-                .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                .foregroundStyle(Theme.accent)
-                .frame(maxWidth: 300)
-                .frame(height: 46)
-                .background(Theme.accent.opacity(0.12), in: .capsule)
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: Shared control components
-
-    /// A horizontal chip row for an enum choice (map style, gallery design), with a header.
-    private func chipRow<T: Hashable & Identifiable>(
-        _ header: String, _ options: [T], selection: Binding<T>,
-        label: @escaping (T) -> String, icon: @escaping (T) -> String
-    ) -> some View {
-        VStack(spacing: 6) {
-            Text(header.uppercased())
-                .font(.system(size: 11, weight: .semibold)).tracking(1.5)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(options) { option in
-                        let isOn = selection.wrappedValue == option
-                        Button { selection.wrappedValue = option } label: {
-                            VStack(spacing: 4) {
-                                Image(systemName: icon(option)).font(.system(size: 16, weight: .semibold))
-                                Text(label(option)).font(.system(size: 10, weight: .semibold))
-                            }
-                            .foregroundStyle(isOn ? .white : Color.primary)
-                            .frame(width: 66, height: 52)
-                            .background(isOn ? Theme.accent : Color.secondary.opacity(0.12),
-                                        in: .rect(cornerRadius: 10))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: 340)
-    }
-
-    /// A field row with a show/hide toggle at the front and a size menu at the end — the Text 1–3
-    /// lines.
-    private func toggleFieldRow(_ title: String, show: Binding<Bool>, text: Binding<String>,
-                                placeholder: String, scale: Binding<CGFloat>) -> some View {
-        HStack(spacing: 8) {
-            Button { show.wrappedValue.toggle() } label: {
-                Image(systemName: show.wrappedValue ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 18))
-                    .foregroundStyle(show.wrappedValue ? Theme.accent : Color.secondary)
-            }
-            .buttonStyle(.plain)
-            Text(title)
-                .font(.system(.caption, design: .rounded).weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 62, alignment: .leading)
-            TextField(placeholder, text: text)
-                .font(.system(.subheadline, design: .rounded))
-                .textInputAutocapitalization(.words)
-                .submitLabel(.done)
-                .disabled(!show.wrappedValue)
-                .opacity(show.wrappedValue ? 1 : 0.4)
-            if !text.wrappedValue.isEmpty {
-                Button { text.wrappedValue = "" } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-            }
-            lineSizeMenu(scale)
-                .disabled(!show.wrappedValue)
-                .opacity(show.wrappedValue ? 1 : 0.4)
-        }
-        .frame(maxWidth: 340)
-    }
-
-    private func slotChip(_ metric: StatMetric) -> some View {
-        VStack(spacing: 2) {
-            Text(metric == .none ? "None" : (metric.value(for: run) ?? "—"))
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(metric == .none ? .secondary : .primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-            Text(metric == .none ? "BLANK" : metric.label)
-                .font(.system(size: 9, weight: .semibold))
-                .tracking(1)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .padding(.horizontal, 6)
-        .background(Color.secondary.opacity(0.12), in: .rect(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.accent.opacity(0.35), lineWidth: 1))
-    }
-
-    private func colorRow(_ title: String, selection: Binding<Color?>, swatches: [Color], fallback: Color) -> some View {
-        HStack(spacing: 10) {
-            Text(title)
-                .font(.system(.caption, design: .rounded).weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 38, alignment: .leading)
-
-            autoChip(isSelected: selection.wrappedValue == nil) { selection.wrappedValue = nil }
-            ForEach(swatches.indices, id: \.self) { i in
-                swatchDot(swatches[i], isSelected: selection.wrappedValue == swatches[i]) {
-                    selection.wrappedValue = swatches[i]
-                }
-            }
-            ColorPicker("", selection: Binding(
-                get: { selection.wrappedValue ?? fallback },
-                set: { selection.wrappedValue = $0 }
-            ), supportsOpacity: false)
-            .labelsHidden()
-            .frame(width: 32)
-        }
-        .frame(maxWidth: 340)
-    }
-
-    private func autoChip(isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text("Auto")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .foregroundStyle(isSelected ? .white : .secondary)
-                .padding(.horizontal, 9).padding(.vertical, 5)
-                .background(isSelected ? Theme.accent : Color.secondary.opacity(0.15), in: .capsule)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func swatchDot(_ color: Color, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Circle()
-                .fill(color)
-                .frame(width: 26, height: 26)
-                .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 1))
-                .overlay(Circle().stroke(Theme.accent, lineWidth: isSelected ? 2.5 : 0).padding(-3))
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: Keeping
@@ -1113,7 +539,8 @@ struct StudioView: View {
          config.heroMetric.rawValue,
          config.dataSlots.map(\.rawValue).joined(separator: ","),
          "\(config.showStatLabels)",
-         "\(config.showElevation)", "\(config.showPace)", "\(config.includeWeather)", config.outputSize.rawValue,
+         "\(config.showElevation)", "\(config.showPace)", "\(config.includeWeather)",
+         config.outputSize.rawValue,
          config.routeColor?.hexString ?? "-", config.textColor?.hexString ?? "-",
          config.groundColor?.hexString ?? "-"
         ].joined(separator: "|")

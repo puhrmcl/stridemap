@@ -11,10 +11,11 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b452: the Lithograph tile, which has now hidden below the fold in two
-# rounds of shots. Product tiles are their own anchors, so this opens on that row.
+# Requested for b453: the rebuilt Studio editor — Design / Content / Customize in a
+# detented tray with the poster persistent above it — plus the medal frame tile, which
+# now draws the frame instead of a bare poster.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=studio@lithograph
+screens=map-studio,gallery-studio,studio@medalFrame
 appearance=light
