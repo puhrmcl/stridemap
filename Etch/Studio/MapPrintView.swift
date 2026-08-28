@@ -75,12 +75,14 @@ struct MapPrintView: View {
     }
 
     init(runs: [Run], kind: MapPrintKind = .allRuns, artStyle: MapArtStyle = .grid,
-         cityIndex: Bool = false) {
+         cityIndex: Bool = false, indexHero: MapPrintRequest.CityIndexHero = .none) {
         self.runs = runs
         _kind = State(initialValue: kind)
         // The Archive Collection opens the Anthology directly on a chosen style.
         _artStyle = State(initialValue: artStyle)
         _cityIndexOn = State(initialValue: cityIndex)
+        // The preview harness photographs the tour-poster hero without a hand to tap it.
+        _indexHero = State(initialValue: indexHero)
     }
 
     // MARK: Places + request

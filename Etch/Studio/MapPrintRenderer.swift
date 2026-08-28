@@ -659,39 +659,51 @@ enum MapPrintRenderer {
             return "\(count) · \(miles)"
         }
 
+        // Each column count admits a largest type size, bounded two ways at once: the rows
+        // must share the column's height, and the widest entry must fit the column's width.
+        // Type width scales with point size, so the widest entry is measured once at a
+        // reference size and the horizontal bound follows by ratio. The winning layout is
+        // whichever column count admits the biggest type — adding a column halves the width
+        // available to a name but can still win when the list is long enough that height,
+        // not width, is what pinches. Nothing can overlap, because overlap was only ever a
+        // constraint this search declined to apply.
+        let referenceSize: CGFloat = 100
+        let referenceName = UIFont.systemFont(ofSize: referenceSize, weight: .semibold)
+        let referenceDetail = UIFont.systemFont(ofSize: referenceSize * 0.55, weight: .regular)
+        let widestAtReference = cities.map { city, count in
+            (city.uppercased() as NSString).size(withAttributes: [.font: referenceName]).width
+                + referenceSize * 0.35
+                + (detail(for: city, count: count) as NSString)
+                    .size(withAttributes: [.font: referenceDetail]).width
+        }.max() ?? referenceSize
+
+        var best: (columns: Int, rows: Int, rowH: CGFloat, colW: CGFloat, pointSize: CGFloat)?
         for columns in [1, 2, 3] {
             let rows = Int(ceil(Double(cities.count) / Double(columns)))
             let rowH = usableH / CGFloat(rows)
-            let pointSize = rowH * 0.62
-            guard pointSize >= size.width * 0.014 else { continue }   // unreadably small: add a column
-            let font = UIFont.systemFont(ofSize: pointSize, weight: .semibold)
-            let countFont = UIFont.systemFont(ofSize: pointSize * 0.55, weight: .regular)
             let colW = (usableW - CGFloat(columns - 1) * usableW * 0.06) / CGFloat(columns)
-
-            // Reject this column count if any name overflows its column.
-            let fits = cities.allSatisfy { city, count in
-                let name = city.uppercased() as NSString
-                let w = name.size(withAttributes: [.font: font]).width
-                    + ("  \(detail(for: city, count: count))" as NSString).size(withAttributes: [.font: countFont]).width
-                return w <= colW
+            let pointSize = min(rowH * 0.62, referenceSize * colW / widestAtReference)
+            if best == nil || pointSize > best!.pointSize {
+                best = (columns, rows, rowH, colW, pointSize)
             }
-            guard fits || columns == 3 else { continue }
+        }
+        guard let layout = best else { return }
 
-            for (i, entry) in cities.enumerated() {
-                let column = i / rows
-                let row = i % rows
-                let x = marginX + CGFloat(column) * (colW + usableW * 0.06)
-                let y = listTop + CGFloat(row) * rowH + (rowH - pointSize) / 2
-                let name = entry.key.uppercased() as NSString
-                name.draw(at: CGPoint(x: x, y: y),
-                          withAttributes: [.font: font, .foregroundColor: ink])
-                let nameW = name.size(withAttributes: [.font: font]).width
-                (detail(for: entry.key, count: entry.value) as NSString).draw(
-                    at: CGPoint(x: x + nameW + pointSize * 0.35, y: y + pointSize * 0.34),
-                    withAttributes: [.font: countFont,
-                                     .foregroundColor: ink.withAlphaComponent(0.45)])
-            }
-            return
+        let font = UIFont.systemFont(ofSize: layout.pointSize, weight: .semibold)
+        let countFont = UIFont.systemFont(ofSize: layout.pointSize * 0.55, weight: .regular)
+        for (i, entry) in cities.enumerated() {
+            let column = i / layout.rows
+            let row = i % layout.rows
+            let x = marginX + CGFloat(column) * (layout.colW + usableW * 0.06)
+            let y = listTop + CGFloat(row) * layout.rowH + (layout.rowH - layout.pointSize) / 2
+            let name = entry.key.uppercased() as NSString
+            name.draw(at: CGPoint(x: x, y: y),
+                      withAttributes: [.font: font, .foregroundColor: ink])
+            let nameW = name.size(withAttributes: [.font: font]).width
+            (detail(for: entry.key, count: entry.value) as NSString).draw(
+                at: CGPoint(x: x + nameW + layout.pointSize * 0.35, y: y + layout.pointSize * 0.34),
+                withAttributes: [.font: countFont,
+                                 .foregroundColor: ink.withAlphaComponent(0.45)])
         }
     }
 

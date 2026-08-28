@@ -11,9 +11,9 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b447: the hero tile's reshaped scrim (the eyebrow was on bare map), the
-# tour-poster City Index, and the Anthology caption. — wordmark left and profile
-# right on Studio, storefront/grid glyphs on the bar, and the map with its docked sheet gone.
+# Requested for b448: the City Index re-fit — the b447 shot showed the type search
+# forcing three overlapping columns; the size now honours width and height at once —
+# plus the dot-map hero variant, which has never been photographed.
 
-screens=studio,city-index
+screens=city-index,city-index:map
 appearance=light
