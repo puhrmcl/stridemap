@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// The app's four destinations.
 ///
@@ -116,45 +117,70 @@ struct EtchTabView: View {
     }
 }
 
-/// Timeline, with Achievements alongside it rather than as a fifth tab.
+/// Timeline, laid out on Apple Photos' model, with Achievements reachable from its header.
 ///
-/// They answer the same question — *what have I done* — and as peers they would compete for the
-/// same intent. Timeline is the frequent one; Achievements is the reward you visit occasionally,
-/// which makes it a segment rather than a destination.
+/// Photos gives the page one title, a quiet line saying what you are looking at, and exactly one
+/// scope control — Years / Months / All — and nothing else competing. Etch's Timeline had grown
+/// two controls because Achievements was made half of a segmented pair it was never parallel to:
+/// Years, Months and All are three arrangements of one thing, and Achievements is a different
+/// thing. It is an action in the header now, which is where a page keeps the door to somewhere
+/// else.
+///
+/// It is still not a fifth tab. Timeline is the frequent destination; Achievements is the reward
+/// you visit occasionally, and a tab is a poor home for something you open a few times a year.
 struct TimelineTab: View {
-    private enum Pane: String, CaseIterable { case history, achievements
-        var title: String { self == .history ? "History" : "Achievements" }
-    }
-    @State private var pane: Pane = .history
+    @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
+    @State private var showAchievements = false
 
     var body: some View {
         NavigationStack {
-            Group {
-                switch pane {
-                case .history:      TimelineView(embedded: true)
-                case .achievements: HighlightsView(embedded: true)
-                }
-            }
-            // The shared header, then the pane picker beneath it.
-            //
-            // The picker briefly lived in the navigation bar, which solved one problem and made
-            // another: with a content header on every other surface, Timeline would have been the
-            // one page whose controls were in the chrome. Under the header it is plainly a
-            // sub-navigation of *this* page, and it stays well clear of Timeline's own
-            // Years / Months / All at the foot.
-            .safeAreaInset(edge: .top, spacing: 0) {
-                VStack(spacing: 10) {
-                    EtchPageHeader("Timeline")
-                    Picker("", selection: $pane) {
-                        ForEach(Pane.allCases, id: \.self) { Text($0.title).tag($0) }
+            TimelineView(embedded: true)
+                // Header only. Timeline supplies its own Years / Months / All directly beneath,
+                // and that is the page's single scope control.
+                //
+                // It was briefly two: History / Achievements here, and Years / Months / All at
+                // the foot. Apple Photos — the model this page follows — has exactly one, docked
+                // at the bottom because Photos has no tab bar. Etch does, so the control comes up
+                // here instead, and Achievements stops being half of a segmented control it was
+                // never parallel to. Years, Months and All are three arrangements of one thing;
+                // Achievements is a different thing.
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    EtchPageHeader("Timeline", subtitle: summary) {
+                        Button { showAchievements = true } label: {
+                            Image(systemName: "trophy")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(Theme.accent)
+                                .frame(width: 34, height: 34)
+                                .background(Theme.accent.opacity(0.12), in: .circle)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Achievements")
                     }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal, 20)
+                    .padding(.bottom, 8)
+                    .background(.bar)
                 }
-                .padding(.bottom, 10)
-                .background(.bar)
-            }
-            .toolbar(.hidden, for: .navigationBar)
+                .toolbar(.hidden, for: .navigationBar)
+                .sheet(isPresented: $showAchievements) {
+                    NavigationStack {
+                        HighlightsView(embedded: true)
+                            .navigationTitle("Achievements")
+                            .navigationBarTitleDisplayMode(.inline)
+                            .toolbar {
+                                ToolbarItem(placement: .topBarTrailing) {
+                                    Button("Done") { showAchievements = false }
+                                }
+                            }
+                    }
+                }
         }
+    }
+
+    /// What the history amounts to, under the title — the Photos pattern, where a quiet second
+    /// line tells you what you are looking at without another control.
+    private var summary: String? {
+        guard !runs.isEmpty else { return nil }
+        let metres = runs.reduce(0.0) { $0 + $1.distance }
+        let count = runs.count == 1 ? "1 activity" : "\(runs.count) activities"
+        return "\(count) · \(Format.distance(metres, decimals: 0))"
     }
 }

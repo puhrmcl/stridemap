@@ -55,8 +55,18 @@ struct TimelineView: View {
             }
             .navigationTitle("Timeline")
             .navigationBarTitleDisplayMode(.inline)
+            // Years / Months / All sits at the bottom as a sheet, and at the top inside the tab.
+            //
+            // Apple Photos docks exactly this control in a floating capsule at the foot of the
+            // screen, which is the model this view was built on — but Photos has no tab bar, and
+            // Etch now does. Two floating capsules stacked at the bottom is the app's own
+            // navigation arguing with the page's, so inside the tab the control moves up under
+            // the header, where it is plainly this page's and not the app's.
+            .safeAreaInset(edge: .top) {
+                if embedded && !scopedRuns.isEmpty { scopePicker }
+            }
             .safeAreaInset(edge: .bottom) {
-                if !scopedRuns.isEmpty { scopePicker }
+                if !embedded && !scopedRuns.isEmpty { scopePicker }
             }
         }
     }

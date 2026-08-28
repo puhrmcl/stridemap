@@ -16,23 +16,37 @@ import SwiftUI
 /// clear the photo, and the sheet it opens are defined once and cannot drift apart.
 struct EtchPageHeader<Trailing: View>: View {
     let title: String
-    /// Anything the page wants between the title and the avatar — a count, a filter chip.
+    /// A quiet second line under the title — what this page is currently showing. Apple Photos
+    /// puts the date you have scrolled to here; Timeline uses it for the size of the history.
+    var subtitle: String?
+    /// Anything the page wants between the title and the avatar — a count, a filter chip, an
+    /// action that belongs to this page rather than to the app.
     @ViewBuilder var trailing: () -> Trailing
 
     @State private var showProfile = false
     @AppStorage("profileImageData") private var profileImageData: Data?
 
-    init(_ title: String, @ViewBuilder trailing: @escaping () -> Trailing = { EmptyView() }) {
+    init(_ title: String, subtitle: String? = nil,
+         @ViewBuilder trailing: @escaping () -> Trailing = { EmptyView() }) {
         self.title = title
+        self.subtitle = subtitle
         self.trailing = trailing
     }
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            Text(title)
-                .font(.system(.largeTitle, design: .rounded).weight(.bold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(.largeTitle, design: .rounded).weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(.subheadline, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
             Spacer(minLength: 8)
             trailing()
             profileButton

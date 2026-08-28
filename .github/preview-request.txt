@@ -11,8 +11,8 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b432: the shared page header on Studio, Timeline and Bag — title left,
-# profile right — with the Etch wordmark gone from Studio. — wordmark left and profile
+# Requested for b433: Timeline on the Photos model — header with its summary line and the
+# Achievements action, and one scope control (Years/Months/All) under it rather than two. — wordmark left and profile
 # right on Studio, storefront/grid glyphs on the bar, and the map with its docked sheet gone.
 
 screens=tabs@map,tabs@timeline,tabs@studio,tabs@bag
