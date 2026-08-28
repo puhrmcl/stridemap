@@ -82,6 +82,10 @@ struct EtchRemoteConfig: Codable, Sendable, Equatable {
         var gridMinRoutedRuns: Int
         var ridgelineMinProfiles: Int
         var ringsMinRuns: Int
+        // Unused since the style prune (Pulse, Bloom, Home Turf and Constellation were cut), but
+        // kept in the schema: the served document still carries them, these fields are
+        // non-optional, and dropping a key from a Codable struct is a config-format change that
+        // would make older documents undecodable for no gain.
         var pulseMinRuns: Int
         var constellationMinCells: Int
         var bloomMinRoutedRuns: Int

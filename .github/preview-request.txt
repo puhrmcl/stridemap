@@ -6,8 +6,7 @@
 #
 # screens:    studio, home, archive, course, summit, yearbook, prints, wall-art,
 #             map-studio, gallery-studio, detail
-#             wall-art accepts a style: wall-art:ridgeline, wall-art:rings,
-#             wall-art:pulse, wall-art:bloom, wall-art:constellation, wall-art:grid
+#             wall-art accepts a style: wall-art:grid, wall-art:ridgeline, wall-art:rings
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #

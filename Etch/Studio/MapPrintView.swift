@@ -108,13 +108,7 @@ struct MapPrintView: View {
     /// The base request — a single place drawn as routes, or the aggregate for the kind.
     private var baseRequest: MapPrintRequest {
         if kind.isArt {
-            var req = MapPrintRequest.make(kind: kind, runs: artFilteredRuns)
-            // Home Turf defaults to a zoom on the densest area (the most-run city), not the whole
-            // country — otherwise a spread-out history renders as scattered specks.
-            if artStyle == .homeTurf, let region = MapPrintRequest.homeTurfRegion(runs: artFilteredRuns) {
-                req.region = region
-            }
-            return req
+            return MapPrintRequest.make(kind: kind, runs: artFilteredRuns)
         }
         if let focusName, let place = focusPlaces.first(where: { $0.name == focusName }) {
             var req = MapPrintRequest.make(kind: .allRuns, runs: place.runs)
@@ -146,7 +140,6 @@ struct MapPrintView: View {
         req.artPalette = artPalette
         req.artStyle = artStyle
         req.artWeight = artWeight
-        req.artZoom = CGFloat(zoom)   // Bloom (and other region-free art) scale by this.
         let factor = 1.0 / zoom
         let latSpan = min(170, max(0.002, req.region.span.latitudeDelta * factor))
         let lonSpan = min(340, max(0.002, req.region.span.longitudeDelta * factor))
@@ -327,20 +320,13 @@ struct MapPrintView: View {
         return kind.descriptor
     }
 
-    /// When the zoom control applies. Every map-based print, plus the art styles that scale:
-    /// Home Turf / Constellation frame by geography, and Bloom scales its radiating routes. Grid
-    /// (a fixed contact sheet) has no zoom.
-    private var zoomRelevant: Bool {
-        if kind.isArt { return artStyle == .homeTurf || artStyle == .constellation || artStyle == .bloom }
-        return true
-    }
+    /// When the zoom control applies — the map-based prints only. The remaining art styles are
+    /// all fixed compositions (a contact sheet, a stacked chain, tree rings): each frames itself,
+    /// so a zoom would only let a person break a layout the renderer already made correctly.
+    private var zoomRelevant: Bool { !kind.isArt }
 
-    /// When drag-to-pan applies — only the geography-framed views. Bloom is centred, so it zooms
-    /// but doesn't pan.
-    private var panRelevant: Bool {
-        if kind.isArt { return artStyle == .homeTurf || artStyle == .constellation }
-        return true
-    }
+    /// When drag-to-pan applies — only the geography-framed views, for the same reason.
+    private var panRelevant: Bool { !kind.isArt }
 
     private var singularKindName: String {
         switch kind {

@@ -137,24 +137,12 @@ enum MapArtStyle: String, CaseIterable, Identifiable {
     case ridgeline
     /// The years as tree rings — every run a tick placed by its day in the year.
     case rings
-    /// The history as a waveform — every activity a beat, its amplitude the distance.
-    case pulse
-    /// Every route re-centred to a common origin, radiating outward.
-    case bloom
-    /// The densest-cluster tangle (home turf), rendered as heat.
-    case homeTurf
-    /// Each run a point placed by geography, sized by distance, on a dark field.
-    case constellation
     var id: String { rawValue }
     var name: String {
         switch self {
         case .grid:          return "Grid"
         case .ridgeline:     return "Ridgeline"
         case .rings:         return "Rings"
-        case .pulse:         return "Pulse"
-        case .bloom:         return "Bloom"
-        case .homeTurf:      return "Home Turf"
-        case .constellation: return "Constellation"
         }
     }
     var descriptor: String {
@@ -162,10 +150,6 @@ enum MapArtStyle: String, CaseIterable, Identifiable {
         case .grid:          return "Every run as its own glyph, in a grid."
         case .ridgeline:     return "Every climb stacked — your elevations as one mountain chain."
         case .rings:         return "Your years as tree rings — every run a mark in its season."
-        case .pulse:         return "Your history as a waveform — every day's miles, beating."
-        case .bloom:         return "Every route radiating from one centre."
-        case .homeTurf:      return "The dense tangle of your home turf."
-        case .constellation: return "Your runs as a constellation of points."
         }
     }
 }
@@ -203,9 +187,6 @@ struct MapPrintRequest {
     var artPalette: MapArtPalette = .gallery
     var artStyle: MapArtStyle = .grid
     var artWeight: MapArtWeight = .medium
-    /// Zoom for the geography-free art styles that don't use `region` (Bloom scales its radiating
-    /// routes by this). 1 = fit; >1 tightens/enlarges, <1 pulls back.
-    var artZoom: CGFloat = 1
     /// Single-state print options.
     var isSingleState: Bool = false
     var stateMetrics: [StateMetric] = StateMetric.allCases
@@ -317,35 +298,6 @@ struct MapPrintRequest {
         }
         return region(minLat: pct(lats, 0.05), maxLat: pct(lats, 0.95),
                       minLon: pct(lons, 0.05), maxLon: pct(lons, 0.95))
-    }
-
-    /// The default frame for the Home Turf art: a zoom onto the runner's densest area — the city /
-    /// neighbourhood where they log the most runs — rather than the whole country, where a spread-out
-    /// history collapses the tangle into specks. Coordinate-based, so it works before cities have
-    /// finished geocoding.
-    static func homeTurfRegion(runs: [Run]) -> MKCoordinateRegion? {
-        let mapped = runs.filter(\.hasRoute)
-        let coords = mapped.compactMap(\.startCoordinate)
-        guard !coords.isEmpty else { return nil }
-
-        // Densest ~1 km cell = the home base.
-        var counts: [String: Int] = [:]
-        var anchor: [String: CLLocationCoordinate2D] = [:]
-        for c in coords {
-            let key = "\(Int((c.latitude * 100).rounded())),\(Int((c.longitude * 100).rounded()))"
-            counts[key, default: 0] += 1
-            anchor[key] = c
-        }
-        guard let bestKey = counts.max(by: { $0.value < $1.value })?.key,
-              let base = anchor[bestKey] else { return nil }
-
-        // Frame the runs clustered around that base (~11 km), so the local tangle fills the poster.
-        let window = 0.1
-        let local = mapped.filter { run in
-            guard let s = run.startCoordinate else { return false }
-            return abs(s.latitude - base.latitude) < window && abs(s.longitude - base.longitude) < window
-        }
-        return boundingRegion(of: local.isEmpty ? mapped : local)
     }
 
     /// A region framing every run's cached bounding box, with padding.

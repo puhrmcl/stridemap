@@ -8,7 +8,7 @@ import CoreLocation
 /// Three collections ship here:
 /// - **The Course Collection** — the user's races, presented as finisher pieces.
 /// - **The Summit Collection** — climbs and bucket-list trails, in the contour editions.
-/// - **The Archive Collection** — the body of work as one object (Grid / Constellation / Bloom),
+/// - **The Archive Collection** — the body of work as one object (Grid / Ridgeline / Rings),
 ///   each style offered only when the user's data will render it well.
 ///
 /// ## Licensing (why artwork titles are "BOSTON 26.2", not "Boston Marathon")
@@ -200,39 +200,25 @@ enum StudioCollections {
     // MARK: The Archive Collection
 
     /// The wall-art styles this user's data will render *well* — the gate is the curation. A grid
-    /// of twelve glyphs looks unfinished; a constellation of one city is a blob; a bloom needs
-    /// volume to read as a form. Home Turf is deliberately not offered here: the heat-tangle is
-    /// the most commodity look in the market, the opposite of what the Archive is for.
-    /// Thresholds come from the served configuration (compiled defaults when there's none), so
-    /// they can be tuned against real histories without an App Store release — they're guesses
-    /// until users prove otherwise.
+    /// of twelve glyphs looks unfinished; a ridgeline needs recorded climbs. The range was pruned
+    /// to the three strongest looks (Grid, Ridgeline, Rings): Pulse, Bloom, Home Turf and
+    /// Constellation were cut as the weakest and most commodity of the set. Thresholds come from
+    /// the served configuration (compiled defaults when there's none), so they can be tuned
+    /// against real histories without an App Store release.
     static func archiveStyles(for runs: [Run]) -> [MapArtStyle] {
         let gates = EtchConfig.current.archive
         let routed = runs.filter(\.hasRoute)
         var styles: [MapArtStyle] = []
         if routed.count >= gates.gridMinRoutedRuns { styles.append(.grid) }
-        // Ridgeline needs recorded elevation profiles; Rings and Pulse need only dates and
-        // distances, so they open the Archive to treadmill-heavy histories too.
+        // Ridgeline needs recorded elevation profiles; Rings needs only dates and distances, so
+        // it opens the Archive to treadmill-heavy histories too.
         if runs.filter({ $0.elevationSeries.count > 4 }).count >= gates.ridgelineMinProfiles {
             styles.append(.ridgeline)
         }
         if runs.count >= gates.ringsMinRuns { styles.append(.rings) }
-        if runs.count >= gates.pulseMinRuns { styles.append(.pulse) }
-        if geographicCells(of: runs) >= gates.constellationMinCells { styles.append(.constellation) }
-        if routed.count >= gates.bloomMinRoutedRuns { styles.append(.bloom) }
         return styles
     }
 
-    /// Distinct ~1° map cells the user's activities start in — a cheap measure of geographic
-    /// spread (≈100 km cells; 4+ means the constellation has a shape, not a dot).
-    static func geographicCells(of runs: [Run]) -> Int {
-        var cells = Set<String>()
-        for run in runs {
-            guard let lat = run.startLatitude, let lon = run.startLongitude else { continue }
-            cells.insert("\(Int(lat.rounded()))|\(Int(lon.rounded()))")
-        }
-        return cells.count
-    }
 }
 
 // MARK: - Browser
@@ -416,9 +402,6 @@ struct CollectionBrowserView: View {
             if Task.isCancelled { return }
             var request = MapPrintRequest.make(kind: .artMap, runs: runs)
             request.artStyle = style
-            if style == .homeTurf, let region = MapPrintRequest.homeTurfRegion(runs: runs) {
-                request.region = region
-            }
             if let image = await MapPrintRenderer.image(for: request, scale: 0.14) {
                 archiveThumbs[style] = image
             }
