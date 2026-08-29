@@ -18,6 +18,27 @@ private struct PillWidthKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
+/// The widths of the two groups flanking the totals in the home pill.
+///
+/// The totals are meant to sit on the pill's centre line, and two `Spacer`s alone cannot put them
+/// there: a spacer splits the *leftover* space evenly, so the totals land midway between the two
+/// groups rather than midway across the pill. Whenever the groups differ in width — and they
+/// always do, since the mark is wider than the avatar — the difference lands entirely on the
+/// totals as an offset.
+///
+/// Measuring both and padding the narrower one to match is what makes the two leftovers equal, at
+/// which point the spacers do centre the totals exactly. The measured groups exclude the
+/// balancing pad, so there is no feedback loop.
+private struct PillLeadWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+private struct PillTrailWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
 /// The docked search sheet's live drag height, held in a tiny reference object rather than in
 /// `HomeView`'s `@State`. The sheet updates it ~60×/s while dragging; keeping it *out* of HomeView's
 /// own state means the map, the totals pill, and the (expensive) run-statistics derivations are not
@@ -118,6 +139,9 @@ struct HomeView: View {
     /// Measured full width of the totals pill, so its dropdowns and the selected-view strip below
     /// it match the pill exactly (rather than a fixed guess).
     @State private var pillWidth: CGFloat = 250
+    /// Widths of the groups either side of the totals — see `PillLeadWidthKey`.
+    @State private var pillLeadWidth: CGFloat = 0
+    @State private var pillTrailWidth: CGFloat = 0
 
     /// The map-mode dropdown, rendered as a custom panel that extends from the pill (not a detached
     /// native Menu), so it reads as part of the pill.
@@ -594,12 +618,28 @@ struct HomeView: View {
     /// than as buttons in a tray.
     private var homePill: some View {
         HStack(spacing: 9) {
-            wordmark
-            pillDivider
-            if !isSingleActivity {
-                typeSelector.frame(height: pillColumnHeight)
+            // Leading group: identity, and what the map is showing.
+            HStack(spacing: 9) {
+                wordmark
                 pillDivider
+                if !isSingleActivity {
+                    typeSelector.frame(height: pillColumnHeight)
+                    pillDivider
+                }
             }
+            .background(
+                GeometryReader { geo in
+                    Color.clear.preference(key: PillLeadWidthKey.self, value: geo.size.width)
+                }
+            )
+            // Pad whichever group is narrower, so the space left over on each side of the totals
+            // is identical and the spacers below centre them on the pill rather than between the
+            // groups.
+            if pillTrailWidth > pillLeadWidth {
+                Color.clear.frame(width: pillTrailWidth - pillLeadWidth, height: 1)
+            }
+
+            Spacer(minLength: 8)
             metricsRow
                 .background(
                     GeometryReader { geo in
@@ -607,10 +647,22 @@ struct HomeView: View {
                     }
                 )
             Spacer(minLength: 8)
-            pillDivider
-            viewSelector.frame(height: pillColumnHeight)
-            pillDivider
-            profileButton
+
+            if pillLeadWidth > pillTrailWidth {
+                Color.clear.frame(width: pillLeadWidth - pillTrailWidth, height: 1)
+            }
+            // Trailing group: the view selector, and the account.
+            HStack(spacing: 9) {
+                pillDivider
+                viewSelector.frame(height: pillColumnHeight)
+                pillDivider
+                profileButton
+            }
+            .background(
+                GeometryReader { geo in
+                    Color.clear.preference(key: PillTrailWidthKey.self, value: geo.size.width)
+                }
+            )
         }
         // Full width, not content width.
         //
@@ -627,6 +679,8 @@ struct HomeView: View {
         // the honest form for something that carries the app's identity on every screen anyway.
         .frame(maxWidth: .infinity)
         .onPreferenceChange(PillColumnHeightKey.self) { if $0 > 0 { pillColumnHeight = $0 } }
+        .onPreferenceChange(PillLeadWidthKey.self) { if $0 > 0 { pillLeadWidth = $0 } }
+        .onPreferenceChange(PillTrailWidthKey.self) { if $0 > 0 { pillTrailWidth = $0 } }
         .padding(.horizontal, EtchHeaderMetrics.pillInterior)
         .padding(.vertical, 9)
         .glassBackground(cornerRadius: 23)

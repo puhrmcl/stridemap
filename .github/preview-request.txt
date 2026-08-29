@@ -11,9 +11,9 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b482: the map pill spans the row so its mark and avatar pin to the same inset
-# the flat headers use. b481 measured 62pt on the map against 22pt on Studio — a centred,
-# content-sized pill ignores the padding meant to place it. Both should now read 20pt.
+# Requested for b483: the totals sit on the home pill's centre line. Measure the midpoint of
+# "220 · 1,534" against the pill's own midpoint — two spacers alone put them midway between the
+# flanking groups, which is not the same thing when those groups differ in width.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
