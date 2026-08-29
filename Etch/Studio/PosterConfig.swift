@@ -407,6 +407,15 @@ struct PosterConfig {
     /// stepper away in the Data tab for the athlete who wants them.
     static func makeDefault(for run: Run) -> PosterConfig {
         var c = PosterConfig()
+        // The house edition, by name. `StudioEdition.gallery` has always described itself as "a
+        // muted street map on Bone, the route in Etch Blue — the default; always looks composed",
+        // and nothing actually opened on it: the previous default drew a black route because
+        // that is what the Streets edition authors, so a brand-new poster contained no Etch Blue
+        // at all, on a brand whose own rule is that blue is the one deliberate signal.
+        //
+        // Opening on a named preset also means the Start here row has something lit when it first
+        // appears, instead of presenting seven options and marking none of them as where you are.
+        c = StudioPreset.all[0].applied(to: c)
         // Three figures, as peers, along the foot.
         //
         // The old default was one metric and nothing else, because the old default layout blew
