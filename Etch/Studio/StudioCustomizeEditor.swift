@@ -68,7 +68,9 @@ struct StudioCustomizeEditor: View {
                 door(.route, value: config.routeColor == nil ? "Auto" : "Custom",
                      icon: "point.topleft.down.to.point.bottomright.curvepath")
                 Divider()
-                door(.layout, value: config.orientation.name, icon: "square.resize")
+                door(.layout,
+                     value: config.family == .map ? config.mapLayout.name : config.orientation.name,
+                     icon: "square.resize")
                 Divider()
                 door(.advanced, value: config.monochrome ? "B & W" : config.outputSize.name,
                      icon: "slider.horizontal.3")
@@ -354,6 +356,24 @@ struct StudioCustomizeEditor: View {
 
     private var layout: some View {
         VStack(alignment: .leading, spacing: 14) {
+            // The arrangement, with the other arrangement controls. It used to be a fifth gallery
+            // of picture cards at the top of Design, which is where the section tipped from a
+            // chooser into a catalogue — and it is a refinement, not a starting decision: the
+            // Style row above already set it.
+            if config.family == .map {
+                StudioGroupLabel(text: "Template")
+                Picker("Template", selection: $config.mapLayout) {
+                    ForEach(MapLayout.allCases) { Text($0.name).tag($0) }
+                }
+                .pickerStyle(.menu)
+                .tint(Theme.accent)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Text(templateDescription)
+                    .font(.caption)
+                    .foregroundStyle(Color.secondary.opacity(0.55))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             StudioGroupLabel(text: "Orientation")
             Picker("Orientation", selection: $config.orientation) {
                 ForEach(StudioOrientation.allCases) { Text($0.name).tag($0) }
@@ -376,6 +396,17 @@ struct StudioCustomizeEditor: View {
                     .foregroundStyle(Color.secondary.opacity(0.55))
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+
+    /// What each arrangement actually does, so the menu is readable without trying all five.
+    private var templateDescription: String {
+        switch config.mapLayout {
+        case .nameplate: return "The place named large at the top, the map beneath, the figures in a row along the foot."
+        case .statement: return "The distance set as a headline under the map, with the place and date beneath it."
+        case .minimal:   return "The map, the title and the date. Nothing else."
+        case .photo:     return "The map above, your photographs filling the space beneath it."
+        case .fullBleed: return "The map runs to every edge, with the type set over it and the figures in the corners."
         }
     }
 

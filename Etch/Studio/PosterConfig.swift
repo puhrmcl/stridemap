@@ -64,6 +64,64 @@ enum MapStyle: String, CaseIterable, Identifiable {
     }
 }
 
+/// What the map is *made of* — the only genuinely independent map decision there is.
+///
+/// `MapStyle` has ten cases and they are not ten decisions. Streets and Streets Noir are the same
+/// city map in a light and a dark colour world; Atlas and Atlas Dark are another such pair; Trail
+/// Journal and Midnight Atlas are traced contours, light and dark. So the picker was asking about
+/// material and colour at once, in ten combinations, while the Look control sat underneath asking
+/// about colour again — two controls fighting over one axis, which is why choosing in it felt like
+/// guesswork.
+///
+/// Five materials, and the Look decides the colour. Pick Streets and switch to Dark and you keep
+/// your streets; pick Dark and switch to Contour and you keep your dark. Every combination
+/// resolves to an edition that was authored, so none of them can be wrong.
+enum MapMaterial: String, CaseIterable, Identifiable {
+    case streets, terrain, contour, satellite, none
+    var id: String { rawValue }
+
+    var name: String {
+        switch self {
+        case .streets:   return "Streets"
+        case .terrain:   return "Terrain"
+        case .contour:   return "Contour"
+        case .satellite: return "Satellite"
+        case .none:      return "No Map"
+        }
+    }
+
+    /// This material in a given colour world. Nil look means "leave it as authored".
+    func style(for look: StudioLook?) -> MapStyle {
+        switch self {
+        case .streets:
+            switch look {
+            case .dark:  return .streetsNoir
+            case .warm:  return .harbor
+            default:     return .streets
+            }
+        case .contour:
+            return look == .dark ? .midnight : .contour
+        case .terrain:   return .terrain
+        case .satellite: return .satellite
+        case .none:      return .none
+        }
+    }
+
+    /// The material behind a stored style. Atlas and Atlas Dark — Apple's full-colour map — fold in
+    /// with Streets: they are the same city geography, and their full-saturation treatment is the
+    /// one thing in the range that argues with the brand's own rule that geography stays muted.
+    /// They are no longer offered in the picker; a poster saved on one still renders on one.
+    static func of(_ style: MapStyle) -> MapMaterial {
+        switch style {
+        case .streets, .streetsNoir, .harbor, .standard, .dark: return .streets
+        case .terrain:                                          return .terrain
+        case .contour, .midnight:                               return .contour
+        case .satellite:                                        return .satellite
+        case .none:                                             return .none
+        }
+    }
+}
+
 /// A Map poster's layout — how the area beneath the map is composed. `statement` is the full
 /// editorial footer (title, big headline, place, data, date); `minimal` reduces it to just the
 /// title and date under the map; `photo` fills the data area with 1–3 photos; `fullBleed` runs

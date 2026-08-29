@@ -11,8 +11,9 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b462: Design leading with seven finished posters, the action band gone
-# so the artwork gets the room back, and Nameplate as the default composition.
+# Requested for b463: Design cut from four scrollers to two — Style, then five map
+# materials instead of ten styles — with the template moved in with the other
+# arrangement controls under Customize > Layout.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 

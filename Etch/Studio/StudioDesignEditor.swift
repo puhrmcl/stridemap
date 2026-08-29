@@ -97,11 +97,22 @@ struct StudioDesignEditor: View {
     /// Raises the tray when a control needs more room than the medium detent gives.
     var onNeedRoom: () -> Void
 
+    /// Two rows of pictures and two compact controls.
+    ///
+    /// It was four stacked scrollers — seven presets, five templates, ten map styles, four looks —
+    /// twenty-six choices in one section, which is not a design surface, it is a catalogue. Style
+    /// is the decision; Map is the one axis people genuinely want to move; Look and Orientation are
+    /// small enough to be rows rather than galleries. The arrangement moved in with the other
+    /// arrangement controls, under Customize › Layout, where orientation and data position already
+    /// lived.
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            if config.family == .map { presets }
-            template
-            if config.family == .map { mapStyle }
+            if config.family == .map {
+                presets
+                mapMaterial
+            } else {
+                template
+            }
             look
             orientation
         }
@@ -133,70 +144,52 @@ struct StudioDesignEditor: View {
         }
     }
 
-    // MARK: Template
+    // MARK: Layout — Gallery only
 
-    @ViewBuilder private var template: some View {
+    /// The Gallery product's arrangement. A Gallery sheet has no map and no presets, so this row
+    /// *is* its starting decision and stays here; the Map product's templates moved to
+    /// Customize › Layout, where they are a refinement of what a preset already chose.
+    private var template: some View {
         VStack(alignment: .leading, spacing: 8) {
-            StudioGroupLabel(text: config.family == .map ? "Template" : "Layout")
+            StudioGroupLabel(text: "Layout")
             StudioVariantStrip(
                 run: run, config: $config,
-                variants: templateVariants,
-                refreshKey: "template-\(config.family.rawValue)-\(config.mapStyle.rawValue)-\(config.orientation.rawValue)"
+                variants: GalleryDesign.allCases.map { design in
+                    StudioVariant(
+                        id: "gallery-\(design.rawValue)",
+                        name: design.name,
+                        apply: { var c = $0; c.galleryDesign = design; return c },
+                        matches: { $0.galleryDesign == design }
+                    )
+                },
+                refreshKey: "gallery-\(config.orientation.rawValue)",
+                cardWidth: 96
             )
         }
     }
 
-    private var templateVariants: [StudioVariant] {
-        switch config.family {
-        case .map:
-            return MapLayout.allCases.map { layout in
-                StudioVariant(
-                    id: "layout-\(layout.rawValue)",
-                    name: layout.name,
-                    apply: { base in
-                        var c = base
-                        c.mapLayout = layout
-                        // Nameplate's foot is a row of peer figures, and a row of one figure is
-                        // not a row. A poster that has never had slots set gets the two a runner
-                        // would have picked anyway — they appear in Content straight away and come
-                        // off in a tap, which is what a template is entitled to do and a hidden
-                        // rendering rule is not.
-                        if layout == .nameplate && c.dataSlots.isEmpty {
-                            c.dataSlots = [.elevationGain, .time]
-                        }
-                        return c
-                    },
-                    matches: { $0.mapLayout == layout }
-                )
-            }
-        case .gallery:
-            return GalleryDesign.allCases.map { design in
-                StudioVariant(
-                    id: "gallery-\(design.rawValue)",
-                    name: design.name,
-                    apply: { var c = $0; c.galleryDesign = design; return c },
-                    matches: { $0.galleryDesign == design }
-                )
-            }
-        }
-    }
+    // MARK: Map
 
-    // MARK: Map style
-
-    private var mapStyle: some View {
+    /// Five materials, not ten styles. The colour comes from Look, so this row asks one question
+    /// and asks it once.
+    private var mapMaterial: some View {
         VStack(alignment: .leading, spacing: 8) {
-            StudioGroupLabel(text: "Map Style")
+            StudioGroupLabel(text: "Map")
             StudioVariantStrip(
                 run: run, config: $config,
-                variants: MapStyle.allCases.map { style in
+                variants: MapMaterial.allCases.map { material in
                     StudioVariant(
-                        id: "map-\(style.rawValue)",
-                        name: style.name,
-                        apply: { var c = $0; c.mapStyle = style; return c },
-                        matches: { $0.mapStyle == style }
+                        id: "material-\(material.rawValue)",
+                        name: material.name,
+                        apply: { base in
+                            var c = base
+                            c.mapStyle = material.style(for: StudioLook.current(for: base))
+                            return c
+                        },
+                        matches: { MapMaterial.of($0.mapStyle) == material }
                     )
                 },
-                refreshKey: "mapstyle-\(config.mapLayout.rawValue)-\(config.orientation.rawValue)"
+                refreshKey: "material-\(config.mapLayout.rawValue)-\(config.orientation.rawValue)-\(StudioLook.current(for: config)?.rawValue ?? "custom")"
             )
         }
     }

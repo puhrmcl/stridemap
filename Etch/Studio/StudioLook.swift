@@ -45,22 +45,18 @@ enum StudioLook: String, CaseIterable, Identifiable {
         }
     }
 
-    /// The map style each look leads with. Applied only to Map posters — a Gallery sheet has no
-    /// base map, so a Look there is purely a colour and monochrome decision.
-    private var mapStyle: MapStyle {
-        switch self {
-        case .light: return .streets
-        case .dark:  return .streetsNoir
-        case .mono:  return .streets
-        case .warm:  return .harbor
-        }
-    }
-
     /// Applied to a recipe. Colours are written explicitly rather than left on `nil`/auto so the
-    /// look holds when the user later changes map style — a Look is a decision, not a default.
+    /// look holds when the user later changes the map — a Look is a decision, not a default.
+    ///
+    /// The map is re-resolved through its *material* rather than replaced. A Look used to name a
+    /// map style outright, so switching to Dark silently threw away a chosen Contour and handed
+    /// back Streets Noir; now Contour stays contour and simply goes dark. That is what makes these
+    /// two controls independent instead of overlapping.
     func applied(to base: PosterConfig) -> PosterConfig {
         var c = base
-        if c.family == .map { c.mapStyle = mapStyle }
+        if c.family == .map {
+            c.mapStyle = MapMaterial.of(c.mapStyle).style(for: self)
+        }
         switch self {
         case .light:
             c.monochrome = false
