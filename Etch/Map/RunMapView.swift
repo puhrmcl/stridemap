@@ -113,6 +113,8 @@ struct RunMapView: UIViewRepresentable {
         map.addSubview(heat)
         context.coordinator.heatView = heat
 
+        context.coordinator.applyWash(to: map, style: mapStyle)
+
         // Ask for location so the blue user dot can appear; harmless if declined.
         context.coordinator.requestLocationAuthorization()
         return map
@@ -133,6 +135,7 @@ struct RunMapView: UIViewRepresentable {
             map.preferredConfiguration = mapStyle.configuration(elevated: is3D)
             map.pointOfInterestFilter = mapStyle.pointsOfInterest
             map.overrideUserInterfaceStyle = mapStyle.forcedInterfaceStyle
+            context.coordinator.applyWash(to: map, style: mapStyle)
             // Imagery (Satellite/Hybrid) takes longer than a single runloop to switch to realistic
             // elevation; a tilt applied before it settles gets clamped back to flat — which is why
             // 3D used to work only on Standard. `applyTilt` retries, backing off, until the pitch
@@ -347,7 +350,33 @@ struct RunMapView: UIViewRepresentable {
 
         // MARK: Rendering
 
+        // MARK: The Etch wash
+
+        /// The wash currently installed, so a style change can swap it rather than stack a second.
+        private var wash: EtchMapWash?
+
+        /// Lays Etch's tone over the basemap for the styles that take one, and removes it for the
+        /// styles that should keep their own colour.
+        ///
+        /// Inserted at index 0 of `.aboveRoads`, which is the whole trick: below MapKit's labels
+        /// so place names stay crisp, and below every route polyline added later so Etch Blue is
+        /// never washed by it.
+        @MainActor
+        func applyWash(to map: MKMapView, style: MapStyleOption) {
+            if let existing = wash {
+                map.removeOverlay(existing)
+                wash = nil
+            }
+            guard let tone = EtchMapWash.tone(for: style) else { return }
+            let fresh = EtchMapWash(tone: tone)
+            map.insertOverlay(fresh, at: 0, level: .aboveRoads)
+            wash = fresh
+        }
+
         func mapView(_ mapView: MKMapView, rendererFor overlay: any MKOverlay) -> MKOverlayRenderer {
+            if let wash = overlay as? EtchMapWash {
+                return EtchMapWashRenderer(wash: wash)
+            }
             guard let run = overlay as? RunPolyline else {
                 return MKOverlayRenderer(overlay: overlay)
             }

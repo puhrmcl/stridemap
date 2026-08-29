@@ -11,11 +11,11 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b473: the brand sheet's UI elements, built as real components — pill, ringed
-# circle, Ink-thumbed segmented control, activity card, stat strip, metadata columns. Compare
-# the `components` shot against the sheet directly.
+# Requested for b474: the home map in Etch's own colour, and the mark and avatar on it. The
+# wash should read as ink on warm paper in light and as a deep archival ground in dark — and the
+# routes on top of it must still be pure Etch Blue, never washed.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=components,home
+screens=home,components
 appearance=both

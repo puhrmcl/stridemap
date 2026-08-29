@@ -561,16 +561,23 @@ struct HomeView: View {
         VStack(alignment: .center, spacing: 8) {
             ZStack {
                 totalsPill
+                // The map is the app's front door, and it was the one surface that never said
+                // whose app it was. The mark sits at the leading edge and the avatar at the
+                // trailing one, either side of the totals pill — the arrangement every other
+                // surface already uses through `EtchPageHeader`, which is why the map looked
+                // headerless beside them.
                 HStack(spacing: 8) {
+                    wordmark
                     Spacer(minLength: 8)
                     if sync.isSyncing {
                         GlassContainer(padding: 10, cornerRadius: 18) {
                             HStack(spacing: 6) {
                                 ProgressView().controlSize(.mini)
-                                Text("Syncing").font(.caption.weight(.medium))
+                                Text("Syncing").font(.etch(.caption, weight: .medium))
                             }
                         }
                     }
+                    profileButton
                 }
             }
 
@@ -579,6 +586,37 @@ struct HomeView: View {
             // dropdowns, so they no longer sit under the pill.
             if showLocations && !showTypeMenu && !showModeMenu { modeSelector }
         }
+    }
+
+    /// The Etch mark, on glass so it holds on any base map — a dark wordmark alone would vanish
+    /// over Satellite, and a light one over paper.
+    ///
+    /// Sized by the artwork's ink rather than its bounds: two thirds of the asset is transparent
+    /// margin, so a 30pt frame draws a 10pt mark. `StudioHomeView` learned this the same way.
+    private var wordmark: some View {
+        GlassContainer(padding: 9, cornerRadius: 16) {
+            Image("BrandLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 15)
+                .padding(.horizontal, 2)
+        }
+        .accessibilityLabel("Etch")
+    }
+
+    /// The same profile entry point every other surface carries in its header, so the map is no
+    /// longer the one place you cannot reach your own account from.
+    private var profileButton: some View {
+        Button { appModel.presentedSurface = .profile } label: {
+            ProfileAvatar(size: 38) {
+                Image(systemName: "person.crop.circle.fill")
+                    .font(.system(size: 34))
+                    .foregroundStyle(Theme.accentOnGlass)
+            }
+            .glassCircle()
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Profile")
     }
 
     /// The current view's name — used for VoiceOver only (the pill shows an icon, not text): the
