@@ -1,0 +1,326 @@
+import SwiftUI
+
+/// The UI elements from the Etch Brand System sheet, built as real components.
+///
+/// The sheet specifies six things by drawing them: a primary pill, a circular icon button, a
+/// segmented control, an activity card, a stat strip, and the tracked metadata line that runs
+/// under a poster. This file is those six, so a screen can be *composed* of them rather than
+/// approximating them one padding value at a time.
+///
+/// Everything here reads `Theme` and the type tokens. There are no literal colours, sizes chosen
+/// by eye, or fonts named directly — if the brand moves, these move with it.
+
+// MARK: - Primary action
+
+/// The brand's primary control: a capsule in Etch Blue with a Gallery White label, set in
+/// sentence case at medium weight.
+///
+/// The fill is `accentFill` rather than the brand blue itself. `#4A8EAE` under a white label is
+/// 3.53:1 — the one place in the system where the signature colour cannot be used raw, because
+/// here it is carrying text. The deepened tone is visually indistinguishable and clears AA.
+struct EtchPrimaryButtonStyle: ButtonStyle {
+    /// Fills the available width. Off by default: the sheet draws the pill at its content's
+    /// width, and a button that always spans the screen reads as a form, not an invitation.
+    var fullWidth: Bool = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.etch(.callout, weight: .etchMedium))
+            .foregroundStyle(Theme.Ink.onAccent)
+            .padding(.vertical, 14)
+            .padding(.horizontal, 26)
+            .frame(maxWidth: fullWidth ? .infinity : nil)
+            .background(Theme.accentFill, in: .capsule)
+            .opacity(configuration.isPressed ? 0.86 : 1)
+            .animation(Theme.gentle, value: configuration.isPressed)
+    }
+}
+
+/// The quiet counterpart: the same capsule as an outline, for a secondary action beside a
+/// primary one.
+struct EtchSecondaryButtonStyle: ButtonStyle {
+    var fullWidth: Bool = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.etch(.callout, weight: .etchMedium))
+            .foregroundStyle(Theme.accentText)
+            .padding(.vertical, 14)
+            .padding(.horizontal, 26)
+            .frame(maxWidth: fullWidth ? .infinity : nil)
+            .background {
+                Capsule().strokeBorder(Theme.accent, lineWidth: 1)
+            }
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .animation(Theme.gentle, value: configuration.isPressed)
+    }
+}
+
+extension ButtonStyle where Self == EtchPrimaryButtonStyle {
+    static var etchPrimary: EtchPrimaryButtonStyle { EtchPrimaryButtonStyle() }
+    static func etchPrimary(fullWidth: Bool) -> EtchPrimaryButtonStyle {
+        EtchPrimaryButtonStyle(fullWidth: fullWidth)
+    }
+}
+
+extension ButtonStyle where Self == EtchSecondaryButtonStyle {
+    static var etchSecondary: EtchSecondaryButtonStyle { EtchSecondaryButtonStyle() }
+}
+
+/// A ringed circular icon button — the arrow that sits beside the primary pill on the sheet.
+///
+/// Ring rather than fill on purpose: two solid blue shapes side by side would spend the accent
+/// twice on one row, and the brand allows it about five percent of a screen.
+struct EtchCircleButton: View {
+    let systemName: String
+    var diameter: CGFloat = 46
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: diameter * 0.36, weight: .medium))
+                .foregroundStyle(Theme.accent)
+                .frame(width: diameter, height: diameter)
+                .background {
+                    Circle().strokeBorder(Theme.accent, lineWidth: 1)
+                }
+                .contentShape(.circle)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Segmented control
+
+/// The filter row from the sheet: a sunken track, and the selected segment as a solid Etch Ink
+/// pill with the label reversed out of it.
+///
+/// Written rather than styling `Picker(.segmented)`, which paints from the system's own palette
+/// and cannot be given an Ink thumb — the one visual detail that makes this control Etch's
+/// rather than iOS's.
+struct EtchSegmentedControl<Value: Hashable>: View {
+    @Binding var selection: Value
+    let options: [Value]
+    let title: (Value) -> String
+
+    @Namespace private var thumb
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(options, id: \.self) { option in
+                let isSelected = option == selection
+                Button {
+                    withAnimation(Theme.spring) { selection = option }
+                } label: {
+                    Text(title(option))
+                        .font(.etch(.subheadline, weight: isSelected ? .etchMedium : .etchRoman))
+                        .foregroundStyle(isSelected ? Theme.Ink.onInverse : Theme.Ink.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background {
+                            if isSelected {
+                                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                    .fill(Theme.Surface.inverse)
+                                    .matchedGeometryEffect(id: "segment", in: thumb)
+                            }
+                        }
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(3)
+        .background(Theme.Surface.sunken, in: .rect(cornerRadius: 14, style: .continuous))
+    }
+}
+
+// MARK: - Cards
+
+/// The card treatment used throughout the sheet: a Gallery White ground, a Mist hairline, and a
+/// radius small enough to read as a sheet of paper rather than a bubble.
+struct EtchCard<Content: View>: View {
+    var padding: CGFloat = 16
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        content
+            .padding(padding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.Surface.raised, in: .rect(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Theme.Line.hairline, lineWidth: 1)
+            }
+    }
+}
+
+/// The activity card from the sheet: a map thumbnail bled to the card's own edge, the activity's
+/// name, and two lines of metadata separated by middots.
+///
+/// The thumbnail sits flush rather than inset — that is the detail that makes the card read as a
+/// print rather than as a list row with a picture in it.
+struct EtchActivityCard<Thumbnail: View>: View {
+    let title: String
+    let symbol: String
+    /// The figures line: distance, pace, time.
+    let metrics: [String]
+    /// The context line: date, place.
+    let context: [String]
+    var showsChevron: Bool = true
+    @ViewBuilder var thumbnail: Thumbnail
+
+    var body: some View {
+        HStack(spacing: 0) {
+            thumbnail
+                .frame(width: 104)
+                .clipped()
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 7) {
+                    Image(systemName: symbol)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(Theme.Ink.primary)
+                    Text(title)
+                        .font(.etch(.headline, weight: .etchMedium))
+                        .foregroundStyle(Theme.Ink.primary)
+                        .lineLimit(1)
+                }
+                EtchDotLine(parts: metrics, tabular: true)
+                EtchDotLine(parts: context)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+
+            Spacer(minLength: 0)
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Theme.Ink.tertiary)
+                .padding(.trailing, 14)
+                .opacity(showsChevron ? 1 : 0)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .background(Theme.Surface.raised, in: .rect(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Theme.Line.hairline, lineWidth: 1)
+        }
+        .clipShape(.rect(cornerRadius: 12, style: .continuous))
+        .contentShape(.rect)
+    }
+}
+
+/// Values joined by a middot, the way every metadata line on the sheet is set.
+struct EtchDotLine: View {
+    let parts: [String]
+    var tabular: Bool = false
+
+    var body: some View {
+        Text(parts.filter { !$0.isEmpty }.joined(separator: "  ·  "))
+            .font(.etch(.subheadline))
+            .monospacedDigit(tabular)
+            .foregroundStyle(Theme.Ink.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+    }
+}
+
+private extension View {
+    /// `monospacedDigit()` only when asked — a context line of words gains nothing from tabular
+    /// figures and loses a little rhythm to them.
+    @ViewBuilder func monospacedDigit(_ enabled: Bool) -> some View {
+        if enabled { self.monospacedDigit() } else { self }
+    }
+}
+
+// MARK: - Statistics
+
+/// One figure and its label, as the sheet sets them: a small tracked uppercase label above a
+/// large tabular number.
+struct EtchStat: View {
+    let label: String
+    let value: String
+    var size: CGFloat = 30
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Text(label)
+                .etchLabelStyle(10)
+                .foregroundStyle(Theme.Ink.secondary)
+            Text(value)
+                .font(.etchMetric(size, weight: .etchRoman))
+                .foregroundStyle(Theme.Ink.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .contentTransition(.numericText())
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+/// Several figures in one bordered strip, divided by hairlines rather than by gaps.
+///
+/// One container with rules inside it, not three cards in a row: the sheet's totals read as a
+/// single statement about the whole library, and three separate cards would read as three
+/// unrelated facts.
+struct EtchStatStrip: View {
+    let stats: [(label: String, value: String)]
+    var size: CGFloat = 30
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(stats.enumerated()), id: \.offset) { index, stat in
+                if index > 0 {
+                    Rectangle()
+                        .fill(Theme.Line.hairline)
+                        .frame(width: 1)
+                        .padding(.vertical, 12)
+                }
+                EtchStat(label: stat.label, value: stat.value, size: size)
+            }
+        }
+        .padding(.vertical, 16)
+        .background(Theme.Surface.raised, in: .rect(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Theme.Line.hairline, lineWidth: 1)
+        }
+    }
+}
+
+// MARK: - Metadata
+
+/// The rule-divided metadata row the sheet runs under its type specimens — a tracked uppercase
+/// label over a tabular value, with a hairline standing between each pair.
+///
+/// The same pattern the posters use in print, which is the point: a piece looks like the app it
+/// came out of because the app sets its figures the way the print does.
+struct EtchMetaColumns: View {
+    let columns: [(label: String, value: String)]
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 0) {
+            ForEach(Array(columns.enumerated()), id: \.offset) { index, column in
+                if index > 0 {
+                    Rectangle()
+                        .fill(Theme.Line.hairline)
+                        .frame(width: 1, height: 34)
+                        .padding(.horizontal, 18)
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(column.label)
+                        .etchLabelStyle(10)
+                        .foregroundStyle(Theme.Ink.tertiary)
+                    Text(column.value)
+                        .font(.etchMetric(15, weight: .etchMedium))
+                        .tracking(0.6)
+                        .foregroundStyle(Theme.Ink.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+}

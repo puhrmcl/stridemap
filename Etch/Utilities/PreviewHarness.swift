@@ -199,6 +199,9 @@ struct PreviewHarnessView: View {
                 // Not a screen of the app: the print engine's self-check, reported on screen
                 // because CI photographs screens and this project has no test target.
                 case "print-engine":    PrintEngineCheckView()
+                // Also not a screen of the app: the brand sheet's UI elements on one page, so
+                // CI can photograph them and they can be held against the reference.
+                case "components":      ComponentSheetView()
                 // "wall-art:ridgeline" opens that style full size — the Archive's thumbnails
                 // are too small to judge a composition by.
                 case let name where name.hasPrefix("wall-art"):

@@ -1392,11 +1392,10 @@ struct HomeView: View {
                     .foregroundStyle(.secondary)
                 Text("No runs yet")
                     .font(.etch(.title3, weight: .semibold))
-                Button("Sync Now") {
+                Button("Sync now") {
                     Task { await sync.sync() }
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.accent)
+                .buttonStyle(.etchPrimary)
             }
             if !sync.lastDiagnostic.isEmpty {
                 Text(sync.lastDiagnostic)

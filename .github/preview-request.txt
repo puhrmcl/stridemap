@@ -5,17 +5,17 @@
 # fine from a phone.
 #
 # screens:    studio, home, archive, course, summit, yearbook, prints, wall-art,
-#             map-studio, gallery-studio, detail
+#             map-studio, gallery-studio, detail, components
 #             wall-art accepts a style: wall-art:grid, wall-art:ridgeline, wall-art:rings,
 #             wall-art:thread, wall-art:strata
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b472: the app is in its own typeface. Inter Tight for display, Inter for
-# everything else, Newsreader for editorial — bundled, not system. Check that type renders at
-# all (a font that fails to register falls back silently) and that SF Symbols are unaffected.
+# Requested for b473: the brand sheet's UI elements, built as real components — pill, ringed
+# circle, Ink-thumbed segmented control, activity card, stat strip, metadata columns. Compare
+# the `components` shot against the sheet directly.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=home,studio
+screens=components,home
 appearance=both
