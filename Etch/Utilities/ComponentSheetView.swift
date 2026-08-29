@@ -13,6 +13,25 @@ struct ComponentSheetView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 30) {
+                // First, because everything below it is meaningless if the answer is no: a font
+                // that fails to register falls back to the system silently, and the page would
+                // look entirely correct while being in the wrong typeface.
+                group("Fonts registered") {
+                    VStack(alignment: .leading, spacing: 3) {
+                        ForEach(EtchType.diagnostics, id: \.name) { face in
+                            HStack(spacing: 6) {
+                                Image(systemName: face.loaded ? "checkmark" : "xmark")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(face.loaded ? Theme.accentText : Color.red)
+                                    .frame(width: 12)
+                                Text(face.name)
+                                    .font(.etch(size: 11))
+                                    .foregroundStyle(face.loaded ? Theme.Ink.secondary : .red)
+                            }
+                        }
+                    }
+                }
+
                 group("Type hierarchy") {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Every mile leaves a mark.")

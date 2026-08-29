@@ -69,6 +69,25 @@ enum EtchType {
         UIFont(name: "Inter-Regular", size: 12) != nil
     }
 
+    /// Every face the app expects, and whether it actually registered.
+    ///
+    /// This exists because the failure mode is silent: a font that does not register makes
+    /// `Font.custom` fall back to the system, so the app looks perfectly fine and is simply not
+    /// in its own typeface. There is no Mac here to check on, and two neo-grotesques are not
+    /// reliably tellable apart in a screenshot — so the app is asked rather than guessed at.
+    /// Surfaced on the `components` preview screen.
+    static var diagnostics: [(name: String, loaded: Bool)] {
+        let faces: [(Face, Font.Weight)] = [
+            (.display, .regular), (.display, .medium), (.display, .semibold),
+            (.text, .light), (.text, .regular), (.text, .medium), (.text, .semibold),
+            (.editorial, .regular), (.editorial, .medium), (.editorial, .semibold),
+        ]
+        return faces.map { face, weight in
+            let name = postScriptName(face, weight)
+            return (name, UIFont(name: name, size: 12) != nil)
+        }
+    }
+
     private static var missing: Set<String> = []
 
     /// The PostScript name if it loaded, nil if it did not — checked once per name.
