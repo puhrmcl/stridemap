@@ -117,7 +117,12 @@ struct StudioHomeView: View {
                                 momentHero.id("hero")
                                 productGrid.id("products")
                                 recentImportsSection.id("imports")
-                                collectionsSection.id("collections")
+                                // "curated", not "collections": every product tile is its own
+                                // scroll anchor under `product.rawValue`, and the Collections
+                                // book took that name. Two views in one scroll view sharing an
+                                // id makes scrollTo ambiguous — `studio@collections` landed on
+                                // this shelf instead of on the product it names.
+                                collectionsSection.id("curated")
                                 if !keptPosters.isEmpty { keptSection.id("kept") }
                                 utilityFooter.id("utilities")
                             }
