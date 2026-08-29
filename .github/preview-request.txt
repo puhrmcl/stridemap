@@ -11,8 +11,9 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b466: a new poster opening on the Gallery preset — Etch Blue on the
-# muted map — with that preset lit in the Start here row.
+# Requested for b467: a new poster opening on the Gallery preset — Etch Blue on the
+# muted map — with that preset lit in the Start here row. The b466 run never got here:
+# the build was red, so the preview had nothing to photograph.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
