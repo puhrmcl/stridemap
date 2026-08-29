@@ -187,10 +187,13 @@ struct StudioCustomizeEditor: View {
                             .buttonStyle(.plain)
                         }
                     }
-                    scaleRow("Title", $config.titleScale)
-                    scaleRow("Location", $config.locationScale)
+                    // The three text lines keep the wider six-step range they have always had —
+                    // a date can go genuinely small or a title genuinely huge without
+                    // unbalancing the piece, which is not true of the headline or the data rows.
+                    scaleRow("Title", $config.titleScale, wide: true)
+                    scaleRow("Location", $config.locationScale, wide: true)
                     if config.family == .map {
-                        scaleRow("Date", $config.dateScale)
+                        scaleRow("Date", $config.dateScale, wide: true)
                         scaleRow("Headline", $config.heroScale)
                     }
                     scaleRow("Data", $config.statScale)
@@ -204,19 +207,23 @@ struct StudioCustomizeEditor: View {
         }
     }
 
-    /// Every size control in the editor, in one shape. The steps are the ones the old editor used,
-    /// so nothing a saved poster relies on has moved.
-    private func scaleRow(_ title: String, _ scale: Binding<CGFloat>) -> some View {
+    /// Every size control in the editor, in one shape, on exactly the steps the old editor used —
+    /// so a saved poster reopens on the size it was saved at rather than snapping to the nearest
+    /// survivor. `wide` carries the six-step range the individual text lines have always had.
+    private func scaleRow(_ title: String, _ scale: Binding<CGFloat>,
+                          wide: Bool = false) -> some View {
         HStack(spacing: 10) {
             Text(title)
                 .font(.system(.caption, design: .rounded).weight(.semibold))
                 .foregroundStyle(.secondary)
                 .frame(width: 84, alignment: .leading)
             Picker(title, selection: scale) {
+                if wide { Text("XS").tag(CGFloat(0.7)) }
                 Text("S").tag(CGFloat(0.85))
                 Text("M").tag(CGFloat(1.0))
                 Text("L").tag(CGFloat(1.15))
                 Text("XL").tag(CGFloat(1.3))
+                if wide { Text("XXL").tag(CGFloat(1.5)) }
             }
             .pickerStyle(.segmented)
         }
