@@ -234,7 +234,11 @@ enum GalleryDesign: String, CaseIterable, Identifiable {
 /// re-renders and copy it in and out of storage cleanly.
 struct PosterConfig {
     var family: PosterFamily = .map
-    var mapStyle: MapStyle = .standard
+    /// The muted city map, not Apple's full-colour one. A new poster used to open on `.standard`,
+    /// which is the most saturated treatment in the range and the same one Atlas was withdrawn
+    /// for: the brand's rule is that geography stays quiet and the route is the only loud thing on
+    /// the sheet. Both render through our own cartography, so nothing is traded for it.
+    var mapStyle: MapStyle = .streets
     /// Map product: how the sheet is composed. Nameplate is the default — a new poster should open
     /// on the arrangement most people are going to want, and a piece named for its place is that.
     /// A poster saved before this keeps whatever it was saved with; only new ones change.
