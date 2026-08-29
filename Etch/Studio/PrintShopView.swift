@@ -466,7 +466,7 @@ struct PrintShopView: View {
                     .clipped()
                 }
                 .padding(15)
-                .background(Color(white: 0.97))                    // the snow-white top mount
+                .background(Theme.Artwork.mountBoard)              // the snow-white top mount
                 .padding(12)                                       // moulding
                 .background(Color(hex: MedalFrameCatalog.mouldingHex(medalFrameColour)) ?? .black)
                 .shadow(color: .black.opacity(0.28), radius: 16, y: 10)

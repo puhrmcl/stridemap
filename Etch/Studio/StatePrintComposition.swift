@@ -46,7 +46,7 @@ struct StatePrintComposition: View {
             }
         }
         .frame(width: size.width, height: size.height)
-        .background(Color(white: 0.1))
+        .background(Theme.Artwork.inkGround)
     }
 
     private func tile(_ label: String, _ value: String) -> some View {

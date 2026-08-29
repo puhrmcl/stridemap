@@ -521,16 +521,17 @@ private struct ShortcutPressStyle: ButtonStyle {
     }
 }
 
-/// One shortcut's visual: a deep-moss circle (#3A403B at 88%), a bone glyph (#F5F5F3), and a
-/// whisper of a white border — premium and quiet, sized to sit with the map rather than over it.
+/// One shortcut's visual: an Etch Ink circle at 88%, a Gallery White glyph, and a whisper of a
+/// white border — premium and quiet, sized to sit with the map rather than over it. The moss
+/// green it used to be dated from before the brand had a neutral of its own.
 private struct ShortcutCircleLabel: View {
     let icon: String
     let title: String
     @Environment(\.shortcutPressed) private var pressed
 
-    private static let fill = Color(red: 58 / 255, green: 64 / 255, blue: 59 / 255)        // #3A403B
-    private static let pressedFill = Color(red: 70 / 255, green: 77 / 255, blue: 71 / 255) // #464D47
-    private static let glyph = Color(red: 245 / 255, green: 245 / 255, blue: 243 / 255)    // #F5F5F3
+    private static let fill = Theme.Brand.ink
+    private static let pressedFill = Theme.Brand.graphite
+    private static let glyph = Theme.Brand.galleryWhite
 
     var body: some View {
         VStack(spacing: 7) {

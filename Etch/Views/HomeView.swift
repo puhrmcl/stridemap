@@ -1352,21 +1352,27 @@ struct HomeView: View {
     }
 
     /// A representative swatch gradient for each base map, evoking its look in the picker tiles.
+    ///
+    /// Built from brand tones rather than sampled from the maps themselves. The swatches only have
+    /// to be told apart from each other — six arbitrary greens and blues were doing that job while
+    /// putting six colours on screen that appear nowhere else in the app. Light styles read as
+    /// paper, dark ones as ink, and the two that genuinely are photographs of land keep a muted
+    /// natural cast from the poster palette.
     private func mapModeGradient(_ style: MapStyleOption) -> LinearGradient {
         let colors: [Color]
         switch style {
         case .standard:
-            colors = [Color(red: 0.83, green: 0.86, blue: 0.83), Color(red: 0.70, green: 0.77, blue: 0.72)]
+            colors = [Theme.Brand.canvas, Theme.Brand.mist]
         case .explore:
-            colors = [Color(red: 0.87, green: 0.89, blue: 0.85), Color(red: 0.76, green: 0.82, blue: 0.74)]
+            colors = [Theme.Brand.galleryWhite, Theme.Brand.canvasSunken]
         case .night:
-            colors = [Color(red: 0.12, green: 0.14, blue: 0.22), Color(red: 0.05, green: 0.06, blue: 0.12)]
+            colors = [Theme.Brand.inkDeep, Theme.Brand.inkWell]
         case .terrain:
-            colors = [Color(red: 0.47, green: 0.56, blue: 0.36), Color(red: 0.33, green: 0.40, blue: 0.26)]
+            colors = [Theme.Artwork.terrain, Theme.Artwork.topo]
         case .satellite:
-            colors = [Color(red: 0.20, green: 0.30, blue: 0.28), Color(red: 0.36, green: 0.40, blue: 0.24)]
+            colors = [Theme.Brand.graphite, Theme.Brand.inkWell]
         case .hybrid:
-            colors = [Color(red: 0.15, green: 0.17, blue: 0.22), Color(red: 0.24, green: 0.28, blue: 0.26)]
+            colors = [Theme.Brand.ink, Theme.Brand.graphite]
         }
         return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
     }

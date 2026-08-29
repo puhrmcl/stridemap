@@ -15,9 +15,10 @@ enum StudioLook: String, CaseIterable, Identifiable {
     case light, dark, mono, warm
     var id: String { rawValue }
 
-    /// Harbor's slate-navy, written once. Both `applied` and `matches` compare against it, and a
-    /// preset that set one literal while testing against a second would simply never light up.
-    static let warmGround = Color(red: 0.16, green: 0.20, blue: 0.30)
+    /// Harbor's slate-navy, written once — in `Theme.Artwork`, alongside the edition that also
+    /// draws on it. Both `applied` and `matches` compare against this, and a preset that set one
+    /// literal while testing against a second would simply never light up.
+    static let warmGround = Theme.Artwork.harbor
 
     var name: String {
         switch self {

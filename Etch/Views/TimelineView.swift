@@ -346,7 +346,7 @@ private struct YearCard: View {
                 if let hero {
                     RunTileImage(run: hero, mapFallback: true)
                 } else {
-                    Color(white: 0.1)
+                    Theme.Brand.inkDeep
                 }
                 LinearGradient(
                     colors: [.black.opacity(0.55), .clear, .black.opacity(0.45)],

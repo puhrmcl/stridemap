@@ -146,7 +146,7 @@ struct MockupWall: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [Color(white: 0.955), Color(white: 0.900)],
+                colors: [Theme.Artwork.mockupWallLight, Theme.Artwork.mockupWallShade],
                 startPoint: .topLeading, endPoint: .bottomTrailing
             )
             // The vignette. A wall photographed in a room is never evenly lit, and an even one is

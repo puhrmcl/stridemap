@@ -30,7 +30,7 @@ struct RouteThumbnail: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [Color(white: 0.16), Color(white: 0.07)],
+                colors: [Theme.Brand.ink, Theme.Brand.inkWell],
                 startPoint: .topLeading, endPoint: .bottomTrailing
             )
 
@@ -91,7 +91,7 @@ struct RunTileImage: View {
             if let photo {
                 Image(uiImage: photo).resizable().scaledToFill()
             } else if photoID != nil && !triedPhoto {
-                Color(white: 0.12)   // brief loading state before the photo resolves
+                Theme.Brand.inkWell   // brief loading state before the photo resolves
             } else if mapFallback {
                 RouteMapTile(run: run)
             } else {

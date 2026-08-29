@@ -62,7 +62,7 @@ struct MedalFrameMockup: View {
                 }
             }
             .padding(18 * scale)
-            .background(Color(white: 0.97))        // the snow-white top mount
+            .background(Theme.Artwork.mountBoard)  // the snow-white top mount
         }
     }
 

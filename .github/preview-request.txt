@@ -11,11 +11,11 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b470: the map seam, second pass. b469 narrowed the join but left the ground
-# ~6 levels off the paper; the ratio is now taken in linear light and the land sampled without
-# interpolation, so the two should measure identical.
+# Requested for b471: the brand rollout — Etch Ink type on Warm Canvas, Etch Blue only where
+# something is live, the new grotesk wordmark, and no rounded type anywhere. Both appearances,
+# because dark mode is designed here rather than inverted.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=map-studio,studio
-appearance=light
+screens=home,studio
+appearance=both

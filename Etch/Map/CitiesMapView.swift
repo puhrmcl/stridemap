@@ -210,7 +210,7 @@ final class CityClusterView: MKAnnotationView {
         let diameter: CGFloat = count >= 100 ? 58 : (count >= 10 ? 44 : 36)
         bounds = CGRect(x: 0, y: 0, width: diameter, height: diameter)
         layer.cornerRadius = diameter / 2
-        backgroundColor = UIColor(red: 13/255, green: 20/255, blue: 28/255, alpha: 0.66)
+        backgroundColor = UIColor(Theme.Brand.inkDeep).withAlphaComponent(0.66)
         layer.borderColor = UIColor(Theme.Palette.blueBright).withAlphaComponent(0.9).cgColor
         layer.borderWidth = 1.5
         layer.shadowColor = UIColor.black.cgColor

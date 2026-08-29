@@ -19,7 +19,7 @@ struct SplashView: View {
     /// screen, which uses the same ground and the same wordmark. Sampled from the icon
     /// artwork itself (#011133), so the three surfaces cannot drift apart: change the icon and
     /// this number changes with it.
-    private static let ground = Color(red: 1 / 255, green: 17 / 255, blue: 51 / 255)
+    private static let ground = Theme.Brand.ink
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 

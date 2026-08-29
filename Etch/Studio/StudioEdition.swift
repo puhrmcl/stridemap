@@ -155,8 +155,11 @@ struct StudioEdition: Identifiable, Equatable {
         panelSaturation: 0
     )
 
-    /// The Harbor editions' deep slate-navy — between Etch Ink and a nautical chart.
-    private static let harborNavy = Color(red: 0.16, green: 0.20, blue: 0.30)
+    /// The Harbor editions' deep slate-navy. Written once in `Theme.Artwork` and read from
+    /// there by both this edition and the Look that offers it — the two used to hold the same
+    /// literal separately, and a preset that set one while testing against the other would
+    /// simply never light up.
+    private static let harborNavy = Theme.Artwork.harbor
 
     /// Harbor — the city in deep navy, the route in gold. The desaturated dark map washed toward
     /// slate-navy so streets and water read as tonal texture; brass route, bone type. The premium

@@ -8,7 +8,7 @@ struct RunPhotoThumbnail: View {
 
     var body: some View {
         ZStack {
-            Rectangle().fill(Color(white: 0.15))
+            Rectangle().fill(Theme.Brand.inkWell)
             if let image {
                 Image(uiImage: image).resizable().scaledToFill()
             } else {

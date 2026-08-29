@@ -99,10 +99,10 @@ enum MapArtPalette: String, CaseIterable, Identifiable {
         switch self {
         case .gallery:   return Theme.Palette.ink
         case .noir:      return Theme.Palette.bone
-        case .blueprint: return Color(red: 0.66, green: 0.80, blue: 0.95)
+        case .blueprint: return Theme.Artwork.blueprint
         case .brass:     return Theme.Palette.brass
         case .sage:      return Theme.Palette.ink
-        case .rose:      return Color(red: 0.71, green: 0.20, blue: 0.29)   // #B5344A deep rose
+        case .rose:      return Theme.Artwork.rose
         case .forest:    return Theme.Palette.sage
         case .graphite:  return Theme.Palette.ink
         }

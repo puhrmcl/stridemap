@@ -767,7 +767,7 @@ struct RunDetailView: View {
                         }
                         addPhotosButton {
                             ZStack {
-                                RoundedRectangle(cornerRadius: 12).fill(Color(white: 0.15))
+                                RoundedRectangle(cornerRadius: 12).fill(Theme.Brand.inkWell)
                                 Image(systemName: "plus").font(.title3).foregroundStyle(.secondary)
                             }
                             .frame(width: 84, height: 84)

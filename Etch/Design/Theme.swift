@@ -156,6 +156,21 @@ enum Theme {
         static let terrain = Color(hex: 0xBBC8B2)
         /// Warm metallic, for edition seals and foil-look details.
         static let seal = Color(hex: 0xB08D57)
+        /// Harbor's slate-navy — between Etch Ink and a nautical chart. Written once and read by
+        /// both the edition and the Look that offers it; it used to be the same literal in two
+        /// files, and a preset that set one while testing against the other would simply never
+        /// light up.
+        static let harbor = Color(hex: 0x29334D)
+        /// Blueprint stock: pale cyan linework on a dark ground.
+        static let blueprint = Color(hex: 0xA8CCF2)
+        /// Rose stock's deep ink.
+        static let rose = Color(hex: 0xB5344A)
+        /// The wall a framed mockup hangs on, lit from the upper left.
+        static let mockupWallLight = Brand.galleryWhite
+        static let mockupWallShade = Brand.canvasSunken
+        /// The snow-white board a mount is cut from — brighter than any paper, which is what
+        /// makes a window mount read as a mount.
+        static let mountBoard = Color(hex: 0xF7F7F5)
     }
 
     // MARK: - Compatibility
