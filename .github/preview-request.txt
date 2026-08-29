@@ -11,9 +11,9 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b481: the top of every tab on one geometry — mark leading, avatar trailing, at
-# identical positions on map, timeline, studio and bag. Flip between the four shots and nothing
-# in the identity row should move. Also the pill's chrome off accent blue.
+# Requested for b482: the map pill spans the row so its mark and avatar pin to the same inset
+# the flat headers use. b481 measured 62pt on the map against 22pt on Studio — a centred,
+# content-sized pill ignores the padding meant to place it. Both should now read 20pt.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 

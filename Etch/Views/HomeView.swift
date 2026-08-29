@@ -606,11 +606,26 @@ struct HomeView: View {
                         Color.clear.preference(key: PillColumnHeightKey.self, value: geo.size.height)
                     }
                 )
+            Spacer(minLength: 8)
             pillDivider
             viewSelector.frame(height: pillColumnHeight)
             pillDivider
             profileButton
         }
+        // Full width, not content width.
+        //
+        // This is the correction to a wrong calculation. The pill's outer padding was set so
+        // that outer + interior would land the mark at `side` from the screen edge — but a
+        // centred, content-sized pill puts its left edge wherever centring happens to put it,
+        // so the padding only ever set a maximum and the mark sat about 40pt further in than
+        // the flat headers'. Measured off the render rather than argued about: 62pt on the map
+        // against 22pt on Studio.
+        //
+        // Spanning the row is what actually fixes it. The mark's leading edge and the avatar's
+        // trailing edge are now pinned by the padding, so they land in the same place as every
+        // other tab's. The pill reads as a header bar rather than a floating island, which is
+        // the honest form for something that carries the app's identity on every screen anyway.
+        .frame(maxWidth: .infinity)
         .onPreferenceChange(PillColumnHeightKey.self) { if $0 > 0 { pillColumnHeight = $0 } }
         .padding(.horizontal, EtchHeaderMetrics.pillInterior)
         .padding(.vertical, 9)
