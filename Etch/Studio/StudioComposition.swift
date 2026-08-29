@@ -527,9 +527,9 @@ struct StudioComposition: View {
     @ViewBuilder private var galleryMasthead: some View {
         VStack(spacing: sp(14)) {
             if showTitle {
-                Text(titleText.uppercased())
+                Text(titleText)
                     .font(.system(size: ts(44 * titleScale), weight: titleFont.titleWeight, design: titleFont.design))
-                    .tracking(8 + titleFont.extraTracking)
+                    .tracking(titleFont == .editorial ? 1 : 0)
                     .foregroundStyle(inkColor)
                     .lineLimit(2)
                     .minimumScaleFactor(0.5)
@@ -659,7 +659,7 @@ struct StudioComposition: View {
     private var nameplateHead: some View {
         VStack(alignment: .leading, spacing: sp(10)) {
             if showTitle && !titleText.isEmpty {
-                Text(titleText.uppercased())
+                Text(titleText)
                     .font(.system(size: ts(62 * titleScale),
                                   weight: .bold, design: titleFont.design))
                     // Tight. A headline this size wants its letters close; the wide tracking the
@@ -687,7 +687,7 @@ struct StudioComposition: View {
 
     /// The foot: the place, then a rule, then the figures — the shape a printed record takes.
     private var nameplateFoot: some View {
-        VStack(spacing: sp(18)) {
+        VStack(spacing: sp(26)) {
             if !placeLine.isEmpty {
                 Text(placeLine.uppercased())
                     .font(.system(size: ts(22 * locationScale), weight: .semibold))
@@ -697,9 +697,9 @@ struct StudioComposition: View {
                     .minimumScaleFactor(0.5)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            if !placeLine.isEmpty && !nameplateStats.isEmpty {
-                Rectangle().fill(inkColor.opacity(0.85)).frame(height: 2)
-            }
+            // No rule. Neither reference print draws a line anywhere on the sheet — space does
+            // the separating, and a 2pt bar across the foot was doing work a wider margin does
+            // more quietly. The gap below is that margin.
             if !nameplateStats.isEmpty {
                 HStack(alignment: .top, spacing: 0) {
                     ForEach(Array(nameplateStats.enumerated()), id: \.offset) { _, item in
@@ -763,10 +763,10 @@ struct StudioComposition: View {
 
             VStack(spacing: 0) {
                 if showTitle {
-                    Text(titleText.uppercased())
+                    Text(titleText)
                         .font(.system(size: ts(54 * titleScale), weight: titleFont.titleWeight,
                                       design: titleFont.design))
-                        .tracking(6 + titleFont.extraTracking)
+                        .tracking(titleFont == .editorial ? 1 : 0)
                         .foregroundStyle(inkColor)
                         .lineLimit(2)
                         .minimumScaleFactor(0.5)
@@ -866,7 +866,7 @@ struct StudioComposition: View {
 
                 HStack {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(titleText.uppercased())
+                        Text(titleText)
                             .font(.system(size: ts(60 * titleScale), weight: .heavy))
                             .foregroundStyle(.white)
                             .lineLimit(2).minimumScaleFactor(0.5)
