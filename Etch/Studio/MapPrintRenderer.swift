@@ -1102,7 +1102,7 @@ struct MapPrintExportSheet: View {
                     VStack(spacing: 12) {
                         ProgressView()
                         Text("Rendering high-resolution…")
-                            .font(.system(.subheadline, design: .rounded))
+                            .font(.system(.subheadline, design: .default))
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

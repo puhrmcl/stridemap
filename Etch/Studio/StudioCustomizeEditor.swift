@@ -98,7 +98,7 @@ struct StudioCustomizeEditor: View {
                     }
                 } label: {
                     Label("Reset appearance", systemImage: "arrow.counterclockwise")
-                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        .font(.system(.subheadline, design: .default).weight(.semibold))
                         .foregroundStyle(Theme.accent)
                         .frame(maxWidth: .infinity)
                         .frame(height: 42)
@@ -154,7 +154,7 @@ struct StudioCustomizeEditor: View {
                         }
                     } label: {
                         Text("Auto")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .font(.system(size: 12, weight: .semibold, design: .default))
                             .foregroundStyle(isAutoPalette ? .white : Color.primary)
                             .padding(.horizontal, 14)
                             .frame(height: 34)
@@ -176,7 +176,7 @@ struct StudioCustomizeEditor: View {
                         onNeedRoom()
                     } label: {
                         Text(isCustom ? "Custom" : "Custom…")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .font(.system(size: 12, weight: .semibold, design: .default))
                             .foregroundStyle(isCustom ? .white : Theme.accent)
                             .padding(.horizontal, 12)
                             .frame(height: 34)
@@ -202,7 +202,7 @@ struct StudioCustomizeEditor: View {
                     Circle().fill(c.route).frame(width: 8, height: 8)
                 }
                 Text(palette.name)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .font(.system(size: 12, weight: .semibold, design: .default))
             }
             .foregroundStyle(isSelected ? .white : Color.primary)
             .padding(.horizontal, 12)
@@ -280,7 +280,7 @@ struct StudioCustomizeEditor: View {
                 .padding(.top, 8)
             } label: {
                 Text("Advanced")
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .font(.system(.subheadline, design: .default).weight(.semibold))
             }
             .tint(Theme.accent)
         }
@@ -293,7 +293,7 @@ struct StudioCustomizeEditor: View {
                           wide: Bool = false) -> some View {
         HStack(spacing: 10) {
             Text(title)
-                .font(.system(.caption, design: .rounded).weight(.semibold))
+                .font(.system(.caption, design: .default).weight(.semibold))
                 .foregroundStyle(Color.secondary)
                 .frame(width: 84, alignment: .leading)
             Picker(title, selection: scale) {
@@ -325,7 +325,7 @@ struct StudioCustomizeEditor: View {
                      fallback: config.edition.route)
             Toggle(isOn: $config.monochrome) {
                 Label("Black & white", systemImage: "circle.lefthalf.filled")
-                    .font(.system(.subheadline, design: .rounded))
+                    .font(.system(.subheadline, design: .default))
             }
             .tint(Theme.accent)
         }
@@ -416,7 +416,7 @@ struct StudioCustomizeEditor: View {
         VStack(alignment: .leading, spacing: 14) {
             Toggle(isOn: $config.monochrome) {
                 Label("Black & white", systemImage: "circle.lefthalf.filled")
-                    .font(.system(.subheadline, design: .rounded))
+                    .font(.system(.subheadline, design: .default))
             }
             .tint(Theme.accent)
 
@@ -443,7 +443,7 @@ struct StudioCustomizeEditor: View {
             HStack(spacing: 10) {
                 Button { selection.wrappedValue = nil } label: {
                     Text("Auto")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .font(.system(size: 11, weight: .semibold, design: .default))
                         .foregroundStyle(selection.wrappedValue == nil ? .white : .secondary)
                         .padding(.horizontal, 9).padding(.vertical, 5)
                         .background(selection.wrappedValue == nil ? Theme.accent

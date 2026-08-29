@@ -57,17 +57,17 @@ struct StatesView: View {
         VStack(spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("\(visitedStates)")
-                    .font(.system(size: 44, weight: .bold, design: .rounded))
+                    .font(.system(size: 44, weight: .bold, design: .default))
                     .foregroundStyle(Theme.accent)
                     .contentTransition(.numericText())
                 Text("of \(USStateBoundaries.shared.stateGoal) states")
-                    .font(.system(.title3, design: .rounded).weight(.semibold))
+                    .font(.system(.title3, design: .default).weight(.semibold))
                     .foregroundStyle(.secondary)
             }
             ProgressView(value: Double(visitedStates), total: Double(USStateBoundaries.shared.stateGoal))
                 .tint(Theme.accent)
             Text("\(percent)% of the map")
-                .font(.system(.subheadline, design: .rounded))
+                .font(.system(.subheadline, design: .default))
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
@@ -78,7 +78,7 @@ struct StatesView: View {
     private var stateList: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Where you've run")
-                .font(.system(.title3, design: .rounded).weight(.bold))
+                .font(.system(.title3, design: .default).weight(.bold))
 
             ForEach(ranked, id: \.name) { item in
                 StateRow(name: item.name, count: item.count, fraction: Double(item.count) / Double(maxCount))
@@ -120,7 +120,7 @@ private struct StateRow: View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(name)
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .font(.system(.subheadline, design: .default).weight(.semibold))
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Capsule().fill(.quaternary)
@@ -131,7 +131,7 @@ private struct StateRow: View {
                 .frame(height: 6)
             }
             Text("\(count)")
-                .font(.system(.headline, design: .rounded))
+                .font(.system(.headline, design: .default))
                 .foregroundStyle(.primary)
                 .monospacedDigit()
             Text(count == 1 ? "run" : "runs")

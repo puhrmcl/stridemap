@@ -84,7 +84,7 @@ struct FramePhotoPickerSheet: View {
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(Theme.accent)
             Text("Add Photo")
-                .font(.system(.caption, design: .rounded).weight(.semibold))
+                .font(.system(.caption, design: .default).weight(.semibold))
                 .foregroundStyle(Theme.accent)
         }
         .frame(maxWidth: .infinity)

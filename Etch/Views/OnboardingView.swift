@@ -25,10 +25,10 @@ struct OnboardingView: View {
                         .shadow(color: Theme.accent.opacity(0.4), radius: 24)
 
                     Text("Etch")
-                        .font(.system(size: 40, weight: .bold, design: .rounded))
+                        .font(.system(size: 40, weight: .bold, design: .default))
 
                     Text("Every run you've ever taken,\nwoven into one living map.")
-                        .font(.system(.title3, design: .rounded))
+                        .font(.system(.title3, design: .default))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .lineSpacing(3)
@@ -67,7 +67,7 @@ struct OnboardingView: View {
                 if isWorking { ProgressView().tint(.white) }
                 else { Image(systemName: "heart.fill") }
                 Text(isWorking ? "Connecting…" : "Connect Apple Health")
-                    .font(.system(.headline, design: .rounded))
+                    .font(.system(.headline, design: .default))
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
@@ -83,7 +83,7 @@ struct OnboardingView: View {
             Task { await connectStrava() }
         } label: {
             Text("Connect Strava (optional)")
-                .font(.system(.subheadline, design: .rounded).weight(.medium))
+                .font(.system(.subheadline, design: .default).weight(.medium))
                 .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity)
                 .frame(height: 50)

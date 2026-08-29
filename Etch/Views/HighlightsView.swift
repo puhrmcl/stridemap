@@ -119,7 +119,7 @@ struct HighlightsView: View {
                 Image(systemName: scope.icon)
                     .font(.system(size: 15, weight: .semibold))
                 Text(scope == .all ? "All Activities" : scope.label)
-                    .font(.system(.subheadline, design: .rounded).weight(.bold))
+                    .font(.system(.subheadline, design: .default).weight(.bold))
                 Image(systemName: "chevron.down")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.secondary)
@@ -146,7 +146,7 @@ struct HighlightsView: View {
     private var reachSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Your reach")
-                .font(.system(.title2, design: .rounded).weight(.bold))
+                .font(.system(.title2, design: .default).weight(.bold))
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 NavigationLink {
@@ -247,7 +247,7 @@ struct HighlightsView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Text("Your activities")
-                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .font(.system(.title3, design: .default).weight(.bold))
                 Spacer()
                 Text("Tap to explore")
                     .font(.caption)
@@ -273,7 +273,7 @@ struct HighlightsView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(s.label)
-                    .font(.system(.headline, design: .rounded).weight(.bold))
+                    .font(.system(.headline, design: .default).weight(.bold))
                 Text(breakdownDetail(s, subset))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -283,7 +283,7 @@ struct HighlightsView: View {
 
             VStack(alignment: .trailing, spacing: 1) {
                 Text(subset.totalRuns.formatted())
-                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .font(.system(.title3, design: .default).weight(.bold))
                 Text(s.countNoun)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -313,7 +313,7 @@ struct HighlightsView: View {
     private var superlativesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Records")
-                .font(.system(.title3, design: .rounded).weight(.bold))
+                .font(.system(.title3, design: .default).weight(.bold))
 
             if let furthest = stats.longestRun {
                 SuperlativeRow(icon: "arrow.left.and.right", title: "Furthest", value: Format.distance(furthest.distance), subtitle: furthest.name) { focus(furthest) }
@@ -352,7 +352,7 @@ struct HighlightsView: View {
         if scope.usesPace, !prs.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Personal Bests")
-                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .font(.system(.title3, design: .default).weight(.bold))
 
                 ForEach(prs) { pr in
                     SuperlativeRow(
@@ -371,7 +371,7 @@ struct HighlightsView: View {
     private var recapsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Year in Review")
-                .font(.system(.title3, design: .rounded).weight(.bold))
+                .font(.system(.title3, design: .default).weight(.bold))
 
             ForEach(stats.years, id: \.self) { year in
                 NavigationLink {
@@ -380,7 +380,7 @@ struct HighlightsView: View {
                     let yearStats = stats.statistics(forYear: year)
                     HStack {
                         Text(String(year))
-                            .font(.system(.title3, design: .rounded).weight(.bold))
+                            .font(.system(.title3, design: .default).weight(.bold))
                         Spacer()
                         Text("\(yearStats.totalRuns) \(scope.countNoun) · \(Format.distance(yearStats.totalDistanceMeters, decimals: 0))")
                             .font(.subheadline)

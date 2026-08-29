@@ -212,7 +212,7 @@ struct RunDetailView: View {
                     .font(.system(size: 42, weight: .semibold))
                     .foregroundStyle(Theme.Palette.ink.opacity(0.55))
                 Text(run.isIndoor ? "Indoor Run" : "No map data")
-                    .font(.system(.headline, design: .rounded))
+                    .font(.system(.headline, design: .default))
                     .foregroundStyle(Theme.Palette.ink.opacity(0.7))
                 unmappedAction("Add location on map", symbol: "mappin.and.ellipse") {
                     showLocationPicker = true
@@ -242,7 +242,7 @@ struct RunDetailView: View {
     private func unmappedAction(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: symbol)
-                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .font(.system(.subheadline, design: .default).weight(.semibold))
                 .foregroundStyle(Theme.accent)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
@@ -276,7 +276,7 @@ struct RunDetailView: View {
             .allowsHitTesting(false)
 
             Label("Move", systemImage: "mappin.and.ellipse")
-                .font(.system(.caption, design: .rounded).weight(.semibold))
+                .font(.system(.caption, design: .default).weight(.semibold))
                 .foregroundStyle(Theme.accent)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -305,7 +305,7 @@ struct RunDetailView: View {
         VStack(alignment: .leading, spacing: 6) {
             if isMilestone { milestoneBadge }
             Text(run.name)
-                .font(.system(.title2, design: .rounded).weight(.bold))
+                .font(.system(.title2, design: .default).weight(.bold))
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
             if !run.placeLabel.isEmpty {
@@ -325,7 +325,7 @@ struct RunDetailView: View {
                 Image(systemName: "trophy.fill")
                     .font(.system(size: 12, weight: .bold))
                 Text("MILESTONE")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .font(.system(size: 12, weight: .bold, design: .default))
                     .tracking(1)
             }
             .foregroundStyle(.white)
@@ -335,7 +335,7 @@ struct RunDetailView: View {
 
             if !milestoneDescriptors.isEmpty {
                 Text(milestoneDescriptors.joined(separator: " · "))
-                    .font(.system(.footnote, design: .rounded).weight(.semibold))
+                    .font(.system(.footnote, design: .default).weight(.semibold))
                     .foregroundStyle(Theme.Palette.brass)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -353,7 +353,7 @@ struct RunDetailView: View {
         } label: {
             Label(run.isHidden ? "Unhide Run" : "Hide Run",
                   systemImage: run.isHidden ? "eye" : "eye.slash")
-                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .font(.system(.subheadline, design: .default).weight(.semibold))
                 .foregroundStyle(Theme.accent)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
@@ -369,7 +369,7 @@ struct RunDetailView: View {
             showDeleteConfirm = true
         } label: {
             Label("Delete Run", systemImage: "trash")
-                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .font(.system(.subheadline, design: .default).weight(.semibold))
                 .foregroundStyle(.red)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
@@ -478,7 +478,7 @@ struct RunDetailView: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
             Text(value)
-                .font(.system(.title3, design: .rounded).weight(.bold))
+                .font(.system(.title3, design: .default).weight(.bold))
                 .minimumScaleFactor(0.7)
                 .lineLimit(1)
         }
@@ -490,7 +490,7 @@ struct RunDetailView: View {
     private var raceToggle: some View {
         Toggle(isOn: raceBinding) {
             Label("Race", systemImage: "flag.checkered")
-                .font(.system(.subheadline, design: .rounded).weight(.medium))
+                .font(.system(.subheadline, design: .default).weight(.medium))
         }
         .tint(Theme.accent)
         .padding(.horizontal, 16)
@@ -520,13 +520,13 @@ struct RunDetailView: View {
         DisclosureGroup(isExpanded: $notesExpanded) {
             TextField("Add a note…", text: $notesDraft, axis: .vertical)
                 .lineLimit(3...10)
-                .font(.system(.subheadline, design: .rounded))
+                .font(.system(.subheadline, design: .default))
                 .textFieldStyle(.plain)
                 .padding(.top, 8)
         } label: {
             HStack(spacing: 8) {
                 Label("Notes", systemImage: "note.text")
-                    .font(.system(.subheadline, design: .rounded).weight(.medium))
+                    .font(.system(.subheadline, design: .default).weight(.medium))
                 Spacer(minLength: 8)
                 if !notesExpanded {
                     Text((run.notes?.isEmpty == false) ? run.notes! : "Add")
@@ -564,7 +564,7 @@ struct RunDetailView: View {
     private var shareRaceButton: some View {
         ShareLink(item: raceShareText) {
             Label("Share Race Details", systemImage: "square.and.arrow.up")
-                .font(.system(.headline, design: .rounded))
+                .font(.system(.headline, design: .default))
                 .foregroundStyle(Theme.accent)
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
@@ -638,14 +638,14 @@ struct RunDetailView: View {
             HStack(alignment: .top, spacing: 14) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(eyebrow)
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .font(.system(size: 11, weight: .semibold, design: .default))
                         .tracking(2.2)
                         .foregroundStyle(accent)
                     Text("Make it permanent.")
-                        .font(.system(.headline, design: .rounded))
+                        .font(.system(.headline, design: .default))
                         .foregroundStyle(Theme.Palette.bone)
                     Text(line)
-                        .font(.system(.subheadline, design: .rounded))
+                        .font(.system(.subheadline, design: .default))
                         .foregroundStyle(Theme.Palette.bone.opacity(0.7))
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -682,7 +682,7 @@ struct RunDetailView: View {
     private var studioButton: some View {
         Button { studioPreset = nil; showStudio = true } label: {
             Label("Create in Etch Studio", systemImage: "photo.artframe")
-                .font(.system(.headline, design: .rounded))
+                .font(.system(.headline, design: .default))
                 .foregroundStyle(Theme.accent)
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
@@ -696,7 +696,7 @@ struct RunDetailView: View {
     private var photosSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Photos").font(.system(.headline, design: .rounded))
+                Text("Photos").font(.system(.headline, design: .default))
                 Spacer()
                 if isFindingPhotos { ProgressView().controlSize(.small) }
             }
@@ -705,14 +705,14 @@ struct RunDetailView: View {
                 HStack(spacing: 10) {
                     addPhotosButton {
                         Label("Add Photos", systemImage: "photo.badge.plus")
-                            .font(.system(.subheadline, design: .rounded).weight(.medium))
+                            .font(.system(.subheadline, design: .default).weight(.medium))
                             .foregroundStyle(Theme.accent)
                     }
                     Button {
                         Task { await findPhotos() }
                     } label: {
                         Label("Find from Library", systemImage: "sparkles")
-                            .font(.system(.subheadline, design: .rounded).weight(.medium))
+                            .font(.system(.subheadline, design: .default).weight(.medium))
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
@@ -871,7 +871,7 @@ struct RunDetailView: View {
             }
         } label: {
             Label("Open in Strava", systemImage: "arrow.up.right.square")
-                .font(.system(.headline, design: .rounded))
+                .font(.system(.headline, design: .default))
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)

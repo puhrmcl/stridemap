@@ -160,7 +160,7 @@ struct StudioSectionPicker: View {
                 } label: {
                     VStack(spacing: 6) {
                         Text(s.name)
-                            .font(.system(.subheadline, design: .rounded)
+                            .font(.system(.subheadline, design: .default)
                                 .weight(section == s ? .semibold : .regular))
                             .foregroundStyle(section == s ? Theme.accent : Color.secondary)
                         ZStack {
@@ -201,12 +201,12 @@ struct StudioDrillRow: View {
                         .frame(width: 24)
                 }
                 Text(title)
-                    .font(.system(.subheadline, design: .rounded))
+                    .font(.system(.subheadline, design: .default))
                     .foregroundStyle(.primary)
                 Spacer(minLength: 8)
                 if let value {
                     Text(value)
-                        .font(.system(.subheadline, design: .rounded))
+                        .font(.system(.subheadline, design: .default))
                         .foregroundStyle(Color.secondary)
                         .lineLimit(1)
                 }
@@ -231,14 +231,14 @@ struct StudioDetailHeader: View {
             Button(action: onBack) {
                 HStack(spacing: 2) {
                     Image(systemName: "chevron.left").font(.system(size: 13, weight: .bold))
-                    Text("Back").font(.system(.subheadline, design: .rounded))
+                    Text("Back").font(.system(.subheadline, design: .default))
                 }
                 .foregroundStyle(Theme.accent)
             }
             .buttonStyle(.plain)
             Spacer()
             Text(title)
-                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .font(.system(.subheadline, design: .default).weight(.semibold))
             Spacer()
             // Balances the title against the back button so it sits optically centred.
             Color.clear.frame(width: 52, height: 1)
@@ -281,7 +281,7 @@ struct StudioThumbCard<Picture: View>: View {
                                           lineWidth: isSelected ? 2 : 0.5)
                     }
                 Text(title)
-                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular, design: .rounded))
+                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular, design: .default))
                     .foregroundStyle(isSelected ? Theme.accent : .secondary)
                     .lineLimit(1)
             }

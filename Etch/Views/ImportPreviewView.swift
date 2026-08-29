@@ -70,11 +70,11 @@ struct ImportPreviewView: View {
             VStack(spacing: 24) {
                 VStack(spacing: 6) {
                     Text("\(summary.newRuns)")
-                        .font(.system(size: 60, weight: .bold, design: .rounded))
+                        .font(.system(size: 60, weight: .bold, design: .default))
                         .foregroundStyle(Theme.accent)
                         .contentTransition(.numericText())
                     Text("new \(newActivityNoun(summary, capitalized: false)) ready to import")
-                        .font(.system(.headline, design: .rounded))
+                        .font(.system(.headline, design: .default))
                         .foregroundStyle(.secondary)
                     if let range = dateRange(summary) {
                         Text(range).font(.subheadline).foregroundStyle(.tertiary)
@@ -128,7 +128,7 @@ struct ImportPreviewView: View {
         if !activities.isEmpty && activities.count <= typeEditorLimit {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Activity type")
-                    .font(.system(.headline, design: .rounded))
+                    .font(.system(.headline, design: .default))
                 Text("Etch auto-detects each activity. Tap to override.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -167,7 +167,7 @@ struct ImportPreviewView: View {
                 }
                 Spacer()
                 Text(activities[i].activityType.detailLabel)
-                    .font(.system(.subheadline, design: .rounded))
+                    .font(.system(.subheadline, design: .default))
                     .foregroundStyle(.secondary)
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.caption.weight(.semibold))
@@ -211,7 +211,7 @@ struct ImportPreviewView: View {
                 Task { await runImport(summary) }
             } label: {
                 Text("Import \(summary.newRuns) \(newActivityNoun(summary, capitalized: true))")
-                    .font(.system(.headline, design: .rounded))
+                    .font(.system(.headline, design: .default))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 52)
@@ -236,9 +236,9 @@ struct ImportPreviewView: View {
                 .tint(Theme.accent)
                 .padding(.horizontal, 40)
             Text("Importing your history")
-                .font(.system(.headline, design: .rounded))
+                .font(.system(.headline, design: .default))
             Text("\(done) / \(total)")
-                .font(.system(.title3, design: .rounded).weight(.semibold))
+                .font(.system(.title3, design: .default).weight(.semibold))
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
         }
@@ -256,7 +256,7 @@ struct ImportPreviewView: View {
                     .foregroundStyle(Theme.accent)
                     .padding(.top, 30)
                 Text(summary.newRuns > 0 ? "History added" : "Nothing new to add")
-                    .font(.system(.title2, design: .rounded).weight(.bold))
+                    .font(.system(.title2, design: .default).weight(.bold))
 
                 VStack(spacing: 0) {
                     detailRow("Activities added", "\(summary.newRuns)", "figure.run")
@@ -282,7 +282,7 @@ struct ImportPreviewView: View {
 
                 Button { dismiss() } label: {
                     Text("Done")
-                        .font(.system(.headline, design: .rounded))
+                        .font(.system(.headline, design: .default))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 52)
@@ -302,7 +302,7 @@ struct ImportPreviewView: View {
                 .font(.subheadline)
             Spacer()
             Text(value)
-                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .font(.system(.subheadline, design: .default).weight(.semibold))
                 .monospacedDigit()
         }
         .padding(.horizontal, 16)

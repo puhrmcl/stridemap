@@ -92,11 +92,11 @@ struct ProfileView: View {
             VStack(spacing: 4) {
                 if !fullName.isEmpty {
                     Text(fullName)
-                        .font(.system(.title2, design: .rounded).weight(.bold))
+                        .font(.system(.title2, design: .default).weight(.bold))
                 }
                 if !hometown.trimmingCharacters(in: .whitespaces).isEmpty {
                     Text(hometown)
-                        .font(.system(.subheadline, design: .rounded))
+                        .font(.system(.subheadline, design: .default))
                         .foregroundStyle(.secondary)
                 }
                 if !bio.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -111,7 +111,7 @@ struct ProfileView: View {
 
             Button { showEditor = true } label: {
                 Text("Edit Profile")
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .font(.system(.subheadline, design: .default).weight(.semibold))
                     .padding(.horizontal, 22)
                     .padding(.vertical, 9)
                     .overlay(Capsule().strokeBorder(.separator, lineWidth: 1))
@@ -166,7 +166,7 @@ struct ProfileView: View {
 
     private func stat(value: String, label: String) -> some View {
         VStack(spacing: 3) {
-            Text(value).font(.system(.title2, design: .rounded).weight(.bold))
+            Text(value).font(.system(.title2, design: .default).weight(.bold))
             Text(label.uppercased())
                 .font(.caption2.weight(.semibold))
                 .tracking(1)
@@ -294,7 +294,7 @@ private struct ProfileEditorView: View {
                         }
                     }
                     Text("Edit")
-                        .font(.system(.body, design: .rounded))
+                        .font(.system(.body, design: .default))
                         .foregroundStyle(.secondary)
                 }
             }
@@ -326,7 +326,7 @@ private struct ProfileEditorView: View {
                                              @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(title).font(.system(.headline, design: .rounded).weight(.bold))
+                Text(title).font(.system(.headline, design: .default).weight(.bold))
                 Spacer()
                 if let trailing {
                     Text(trailing).font(.subheadline).foregroundStyle(.secondary)

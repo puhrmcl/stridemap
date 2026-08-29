@@ -81,7 +81,7 @@ struct RunPosterView: View {
                     .foregroundStyle(Theme.Palette.ink.opacity(0.5))
                 Spacer()
                 Text("etch")
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .font(.system(size: 30, weight: .bold, design: .default))
                     .foregroundStyle(Theme.Palette.blue)
             }
             .padding(.top, 4)

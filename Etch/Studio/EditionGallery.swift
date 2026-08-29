@@ -89,7 +89,7 @@ struct EditionGalleryStrip: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Style")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .font(.system(size: 11, weight: .semibold, design: .default))
                 .tracking(1.4)
                 .textCase(.uppercase)
                 .foregroundStyle(.secondary)
@@ -141,7 +141,7 @@ struct EditionGalleryStrip: View {
                 }
 
                 Text(style.name)
-                    .font(.system(size: 11, weight: selected ? .semibold : .regular, design: .rounded))
+                    .font(.system(size: 11, weight: selected ? .semibold : .regular, design: .default))
                     .foregroundStyle(selected ? Theme.accent : .secondary)
                     .lineLimit(1)
             }

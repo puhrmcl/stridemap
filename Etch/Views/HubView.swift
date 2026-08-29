@@ -112,7 +112,7 @@ struct HubView: View {
     private var exploreList: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Explore")
-                .font(.system(.title3, design: .rounded).weight(.bold))
+                .font(.system(.title3, design: .default).weight(.bold))
             VStack(spacing: 0) {
                 ForEach(Array(exploreSection.enumerated()), id: \.element.id) { index, item in
                     if index > 0 { Divider().padding(.leading, 60) }
@@ -130,7 +130,7 @@ struct HubView: View {
         if !recent.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Recent")
-                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .font(.system(.title3, design: .default).weight(.bold))
                 VStack(spacing: 0) {
                     ForEach(Array(recent.enumerated()), id: \.element.id) { index, run in
                         if index > 0 { Divider().padding(.leading, 16) }
@@ -153,7 +153,7 @@ struct HubView: View {
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 Text("\(results.count) result\(results.count == 1 ? "" : "s")")
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .font(.system(.subheadline, design: .default).weight(.semibold))
                     .foregroundStyle(.secondary)
                 VStack(spacing: 0) {
                     ForEach(Array(results.enumerated()), id: \.element.id) { index, run in
@@ -188,7 +188,7 @@ struct HubView: View {
                 .frame(width: 32)
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
-                    .font(.system(.headline, design: .rounded).weight(.semibold))
+                    .font(.system(.headline, design: .default).weight(.semibold))
                     .foregroundStyle(.primary)
                 Text(item.subtitle)
                     .font(.subheadline)

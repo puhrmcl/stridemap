@@ -153,8 +153,9 @@ enum MapLayout: String, CaseIterable, Identifiable {
     }
 }
 
-/// A curated Title typeface — three faces, no font zoo: an editorial serif, the app's modern
-/// rounded face, and a wide poster sans. Applied to the title (and echoed on the location line).
+/// A curated Title typeface — three faces, no font zoo: the brand's editorial serif, its
+/// grotesk set at text weight, and the same grotesk set heavy for a poster voice. Applied to
+/// the title (and echoed on the location line).
 enum PosterFont: String, CaseIterable, Identifiable {
     case editorial, modern, poster
     var id: String { rawValue }
@@ -168,15 +169,15 @@ enum PosterFont: String, CaseIterable, Identifiable {
     var design: Font.Design {
         switch self {
         case .editorial: return .serif
-        case .modern:    return .rounded
+        case .modern:    return .default
         case .poster:    return .default
         }
     }
     var titleWeight: Font.Weight {
         switch self {
-        case .editorial: return .regular
-        case .modern:    return .semibold
-        case .poster:    return .heavy
+        case .editorial: return .etchRoman
+        case .modern:    return .etchMedium
+        case .poster:    return .etchBold
         }
     }
     /// Extra letter-spacing layered on the base title tracking, so each face sits at its natural

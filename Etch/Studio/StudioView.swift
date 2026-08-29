@@ -239,7 +239,7 @@ struct StudioView: View {
         VStack(spacing: 22) {
             Spacer(minLength: 0)
             Text("What are we making?")
-                .font(.system(.title2, design: .rounded).weight(.bold))
+                .font(.system(.title2, design: .default).weight(.bold))
             HStack(spacing: 16) {
                 productCard(
                     .map, name: "Map",
@@ -285,10 +285,10 @@ struct StudioView: View {
 
                 VStack(spacing: 3) {
                     Text(name)
-                        .font(.system(.headline, design: .rounded))
+                        .font(.system(.headline, design: .default))
                         .foregroundStyle(.primary)
                     Text(line)
-                        .font(.system(.caption, design: .rounded))
+                        .font(.system(.caption, design: .default))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
@@ -348,7 +348,7 @@ struct StudioView: View {
     @ViewBuilder private var savedConfirmation: some View {
         if showSavedConfirmation {
             Label(confirmationText, systemImage: "checkmark.circle.fill")
-                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .font(.system(.subheadline, design: .default).weight(.semibold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 16).padding(.vertical, 10)
                 .background(Theme.accent, in: .capsule)
@@ -394,7 +394,7 @@ struct StudioView: View {
                                         .font(.system(size: 22))
                                         .foregroundStyle(.secondary)
                                     Text("This activity can't be composed")
-                                        .font(.system(.footnote, design: .rounded).weight(.semibold))
+                                        .font(.system(.footnote, design: .default).weight(.semibold))
                                         .foregroundStyle(.secondary)
                                     Text("It needs a recorded route. Try another activity, or a style without a map.")
                                         .font(.caption2)
@@ -404,7 +404,7 @@ struct StudioView: View {
                                 } else {
                                     ProgressView().tint(config.edition.accent)
                                     Text("Composing…")
-                                        .font(.system(.footnote, design: .rounded))
+                                        .font(.system(.footnote, design: .default))
                                         .foregroundStyle(.secondary)
                                 }
                             }
@@ -437,7 +437,7 @@ struct StudioView: View {
                     .background(Theme.accent, in: .circle)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Order this print")
-                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        .font(.system(.subheadline, design: .default).weight(.semibold))
                         .foregroundStyle(.primary)
                     Text("Papers, frames and sizes — from \(PrintProduct.print.entryPrice.replacingOccurrences(of: "From ", with: ""))")
                         .font(.caption)

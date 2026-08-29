@@ -66,7 +66,7 @@ struct StudioContentEditor: View {
                         withAnimation(.easeInOut(duration: 0.2)) { isReordering.toggle() }
                     } label: {
                         Text(isReordering ? "Done" : "Reorder")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .font(.system(size: 12, weight: .semibold, design: .default))
                             .foregroundStyle(Theme.accent)
                     }
                     .buttonStyle(.plain)
@@ -104,7 +104,7 @@ struct StudioContentEditor: View {
                         Image(systemName: "plus.circle.fill")
                             .font(.system(size: 16))
                         Text("Add detail")
-                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                            .font(.system(.subheadline, design: .default).weight(.semibold))
                     }
                     .foregroundStyle(Theme.accent)
                     .padding(.vertical, 10)
@@ -128,7 +128,7 @@ struct StudioContentEditor: View {
                     .frame(width: 22)
 
                 Text(line.name)
-                    .font(.system(.subheadline, design: .rounded))
+                    .font(.system(.subheadline, design: .default))
                     .foregroundStyle(show.wrappedValue ? Color.primary : Color.secondary)
 
                 Spacer(minLength: 8)
@@ -140,7 +140,7 @@ struct StudioContentEditor: View {
                 } label: {
                     HStack(spacing: 4) {
                         Text(text.wrappedValue.isEmpty ? placeholder : text.wrappedValue)
-                            .font(.system(.subheadline, design: .rounded))
+                            .font(.system(.subheadline, design: .default))
                             .foregroundStyle(Color.secondary)
                             .lineLimit(1)
                         Image(systemName: "pencil")
@@ -162,7 +162,7 @@ struct StudioContentEditor: View {
             if editingLine == line {
                 HStack(spacing: 8) {
                     TextField(placeholder, text: text)
-                        .font(.system(.subheadline, design: .rounded))
+                        .font(.system(.subheadline, design: .default))
                         .textInputAutocapitalization(.words)
                         .submitLabel(.done)
                         .onSubmit { editingLine = nil }
@@ -172,7 +172,7 @@ struct StudioContentEditor: View {
                     if !text.wrappedValue.isEmpty {
                         Button { text.wrappedValue = "" } label: {
                             Text("Reset")
-                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .font(.system(size: 12, weight: .semibold, design: .default))
                                 .foregroundStyle(Theme.accent)
                         }
                         .buttonStyle(.plain)
@@ -198,7 +198,7 @@ struct StudioContentEditor: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(isHeadline ? "Headline" : (metric == .none ? "Blank" : label))
-                    .font(.system(.subheadline, design: .rounded))
+                    .font(.system(.subheadline, design: .default))
                 if isHeadline {
                     Text(metric == .none ? "None" : metric.label.capitalized)
                         .font(.caption2)
@@ -230,7 +230,7 @@ struct StudioContentEditor: View {
                 Button(action: edit) {
                     HStack(spacing: 4) {
                         Text(metric == .none ? "None" : (metric.value(for: run) ?? "—"))
-                            .font(.system(.subheadline, design: .rounded))
+                            .font(.system(.subheadline, design: .default))
                             .foregroundStyle(Color.secondary)
                             .lineLimit(1)
                         Image(systemName: "chevron.right")
@@ -311,7 +311,7 @@ struct StudioContentEditor: View {
             StudioGroupLabel(text: "Photos")
             Stepper("Photos on poster: \(config.mapPhotoCount)",
                     value: $config.mapPhotoCount, in: 1...3)
-                .font(.system(.subheadline, design: .rounded))
+                .font(.system(.subheadline, design: .default))
             addPhotoButton
         }
     }
@@ -322,7 +322,7 @@ struct StudioContentEditor: View {
                     ? "Add Photo"
                     : "Add Photo · \(run.photoReferences.count) on run",
                   systemImage: "photo.badge.plus")
-                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .font(.system(.subheadline, design: .default).weight(.semibold))
                 .foregroundStyle(Theme.accent)
                 .frame(maxWidth: .infinity)
                 .frame(height: 42)
@@ -385,7 +385,7 @@ struct StudioContentEditor: View {
                 .foregroundStyle(value.wrappedValue ? Theme.accent : Color.secondary.opacity(0.5))
                 .frame(width: 22)
             Text(title)
-                .font(.system(.subheadline, design: .rounded))
+                .font(.system(.subheadline, design: .default))
             Spacer(minLength: 8)
             Toggle("", isOn: value)
                 .labelsHidden()

@@ -271,7 +271,7 @@ struct CollectionBrowserView: View {
 
     private var header: some View {
         Text(collection.descriptor)
-            .font(.system(.subheadline, design: .rounded))
+            .font(.system(.subheadline, design: .default))
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -299,7 +299,7 @@ struct CollectionBrowserView: View {
                 .clipShape(.rect(cornerRadius: 12))
             VStack(alignment: .leading, spacing: 3) {
                 Text(piece.run.displayName)
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .font(.system(.subheadline, design: .default).weight(.semibold))
                     .lineLimit(1)
                 Text(piece.subtitle)
                     .font(.caption)
@@ -333,7 +333,7 @@ struct CollectionBrowserView: View {
                         archiveThumbnail(style)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(style.name)
-                                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                                .font(.system(.subheadline, design: .default).weight(.semibold))
                             Text(style.descriptor)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -366,7 +366,7 @@ struct CollectionBrowserView: View {
                             .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
                     VStack(alignment: .leading, spacing: 3) {
                         Text("The Year Book")
-                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                            .font(.system(.subheadline, design: .default).weight(.semibold))
                         Text("A year of it, bound — layflat hardcover, composed from your months and races.")
                             .font(.caption)
                             .foregroundStyle(.secondary)

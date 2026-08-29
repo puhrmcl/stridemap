@@ -133,7 +133,7 @@ struct YearBookView: View {
     private var footer: some View {
         VStack(spacing: 12) {
             Text("Page \(currentPage + 1) of \(plan.pageCount)  ·  \(BookCatalog.name)  ·  \(BookCatalog.price)")
-                .font(.system(.footnote, design: .rounded).weight(.semibold))
+                .font(.system(.footnote, design: .default).weight(.semibold))
                 .foregroundStyle(.secondary)
 
             // The proof is secondary once the book can be bought. Two filled accent capsules
@@ -204,7 +204,7 @@ struct YearBookView: View {
                         Label("Order the book · \(BookCatalog.price)", systemImage: "bag")
                     }
                 }
-                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .font(.system(.subheadline, design: .default).weight(.semibold))
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 48)
@@ -287,7 +287,7 @@ private struct BookSecondaryButton: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .font(.system(.subheadline, design: .rounded).weight(.semibold))
+            .font(.system(.subheadline, design: .default).weight(.semibold))
             .foregroundStyle(prominent ? .white : Theme.accent)
             .frame(maxWidth: .infinity)
             .frame(height: 48)

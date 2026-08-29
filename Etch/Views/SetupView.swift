@@ -38,9 +38,9 @@ struct SetupView: View {
                 .resizable().scaledToFit().frame(height: 40)
                 .accessibilityLabel("Etch")
             Text("Set Up Etch")
-                .font(.system(.title, design: .rounded).weight(.bold))
+                .font(.system(.title, design: .default).weight(.bold))
             Text("Choose what to track and where the app opens. You can change these anytime in Settings.")
-                .font(.system(.subheadline, design: .rounded))
+                .font(.system(.subheadline, design: .default))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 12)
@@ -68,7 +68,7 @@ struct SetupView: View {
     private func toggleRow(_ title: String, _ icon: String, _ binding: Binding<Bool>) -> some View {
         Toggle(isOn: binding.onChange { on in if on { Task { await sync.sync() } } }) {
             Label(title, systemImage: icon)
-                .font(.system(.body, design: .rounded).weight(.medium))
+                .font(.system(.body, design: .default).weight(.medium))
         }
         .tint(Theme.accent)
         .padding(.horizontal, 18)
@@ -80,7 +80,7 @@ struct SetupView: View {
             didCompleteSetup = true
         } label: {
             Text("Get Started")
-                .font(.system(.headline, design: .rounded))
+                .font(.system(.headline, design: .default))
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 54)

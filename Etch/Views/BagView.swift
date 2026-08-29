@@ -96,7 +96,7 @@ struct BagView: View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
-                    .font(.system(.headline, design: .rounded))
+                    .font(.system(.headline, design: .default))
                 Text(item.detail)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -105,7 +105,7 @@ struct BagView: View {
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 6) {
                 Text(item.price)
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .font(.system(.subheadline, design: .default).weight(.semibold))
                     .monospacedDigit()
                 Button {
                     remove(item)
@@ -132,11 +132,11 @@ struct BagView: View {
         VStack(spacing: 12) {
             HStack {
                 Text(cart.count == 1 ? "1 piece" : "\(cart.count) pieces")
-                    .font(.system(.subheadline, design: .rounded))
+                    .font(.system(.subheadline, design: .default))
                     .foregroundStyle(.secondary)
                 Spacer()
                 Text(cart.subtotal)
-                    .font(.system(.title3, design: .rounded).weight(.semibold))
+                    .font(.system(.title3, design: .default).weight(.semibold))
                     .monospacedDigit()
             }
 
@@ -161,7 +161,7 @@ struct BagView: View {
                 }
                 Button { checkout = url } label: {
                     Text(ApplePayConfig.isConfigured ? "Other ways to pay" : "Check out · \(cart.subtotal)")
-                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        .font(.system(.subheadline, design: .default).weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 13)
                         .foregroundStyle(ApplePayConfig.isConfigured ? Theme.accent : .white)
@@ -199,16 +199,16 @@ struct BagView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 Text(order.productName)
-                    .font(.system(.headline, design: .rounded))
+                    .font(.system(.headline, design: .default))
                 Spacer(minLength: 8)
                 Text(order.sizeLabel)
-                    .font(.system(.subheadline, design: .rounded))
+                    .font(.system(.subheadline, design: .default))
                     .foregroundStyle(.secondary)
             }
 
             HStack(spacing: 8) {
                 Text(order.status.label)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .font(.system(size: 11, weight: .semibold, design: .default))
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(statusTint(order.status).opacity(0.14), in: .capsule)
                     .foregroundStyle(statusTint(order.status))
@@ -221,7 +221,7 @@ struct BagView: View {
                 Link(destination: tracking) {
                     Label(order.carrier.map { "Track with \($0)" } ?? "Track this order",
                           systemImage: "shippingbox")
-                        .font(.system(.footnote, design: .rounded).weight(.semibold))
+                        .font(.system(.footnote, design: .default).weight(.semibold))
                 }
             }
         }

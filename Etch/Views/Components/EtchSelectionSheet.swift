@@ -21,7 +21,7 @@ struct SelectionSheetHeader: View {
     var body: some View {
         ZStack {
             Text(title)
-                .font(.system(.title3, design: .rounded).weight(.bold))
+                .font(.system(.title3, design: .default).weight(.bold))
                 .frame(maxWidth: .infinity)
             HStack {
                 Spacer()
@@ -61,7 +61,7 @@ struct SelectionTile: View {
                             .strokeBorder(option.isSelected ? Theme.accent : Color.clear, lineWidth: 2.5)
                     )
                 Text(option.label)
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .font(.system(.subheadline, design: .default).weight(.semibold))
                     .foregroundStyle(option.isSelected ? Theme.accent : .primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)

@@ -391,7 +391,7 @@ private struct PrivacyView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Your Data Stays Yours")
-                    .font(.system(.title2, design: .rounded).weight(.bold))
+                    .font(.system(.title2, design: .default).weight(.bold))
                 Text("""
                 Etch reads your running workouts and GPS routes from Apple Health \
                 with read-only access. If you connect Strava, it is used only to enrich \

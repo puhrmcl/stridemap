@@ -22,7 +22,7 @@ struct RunMonthTile: View {
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(run.name)
-                        .font(.system(compact ? .caption : .subheadline, design: .rounded).weight(.semibold))
+                        .font(.system(compact ? .caption : .subheadline, design: .default).weight(.semibold))
                         .lineLimit(1)
                     Text(Format.distance(run.distance))
                         .font(compact ? .caption2 : .caption)

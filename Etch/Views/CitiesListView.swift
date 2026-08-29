@@ -45,15 +45,15 @@ struct CitiesListView: View {
         VStack(spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("\(places.count)")
-                    .font(.system(size: 44, weight: .bold, design: .rounded))
+                    .font(.system(size: 44, weight: .bold, design: .default))
                     .foregroundStyle(Theme.accent)
                     .contentTransition(.numericText())
                 Text(places.count == 1 ? "city" : "cities")
-                    .font(.system(.title3, design: .rounded).weight(.semibold))
+                    .font(.system(.title3, design: .default).weight(.semibold))
                     .foregroundStyle(.secondary)
             }
             Text("\(totalRuns) runs · \(Format.distance(totalDistance, decimals: 0))")
-                .font(.system(.subheadline, design: .rounded))
+                .font(.system(.subheadline, design: .default))
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
@@ -64,7 +64,7 @@ struct CitiesListView: View {
     private var list: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Where you've run")
-                .font(.system(.title3, design: .rounded).weight(.bold))
+                .font(.system(.title3, design: .default).weight(.bold))
 
             ForEach(Array(places.enumerated()), id: \.element.id) { index, place in
                 CityRow(
@@ -86,13 +86,13 @@ private struct CityRow: View {
     var body: some View {
         HStack(spacing: 14) {
             Text("\(rank)")
-                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                .font(.system(.subheadline, design: .default).weight(.bold))
                 .foregroundStyle(.secondary)
                 .frame(width: 24, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(place.label)
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .font(.system(.subheadline, design: .default).weight(.semibold))
                     .lineLimit(1)
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
@@ -108,7 +108,7 @@ private struct CityRow: View {
             }
 
             Text("\(place.runs.count)")
-                .font(.system(.headline, design: .rounded))
+                .font(.system(.headline, design: .default))
                 .foregroundStyle(.primary)
                 .monospacedDigit()
             Text("runs")
