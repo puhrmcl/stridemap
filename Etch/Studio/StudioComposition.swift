@@ -355,6 +355,8 @@ struct StudioComposition: View {
         Group {
             if isFullBleedMap {
                 fullBleedComposition
+            } else if isNameplateMap {
+                nameplateComposition
             } else if layout == .gallery {
                 galleryComposition
             } else if layout == .keepsake {
@@ -614,6 +616,116 @@ struct StudioComposition: View {
                 }
             }
             .clipShape(.rect(cornerRadius: 6))
+    }
+
+    // MARK: Nameplate — the place named at the top, the map beneath, the numbers along the foot.
+
+    private var isNameplateMap: Bool {
+        layout == .classic && MapLayout(rawValue: mapLayoutRaw) == .nameplate
+    }
+
+    /// The arrangement this category has settled on, and the one Etch did not have.
+    ///
+    /// Every other Map template puts the artwork first and the words underneath, which makes the
+    /// distance the loudest thing on the sheet — a piece about a number. A run is remembered by
+    /// where it was: Bright Angel, the Camino, Boston. So the name goes at the top, set large, and
+    /// the numbers go where numbers belong on a printed record — a quiet row along the bottom,
+    /// under a rule, all of them the same size as each other.
+    ///
+    /// That last part is the substantive change. The other layouts promote one metric to a
+    /// headline and demote the rest to slots; here every figure is a peer, so distance, time and
+    /// climb read as three facts about one day rather than as a score with footnotes.
+    private var nameplateComposition: some View {
+        let canvas = Self.canvasSize(orientation, dataPlacement, printAspect)
+        return VStack(spacing: 0) {
+            nameplateHead
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
+            measurableFlexArt
+            if hasElevationStrip {
+                elevationBand.fixedSize(horizontal: false, vertical: true).layoutPriority(1)
+            }
+            if hasPaceStrip {
+                paceBand.fixedSize(horizontal: false, vertical: true).layoutPriority(1)
+            }
+            nameplateFoot
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
+        }
+        .frame(width: canvas.width, height: measuring ? nil : canvas.height)
+    }
+
+    /// The masthead: the name, big and flush left, with the date beneath it.
+    private var nameplateHead: some View {
+        VStack(alignment: .leading, spacing: sp(10)) {
+            if showTitle && !titleText.isEmpty {
+                Text(titleText.uppercased())
+                    .font(.system(size: ts(62 * titleScale),
+                                  weight: .bold, design: titleFont.design))
+                    // Tight. A headline this size wants its letters close; the wide tracking the
+                    // other layouts use is for small caps, and at 62pt it reads as a gap.
+                    .tracking(titleFont == .editorial ? 1 : 0)
+                    .foregroundStyle(inkColor)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.4)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            if !dateLine.isEmpty {
+                Text(dateLine.uppercased())
+                    .font(.system(size: ts(20 * dateScale), weight: .semibold))
+                    .tracking(3)
+                    .foregroundStyle(subtleColor)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.horizontal, 70)
+        .padding(.top, max(40, sp(62)))
+        .padding(.bottom, sp(26))
+        .background(groundColor)
+    }
+
+    /// The foot: the place, then a rule, then the figures — the shape a printed record takes.
+    private var nameplateFoot: some View {
+        VStack(spacing: sp(18)) {
+            if !placeLine.isEmpty {
+                Text(placeLine.uppercased())
+                    .font(.system(size: ts(22 * locationScale), weight: .semibold))
+                    .tracking(2.5)
+                    .foregroundStyle(inkColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            if !placeLine.isEmpty && !nameplateStats.isEmpty {
+                Rectangle().fill(inkColor.opacity(0.85)).frame(height: 2)
+            }
+            if !nameplateStats.isEmpty {
+                HStack(alignment: .top, spacing: 0) {
+                    ForEach(Array(nameplateStats.enumerated()), id: \.offset) { _, item in
+                        stat(item.metric, item.value)
+                    }
+                }
+            }
+            if includeWeather, let weather = run.weatherLine() {
+                weatherText(weather, leading: false)
+            }
+        }
+        .padding(.horizontal, 70)
+        .padding(.top, sp(24))
+        .padding(.bottom, max(40, sp(62)))
+        .background(groundColor)
+    }
+
+    /// Every figure the poster carries, as peers: the headline metric joins the slots in the row
+    /// rather than standing above them, because this layout has no headline slot to stand in.
+    private var nameplateStats: [(metric: StatMetric, value: String)] {
+        var out: [(metric: StatMetric, value: String)] = []
+        if heroMetric != .none {
+            out.append((heroMetric, metricValue(heroMetric) ?? "—"))
+        }
+        out += resolvedStats.filter { $0.metric != .none }
+        return Array(out.prefix(4))
     }
 
     // MARK: Full Bleed — the map runs edge to edge, type set over it, data in the corners.
@@ -1051,7 +1163,9 @@ struct StudioComposition: View {
                     case .statement: classicFooter
                     case .minimal:   mapMinimalFooter
                     case .photo:     mapPhotoFooter
-                    case .fullBleed: classicFooter   // unreachable — full bleed has no footer
+                    // Both of these compose the whole sheet themselves and never reach the footer.
+                    case .fullBleed: classicFooter
+                    case .nameplate: classicFooter
                     }
                 } else {
                     switch layout {

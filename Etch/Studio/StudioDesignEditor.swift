@@ -124,7 +124,19 @@ struct StudioDesignEditor: View {
                 StudioVariant(
                     id: "layout-\(layout.rawValue)",
                     name: layout.name,
-                    apply: { var c = $0; c.mapLayout = layout; return c },
+                    apply: { base in
+                        var c = base
+                        c.mapLayout = layout
+                        // Nameplate's foot is a row of peer figures, and a row of one figure is
+                        // not a row. A poster that has never had slots set gets the two a runner
+                        // would have picked anyway — they appear in Content straight away and come
+                        // off in a tap, which is what a template is entitled to do and a hidden
+                        // rendering rule is not.
+                        if layout == .nameplate && c.dataSlots.isEmpty {
+                            c.dataSlots = [.elevationGain, .time]
+                        }
+                        return c
+                    },
                     matches: { $0.mapLayout == layout }
                 )
             }

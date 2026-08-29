@@ -69,10 +69,15 @@ enum MapStyle: String, CaseIterable, Identifiable {
 /// title and date under the map; `photo` fills the data area with 1–3 photos; `fullBleed` runs
 /// the map edge to edge with the type set over it and the data anchored in the corners.
 enum MapLayout: String, CaseIterable, Identifiable {
-    case statement, minimal, photo, fullBleed
+    /// Nameplate leads the list because it is the one most people want and the one the category
+    /// has settled on: the place named large at the top, the map beneath it, the numbers in a row
+    /// along the foot. Statement is the older Etch arrangement, which makes the distance the hero
+    /// and sets the name above it as a caption — a piece about a number rather than about a place.
+    case nameplate, statement, minimal, photo, fullBleed
     var id: String { rawValue }
     var name: String {
         switch self {
+        case .nameplate: return "Nameplate"
         case .statement: return "Statement"
         case .minimal:   return "Minimal"
         case .photo:     return "Photo"
@@ -81,6 +86,7 @@ enum MapLayout: String, CaseIterable, Identifiable {
     }
     var icon: String {
         switch self {
+        case .nameplate: return "textformat.size.larger"
         case .statement: return "doc.richtext"
         case .minimal:   return "textformat"
         case .photo:     return "photo.on.rectangle"
@@ -171,8 +177,10 @@ enum GalleryDesign: String, CaseIterable, Identifiable {
 struct PosterConfig {
     var family: PosterFamily = .map
     var mapStyle: MapStyle = .standard
-    /// Map product: how the area beneath the map is composed (Statement / Minimal / Photo).
-    var mapLayout: MapLayout = .statement
+    /// Map product: how the sheet is composed. Nameplate is the default — a new poster should open
+    /// on the arrangement most people are going to want, and a piece named for its place is that.
+    /// A poster saved before this keeps whatever it was saved with; only new ones change.
+    var mapLayout: MapLayout = .nameplate
     /// Map Photo layout: how many photos to show (1–3).
     var mapPhotoCount: Int = 1
     /// Poster text size multiplier (0.85 = Small … 1.3 = XL). 1 = the designed size. Applies to
@@ -337,7 +345,13 @@ struct PosterConfig {
     /// stepper away in the Data tab for the athlete who wants them.
     static func makeDefault(for run: Run) -> PosterConfig {
         var c = PosterConfig()
-        c.dataSlots = []
+        // Three figures, as peers, along the foot.
+        //
+        // The old default was one metric and nothing else, because the old default layout blew
+        // that one metric up into a headline and three of those would have been a dashboard.
+        // Nameplate sets them small and quiet under a rule, where three reads as a record of a day
+        // and one reads as an unfinished row.
+        c.dataSlots = [.elevationGain, .time]
         // Gallery frames lead with a photograph, which is right until the run has none — then
         // Portfolio (a single frame) opened on an empty sheet and the product looked broken
         // rather than unfilled. With no photos the frames lead with the map, and the photograph

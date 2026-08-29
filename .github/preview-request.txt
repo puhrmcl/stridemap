@@ -11,11 +11,11 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b460: the framed mockups, which had to stand next to photographed
-# competitor mockups — depth, grain, glazing and two shadows — plus the route's start
-# and finish markers, which map panels drew and vector routes did not.
+# Requested for b461: the Nameplate template — the place named large at the top, the
+# map beneath, the figures as peers along the foot — now the default for a new poster.
+# Plus the framed mockup and the route's new start and finish markers.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=prints,map-studio,studio@medalFrame
+screens=map-studio,prints,gallery-studio
 appearance=light
