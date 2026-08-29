@@ -456,32 +456,30 @@ enum EtchHeaderMetrics {
 
 // MARK: - The header row
 
-private struct EtchRowLeadKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
-}
-
-private struct EtchRowTrailKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
-}
-
 /// Three slots on one line: something leading, something centred on the row's own midline, and
 /// something trailing.
 ///
-/// The centring is the reason this exists. Two `Spacer`s do not centre anything — a spacer divides
-/// the space that is *left over*, so the middle slot lands midway between the two outer ones. That
-/// is only the row's centre when the outer slots happen to be the same width, and they never are:
-/// a wordmark is wider than an avatar. The whole difference arrives as an offset on the one thing
-/// that was supposed to be centred.
+/// The centring is the reason this exists, and it took two wrong answers to get here.
 ///
-/// So both outer slots are measured and the narrower is padded to match. With the leftovers equal,
-/// the spacers do put the middle on the centre line. The measurement covers the slots only, never
-/// the balancing pad, so nothing feeds back into itself.
+/// A `Spacer` on each side does not centre anything — a spacer divides the space that is *left
+/// over*, so the middle lands midway between the two outer slots. That is the row's centre only
+/// when those slots are the same width, and they never are: a wordmark is wider than an avatar,
+/// and the whole difference arrives as an offset on the one thing meant to be centred.
 ///
-/// It is a shared view rather than a technique applied twice because the app now needs it in two
+/// Measuring both slots and padding the narrower one does centre it, but only on the *second*
+/// layout pass — the widths arrive through preferences, land in `@State`, and the row re-lays
+/// out. Measured off two renders of the same screen, the title sat 20pt apart in light and dark
+/// purely by which capture happened to catch the settled pass. A layout that is right only after
+/// it has been wrong once is not right.
+///
+/// Giving both outer slots `maxWidth: .infinity` is the answer. SwiftUI divides the space left
+/// after the centre among flexible siblings *equally*, so the two sides are the same width by
+/// construction — no measurement, no state, no second pass, correct in the first frame. The
+/// centre takes layout priority so it is sized to its content before the sides claim the rest.
+///
+/// It is a shared view rather than a technique applied twice because the app needs it in two
 /// places that must agree exactly — the map's pill and every other tab's header. Two copies of a
-/// layout trick is how the two headers drifted apart the first time.
+/// layout trick is how those two drifted apart the first time.
 struct EtchCenteredRow<Leading: View, Center: View, Trailing: View>: View {
     /// Gap between a slot and the space beside it. Declared before the slots so the synthesised
     /// initialiser puts the closures last and trailing-closure syntax works at the call site.
@@ -491,32 +489,14 @@ struct EtchCenteredRow<Leading: View, Center: View, Trailing: View>: View {
     @ViewBuilder var center: Center
     @ViewBuilder var trailing: Trailing
 
-    @State private var leadWidth: CGFloat = 0
-    @State private var trailWidth: CGFloat = 0
-
     var body: some View {
         HStack(spacing: spacing) {
             leading
-                .background(GeometryReader { geo in
-                    Color.clear.preference(key: EtchRowLeadKey.self, value: geo.size.width)
-                })
-            if trailWidth > leadWidth {
-                Color.clear.frame(width: trailWidth - leadWidth, height: 1)
-            }
-
-            Spacer(minLength: 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
             center
-            Spacer(minLength: 8)
-
-            if leadWidth > trailWidth {
-                Color.clear.frame(width: leadWidth - trailWidth, height: 1)
-            }
+                .layoutPriority(1)
             trailing
-                .background(GeometryReader { geo in
-                    Color.clear.preference(key: EtchRowTrailKey.self, value: geo.size.width)
-                })
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .onPreferenceChange(EtchRowLeadKey.self) { if $0 > 0 { leadWidth = $0 } }
-        .onPreferenceChange(EtchRowTrailKey.self) { if $0 > 0 { trailWidth = $0 } }
     }
 }

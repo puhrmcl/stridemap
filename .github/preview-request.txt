@@ -11,9 +11,9 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b484: every tab's header is now one row — mark leading, a small centred title
-# where the map puts its totals, avatar trailing. Flip the four shots: the mark and the avatar
-# should not move, and the title should sit on the same centre line the totals do.
+# Requested for b485: the centred slot should land on the row's midpoint in the FIRST frame.
+# b484 measured +14.8pt in light and -5.8pt in dark on the same screen — the same content cannot
+# move 20pt between appearances, so that was a layout settling late. Both shots should read ~0.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
