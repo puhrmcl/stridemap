@@ -124,7 +124,7 @@ struct StudioContentEditor: View {
             HStack(spacing: 12) {
                 Image(systemName: line.icon)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(show.wrappedValue ? Theme.accent : .tertiary)
+                    .foregroundStyle(show.wrappedValue ? Theme.accent : Color.secondary.opacity(0.5))
                     .frame(width: 22)
 
                 Text(line.name)
@@ -382,7 +382,7 @@ struct StudioContentEditor: View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(value.wrappedValue ? Theme.accent : .tertiary)
+                .foregroundStyle(value.wrappedValue ? Theme.accent : Color.secondary.opacity(0.5))
                 .frame(width: 22)
             Text(title)
                 .font(.system(.subheadline, design: .rounded))

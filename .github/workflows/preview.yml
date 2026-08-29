@@ -54,10 +54,21 @@ jobs:
             -configuration Debug \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath dd \
-            CODE_SIGNING_ALLOWED=NO 2>&1 | grep -E "error:|warning: will never be executed|BUILD (SUCCEEDED|FAILED)" || true
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee build.log \
+            | grep -E "error:|warning: will never be executed|BUILD (SUCCEEDED|FAILED)" || true
           # A quiet success is the point of the filter above, but a failure has to be legible:
           # `| tail -5` used to swallow the compiler diagnostic and leave only "BUILD FAILED",
           # which cost a whole round trip to the build workflow to read one line.
+          #
+          # And a failure has to actually *fail*. `|| true` keeps the pipeline's exit code from
+          # ending the step, so a build that never produced an app used to carry on to the
+          # install — which reported "Missing bundle ID" from an empty Etch.app and buried the
+          # one compiler diagnostic that mattered two hundred lines up the log. Fail here, on
+          # the real reason.
+          if grep -q "BUILD FAILED" build.log; then
+            echo "::error::Build failed — the compiler diagnostics are printed above."
+            exit 1
+          fi
           test -d dd/Build/Products
 
       - name: Read the request
