@@ -44,7 +44,7 @@ struct BookPageView: View {
     private func coverPage(_ year: Int) -> some View {
         VStack(spacing: 0) {
             Text("A YEAR IN MOTION")
-                .font(.system(size: 22, weight: .semibold))
+                .font(.etch(size: 22, weight: .semibold))
                 .tracking(10)
                 .foregroundStyle(subtle)
                 .padding(.top, margin + 8)
@@ -65,11 +65,11 @@ struct BookPageView: View {
 
             VStack(spacing: 6) {
                 Text(String(year))
-                    .font(.system(size: 120, weight: .regular, design: .serif))
+                    .font(.etchSerif(size: 120, weight: .regular))
                     .tracking(6)
                     .foregroundStyle(ink)
                 Text(totalDistanceLine.uppercased())
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.etch(size: 18, weight: .semibold))
                     .tracking(6)
                     .foregroundStyle(subtle)
             }
@@ -86,14 +86,14 @@ struct BookPageView: View {
         VStack(spacing: 22) {
             Spacer()
             Text("THE YEAR BOOK")
-                .font(.system(size: 17, weight: .semibold)).tracking(8)
+                .font(.etch(size: 17, weight: .semibold)).tracking(8)
                 .foregroundStyle(subtle)
             Text(String(year))
-                .font(.system(size: 92, weight: .regular, design: .serif)).tracking(4)
+                .font(.etchSerif(size: 92, weight: .regular)).tracking(4)
                 .foregroundStyle(ink)
             if let first = plan.runs.first, let last = plan.runs.last {
                 Text("\(Format.date(first.startDate))  —  \(Format.date(last.startDate))".uppercased())
-                    .font(.system(size: 15, weight: .semibold)).tracking(4)
+                    .font(.etch(size: 15, weight: .semibold)).tracking(4)
                     .foregroundStyle(subtle)
             }
             Spacer()
@@ -147,11 +147,11 @@ struct BookPageView: View {
         return VStack(alignment: .leading, spacing: 30) {
             HStack(alignment: .firstTextBaseline) {
                 Text(monthName(monthStart))
-                    .font(.system(size: 54, weight: .regular, design: .serif)).tracking(2)
+                    .font(.etchSerif(size: 54, weight: .regular)).tracking(2)
                     .foregroundStyle(ink)
                 Spacer()
                 Text("\(stats.totalRuns) \(stats.totalRuns == 1 ? "ACTIVITY" : "ACTIVITIES")  ·  \(Format.distanceValue(stats.totalDistanceMeters).formatted(.number.precision(.fractionLength(0)))) \(UnitSystem.current.label.uppercased())")
-                    .font(.system(size: 16, weight: .semibold)).tracking(3)
+                    .font(.etch(size: 16, weight: .semibold)).tracking(3)
                     .foregroundStyle(subtle)
             }
             Rectangle().fill(subtle.opacity(0.35)).frame(height: 1.5)
@@ -159,7 +159,7 @@ struct BookPageView: View {
             if cells.isEmpty {
                 Spacer()
                 Text("INDOOR MILES — NO LINES TO DRAW, STILL COUNTED ABOVE")
-                    .font(.system(size: 14, weight: .semibold)).tracking(3)
+                    .font(.etch(size: 14, weight: .semibold)).tracking(3)
                     .foregroundStyle(subtle)
                     .frame(maxWidth: .infinity)
                 Spacer()
@@ -184,12 +184,12 @@ struct BookPageView: View {
                 .padding(.horizontal, 6)
             VStack(spacing: 2) {
                 Text(run.name.uppercased())
-                    .font(.system(size: 11.5, weight: .semibold)).tracking(1.5)
+                    .font(.etch(size: 11.5, weight: .semibold)).tracking(1.5)
                     .foregroundStyle(ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Text("\(StatMetric.distance.value(for: run) ?? "")  ·  \(shortDate(run.startDate))".uppercased())
-                    .font(.system(size: 10.5, weight: .medium)).tracking(1.2)
+                    .font(.etch(size: 10.5, weight: .medium)).tracking(1.2)
                     .foregroundStyle(subtle)
             }
         }
@@ -217,27 +217,27 @@ struct BookPageView: View {
                 // Right: the record.
                 VStack(alignment: .leading, spacing: 20) {
                     Text("RACE DAY")
-                        .font(.system(size: 14, weight: .semibold)).tracking(6)
+                        .font(.etch(size: 14, weight: .semibold)).tracking(6)
                         .foregroundStyle(accent)
                     Text(run.name.uppercased())
-                        .font(.system(size: 40, weight: .regular, design: .serif)).tracking(2)
+                        .font(.etchSerif(size: 40, weight: .regular)).tracking(2)
                         .foregroundStyle(ink)
                         .lineLimit(3)
                         .minimumScaleFactor(0.6)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(raceMetaLine(run).uppercased())
-                        .font(.system(size: 14, weight: .semibold)).tracking(3)
+                        .font(.etch(size: 14, weight: .semibold)).tracking(3)
                         .foregroundStyle(subtle)
 
                     if let time = StatMetric.time.value(for: run) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(time)
-                                .font(.system(size: 66, weight: .bold))
+                                .font(.etch(size: 66, weight: .bold))
                                 .foregroundStyle(ink)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.6)
                             Text("TIME")
-                                .font(.system(size: 13, weight: .semibold)).tracking(5)
+                                .font(.etch(size: 13, weight: .semibold)).tracking(5)
                                 .foregroundStyle(accent)
                         }
                         .padding(.top, 6)
@@ -277,11 +277,11 @@ struct BookPageView: View {
         if let value = metric.value(for: run) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(value)
-                    .font(.system(size: 22, weight: .bold))
+                    .font(.etch(size: 22, weight: .bold))
                     .foregroundStyle(ink)
                     .lineLimit(1)
                 Text(metric.label)
-                    .font(.system(size: 10.5, weight: .semibold)).tracking(2)
+                    .font(.etch(size: 10.5, weight: .semibold)).tracking(2)
                     .foregroundStyle(subtle)
             }
         }
@@ -294,15 +294,15 @@ struct BookPageView: View {
         return VStack(spacing: 20) {
             Spacer()
             Text("EVERY LINE ABOVE WAS RUN, NOT DRAWN.")
-                .font(.system(size: 16, weight: .semibold)).tracking(4)
+                .font(.etch(size: 16, weight: .semibold)).tracking(4)
                 .foregroundStyle(subtle)
                 .multilineTextAlignment(.center)
             Text("\(String(year)) · \(Format.distanceValue(stats.totalDistanceMeters).formatted(.number.precision(.fractionLength(0)))) \(UnitSystem.current.label.uppercased())")
-                .font(.system(size: 26, weight: .regular, design: .serif)).tracking(3)
+                .font(.etchSerif(size: 26, weight: .regular)).tracking(3)
                 .foregroundStyle(ink)
             Spacer()
             Text("MADE WITH ETCH")
-                .font(.system(size: 11, weight: .semibold)).tracking(4)
+                .font(.etch(size: 11, weight: .semibold)).tracking(4)
                 .foregroundStyle(subtle.opacity(0.7))
                 .padding(.bottom, 8)
         }
@@ -314,7 +314,7 @@ struct BookPageView: View {
         ZStack {
             ground
             Text(String(year))
-                .font(.system(size: 20, weight: .regular, design: .serif)).tracking(8)
+                .font(.etchSerif(size: 20, weight: .regular)).tracking(8)
                 .foregroundStyle(subtle)
         }
     }
@@ -324,10 +324,10 @@ struct BookPageView: View {
     private func pageHeader(_ title: String, subtitle: String) -> some View {
         VStack(spacing: 8) {
             Text(title)
-                .font(.system(size: 15, weight: .semibold)).tracking(7)
+                .font(.etch(size: 15, weight: .semibold)).tracking(7)
                 .foregroundStyle(subtle)
             Text(subtitle)
-                .font(.system(size: 56, weight: .regular, design: .serif)).tracking(3)
+                .font(.etchSerif(size: 56, weight: .regular)).tracking(3)
                 .foregroundStyle(ink)
         }
         .frame(maxWidth: .infinity)
@@ -336,12 +336,12 @@ struct BookPageView: View {
     private func bigStat(_ value: String, _ label: String) -> some View {
         VStack(spacing: 8) {
             Text(value)
-                .font(.system(size: 52, weight: .bold))
+                .font(.etch(size: 52, weight: .bold))
                 .foregroundStyle(ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
             Text(label)
-                .font(.system(size: 13, weight: .semibold)).tracking(3)
+                .font(.etch(size: 13, weight: .semibold)).tracking(3)
                 .foregroundStyle(subtle)
         }
         .frame(maxWidth: .infinity)

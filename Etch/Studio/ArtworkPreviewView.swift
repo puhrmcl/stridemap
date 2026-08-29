@@ -19,7 +19,7 @@ struct ArtworkPreviewView: View {
             } else {
                 // Only reachable if the render was cleared between tap and presentation.
                 Text("Nothing to preview yet")
-                    .font(.system(.footnote, design: .default))
+                    .font(.etch(.footnote))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }

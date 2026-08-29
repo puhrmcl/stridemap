@@ -165,7 +165,7 @@ struct PrintShopView: View {
             .overlay(alignment: .top) {
                 if addedToBag {
                     Label("Added to your bag", systemImage: "checkmark.circle.fill")
-                        .font(.system(.subheadline, design: .default).weight(.semibold))
+                        .font(.etch(.subheadline, weight: .semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 16).padding(.vertical, 10)
                         .background(Theme.accent, in: .capsule)
@@ -353,20 +353,20 @@ struct PrintShopView: View {
     private var titleBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(subjectTitle ?? (isMedal ? "Medal Frame" : product.name))
-                .font(.system(.title2, design: .default).weight(.bold))
+                .font(.etch(.title2, weight: .bold))
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(configurationLine)
-                .font(.system(.subheadline, design: .default))
+                .font(.etch(.subheadline))
                 .foregroundStyle(.secondary)
 
             Text(isMedal ? MedalFrameCatalog.price : size.price)
-                .font(.system(.title3, design: .default).weight(.semibold))
+                .font(.etch(.title3, weight: .semibold))
                 .monospacedDigit()
 
             if let delivery = EtchConfig.current.ordering.delivery, !delivery.isEmpty {
                 Label(delivery, systemImage: "shippingbox")
-                    .font(.system(.footnote, design: .default))
+                    .font(.etch(.footnote))
                     .foregroundStyle(.secondary)
             }
         }
@@ -629,7 +629,7 @@ struct PrintShopView: View {
                     .background(isSelected ? Theme.accent : Theme.accent.opacity(0.10),
                                 in: .rect(cornerRadius: 12))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(name).font(.system(.headline, design: .default))
+                    Text(name).font(.etch(.headline))
                     Text(tagline)
                         .font(.footnote).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -691,7 +691,7 @@ struct PrintShopView: View {
                     Button { size = s } label: {
                         VStack(spacing: 3) {
                             Text(s.label)
-                                .font(.system(.subheadline, design: .default).weight(.semibold))
+                                .font(.etch(.subheadline, weight: .semibold))
                             Text(s.price)
                                 .font(.caption).foregroundStyle(.secondary)
                         }
@@ -785,7 +785,7 @@ struct PrintShopView: View {
             // since the date moves and a stale one is worse than none at all.
             if let seasonal = EtchConfig.current.seasonal, seasonal.isActive {
                 Label(seasonal.message, systemImage: "shippingbox")
-                    .font(.system(.footnote, design: .default).weight(.semibold))
+                    .font(.etch(.footnote, weight: .semibold))
                     .foregroundStyle(Theme.accent)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
@@ -811,7 +811,7 @@ struct PrintShopView: View {
                         walletButtons(cart: preparedCart)
                         Button { checkout = CheckoutTarget(url: preparedCart.checkoutURL) } label: {
                             Text("Other ways to pay")
-                                .font(.system(.subheadline, design: .default).weight(.semibold))
+                                .font(.etch(.subheadline, weight: .semibold))
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
                                 .foregroundStyle(Theme.accent)
@@ -833,7 +833,7 @@ struct PrintShopView: View {
                                           systemImage: "bag")
                                 }
                             }
-                            .font(.system(.headline, design: .default))
+                            .font(.etch(.headline))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
                             .background(Theme.accent, in: .rect(cornerRadius: 14))
@@ -858,7 +858,7 @@ struct PrintShopView: View {
                                     Label("Add to Bag", systemImage: "bag.badge.plus")
                                 }
                             }
-                            .font(.system(.subheadline, design: .default).weight(.semibold))
+                            .font(.etch(.subheadline, weight: .semibold))
                             .foregroundStyle(Theme.accent)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
@@ -917,7 +917,7 @@ struct PrintShopView: View {
     private func unavailableNote(_ title: String, detail: String) -> some View {
         VStack(spacing: 6) {
             Label(title, systemImage: "clock")
-                .font(.system(.subheadline, design: .default).weight(.semibold))
+                .font(.etch(.subheadline, weight: .semibold))
                 .foregroundStyle(Theme.accent)
             Text(detail)
                 .font(.footnote)
@@ -939,13 +939,13 @@ struct PrintShopView: View {
     private func sectionLabel(_ text: String, value: String? = nil) -> some View {
         HStack(spacing: 6) {
             Text(text)
-                .font(.system(.subheadline, design: .default).weight(.semibold))
+                .font(.etch(.subheadline, weight: .semibold))
             if let value {
                 Text("—")
-                    .font(.system(.subheadline, design: .default))
+                    .font(.etch(.subheadline))
                     .foregroundStyle(.tertiary)
                 Text(value)
-                    .font(.system(.subheadline, design: .default))
+                    .font(.etch(.subheadline))
                     .foregroundStyle(.secondary)
             }
         }
@@ -985,7 +985,7 @@ struct PrintShopView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             } label: {
                 Text("Product details")
-                    .font(.system(.headline, design: .default))
+                    .font(.etch(.headline))
             }
             .tint(.primary)
         }
@@ -996,7 +996,7 @@ struct PrintShopView: View {
     private func specRow(_ title: String, _ body: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
-                .font(.system(.subheadline, design: .default).weight(.semibold))
+                .font(.etch(.subheadline, weight: .semibold))
             Text(body)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -1017,7 +1017,7 @@ struct PrintShopView: View {
         let others = PrintProduct.offered.filter { isMedal || $0 != product }
         VStack(alignment: .leading, spacing: 12) {
             Text("The same piece, finished differently")
-                .font(.system(.headline, design: .default))
+                .font(.etch(.headline))
             ForEach(others) { other in
                 shelfCard(name: other.name, tagline: other.tagline, symbol: other.symbol,
                           price: other.entryPrice) {
@@ -1048,7 +1048,7 @@ struct PrintShopView: View {
                     .background(Theme.accent.opacity(0.10), in: .rect(cornerRadius: 11))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name)
-                        .font(.system(.subheadline, design: .default).weight(.semibold))
+                        .font(.etch(.subheadline, weight: .semibold))
                         .foregroundStyle(.primary)
                     Text(tagline)
                         .font(.caption)
@@ -1058,7 +1058,7 @@ struct PrintShopView: View {
                 }
                 Spacer(minLength: 8)
                 Text(price)
-                    .font(.system(.footnote, design: .default).weight(.semibold))
+                    .font(.etch(.footnote, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
             .padding(14)

@@ -67,7 +67,7 @@ struct ScopedSearchView: View {
                 HStack(spacing: 6) {
                     Image(systemName: scope.symbol).font(.system(size: 11, weight: .semibold))
                     Text("in \(scope.title)")
-                        .font(.system(.footnote, design: .default).weight(.semibold))
+                        .font(.etch(.footnote, weight: .semibold))
                     Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
                 }
                 .padding(.horizontal, 11).padding(.vertical, 6)
@@ -148,7 +148,7 @@ struct ScopedSearchView: View {
     private func runRow(_ run: Run) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(run.name)
-                .font(.system(.subheadline, design: .default).weight(.semibold))
+                .font(.etch(.subheadline, weight: .semibold))
                 .foregroundStyle(.primary)
             // Distance is on the row because it is now searchable: a result you matched on
             // "13.1" should show you the 13.1, or the match looks like a mistake.

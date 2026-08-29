@@ -11,9 +11,9 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b471: the brand rollout — Etch Ink type on Warm Canvas, Etch Blue only where
-# something is live, the new grotesk wordmark, and no rounded type anywhere. Both appearances,
-# because dark mode is designed here rather than inverted.
+# Requested for b472: the app is in its own typeface. Inter Tight for display, Inter for
+# everything else, Newsreader for editorial — bundled, not system. Check that type renders at
+# all (a font that fails to register falls back silently) and that SF Symbols are unaffected.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 

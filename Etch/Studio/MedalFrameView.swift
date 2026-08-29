@@ -72,7 +72,7 @@ struct MedalFrameView: View {
                     Button { customizing = true } label: {
                         Label(savedRecipe == nil ? "Customize the print" : "Edit the print",
                               systemImage: "slider.horizontal.3")
-                            .font(.system(.subheadline, design: .default).weight(.semibold))
+                            .font(.etch(.subheadline, weight: .semibold))
                             .foregroundStyle(Theme.accent)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 9)
@@ -147,10 +147,10 @@ struct MedalFrameView: View {
                               hex: @escaping (String) -> String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Text(label).font(.system(.subheadline, design: .default).weight(.semibold))
+                Text(label).font(.etch(.subheadline, weight: .semibold))
                 Text("—").foregroundStyle(.tertiary)
                 Text(selection.wrappedValue.capitalized)
-                    .font(.system(.subheadline, design: .default))
+                    .font(.etch(.subheadline))
                     .foregroundStyle(.secondary)
             }
             ScrollView(.horizontal, showsIndicators: false) {
@@ -186,7 +186,7 @@ struct MedalFrameView: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(MedalFrameCatalog.price)
-                        .font(.system(.title2, design: .default).weight(.bold))
+                        .font(.etch(.title2, weight: .bold))
                     Text("30 × 40cm · 240gsm lustre · Perspex glaze")
                         .font(.caption2).foregroundStyle(.tertiary)
                 }
@@ -205,7 +205,7 @@ struct MedalFrameView: View {
                             Label("Order · \(MedalFrameCatalog.price)", systemImage: "bag")
                         }
                     }
-                    .font(.system(.headline, design: .default))
+                    .font(.etch(.headline))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
                     .background(Theme.accent, in: .rect(cornerRadius: 14))
@@ -221,7 +221,7 @@ struct MedalFrameView: View {
             } else {
                 VStack(spacing: 6) {
                     Label(EtchConfig.current.ordering.closedTitle, systemImage: "clock")
-                        .font(.system(.subheadline, design: .default).weight(.semibold))
+                        .font(.etch(.subheadline, weight: .semibold))
                         .foregroundStyle(Theme.accent)
                     Text(EtchConfig.current.ordering.closedDetail)
                         .font(.footnote).foregroundStyle(.secondary)

@@ -557,7 +557,7 @@ struct ActivityPickerSheet: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
-                .font(.system(.headline, design: .default))
+                .font(.etch(.headline))
                 .foregroundStyle(.secondary)
             content()
         }
@@ -575,7 +575,7 @@ struct ActivityPickerSheet: View {
                         .overlay(alignment: .topLeading) {
                             if let caption {
                                 Text(caption.uppercased())
-                                    .font(.system(size: 10, weight: .bold, design: .default))
+                                    .font(.etch(size: 10, weight: .bold))
                                     .tracking(1)
                                     .foregroundStyle(.white)
                                     .padding(.horizontal, 9)

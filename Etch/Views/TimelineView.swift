@@ -273,9 +273,9 @@ struct TimelineView: View {
     private func sectionHeader(title: String, detail: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
-                .font(.system(.title, design: .default).weight(.bold))
+                .font(.etch(.title, weight: .bold))
             Text(detail)
-                .font(.system(.subheadline, design: .default).weight(.medium))
+                .font(.etch(.subheadline, weight: .medium))
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -329,12 +329,12 @@ private struct YearCard: View {
         // always renders on top — regardless of the photo's aspect ratio.
         VStack(alignment: .leading) {
             Text(String(year))
-                .font(.system(size: 34, weight: .bold, design: .default))
+                .font(.etch(size: 34, weight: .bold))
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.4), radius: 4, y: 1)
             Spacer()
             Text("\(count) \(countNoun) · \(Format.distance(distanceMeters, decimals: 0))")
-                .font(.system(.subheadline, design: .default).weight(.semibold))
+                .font(.etch(.subheadline, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.95))
                 .shadow(color: .black.opacity(0.4), radius: 4, y: 1)
         }

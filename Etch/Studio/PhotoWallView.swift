@@ -244,20 +244,20 @@ struct PhotoWallView: View {
             }
             HStack(spacing: 16) {
                 Stepper("Photos: \(shown.count)", value: $count, in: 1...maxCount)
-                    .font(.system(.subheadline, design: .default).weight(.medium))
+                    .font(.etch(.subheadline, weight: .medium))
             }
             .frame(maxWidth: 340)
             // Which frame this count would actually be made in, and whether it fills it. The
             // count is a choice about an object, so it says what the object would be.
             Text(MultiPhotoFrameCatalog.fitDescription(forPhotos: shown.count))
-                .font(.system(.caption, design: .default).weight(.medium))
+                .font(.etch(.caption, weight: .medium))
                 .foregroundStyle(Theme.accent)
             if !excludedIDs.isEmpty {
                 Button {
                     withAnimation { excludedIDs.removeAll() }
                 } label: {
                     Label("Restore removed (\(excludedIDs.count))", systemImage: "arrow.uturn.backward")
-                        .font(.system(.footnote, design: .default).weight(.semibold))
+                        .font(.etch(.footnote, weight: .semibold))
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(Theme.accent)
@@ -301,7 +301,7 @@ struct PhotoWallView: View {
             // this screen now does too, in the same words.
             VStack(spacing: 6) {
                 Label(EtchConfig.current.ordering.closedTitle, systemImage: "clock")
-                    .font(.system(.subheadline, design: .default).weight(.semibold))
+                    .font(.etch(.subheadline, weight: .semibold))
                     .foregroundStyle(Theme.accent)
                 Text(EtchConfig.current.ordering.closedDetail)
                     .font(.footnote)
@@ -325,7 +325,7 @@ struct PhotoWallView: View {
                         Label("Order framed · \(MultiPhotoFrameCatalog.price)", systemImage: "bag")
                     }
                 }
-                .font(.system(.subheadline, design: .default).weight(.semibold))
+                .font(.etch(.subheadline, weight: .semibold))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .background(Theme.accent, in: .rect(cornerRadius: 14))
@@ -447,7 +447,7 @@ struct PhotoWallView: View {
     private func menuChip(icon: String, text: String) -> some View {
         HStack(spacing: 6) {
             Image(systemName: icon).font(.caption)
-            Text(text).font(.system(.subheadline, design: .default).weight(.semibold)).lineLimit(1)
+            Text(text).font(.etch(.subheadline, weight: .semibold)).lineLimit(1)
         }
         .foregroundStyle(Theme.accent)
         .padding(.horizontal, 12)

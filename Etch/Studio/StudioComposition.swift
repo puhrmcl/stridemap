@@ -234,7 +234,7 @@ struct StudioComposition: View {
     /// and 24×36, the entire launch catalogue.
     var printAspect: PrintAspect = .twoThree
 
-    /// A font point size scaled by `textScale` — every `.system(size:)` on the poster runs through
+    /// A font point size scaled by `textScale` — every `.etch(size:)` on the poster runs through
     /// this so one control resizes the whole composition's type together. `fitScale` folds in so an
     /// overfull sheet shrinks all of its type uniformly rather than clipping the bottom rows.
     private func ts(_ size: CGFloat) -> CGFloat { size * textScale * fitScale }
@@ -528,7 +528,7 @@ struct StudioComposition: View {
         VStack(spacing: sp(14)) {
             if showTitle {
                 Text(titleText)
-                    .font(.system(size: ts(44 * titleScale), weight: titleFont.titleWeight, design: titleFont.design))
+                    .font(.etch(size: ts(44 * titleScale), weight: titleFont.titleWeight, face: titleFont.face))
                     .tracking(titleFont == .editorial ? 1 : 0)
                     .foregroundStyle(inkColor)
                     .lineLimit(2)
@@ -537,7 +537,7 @@ struct StudioComposition: View {
             }
             if !placeLine.isEmpty {
                 Text(placeLine.uppercased())
-                    .font(.system(size: ts(18 * locationScale), weight: .regular, design: titleFont.design))
+                    .font(.etch(size: ts(18 * locationScale), weight: .regular, face: titleFont.face))
                     .tracking(5)
                     .foregroundStyle(subtleColor)
             }
@@ -660,8 +660,8 @@ struct StudioComposition: View {
         VStack(alignment: .leading, spacing: sp(10)) {
             if showTitle && !titleText.isEmpty {
                 Text(titleText)
-                    .font(.system(size: ts(62 * titleScale),
-                                  weight: .bold, design: titleFont.design))
+                    .font(.etch(size: ts(62 * titleScale),
+                                weight: .bold, face: titleFont.face))
                     // Tight. A headline this size wants its letters close; the wide tracking the
                     // other layouts use is for small caps, and at 62pt it reads as a gap.
                     .tracking(titleFont == .editorial ? 1 : 0)
@@ -673,7 +673,7 @@ struct StudioComposition: View {
             }
             if !dateLine.isEmpty {
                 Text(dateLine.uppercased())
-                    .font(.system(size: ts(20 * dateScale), weight: .semibold))
+                    .font(.etch(size: ts(20 * dateScale), weight: .semibold))
                     .tracking(3)
                     .foregroundStyle(subtleColor)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -690,7 +690,7 @@ struct StudioComposition: View {
         VStack(spacing: sp(26)) {
             if !placeLine.isEmpty {
                 Text(placeLine.uppercased())
-                    .font(.system(size: ts(22 * locationScale), weight: .semibold))
+                    .font(.etch(size: ts(22 * locationScale), weight: .semibold))
                     .tracking(2.5)
                     .foregroundStyle(inkColor)
                     .lineLimit(1)
@@ -764,8 +764,8 @@ struct StudioComposition: View {
             VStack(spacing: 0) {
                 if showTitle {
                     Text(titleText)
-                        .font(.system(size: ts(54 * titleScale), weight: titleFont.titleWeight,
-                                      design: titleFont.design))
+                        .font(.etch(size: ts(54 * titleScale), weight: titleFont.titleWeight,
+                                    face: titleFont.face))
                         .tracking(titleFont == .editorial ? 1 : 0)
                         .foregroundStyle(inkColor)
                         .lineLimit(2)
@@ -774,7 +774,7 @@ struct StudioComposition: View {
                 }
                 if !dateLine.isEmpty {
                     Text(dateLine.uppercased())
-                        .font(.system(size: ts(18 * dateScale), weight: .semibold))
+                        .font(.etch(size: ts(18 * dateScale), weight: .semibold))
                         .tracking(4)
                         .foregroundStyle(subtleColor)
                         .padding(.top, 12)
@@ -786,13 +786,13 @@ struct StudioComposition: View {
                     if heroMetric != .none {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(heroValue)
-                                .font(.system(size: ts(56 * heroScale), weight: .bold))
+                                .font(.etch(size: ts(56 * heroScale), weight: .bold))
                                 .foregroundStyle(inkColor)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.5)
                             if showStatLabels && !heroCaption.isEmpty {
                                 Text(heroCaption)
-                                    .font(.system(size: ts(16 * heroScale), weight: .semibold))
+                                    .font(.etch(size: ts(16 * heroScale), weight: .semibold))
                                     .tracking(4)
                                     .foregroundStyle(subtleColor)
                             }
@@ -804,13 +804,13 @@ struct StudioComposition: View {
                             if item.metric != .none {
                                 VStack(alignment: .trailing, spacing: 2) {
                                     Text(item.value)
-                                        .font(.system(size: ts(26 * statScale), weight: .bold))
+                                        .font(.etch(size: ts(26 * statScale), weight: .bold))
                                         .foregroundStyle(inkColor)
                                         .lineLimit(1)
                                         .minimumScaleFactor(0.6)
                                     if showStatLabels {
                                         Text(item.metric.label)
-                                            .font(.system(size: ts(12 * statScale), weight: .semibold))
+                                            .font(.etch(size: ts(12 * statScale), weight: .semibold))
                                             .tracking(2)
                                             .foregroundStyle(subtleColor)
                                     }
@@ -819,7 +819,7 @@ struct StudioComposition: View {
                         }
                         if !placeLine.isEmpty {
                             Text(placeLine.uppercased())
-                                .font(.system(size: ts(16 * locationScale), weight: .semibold))
+                                .font(.etch(size: ts(16 * locationScale), weight: .semibold))
                                 .tracking(3)
                                 .foregroundStyle(subtleColor)
                         }
@@ -856,10 +856,10 @@ struct StudioComposition: View {
             VStack(spacing: 0) {
                 HStack(alignment: .top) {
                     Text(dateLine.uppercased())
-                        .font(.system(size: ts(15 * dateScale), weight: .semibold)).tracking(3)
+                        .font(.etch(size: ts(15 * dateScale), weight: .semibold)).tracking(3)
                     Spacer()
                     if !coordsText.isEmpty {
-                        Text(coordsText).font(.system(size: ts(15), weight: .semibold)).tracking(2)
+                        Text(coordsText).font(.etch(size: ts(15), weight: .semibold)).tracking(2)
                     }
                 }
                 .foregroundStyle(.white.opacity(0.9))
@@ -867,12 +867,12 @@ struct StudioComposition: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(titleText)
-                            .font(.system(size: ts(60 * titleScale), weight: .heavy))
+                            .font(.etch(size: ts(60 * titleScale), weight: .heavy))
                             .foregroundStyle(.white)
                             .lineLimit(2).minimumScaleFactor(0.5)
                         if !placeLine.isEmpty {
                             Text(placeLine.uppercased())
-                                .font(.system(size: ts(16 * locationScale), weight: .semibold)).tracking(4)
+                                .font(.etch(size: ts(16 * locationScale), weight: .semibold)).tracking(4)
                                 .foregroundStyle(.white.opacity(0.85))
                         }
                     }
@@ -909,9 +909,9 @@ struct StudioComposition: View {
         } else {
             VStack(spacing: 6) {
                 Image(systemName: metric.icon).font(.system(size: ts(15 * statScale), weight: .semibold))
-                Text(value).font(.system(size: ts(26 * statScale), weight: .bold)).minimumScaleFactor(0.5).lineLimit(1)
+                Text(value).font(.etch(size: ts(26 * statScale), weight: .bold)).minimumScaleFactor(0.5).lineLimit(1)
                 if showStatLabels {
-                    Text(metric.label).font(.system(size: ts(12 * statScale), weight: .semibold)).tracking(1.5)
+                    Text(metric.label).font(.etch(size: ts(12 * statScale), weight: .semibold)).tracking(1.5)
                 }
             }
             .foregroundStyle(.white)
@@ -937,7 +937,7 @@ struct StudioComposition: View {
     private func profileContent(title: String, samples: [Double]) -> some View {
         VStack(alignment: .leading, spacing: sp(10)) {
             Text(title)
-                .font(.system(size: ts(15), weight: .semibold))
+                .font(.etch(size: ts(15), weight: .semibold))
                 .tracking(3)
                 .foregroundStyle(subtleColor)
 
@@ -1373,13 +1373,13 @@ struct StudioComposition: View {
                     .font(.system(size: ts(15 * statScale), weight: .semibold))
                     .foregroundStyle(accentColor)
                 Text(value)
-                    .font(.system(size: ts(26 * statScale), weight: .bold))
+                    .font(.etch(size: ts(26 * statScale), weight: .bold))
                     .foregroundStyle(inkColor)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
                 if showStatLabels {
                     Text(metric.label)
-                        .font(.system(size: ts(13 * statScale), weight: .semibold))
+                        .font(.etch(size: ts(13 * statScale), weight: .semibold))
                         .tracking(1.5)
                         .foregroundStyle(subtleColor)
                         .lineLimit(1)
@@ -1409,7 +1409,7 @@ struct StudioComposition: View {
     private func title(leading: Bool) -> some View {
         if showTitle {
             Text(titleText.uppercased())
-                .font(.system(size: ts(26 * titleScale), weight: titleFont.titleWeight, design: titleFont.design))
+                .font(.etch(size: ts(26 * titleScale), weight: titleFont.titleWeight, face: titleFont.face))
                 .tracking(4 + titleFont.extraTracking)
                 .foregroundStyle(subtleColor)
                 .lineLimit(2)
@@ -1425,14 +1425,14 @@ struct StudioComposition: View {
         if heroMetric != .none {
             VStack(alignment: leading ? .leading : .center, spacing: 6) {
                 Text(heroValue)
-                    .font(.system(size: ts(150 * heroScale), weight: .bold))
+                    .font(.etch(size: ts(150 * heroScale), weight: .bold))
                     .tracking(-2)
                     .foregroundStyle(inkColor)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                 if showStatLabels && !heroCaption.isEmpty {
                     Text(heroCaption)
-                        .font(.system(size: ts(24 * heroScale), weight: .semibold))
+                        .font(.etch(size: ts(24 * heroScale), weight: .semibold))
                         .tracking(8)
                         .foregroundStyle(accentColor)
                 }
@@ -1483,13 +1483,13 @@ struct StudioComposition: View {
         } else {
             VStack(spacing: 8) {
                 Text(value)
-                    .font(.system(size: ts(32 * statScale), weight: .bold))
+                    .font(.etch(size: ts(32 * statScale), weight: .bold))
                     .foregroundStyle(inkColor)
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
                 if showStatLabels {
                     Text(metric.label)
-                        .font(.system(size: ts(15 * statScale), weight: .semibold))
+                        .font(.etch(size: ts(15 * statScale), weight: .semibold))
                         .tracking(2)
                         .foregroundStyle(subtleColor)
                 }
@@ -1509,14 +1509,14 @@ struct StudioComposition: View {
                         .font(.system(size: ts(13 * statScale), weight: .semibold))
                         .foregroundStyle(accentColor)
                     Text(value)
-                        .font(.system(size: ts(30 * statScale), weight: .bold))
+                        .font(.etch(size: ts(30 * statScale), weight: .bold))
                         .foregroundStyle(inkColor)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                 }
                 if showStatLabels {
                     Text(metric.label)
-                        .font(.system(size: ts(14 * statScale), weight: .semibold))
+                        .font(.etch(size: ts(14 * statScale), weight: .semibold))
                         .tracking(2)
                         .foregroundStyle(subtleColor)
                 }
@@ -1530,7 +1530,7 @@ struct StudioComposition: View {
 
     private func weatherText(_ weather: String, leading: Bool) -> some View {
         Text(weather.uppercased())
-            .font(.system(size: ts(19), weight: .medium))
+            .font(.etch(size: ts(19), weight: .medium))
             .tracking(4)
             .foregroundStyle(subtleColor)
             .frame(maxWidth: .infinity, alignment: leading ? .leading : .center)
@@ -1555,7 +1555,7 @@ struct StudioComposition: View {
         guard !visible.isEmpty else { return nil }
         var combined = Text(verbatim: "")
         for (i, part) in visible.enumerated() {
-            let font = Font.system(size: ts(19 * part.scale), weight: .semibold)
+            let font = Font.etch(size: ts(19 * part.scale), weight: .semibold)
             if i > 0 {
                 combined = combined + Text("  ·  ").font(font).tracking(3)
             }

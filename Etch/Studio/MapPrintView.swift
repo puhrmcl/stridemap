@@ -290,7 +290,7 @@ struct MapPrintView: View {
                 if let orderPhase {
                     VStack(spacing: 10) {
                         ProgressView()
-                        Text(orderPhase.label).font(.system(.subheadline, design: .default))
+                        Text(orderPhase.label).font(.etch(.subheadline))
                     }
                     .padding(24)
                     .background(.regularMaterial, in: .rect(cornerRadius: 16))
@@ -325,7 +325,7 @@ struct MapPrintView: View {
                                 VStack(spacing: 10) {
                                     ProgressView().tint(Theme.accent)
                                     Text("Composing…")
-                                        .font(.system(.footnote, design: .default))
+                                        .font(.etch(.footnote))
                                         .foregroundStyle(.secondary)
                                 }
                             }
@@ -405,7 +405,7 @@ struct MapPrintView: View {
                         PhotosPicker(selection: $indexPhotoItem, matching: .images) {
                             Label(indexPhoto == nil ? "Choose a photo" : "Change the photo",
                                   systemImage: "photo")
-                                .font(.system(.footnote, design: .default).weight(.semibold))
+                                .font(.etch(.footnote, weight: .semibold))
                                 .foregroundStyle(Theme.accent)
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 8)
@@ -425,7 +425,7 @@ struct MapPrintView: View {
                     Toggle("Miles at each city", isOn: $indexTotals)
                         .toggleStyle(.switch)
                         .tint(Theme.accent)
-                        .font(.system(.subheadline, design: .default))
+                        .font(.etch(.subheadline))
                         .frame(maxWidth: 280)
                 }
             }
@@ -464,7 +464,7 @@ struct MapPrintView: View {
         }
         .toggleStyle(.switch)
         .tint(Theme.accent)
-        .font(.system(.subheadline, design: .default))
+        .font(.etch(.subheadline))
         .frame(maxWidth: 320)
     }
 
@@ -546,7 +546,7 @@ struct MapPrintView: View {
                                 .font(.system(size: 18, weight: .semibold))
                                 .frame(height: 22)
                             Text(style.name)
-                                .font(.system(size: 11, weight: .semibold, design: .default))
+                                .font(.etch(size: 11, weight: .semibold))
                         }
                         .foregroundStyle(artStyle == style ? Theme.accent : .secondary)
                         .frame(width: 76)
@@ -669,7 +669,7 @@ struct MapPrintView: View {
             HStack(spacing: 8) {
                 Image(systemName: "textformat").font(.caption).foregroundStyle(.secondary)
                 TextField(currentStateName, text: $stateTitle)
-                    .font(.system(.subheadline, design: .default))
+                    .font(.etch(.subheadline))
                     .textInputAutocapitalization(.words)
                 if !stateTitle.isEmpty {
                     Button { stateTitle = "" } label: {
@@ -697,7 +697,7 @@ struct MapPrintView: View {
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: on ? "checkmark.circle.fill" : "circle").font(.caption)
-                Text(metric.name).font(.system(.caption, design: .default).weight(.semibold))
+                Text(metric.name).font(.etch(.caption, weight: .semibold))
             }
             .foregroundStyle(on ? Color.white : Theme.accent)
             .padding(.horizontal, 12)
@@ -710,7 +710,7 @@ struct MapPrintView: View {
     private func menuChip(icon: String, text: String) -> some View {
         HStack(spacing: 6) {
             Image(systemName: icon).font(.caption)
-            Text(text).font(.system(.subheadline, design: .default).weight(.semibold)).lineLimit(1)
+            Text(text).font(.etch(.subheadline, weight: .semibold)).lineLimit(1)
             Image(systemName: "chevron.down").font(.caption2.weight(.bold))
         }
         .foregroundStyle(Theme.accent)
@@ -724,7 +724,7 @@ struct MapPrintView: View {
             Button { setZoom(zoom / 1.4) } label: { Image(systemName: "minus.magnifyingglass").font(.title3) }
                 .disabled(zoom <= 0.4)
             Text(String(format: "%.1f×", zoom))
-                .font(.system(.subheadline, design: .default).weight(.semibold).monospacedDigit())
+                .font(.etch(.subheadline, weight: .semibold).monospacedDigit())
                 .frame(width: 46)
             Button { setZoom(zoom * 1.4) } label: { Image(systemName: "plus.magnifyingglass").font(.title3) }
                 .disabled(zoom >= 6)
@@ -735,7 +735,7 @@ struct MapPrintView: View {
             }
 
             if zoom != 1 || panX != 0 || panY != 0 {
-                Button("Reset") { resetFrame() }.font(.system(.subheadline, design: .default))
+                Button("Reset") { resetFrame() }.font(.etch(.subheadline))
             }
         }
         .tint(Theme.accent)

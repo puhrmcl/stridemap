@@ -44,7 +44,7 @@ struct MapPrintComposition: View {
     private var footerView: some View {
         VStack(spacing: 20) {
             Text(footer.title.uppercased())
-                .font(.system(size: 26, weight: .semibold))
+                .font(.etch(size: 26, weight: .semibold))
                 .tracking(4)
                 .foregroundStyle(footer.subtle)
                 .lineLimit(2)
@@ -55,11 +55,11 @@ struct MapPrintComposition: View {
                 // A list of state names in place of the big number.
                 VStack(spacing: 12) {
                     Text(footer.heroLabel)
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(.etch(size: 22, weight: .semibold))
                         .tracking(8)
                         .foregroundStyle(footer.accent)
                     Text(list.isEmpty ? "—" : list.joined(separator: "  ·  "))
-                        .font(.system(size: 40, weight: .bold))
+                        .font(.etch(size: 40, weight: .bold))
                         .foregroundStyle(footer.ink)
                         .multilineTextAlignment(.center)
                         .lineSpacing(6)
@@ -69,13 +69,13 @@ struct MapPrintComposition: View {
             } else {
                 VStack(spacing: 6) {
                     Text(footer.heroValue)
-                        .font(.system(size: 150, weight: .bold))
+                        .font(.etch(size: 150, weight: .bold))
                         .tracking(-2)
                         .foregroundStyle(footer.ink)
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
                     Text(footer.heroLabel)
-                        .font(.system(size: 24, weight: .semibold))
+                        .font(.etch(size: 24, weight: .semibold))
                         .tracking(8)
                         .foregroundStyle(footer.accent)
                 }
@@ -101,12 +101,12 @@ struct MapPrintComposition: View {
     private func stat(_ label: String, _ value: String) -> some View {
         VStack(spacing: 8) {
             Text(value)
-                .font(.system(size: 32, weight: .bold))
+                .font(.etch(size: 32, weight: .bold))
                 .foregroundStyle(footer.ink)
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
             Text(label)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.etch(size: 15, weight: .semibold))
                 .tracking(2)
                 .foregroundStyle(footer.subtle)
         }

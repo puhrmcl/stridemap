@@ -33,7 +33,7 @@ struct LookAroundButton: View {
                 .frame(width: 32)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(.headline, design: .default).weight(.semibold))
+                    .font(.etch(.headline, weight: .semibold))
                     .foregroundStyle(.primary)
                 Text("See the street where you were")
                     .font(.subheadline)

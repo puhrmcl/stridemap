@@ -35,7 +35,7 @@ h1, h2, h3, .h0, .h1, .h2, .h3 {
 }
 
 .etch-display {
-  font-family: var(--etch-font-sans);
+  font-family: var(--etch-font-display);
   font-weight: var(--etch-weight-medium);
   letter-spacing: var(--etch-track-display);
   font-size: clamp(3.6rem, 7vw, 7.2rem);

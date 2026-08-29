@@ -210,7 +210,7 @@ struct StudioDesignEditor: View {
                     if active == nil {
                         // The state the old editor could never show: your own colours, named.
                         Text("Custom")
-                            .font(.system(size: 12, weight: .semibold, design: .default))
+                            .font(.etch(size: 12, weight: .semibold))
                             .foregroundStyle(Theme.accent)
                             .padding(.horizontal, 12)
                             .frame(height: 34)
@@ -234,7 +234,7 @@ struct StudioDesignEditor: View {
                     Circle().fill(look.routeSwatch).frame(width: 8, height: 8)
                 }
                 Text(look.name)
-                    .font(.system(size: 12, weight: .semibold, design: .default))
+                    .font(.etch(size: 12, weight: .semibold))
             }
             .foregroundStyle(isSelected ? .white : Color.primary)
             .padding(.horizontal, 12)

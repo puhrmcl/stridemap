@@ -166,11 +166,14 @@ enum PosterFont: String, CaseIterable, Identifiable {
         case .poster:    return "Poster"
         }
     }
-    var design: Font.Design {
+    /// Which of the three bundled faces draws this. Editorial is Newsreader; Modern is Inter at
+    /// text width; Poster is Inter Tight, whose tighter fit is what makes a large title read as
+    /// a poster rather than as a big label.
+    var face: EtchType.Face {
         switch self {
-        case .editorial: return .serif
-        case .modern:    return .default
-        case .poster:    return .default
+        case .editorial: return .editorial
+        case .modern:    return .text
+        case .poster:    return .display
         }
     }
     var titleWeight: Font.Weight {

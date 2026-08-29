@@ -246,13 +246,13 @@ struct StudioHomeView: View {
                         Spacer(minLength: 8)
                         Button { showImportPicker = true } label: {
                             Label("Add", systemImage: "plus")
-                                .font(.system(.subheadline, design: .default).weight(.semibold))
+                                .font(.etch(.subheadline, weight: .semibold))
                                 .foregroundStyle(Theme.accent)
                         }
                         .buttonStyle(.plain)
                     }
                     Text("Brought in through Studio. Pick one up where you left it.")
-                        .font(.system(.subheadline, design: .default))
+                        .font(.etch(.subheadline))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -269,7 +269,7 @@ struct StudioHomeView: View {
                                         .frame(width: 150, height: 190)
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(run.name)
-                                            .font(.system(.subheadline, design: .default).weight(.semibold))
+                                            .font(.etch(.subheadline, weight: .semibold))
                                             .foregroundStyle(.primary)
                                             .lineLimit(1)
                                         // When it was imported, not when it was run — the run's own
@@ -391,7 +391,7 @@ struct StudioHomeView: View {
                         .resizable().scaledToFit().frame(height: Self.mastheadMarkHeight * 0.85)
                         .accessibilityLabel("Etch")
                     Text("Turn any ride, run, hike or race into gallery-grade art.")
-                        .font(.system(.subheadline, design: .default))
+                        .font(.etch(.subheadline))
                         .foregroundStyle(.secondary)
                 }
             } else {
@@ -399,9 +399,9 @@ struct StudioHomeView: View {
                 // its line — repeating the mark here would give the page two of them.
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Leave your mark.")
-                        .font(.system(.title, design: .default).weight(.bold))
+                        .font(.etch(.title, weight: .bold))
                     Text("Turn any ride, run, hike or race into gallery-grade art.")
-                        .font(.system(.body, design: .default))
+                        .font(.etch(.body))
                         .foregroundStyle(.secondary)
                 }
             }
@@ -430,7 +430,7 @@ struct StudioHomeView: View {
             HStack(spacing: 7) {
                 Image(systemName: scope.icon).font(.system(size: 13, weight: .semibold))
                 Text(scope == .all ? "All Activities" : scope.label)
-                    .font(.system(.subheadline, design: .default).weight(.semibold))
+                    .font(.etch(.subheadline, weight: .semibold))
                 Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
             }
             .foregroundStyle(Theme.accent)
@@ -453,7 +453,7 @@ struct StudioHomeView: View {
     private func actionCapsule(_ title: String, _ symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: symbol)
-                .font(.system(.subheadline, design: .default).weight(.semibold))
+                .font(.etch(.subheadline, weight: .semibold))
                 .foregroundStyle(Theme.accent)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 9)
@@ -577,18 +577,18 @@ struct StudioHomeView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(product.name)
-                    .font(.system(.headline, design: .default))
+                    .font(.etch(.headline))
                     .foregroundStyle(.primary)
                 // Two lines are reserved whether or not the copy needs them, so every caption
                 // in a row starts and ends on the same line and the price sits at one height.
                 // Without it a one-line product and a two-line one push their neighbours around.
                 Text(product.line)
-                    .font(.system(.caption, design: .default))
+                    .font(.etch(.caption))
                     .foregroundStyle(.secondary)
                     .lineLimit(2, reservesSpace: true)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(product.priceLine)
-                    .font(.system(.caption, design: .default).weight(.semibold))
+                    .font(.etch(.caption, weight: .semibold))
                     .foregroundStyle(.tertiary)
                     .padding(.top, 1)
             }
@@ -612,9 +612,9 @@ struct StudioHomeView: View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Every piece, three ways")
-                    .font(.system(.subheadline, design: .default).weight(.semibold))
+                    .font(.etch(.subheadline, weight: .semibold))
                 Text("Pick the finish when you order — anything above can arrive as any of these.")
-                    .font(.system(.footnote, design: .default))
+                    .font(.etch(.footnote))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -626,12 +626,12 @@ struct StudioHomeView: View {
                             .foregroundStyle(Theme.accent)
                             .frame(height: 22)
                         Text(format.shortName)
-                            .font(.system(size: 12, weight: .semibold, design: .default))
+                            .font(.etch(size: 12, weight: .semibold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.85)
                         Text(format.entryPrice)
-                            .font(.system(size: 11, design: .default))
+                            .font(.etch(size: 11))
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity)
@@ -646,7 +646,7 @@ struct StudioHomeView: View {
                     Text("See papers, frames and sizes")
                     Image(systemName: "chevron.right").font(.caption2.weight(.bold))
                 }
-                .font(.system(.footnote, design: .default).weight(.semibold))
+                .font(.etch(.footnote, weight: .semibold))
                 .foregroundStyle(Theme.accent)
             }
             .buttonStyle(.plain)
@@ -743,10 +743,10 @@ struct StudioHomeView: View {
     private func sectionTitle(_ text: String, _ detail: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(text)
-                .font(.system(.title3, design: .default).weight(.bold))
+                .font(.etch(.title3, weight: .bold))
             if let detail {
                 Text(detail)
-                    .font(.system(.subheadline, design: .default))
+                    .font(.etch(.subheadline))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -794,7 +794,7 @@ struct StudioHomeView: View {
                     .foregroundStyle(Theme.accent)
                     .frame(width: 24)
                 Text(title)
-                    .font(.system(.subheadline, design: .default))
+                    .font(.etch(.subheadline))
                     .foregroundStyle(.primary)
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
@@ -878,21 +878,21 @@ struct StudioHomeView: View {
                     )
                     VStack(alignment: .leading, spacing: 7) {
                         Text("MAKE IT PERMANENT")
-                            .font(.system(size: 11, weight: .semibold, design: .default))
+                            .font(.etch(size: 11, weight: .semibold))
                             .tracking(2.4)
                             .foregroundStyle(isRace ? Theme.Palette.blueBright : Theme.Palette.brass)
                         // The editorial serif enters here — the artwork's voice, not the app's.
                         Text("Your \(heroTitle(for: piece))")
-                            .font(.system(size: 30, weight: .semibold, design: .serif))
+                            .font(.etchSerif(size: 30, weight: .semibold))
                             .foregroundStyle(Theme.Palette.bone)
                             .lineLimit(2)
                             .minimumScaleFactor(0.7)
                         Text(heroSubtitle(for: piece))
-                            .font(.system(.subheadline, design: .default))
+                            .font(.etch(.subheadline))
                             .foregroundStyle(Theme.Palette.bone.opacity(0.7))
                         HStack(spacing: 6) {
                             Text("Create your piece")
-                                .font(.system(.subheadline, design: .default).weight(.semibold))
+                                .font(.etch(.subheadline, weight: .semibold))
                             Image(systemName: "arrow.right")
                                 .font(.system(size: 12, weight: .bold))
                         }
@@ -922,7 +922,7 @@ struct StudioHomeView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .font(.system(.footnote, design: .default).weight(.semibold))
+            .font(.etch(.footnote, weight: .semibold))
             .foregroundStyle(.secondary)
             .padding(.top, 10)
             }
@@ -998,11 +998,11 @@ struct StudioHomeView: View {
         HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(collection.title.uppercased())
-                    .font(.system(size: 11, weight: .semibold, design: .default))
+                    .font(.etch(size: 11, weight: .semibold))
                     .tracking(2.2)
                     .foregroundStyle(collection.accent)
                 Text(collection.descriptor)
-                    .font(.system(.subheadline, design: .default))
+                    .font(.etch(.subheadline))
                     .foregroundStyle(Theme.Palette.bone.opacity(0.85))
                     .fixedSize(horizontal: false, vertical: true)
                 Text(count == 1 ? "1 piece" : "\(count) pieces")
@@ -1069,7 +1069,7 @@ struct SavedPosterCard: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.system(.subheadline, design: .default).weight(.semibold))
+                    .font(.etch(.subheadline, weight: .semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                 Text(edition.name)

@@ -62,7 +62,7 @@ struct LocationPickerView: View {
                 dismiss()
             } label: {
                 Text("Set Location")
-                    .font(.system(.headline, design: .default))
+                    .font(.etch(.headline))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)

@@ -288,7 +288,7 @@ struct SearchSheetContent: View {
             } label: {
                 HStack(spacing: 5) {
                     Text(title)
-                        .font(.system(.title3, design: .default).weight(.bold))
+                        .font(.etch(.title3, weight: .bold))
                         .foregroundStyle(.primary)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 15, weight: .bold))
@@ -371,7 +371,7 @@ struct SearchSheetContent: View {
                         .padding(6)
                 }
             Text(cachedStats.milestoneLabels(for: run).first ?? run.name)
-                .font(.system(.caption, design: .default).weight(.semibold))
+                .font(.etch(.caption, weight: .semibold))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .frame(width: 140, alignment: .leading)
@@ -404,7 +404,7 @@ struct SearchSheetContent: View {
                 }
                 .padding(.leading, 22)
                 Text(title)
-                    .font(.system(.headline, design: .default).weight(.semibold))
+                    .font(.etch(.headline, weight: .semibold))
             }
             .foregroundStyle(Theme.accent)
             .frame(maxWidth: .infinity)
@@ -422,7 +422,7 @@ struct SearchSheetContent: View {
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 Text("\(cachedResults.count) result\(cachedResults.count == 1 ? "" : "s")")
-                    .font(.system(.subheadline, design: .default).weight(.semibold))
+                    .font(.etch(.subheadline, weight: .semibold))
                     .foregroundStyle(.secondary)
                 // Cap the rendered rows so a very broad match stays a tidy, quick list. Row
                 // thumbnails are cached static snapshots, not live maps.
@@ -542,7 +542,7 @@ private struct ShortcutCircleLabel: View {
                 .background((pressed ? Self.pressedFill : Self.fill).opacity(0.88), in: .circle)
                 .overlay(Circle().strokeBorder(.white.opacity(0.09), lineWidth: 1))
             Text(title)
-                .font(.system(.caption, design: .default).weight(.medium))
+                .font(.etch(.caption, weight: .medium))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
         }

@@ -699,7 +699,7 @@ struct HomeView: View {
                 unit: effectiveScope.countNoun
             )
             Text("·")
-                .font(.system(.body, design: .default).weight(.bold))
+                .font(.etch(.body, weight: .bold))
                 .foregroundStyle(.secondary)
             metric(
                 value: Format.distanceValue(shownStats.totalDistanceMeters)
@@ -835,12 +835,12 @@ struct HomeView: View {
     private func metric(value: String, unit: String) -> some View {
         VStack(spacing: 0) {
             Text(value)
-                .font(.system(size: 19, weight: .bold, design: .default))
+                .font(.etch(size: 19, weight: .bold))
                 // Monospaced digits so the count/distance don't jitter the pill as they tick.
                 .monospacedDigit()
                 .contentTransition(.numericText())
             Text(unit)
-                .font(.system(.caption, design: .default).weight(.medium))
+                .font(.etch(.caption, weight: .medium))
                 .foregroundStyle(.secondary)
         }
         .lineLimit(1)
@@ -982,7 +982,7 @@ struct HomeView: View {
         HStack(spacing: 6) {
             Image(systemName: symbol).font(.caption)
             Text(text)
-                .font(.system(.subheadline, design: .default).weight(.semibold))
+                .font(.etch(.subheadline, weight: .semibold))
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
             Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
@@ -1184,7 +1184,7 @@ struct HomeView: View {
             withAnimation(Theme.spring) { is3D.toggle() }
         } label: {
             Text(is3D ? "2D" : "3D")
-                .font(.system(size: 15, weight: .bold, design: .default))
+                .font(.etch(size: 15, weight: .bold))
                 .foregroundStyle(is3D ? Theme.accentOnGlass : .primary)
                 .frame(width: MapControl.size, height: MapControl.size)
                 .glassCircle()
@@ -1248,7 +1248,7 @@ struct HomeView: View {
         VStack(spacing: 18) {
             ZStack {
                 Text("Map Type")
-                    .font(.system(.title3, design: .default).weight(.bold))
+                    .font(.etch(.title3, weight: .bold))
                     .frame(maxWidth: .infinity)
                 HStack {
                     Spacer()
@@ -1287,7 +1287,7 @@ struct HomeView: View {
             if !showLocations {
                 Toggle(isOn: $showPins.animation(Theme.gentle)) {
                     Label("Show start pins", systemImage: showPins ? "mappin.and.ellipse" : "mappin.slash")
-                        .font(.system(.subheadline, design: .default).weight(.medium))
+                        .font(.etch(.subheadline, weight: .medium))
                 }
                 .tint(Theme.accent)
                 .frame(minHeight: 44)
@@ -1307,7 +1307,7 @@ struct HomeView: View {
             } label: {
                 Label(showLocations ? "Reset view" : "Frame all activities",
                       systemImage: "arrow.up.left.and.arrow.down.right")
-                    .font(.system(.subheadline, design: .default).weight(.medium))
+                    .font(.etch(.subheadline, weight: .medium))
                     .foregroundStyle(.primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(minHeight: 44)
@@ -1344,7 +1344,7 @@ struct HomeView: View {
                             .strokeBorder(selected ? Theme.accent : .clear, lineWidth: 3)
                     )
                 Text(style.label)
-                    .font(.system(.subheadline, design: .default).weight(.semibold))
+                    .font(.etch(.subheadline, weight: .semibold))
                     .foregroundStyle(selected ? Theme.accent : .primary)
             }
         }
@@ -1384,14 +1384,14 @@ struct HomeView: View {
             if sync.isSyncing {
                 ProgressView()
                 Text(syncingLabel)
-                    .font(.system(.headline, design: .default))
+                    .font(.etch(.headline))
                     .foregroundStyle(.secondary)
             } else {
                 Image(systemName: "figure.run.circle")
                     .font(.system(size: 44))
                     .foregroundStyle(.secondary)
                 Text("No runs yet")
-                    .font(.system(.title3, design: .default).weight(.semibold))
+                    .font(.etch(.title3, weight: .semibold))
                 Button("Sync Now") {
                     Task { await sync.sync() }
                 }

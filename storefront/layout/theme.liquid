@@ -72,6 +72,28 @@
     %}
 
     {% style %}
+      {%- comment -%}
+        Etch's own faces, self-hosted. Inter Tight for display, Inter for everything else,
+        Newsreader for editorial moments — all three SIL Open Font License, all three variable,
+        so one file covers the whole weight range each. Declared here rather than in
+        etch-tokens.css because a Shopify asset's real URL is only knowable through `asset_url`.
+      {%- endcomment -%}
+      @font-face {
+        font-family: "Inter";
+        src: url({{ 'Inter-Variable.woff2' | asset_url }}) format("woff2");
+        font-weight: 100 900; font-style: normal; font-display: swap;
+      }
+      @font-face {
+        font-family: "Inter Tight";
+        src: url({{ 'InterTight-Variable.woff2' | asset_url }}) format("woff2");
+        font-weight: 100 900; font-style: normal; font-display: swap;
+      }
+      @font-face {
+        font-family: "Newsreader";
+        src: url({{ 'Newsreader-Variable.woff2' | asset_url }}) format("woff2");
+        font-weight: 200 800; font-style: normal; font-display: swap;
+      }
+
       {{ settings.type_body_font | font_face: font_display: 'swap' }}
       {{ body_font_bold | font_face: font_display: 'swap' }}
       {{ body_font_italic | font_face: font_display: 'swap' }}

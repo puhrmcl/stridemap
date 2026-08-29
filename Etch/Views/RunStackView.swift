@@ -34,7 +34,7 @@ private struct RunStackRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(run.name)
-                    .font(.system(.subheadline, design: .default).weight(.semibold))
+                    .font(.etch(.subheadline, weight: .semibold))
                     .lineLimit(1)
                 Text(Format.date(run.startDate))
                     .font(.caption)
@@ -45,7 +45,7 @@ private struct RunStackRow: View {
 
             VStack(alignment: .trailing, spacing: 2) {
                 Text(Format.distance(run.distance))
-                    .font(.system(.subheadline, design: .default).weight(.semibold))
+                    .font(.etch(.subheadline, weight: .semibold))
                 Text(Format.duration(run.movingTime))
                     .font(.caption)
                     .foregroundStyle(.secondary)

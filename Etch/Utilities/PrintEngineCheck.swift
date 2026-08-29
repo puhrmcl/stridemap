@@ -31,7 +31,7 @@ struct PrintEngineCheckView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text("Print engine")
-                    .font(.system(.title2, design: .default).weight(.bold))
+                    .font(.etch(.title2, weight: .bold))
                 Spacer()
                 if running {
                     ProgressView().controlSize(.small)
@@ -56,7 +56,7 @@ struct PrintEngineCheckView: View {
                                 .foregroundStyle(result.passed ? .green : .red)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(result.name)
-                                    .font(.system(size: 13, weight: .semibold, design: .default))
+                                    .font(.etch(size: 13, weight: .semibold))
                                 Text(result.detail)
                                     .font(.system(size: 11, design: .monospaced))
                                     .foregroundStyle(.secondary)

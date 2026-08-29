@@ -51,14 +51,14 @@ struct RunPosterView: View {
 
             VStack(spacing: 8) {
                 Text(run.name.uppercased())
-                    .font(.system(size: 48, weight: .bold))
+                    .font(.etch(size: 48, weight: .bold))
                     .tracking(2)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .foregroundStyle(Theme.Palette.ink)
                 if !run.placeLabel.isEmpty {
                     Text(run.placeLabel.uppercased())
-                        .font(.system(size: 22, weight: .medium))
+                        .font(.etch(size: 22, weight: .medium))
                         .tracking(5)
                         .foregroundStyle(Theme.Palette.ink.opacity(0.55))
                 }
@@ -76,12 +76,12 @@ struct RunPosterView: View {
 
             HStack {
                 Text(Format.date(run.startDate).uppercased())
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.etch(size: 18, weight: .semibold))
                     .tracking(3)
                     .foregroundStyle(Theme.Palette.ink.opacity(0.5))
                 Spacer()
                 Text("etch")
-                    .font(.system(size: 30, weight: .bold, design: .default))
+                    .font(.etch(size: 30, weight: .bold))
                     .foregroundStyle(Theme.Palette.blue)
             }
             .padding(.top, 4)
@@ -93,12 +93,12 @@ struct RunPosterView: View {
     private func stat(_ label: String, _ value: String) -> some View {
         VStack(spacing: 6) {
             Text(value)
-                .font(.system(size: 30, weight: .bold))
+                .font(.etch(size: 30, weight: .bold))
                 .foregroundStyle(Theme.Palette.ink)
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
             Text(label)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.etch(size: 14, weight: .semibold))
                 .tracking(2)
                 .foregroundStyle(Theme.Palette.ink.opacity(0.5))
         }

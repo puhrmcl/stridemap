@@ -23,7 +23,7 @@ struct HiddenRunsView: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(run.name)
-                                    .font(.system(.body, design: .default).weight(.medium))
+                                    .font(.etch(.body, weight: .medium))
                                 Text("\(run.startDate.formatted(date: .abbreviated, time: .omitted)) · \(Format.distance(run.distance, decimals: 1))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)

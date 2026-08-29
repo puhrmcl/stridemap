@@ -61,15 +61,24 @@
   --etch-accent-text: var(--etch-blue-text);
 
   /* ---- Type ----
-     Neue Haas Grotesk and Tiempos Text are licensed faces (Monotype, Klim).
-     They are named first so that installing the webfonts is a matter of
-     adding the @font-face rules below and nothing else — no selector in the
-     theme needs to change. Until then the stacks fall through to the
-     platform grotesk and a Times-lineage serif, which is the same decision
-     the app makes when it falls back to SF Pro and New York. */
-  --etch-font-sans: "Neue Haas Grotesk Text", "NHaasGroteskTXPro", -apple-system,
-    BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --etch-font-serif: "Tiempos Text", Georgia, "Times New Roman", Times, serif;
+     Three faces, self-hosted, matching the app exactly:
+
+       · Inter Tight — display and titles. The tighter fit is what gives a
+         headline the density the brand's display type has.
+       · Inter — everything else. Body, labels, buttons, data, UI.
+       · Newsreader — the editorial serif, for the few lines meant to be read
+         rather than scanned.
+
+     These stand in for Neue Haas Grotesk and Tiempos Text, which are licensed
+     faces the project does not own. All three are SIL Open Font License, which
+     covers both embedding in the app and serving here. The @font-face rules
+     live in theme.liquid, because a Shopify asset's real URL is only knowable
+     through `asset_url`. */
+  --etch-font-display: "Inter Tight", "Inter", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --etch-font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --etch-font-serif: "Newsreader", Georgia, "Times New Roman", Times, serif;
 
   --etch-track-label: 0.1em;      /* the small tracked metadata style */
   --etch-track-display: -0.01em;  /* display type wants closing up    */
@@ -80,26 +89,6 @@
   --etch-weight-medium: 500;  /* 65 Medium — headings, buttons, labels */
   --etch-weight-bold: 600;    /* 75 Bold   — used rarely               */
 }
-
-/*  When the licensed files are bought and dropped into `assets/`, uncomment.
-    Nothing else changes: the stacks above already ask for these names first.
-
-@font-face {
-  font-family: "Neue Haas Grotesk Text";
-  src: url("NeueHaasGroteskText-55Roman.woff2") format("woff2");
-  font-weight: 400; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: "Neue Haas Grotesk Text";
-  src: url("NeueHaasGroteskText-65Medium.woff2") format("woff2");
-  font-weight: 500; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: "Tiempos Text";
-  src: url("TiemposText-Regular.woff2") format("woff2");
-  font-weight: 400; font-style: normal; font-display: swap;
-}
-*/
 
 /* ---- Layer 2, dark ----
    Deepened out of Etch Ink rather than inverted, and the type stays warm:
@@ -134,7 +123,7 @@
   --font-body-family: var(--etch-font-sans);
   --font-body-weight: var(--etch-weight-roman);
   --font-body-weight-bold: var(--etch-weight-medium);
-  --font-heading-family: var(--etch-font-sans);
+  --font-heading-family: var(--etch-font-display);
 }
 
 /* Figures that have to line up — prices, totals, distances, dates, counts.

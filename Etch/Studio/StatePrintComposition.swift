@@ -22,7 +22,7 @@ struct StatePrintComposition: View {
 
                 VStack(spacing: 22) {
                     Text(title.uppercased())
-                        .font(.system(size: 56, weight: .bold))
+                        .font(.etch(size: 56, weight: .bold))
                         .tracking(3)
                         .foregroundStyle(.white)
                         .lineLimit(2)
@@ -52,12 +52,12 @@ struct StatePrintComposition: View {
     private func tile(_ label: String, _ value: String) -> some View {
         VStack(spacing: 8) {
             Text(value)
-                .font(.system(size: 40, weight: .bold))
+                .font(.etch(size: 40, weight: .bold))
                 .foregroundStyle(.white)
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)
             Text(label)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.etch(size: 16, weight: .semibold))
                 .tracking(2)
                 .foregroundStyle(.white.opacity(0.75))
                 .lineLimit(1)

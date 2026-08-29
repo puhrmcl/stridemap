@@ -78,7 +78,7 @@ struct YearInReviewView: View {
             isPlaying ? stop() : play()
         } label: {
             Label(isPlaying ? "Stop" : "Play \(mappableRuns.count) runs", systemImage: isPlaying ? "stop.fill" : "play.fill")
-                .font(.system(.subheadline, design: .default).weight(.semibold))
+                .font(.etch(.subheadline, weight: .semibold))
                 .padding(.horizontal, 18)
                 .padding(.vertical, 10)
                 .glassBackground(cornerRadius: 20)
@@ -119,10 +119,10 @@ struct YearInReviewView: View {
     private var headline: some View {
         VStack(spacing: 6) {
             Text(Format.distanceValue(stats.totalDistanceMeters).formatted(.number.precision(.fractionLength(0))))
-                .font(.system(size: 60, weight: .heavy, design: .default))
+                .font(.etch(size: 60, weight: .heavy))
                 .foregroundStyle(Theme.accent)
             Text("\(UnitSystem.current.label.lowercased()) run in \(String(year))")
-                .font(.system(.headline, design: .default))
+                .font(.etch(.headline))
                 .foregroundStyle(.secondary)
         }
     }

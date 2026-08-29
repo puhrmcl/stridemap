@@ -15,13 +15,13 @@ struct StatTile: View {
                     .foregroundStyle(Theme.accent)
             }
             Text(value)
-                .font(.system(size: 30, weight: .bold, design: .default))
+                .font(.etch(size: 30, weight: .bold))
                 .foregroundStyle(.primary)
                 .contentTransition(.numericText())
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
             Text(label)
-                .font(.system(.subheadline, design: .default))
+                .font(.etch(.subheadline))
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -61,7 +61,7 @@ struct SuperlativeRow: View {
                 .frame(width: 30)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(.subheadline, design: .default).weight(.medium))
+                    .font(.etch(.subheadline, weight: .medium))
                     .foregroundStyle(.secondary)
                 if let subtitle {
                     Text(subtitle)
@@ -71,7 +71,7 @@ struct SuperlativeRow: View {
             }
             Spacer()
             Text(value)
-                .font(.system(.headline, design: .default))
+                .font(.etch(.headline))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)

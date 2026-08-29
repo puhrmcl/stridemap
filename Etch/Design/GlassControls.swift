@@ -68,11 +68,11 @@ struct GlassPill: View {
             }
             if let value {
                 Text(value)
-                    .font(.system(.subheadline, design: .default).weight(.bold))
+                    .font(.etch(.subheadline, weight: .bold))
                     .contentTransition(.numericText())
             }
             Text(title)
-                .font(.system(.caption, design: .default).weight(.medium))
+                .font(.etch(.caption, weight: .medium))
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 14)

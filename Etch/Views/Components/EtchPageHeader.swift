@@ -37,12 +37,12 @@ struct EtchPageHeader<Trailing: View>: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.system(.largeTitle, design: .default).weight(.bold))
+                    .font(.etch(.largeTitle, weight: .bold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.system(.subheadline, design: .default))
+                        .font(.etch(.subheadline))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }

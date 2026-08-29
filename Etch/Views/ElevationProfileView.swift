@@ -15,7 +15,7 @@ struct ElevationProfileView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Elevation", systemImage: "mountain.2")
-                .font(.system(.headline, design: .default))
+                .font(.etch(.headline))
 
             switch phase {
             case .loading:
@@ -105,7 +105,7 @@ struct ElevationProfileView: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
             Text(value)
-                .font(.system(.subheadline, design: .default).weight(.bold))
+                .font(.etch(.subheadline, weight: .bold))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

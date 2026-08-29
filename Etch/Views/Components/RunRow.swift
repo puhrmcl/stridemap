@@ -17,7 +17,7 @@ struct RunRow: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(run.displayName)
-                    .font(.system(.subheadline, design: .default).weight(.semibold))
+                    .font(.etch(.subheadline, weight: .semibold))
                     .lineLimit(1)
                 Text(Format.dateTime(run.startDate))
                     .font(.caption)
@@ -34,7 +34,7 @@ struct RunRow: View {
             VStack(alignment: .trailing, spacing: 3) {
                 // Tabular digits so the metric column aligns optically across rows.
                 Text(Format.distance(run.distance))
-                    .font(.system(.subheadline, design: .default).weight(.bold))
+                    .font(.etch(.subheadline, weight: .bold))
                     .monospacedDigit()
                 Text(Format.duration(run.movingTime))
                     .font(.caption)

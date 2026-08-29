@@ -42,7 +42,7 @@ struct MetricPickerSheet: View {
                         dismiss()
                     } label: {
                         Label("Leave Blank", systemImage: "circle.dashed")
-                            .font(.system(.subheadline, design: .default).weight(.semibold))
+                            .font(.etch(.subheadline, weight: .semibold))
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity)
                             .frame(height: 44)
@@ -56,7 +56,7 @@ struct MetricPickerSheet: View {
                             dismiss()
                         } label: {
                             Label("Remove Data Point", systemImage: "minus.circle")
-                                .font(.system(.subheadline, design: .default).weight(.semibold))
+                                .font(.etch(.subheadline, weight: .semibold))
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 44)
                                 .background(Color.red.opacity(0.10), in: .rect(cornerRadius: 12))
@@ -79,13 +79,13 @@ struct MetricPickerSheet: View {
     private func chip(_ metric: StatMetric, available: Bool, selected: Bool) -> some View {
         VStack(spacing: 4) {
             Text(available ? (metric.value(for: run) ?? "—") : "—")
-                .font(.system(size: 16, weight: .bold, design: .default))
+                .font(.etch(size: 16, weight: .bold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.55)
             HStack(spacing: 4) {
                 Image(systemName: metric.icon).font(.system(size: 9, weight: .semibold))
                 Text(metric.label)
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.etch(size: 9, weight: .semibold))
                     .tracking(0.8)
             }
             .foregroundStyle(.secondary)

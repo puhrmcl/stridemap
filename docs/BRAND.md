@@ -68,12 +68,31 @@ schemes 3 and 4 rather than `prefers-color-scheme`.
 
 ## Typography
 
-| Role | Face | Weights |
-|------|------|---------|
-| Display, headlines, nav, buttons, body, labels, UI | **Neue Haas Grotesk** | 45 Light · 55 Roman · 65 Medium · 75 Bold |
-| Editorial moments | **Tiempos Text** | Regular · Medium · Semibold |
-| iOS system UI where native type is preferable | **SF Pro** | — |
+The brand specifies **Neue Haas Grotesk** and **Tiempos Text**. Both are
+commercially licensed and the project does not own them, so Etch ships three
+SIL Open Font License faces that stand in for them — and does so as the real
+identity, not as a placeholder:
 
+| Role | Face | Standing in for |
+|------|------|-----------------|
+| Display, titles | **Inter Tight** | Neue Haas Grotesk, display cuts |
+| Body, labels, buttons, data, UI | **Inter** | Neue Haas Grotesk Text |
+| Editorial moments | **Newsreader** | Tiempos Text |
+
+SF Pro stays where it must: **SF Symbols only render in SF Pro**, so every
+icon keeps the system face. Roughly a hundred call sites are system fonts for
+exactly that reason, and converting one to Inter turns its symbol into a
+missing glyph.
+
+- **Weights are files, not traits.** Google ships each weight as its own font
+  whose *family* name is the weight ("Inter SemiBold"), so
+  `Font.custom("Inter", …).weight(.semibold)` finds nothing to switch to and
+  CoreText draws a synthetic bold. Every token resolves to a specific
+  PostScript name instead, and nothing calls `.weight()` on a branded font.
+- **Dynamic Type is preserved.** Text-style call sites resolve through
+  `Font.custom(_:size:relativeTo:)` anchored to Apple's own default sizes, so
+  switching a site from `.system` to a branded face changes the face and
+  nothing else.
 - **Tabular figures** for distance, pace, time, elevation, dates, totals,
   coordinates and achievement statistics. Always.
 - **Sentence case** for most UI. The one deliberate uppercase is the small
@@ -82,24 +101,14 @@ schemes 3 and 4 rather than `prefers-color-scheme`.
   generic SaaS styling. **No rounded type anywhere** — it was the app's old
   default and it is the one thing the brand rules out.
 
-### Licensing — open
+Licence notice and the file-to-PostScript-name table:
+`Etch/Resources/Fonts/OFL-NOTICE.md`.
 
-Neue Haas Grotesk is Monotype; Tiempos Text is Klim. Both are commercial, and
-neither ships with iOS nor lives in this repo. **Licences covering app
-embedding and web use need buying, and the files supplying.**
+### If the licensed faces are ever bought
 
-Until they arrive the tokens resolve to SF Pro and New York on iOS, and to
-the platform grotesk and a Times-lineage serif on the web. Nothing looks
-broken in the meantime, and nothing is blocked on the purchase:
-
-- **iOS** — drop the `.otf` files into the target and list them under
-  `UIAppFonts` in `Info.plist`. `EtchType` already asks for the branded family
-  first and reports which state it is in via `EtchType.isBranded`.
-- **Web** — drop the `.woff2` files into `storefront/assets/` and uncomment
-  the `@font-face` block in `etch-tokens.css`. The stacks already name the
-  licensed faces first.
-
-No selector or call site changes on either surface.
+Nothing about the structure changes. Add the files, add the PostScript names
+to `EtchType.postScriptName`, and add the `@font-face` rules and family names
+to `etch-tokens.css` / `theme.liquid`. No call site moves.
 
 ## Icon system
 
