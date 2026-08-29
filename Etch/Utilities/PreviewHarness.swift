@@ -194,7 +194,8 @@ struct PreviewHarnessView: View {
                 case "archive":         CollectionBrowserView(collection: .archive, runs: allRuns)
                 case "course":          CollectionBrowserView(collection: .course, runs: allRuns)
                 case "summit":          CollectionBrowserView(collection: .summit, runs: allRuns)
-                case "yearbook":        YearBookView()
+                case "yearbook":        BookStudioView(kind: .year)
+                case "collections":     BookStudioView(kind: .collection)
                 case "prints":          PrintShopView(subjectTitle: subject?.name)
                 // Not a screen of the app: the print engine's self-check, reported on screen
                 // because CI photographs screens and this project has no test target.

@@ -11,11 +11,11 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b488: the Photo Wall takes pictures from the library, so it is usable without
-# activity photos; and the Studio tile's framed mockup fills every cell instead of showing empty
-# rectangles. Also Map Prints / Gallery Prints on the product tiles.
+# Requested for b489: the book's year picker is a dropdown rather than a segmented control that
+# rendered every year as "…"; and Collections — the same book bound around a state, a city, your
+# favorites or your races — is the eighth product tile.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=studio,tabs@studio
+screens=yearbook,collections,studio@collections
 appearance=both

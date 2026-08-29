@@ -1,68 +1,102 @@
 import Foundation
 
-/// One page of the Year Book, in PDF order: the first spec becomes the front cover, the last
-/// the back cover (per the layflat print guide), everything between is interior content.
+/// One book page, in PDF order: the first spec becomes the front cover, the last the back cover
+/// (per the layflat print guide), everything between is interior content.
+///
+/// None of these carry the year any more. A page that prints "2025" on a Year Book prints
+/// "Colorado" on a Collection, and the thing it prints is the plan's `subject` — so the spec says
+/// *which page this is* and the plan says *what the book is about*.
 enum BookPageSpec {
-    case cover(year: Int)
-    case title(year: Int)
-    case yearStats(year: Int)
-    case month(monthStart: Date)
+    case cover
+    case title
+    case stats
+    /// A month, or a whole year when the subject spans too many months to give each one a page.
+    case chapter(start: Date)
     case race(runIndex: Int)
-    case closing(year: Int)
+    case closing
     case blank
-    case backCover(year: Int)
+    case backCover
 }
 
-/// The Year Book's plan: which pages exist and in what order, derived from one year of
-/// activities. Pure derivation — rendering happens in `BookRenderer`, and the plan carries the
-/// year's runs so every page spec can resolve its content from one source.
+/// A book's plan: which pages exist and in what order, derived from a subject and a history.
+/// Pure derivation — rendering happens in `BookRenderer`, and the plan carries the selected runs
+/// so every page spec can resolve its content from one source.
 struct BookPlan {
-    let year: Int
-    /// The year's activities, ascending by date.
+
+    /// How the interior is divided. A year's twelve months each earn a page; a collection can span
+    /// a decade, and 120 month pages would blow straight through the lab's 122-page ceiling, so a
+    /// long collection is chaptered by year instead.
+    enum ChapterSpan {
+        case month, year
+
+        func start(of date: Date, _ calendar: Calendar) -> Date {
+            let components: Set<Calendar.Component> = self == .month ? [.year, .month] : [.year]
+            return calendar.date(from: calendar.dateComponents(components, from: date)) ?? date
+        }
+    }
+
+    let subject: BookSubject
+    /// The subject's activities, ascending by date.
     let runs: [Run]
     let pages: [BookPageSpec]
+    let chapterSpan: ChapterSpan
 
     var pageCount: Int { pages.count }
 
-    /// Builds the plan: cover → title → year stats → a page per active month, each month's
-    /// race pages following it → closing → back cover; padded with blanks to Prodigi's even-count
-    /// and minimum-pages rules, and race pages capped so the book stays within the envelope.
-    static func make(year: Int, runs: [Run]) -> BookPlan {
+    /// Whether a chapter heading has to name its year. Within one calendar year "MARCH" is
+    /// unambiguous; across a collection spanning several it is not.
+    var chapterNamesYear: Bool {
+        chapterSpan == .year || subject.kind == .collection
+    }
+
+    /// Race pages are the book's set pieces; capped so a heavy race history stays inside the page
+    /// envelope. A Races collection is *all* races, which is exactly the case this protects.
+    private static let raceBudget = 24
+    /// The most chapters that can each take their own page before the book switches to years.
+    private static let chapterBudget = 60
+
+    /// Builds the plan: cover → title → stats → a page per active chapter, each chapter's race
+    /// pages following it → closing → back cover; padded with blanks to Prodigi's even-count and
+    /// minimum-pages rules, and trimmed to its maximum.
+    static func make(subject: BookSubject, runs: [Run]) -> BookPlan {
         let calendar = Calendar.current
-        let yearRuns = runs
-            .filter { calendar.component(.year, from: $0.startDate) == year }
-            .sorted { $0.startDate < $1.startDate }
+        let selected = runs.filter(subject.matches).sorted { $0.startDate < $1.startDate }
 
-        var pages: [BookPageSpec] = [.cover(year: year), .title(year: year), .yearStats(year: year)]
+        let months = Set(selected.map { ChapterSpan.month.start(of: $0.startDate, calendar) })
+        let span: ChapterSpan = months.count <= chapterBudget ? .month : .year
 
-        // Months that actually have activity, in order.
-        let byMonth = Dictionary(grouping: yearRuns) {
-            calendar.date(from: calendar.dateComponents([.year, .month], from: $0.startDate))!
-        }
-        // Race pages are the book's set pieces; cap them so a heavy race year stays inside the
-        // page envelope (cover+title+stats+12 months+closing+back ≈ 17 fixed pages).
-        let raceBudget = 24
+        var pages: [BookPageSpec] = [.cover, .title, .stats]
+
+        let byChapter = Dictionary(grouping: selected) { span.start(of: $0.startDate, calendar) }
         var racesUsed = 0
-        for monthStart in byMonth.keys.sorted() {
-            pages.append(.month(monthStart: monthStart))
-            let monthRaces = (byMonth[monthStart] ?? []).filter(\.isRace)
-            for race in monthRaces where racesUsed < raceBudget {
-                if let index = yearRuns.firstIndex(where: { $0.id == race.id }) {
+        for start in byChapter.keys.sorted() {
+            pages.append(.chapter(start: start))
+            let chapterRaces = (byChapter[start] ?? []).filter(\.isRace)
+            for race in chapterRaces where racesUsed < raceBudget {
+                if let index = selected.firstIndex(where: { $0.id == race.id }) {
                     pages.append(.race(runIndex: index))
                     racesUsed += 1
                 }
             }
         }
 
-        pages.append(.closing(year: year))
+        pages.append(.closing)
 
         // Pad to the minimum interior size, then to an even total, with quiet blanks before the
         // back cover.
         while pages.count + 1 < BookCatalog.minPages { pages.append(.blank) }
         if (pages.count + 1) % 2 != 0 { pages.append(.blank) }
-        pages.append(.backCover(year: year))
 
-        return BookPlan(year: year, runs: yearRuns, pages: pages)
+        // A last, defensive trim. The budgets above should already hold the book inside the
+        // envelope; if a history ever finds a shape they don't, the lab rejects the file rather
+        // than printing a short book, so the ceiling is enforced here too.
+        if pages.count + 1 > BookCatalog.maxPages {
+            pages = Array(pages.prefix(BookCatalog.maxPages - 1))
+            if (pages.count + 1) % 2 != 0 { pages.removeLast() }
+        }
+        pages.append(.backCover)
+
+        return BookPlan(subject: subject, runs: selected, pages: pages, chapterSpan: span)
     }
 
     /// The run a race page shows.
@@ -70,11 +104,9 @@ struct BookPlan {
         runs.indices.contains(index) ? runs[index] : nil
     }
 
-    /// A month page's activities.
-    func monthRuns(_ monthStart: Date) -> [Run] {
+    /// A chapter page's activities.
+    func chapterRuns(_ start: Date) -> [Run] {
         let calendar = Calendar.current
-        return runs.filter {
-            calendar.date(from: calendar.dateComponents([.year, .month], from: $0.startDate)) == monthStart
-        }
+        return runs.filter { chapterSpan.start(of: $0.startDate, calendar) == start }
     }
 }

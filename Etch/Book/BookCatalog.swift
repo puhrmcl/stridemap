@@ -8,6 +8,10 @@ enum BookCatalog {
 
     static let prodigiSKU = "BOOK-FE-A4-L-LF-G"
     static let name = "Etch Year Book"
+    /// The same object, bound around a place or a shelf of races rather than a calendar year.
+    /// One SKU, one price, one production file — two products on the storefront, because "the
+    /// year I ran" and "everything I ran in Colorado" are two different things to want.
+    static let collectionName = "Etch Collection"
     static let material = "Layflat hardcover, A4 landscape (11.7 × 8.3″). Gloss 190gsm pages, matte-laminate cover."
 
     /// Verified content print area: 297×210mm at 300 DPI.

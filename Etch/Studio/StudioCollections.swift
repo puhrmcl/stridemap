@@ -381,7 +381,7 @@ struct CollectionBrowserView: View {
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .sheet(isPresented: $showYearBook) { YearBookView() }
+            .sheet(isPresented: $showYearBook) { BookStudioView(kind: .year) }
         }
         .background(.primary.opacity(0.05), in: .rect(cornerRadius: 18))
         .task(id: runs.count) { await renderArchiveThumbnails() }

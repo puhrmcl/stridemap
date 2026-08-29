@@ -7,7 +7,7 @@ import UIKit
 /// is a *choice made inside* buying one — the order Tesla uses, and the reason their
 /// configurator is ten taps rather than seventy.
 enum StudioProduct: String, CaseIterable, Identifiable {
-    case mapPoster, galleryPoster, photoWall, medalFrame, yearBook, wallArt, lithograph
+    case mapPoster, galleryPoster, photoWall, medalFrame, yearBook, collections, wallArt, lithograph
     var id: String { rawValue }
 
     /// The products the storefront currently offers. The medal frame is built but withheld until
@@ -31,6 +31,7 @@ enum StudioProduct: String, CaseIterable, Identifiable {
         case .photoWall:     return "Photo Wall"
         case .medalFrame:    return "Medal Frame"
         case .yearBook:      return "Year Book"
+        case .collections:   return "Collections"
         case .wallArt:       return "Anthology"
         case .lithograph:    return "Lithograph"
         }
@@ -44,6 +45,7 @@ enum StudioProduct: String, CaseIterable, Identifiable {
         case .photoWall:     return "Forty days, one frame."
         case .medalFrame:    return "The medal, and the day you earned it."
         case .yearBook:      return "A year of it, bound."
+        case .collections:   return "A state, a city, your races — bound."
         case .wallArt:       return "Everything you've done, as one object."
         case .lithograph:    return "Every city you've run, set as type."
         }
@@ -51,7 +53,7 @@ enum StudioProduct: String, CaseIterable, Identifiable {
 
     var priceLine: String {
         switch self {
-        case .yearBook:
+        case .yearBook, .collections:
             return BookCatalog.price
         case .photoWall:
             return MultiPhotoFrameCatalog.price
@@ -81,11 +83,12 @@ enum StudioProduct: String, CaseIterable, Identifiable {
     /// Shown until this product's own preview has rendered.
     var placeholderSymbol: String {
         switch self {
-        case .yearBook:   return "book.pages"
-        case .photoWall:  return "square.grid.3x3"
-        case .medalFrame: return "medal"
-        case .lithograph: return "text.justify.leading"
-        default:          return "photo.artframe"
+        case .yearBook:    return "book.pages"
+        case .collections: return "books.vertical"
+        case .photoWall:   return "square.grid.3x3"
+        case .medalFrame:  return "medal"
+        case .lithograph:  return "text.justify.leading"
+        default:           return "photo.artframe"
         }
     }
 

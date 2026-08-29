@@ -80,6 +80,7 @@ ETCH STUDIO — MAKE SOMETHING REAL
 • Lithograph — every city you've run, set as type
 • Photo Wall — forty days, one frame
 • Year Book — a year of it, bound
+• Collections — a state, a city, your favorites or every race, bound
 • Medal Frame — the medal, and the day you earned it
 
 PRINTED PROPERLY

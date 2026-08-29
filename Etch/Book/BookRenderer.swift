@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// Renders Year Book pages — at preview scale for the pager, and at full 300-DPI print scale
+/// Renders book pages — at preview scale for the pager, and at full 300-DPI print scale
 /// into the single-PDF file Prodigi's layflat book takes (first page = front cover, last = back
 /// cover, single pages, no bleed — per the print guide).
 @MainActor
@@ -30,7 +30,7 @@ enum BookRenderer {
     /// thirty A4 pages at 300 DPI never coexist in memory.
     static func exportPDF(plan: BookPlan, onProgress: @escaping (Int, Int) -> Void) async -> URL? {
         let workDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("yearbook-\(plan.year)-\(UUID().uuidString.prefix(6))")
+            .appendingPathComponent("book-\(plan.subject.slug)-\(UUID().uuidString.prefix(6))")
         try? FileManager.default.createDirectory(at: workDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: workDirectory) }
 
@@ -48,7 +48,7 @@ enum BookRenderer {
         }
 
         let output = FileManager.default.temporaryDirectory
-            .appendingPathComponent("Etch-YearBook-\(plan.year).pdf")
+            .appendingPathComponent("Etch-Book-\(plan.subject.slug).pdf")
         let format = UIGraphicsPDFRendererFormat()
         let pdf = UIGraphicsPDFRenderer(bounds: BookCatalog.pdfPageRect, format: format)
         do {

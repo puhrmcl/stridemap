@@ -536,6 +536,7 @@ struct StudioHomeView: View {
     /// Whether any scoped run carries a cover photo — gates the Photo Wall utility row.
     private var hasPhotos: Bool { scopedRuns.contains { !$0.photoReferences.isEmpty } }
     @State private var showYearBook = false
+    @State private var showCollections = false
     /// Browsing the whole history in date order to pick a subject.
     @State private var showTimeline = false
 
@@ -612,6 +613,7 @@ struct StudioHomeView: View {
         case .mapPoster, .galleryPoster, .medalFrame: pickingFor = product
         case .photoWall:                              showPhotoWall = true
         case .yearBook:                               showYearBook = true
+        case .collections:                            showCollections = true
         case .wallArt:                                mapPrintKind = .artMap
         case .lithograph:                             showLithograph = true
         }
@@ -741,9 +743,14 @@ struct StudioHomeView: View {
                 recipe.family = .map
                 let panel = await StudioRenderer.image(for: recipe.request(for: subject), scale: 0.2)
                 image = MedalFrameMockup.image(panel: panel)
-            case .yearBook:
-                let year = Calendar.current.component(.year, from: subject.startDate)
-                let plan = BookPlan.make(year: year, runs: runs)
+            case .yearBook, .collections:
+                // Each tile is the cover of the book that product would actually produce from
+                // this history — a year on one, and whatever the strongest collection is on the
+                // other. The two subjects are drawn from different lists, so the tiles cannot
+                // come out as the same picture and read as one product listed twice.
+                let kind: BookSubject.Kind = product == .yearBook ? .year : .collection
+                guard let bookSubject = BookSubject.offered(kind, in: runs).first else { continue }
+                let plan = BookPlan.make(subject: bookSubject, runs: runs)
                 image = await BookRenderer.pageImage(plan: plan, page: 0, scale: 0.34)
             case .photoWall:
                 // The tile shows the wall inside its frame, because that is the object that
@@ -847,7 +854,8 @@ struct StudioHomeView: View {
         }
         .padding(.horizontal, 20)
         .sheet(isPresented: $showPrints) { PrintShopView(subjectTitle: nil) }
-        .sheet(isPresented: $showYearBook) { YearBookView() }
+        .sheet(isPresented: $showYearBook) { BookStudioView(kind: .year) }
+        .sheet(isPresented: $showCollections) { BookStudioView(kind: .collection) }
         // The product grid's picker leads with standouts and stops at thirty recent runs, which
         // is the right shape for "make something good" and the wrong one for "make the one from
         // that Tuesday in March". This is the same picker in date order, month by month, with

@@ -2,23 +2,26 @@ import SwiftUI
 import SwiftData
 import ShopifyCheckoutSheetKit
 
-/// The Year Book — a whole year of activity composed into Prodigi's layflat A4-landscape book.
-/// This surface previews every page (cover → months → races → back cover), exports a print-ready
+/// The book editor — a whole subject composed into Prodigi's layflat A4-landscape book. This
+/// surface previews every page (cover → chapters → races → back cover), exports a print-ready
 /// proof PDF, and orders the book.
 ///
-/// Ordering was the missing half. The SKU was verified, the price was set and served, and
-/// `BookRenderer.exportPDF` already produced the exact file the lab prints — the book was simply
-/// never connected to a cart, so the storefront listed a $119 product that could be admired and
-/// not bought. The same gap the Photo Wall had, closed the same way.
+/// It serves both book products. The Year Book binds a calendar year; a Collection binds a state,
+/// a city, the runs someone starred, or every race they've run. Same object, same SKU, same
+/// production file — the only difference is which question the subject picker asks, which is why
+/// this is one screen and not two.
 ///
-/// The one thing that differs from every other product: the asset is a multi-page PDF rather than
-/// a PNG sheet, which is why the upload carries its own content type.
-struct YearBookView: View {
+/// The one thing that differs from every other product in the range: the asset is a multi-page PDF
+/// rather than a PNG sheet, which is why the upload carries its own content type.
+struct BookStudioView: View {
+    /// Which book this is. Chooses the title, and what the subject dropdown offers.
+    var kind: BookSubject.Kind = .year
+
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Run.startDate) private var allRuns: [Run]
 
-    @State private var year: Int = Calendar.current.component(.year, from: .now)
-    @State private var didSeedYear = false
+    /// Nil until the reader picks one; `resolvedSubject` supplies the default until they do.
+    @State private var subject: BookSubject?
     /// Rendered page previews, by page index, for the current plan.
     @State private var previews: [Int: UIImage] = [:]
     @State private var currentPage = 0
@@ -36,28 +39,35 @@ struct YearBookView: View {
         PrintOrderService.isConfigured && EtchConfig.current.ordering.enabled && !plan.runs.isEmpty
     }
 
-    private var years: [Int] {
-        Array(Set(allRuns.map { Calendar.current.component(.year, from: $0.startDate) })).sorted(by: >)
+    /// Everything this history can be bound as, under this product.
+    private var subjects: [BookSubject] { BookSubject.offered(kind, in: allRuns) }
+
+    /// What the book is about right now: the chosen subject, or — before anything is chosen, and
+    /// while the history is still arriving — the first one offered. Resolving the seed here rather
+    /// than assigning it in `onAppear` is what keeps the previews from rendering twice: the pager
+    /// is keyed on this one value, and it only changes when the book actually does.
+    private var resolvedSubject: BookSubject {
+        subject ?? subjects.first ?? .year(Calendar.current.component(.year, from: .now))
     }
 
-    private var plan: BookPlan { BookPlan.make(year: year, runs: allRuns) }
+    private var plan: BookPlan { BookPlan.make(subject: resolvedSubject, runs: allRuns) }
+
+    private var title: String { kind == .year ? "Year Book" : "Collections" }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 14) {
-                if years.isEmpty {
-                    ContentUnavailableView("No activities yet",
-                                           systemImage: "book.closed",
-                                           description: Text("The Year Book composes itself from a year of activities."))
+                if subjects.isEmpty {
+                    emptyState
                 } else {
-                    yearPicker
+                    subjectPicker
                     pager
                     footer
                 }
             }
             .padding(.vertical, 10)
             .background(Color(.systemGroupedBackground))
-            .navigationTitle("Year Book")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
@@ -83,24 +93,73 @@ struct YearBookView: View {
             )) {
                 Button("OK", role: .cancel) {}
             } message: { Text(orderError ?? "") }
-            .task(id: year) { await renderPreviews() }
-            .onAppear {
-                // Open on the most recent year that has activity.
-                if !didSeedYear, let latest = years.first {
-                    didSeedYear = true
-                    year = latest
-                }
-            }
+            .task(id: resolvedSubject) { await renderPreviews() }
         }
     }
 
-    private var yearPicker: some View {
-        Picker("Year", selection: $year) {
-            ForEach(years, id: \.self) { Text(String($0)).tag($0) }
+    private var emptyState: some View {
+        ContentUnavailableView(
+            kind == .year ? "No years to bind yet" : "No collections yet",
+            systemImage: kind == .year ? "book.closed" : "books.vertical",
+            description: Text(kind == .year
+                ? "A Year Book needs at least \(BookSubject.minimumActivities) activities in one year."
+                : "A Collection needs at least \(BookSubject.minimumActivities) activities in one state, one city, your favorites, or your races.")
+        )
+    }
+
+    /// The subject dropdown.
+    ///
+    /// This was a segmented control, which is the wrong control for the job twice over: a segment
+    /// gets an equal share of the bar whatever it holds, so five years came out as five columns
+    /// too narrow for four digits and every one of them rendered as "…" — the years genuinely were
+    /// not showing. And a Collection's options are a nested list (Favorites, Races, then states,
+    /// then cities), which a segmented control cannot express at all. A menu sizes to its label,
+    /// nests, and grows with the history.
+    private var subjectPicker: some View {
+        Menu {
+            switch kind {
+            case .year:
+                ForEach(subjects) { option in subjectButton(option) }
+            case .collection:
+                // The two that need no place data sit at the top level; places nest, because a
+                // long history carries dozens and a flat menu of them is an index, not a choice.
+                ForEach(subjects.filter { !$0.isPlace }) { subjectButton($0) }
+                let states = subjects.filter(\.isState)
+                if !states.isEmpty {
+                    Menu("State") { ForEach(states) { subjectButton($0) } }
+                }
+                let cities = subjects.filter(\.isCity)
+                if !cities.isEmpty {
+                    Menu("City") { ForEach(cities) { subjectButton($0) } }
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Text(resolvedSubject.menuLabel)
+                    .font(.etch(.headline))
+                    .lineLimit(1)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .foregroundStyle(Theme.accent)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+            .background(Theme.accent.opacity(0.12), in: .capsule)
         }
-        .pickerStyle(.segmented)
-        .padding(.horizontal, 20)
-        .disabled(isExporting)
+        .disabled(isExporting || orderPhase != nil)
+        .accessibilityLabel(kind == .year ? "Choose a year" : "Choose a collection")
+    }
+
+    private func subjectButton(_ option: BookSubject) -> some View {
+        Button {
+            subject = option
+        } label: {
+            if option == resolvedSubject {
+                Label(option.menuLabel, systemImage: "checkmark")
+            } else {
+                Text(option.menuLabel)
+            }
+        }
     }
 
     /// The book as a swipeable pager — each card is one page at the true A4-landscape aspect.
@@ -132,7 +191,7 @@ struct YearBookView: View {
 
     private var footer: some View {
         VStack(spacing: 12) {
-            Text("Page \(currentPage + 1) of \(plan.pageCount)  ·  \(BookCatalog.name)  ·  \(BookCatalog.price)")
+            Text("Page \(currentPage + 1) of \(plan.pageCount)  ·  \(resolvedSubject.productName)  ·  \(BookCatalog.price)")
                 .font(.etch(.footnote, weight: .semibold))
                 .foregroundStyle(.secondary)
 
@@ -221,8 +280,8 @@ struct YearBookView: View {
         Task {
             do {
                 // The proof and the production file are the same document, so an exported proof
-                // is reused rather than rendered twice — `exportPDF` writes one file per year and
-                // returns that same path either way.
+                // is reused rather than rendered twice — `exportPDF` writes one file per subject
+                // and returns that same path either way.
                 orderPhase = .rendering
                 var fileURL = proofURL
                 if fileURL == nil || !FileManager.default.fileExists(atPath: fileURL!.path) {
@@ -242,7 +301,7 @@ struct YearBookView: View {
                 let cart = try await PrintOrderService.checkout(
                     fileAt: fileURL,
                     pixels: BookCatalog.pagePixelSize,
-                    creationID: "yearbook-\(plan.year)-\(plan.pageCount)p",
+                    creationID: "book-\(plan.subject.slug)-\(plan.pageCount)p",
                     shopifySKU: BookCatalog.prodigiSKU,
                     prodigiSKU: BookCatalog.prodigiSKU,
                     productHandle: BookCatalog.shopifyHandle,

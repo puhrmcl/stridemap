@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// One Year Book page, composed at `BookCatalog.pageSize` (A4 landscape) and rendered by
+/// One book page, composed at `BookCatalog.pageSize` (A4 landscape) and rendered by
 /// `BookRenderer`. The book speaks the poster language — bone ground, ink serif mastheads, wide
 /// tracking, the route as vector art — and stays print-clean: no Apple map tiles (books are
 /// printed merchandise), only self-rendered linework.
@@ -18,17 +18,20 @@ struct BookPageView: View {
     /// Design margin: the print guide's safety margin plus breathing room.
     private let margin: CGFloat = 76
 
+    /// What this book is about — the year, the state, the city, the shelf of races.
+    private var subject: BookSubject { plan.subject }
+
     var body: some View {
         Group {
             switch spec {
-            case .cover(let year):        coverPage(year)
-            case .title(let year):        titlePage(year)
-            case .yearStats(let year):    yearStatsPage(year)
-            case .month(let monthStart):  monthPage(monthStart)
-            case .race(let index):        racePage(index)
-            case .closing(let year):      closingPage(year)
-            case .blank:                  ground
-            case .backCover(let year):    backCoverPage(year)
+            case .cover:                    coverPage
+            case .title:                    titlePage
+            case .stats:                    statsPage
+            case .chapter(let start):       chapterPage(start)
+            case .race(let index):          racePage(index)
+            case .closing:                  closingPage
+            case .blank:                    ground
+            case .backCover:                backCoverPage
             }
         }
         .frame(width: BookCatalog.pageSize.width, height: BookCatalog.pageSize.height)
@@ -41,9 +44,9 @@ struct BookPageView: View {
     /// The route sits in its own band between the eyebrow and the year block rather than behind
     /// them: stacked, not layered, so the line can never cross the type — the same rule the
     /// poster fit engine enforces.
-    private func coverPage(_ year: Int) -> some View {
+    private var coverPage: some View {
         VStack(spacing: 0) {
-            Text("A YEAR IN MOTION")
+            Text(subject.eyebrow)
                 .font(.etch(size: 22, weight: .semibold))
                 .tracking(10)
                 .foregroundStyle(subtle)
@@ -64,10 +67,15 @@ struct BookPageView: View {
             .frame(maxHeight: .infinity)
 
             VStack(spacing: 6) {
-                Text(String(year))
-                    .font(.etchSerif(size: 120, weight: .regular))
+                // A year is four digits and always fits; a place name is not. The size is chosen
+                // by length and the scale factor catches anything longer still, so "SAN
+                // FRANCISCO" sets on one line rather than running off the sheet.
+                Text(subject.title.uppercased())
+                    .font(.etchSerif(size: subject.coverTitleSize, weight: .regular))
                     .tracking(6)
                     .foregroundStyle(ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.4)
                 Text(totalDistanceLine.uppercased())
                     .font(.etch(size: 18, weight: .semibold))
                     .tracking(6)
@@ -82,15 +90,17 @@ struct BookPageView: View {
 
     // MARK: Title
 
-    private func titlePage(_ year: Int) -> some View {
+    private var titlePage: some View {
         VStack(spacing: 22) {
             Spacer()
-            Text("THE YEAR BOOK")
+            Text(subject.masthead)
                 .font(.etch(size: 17, weight: .semibold)).tracking(8)
                 .foregroundStyle(subtle)
-            Text(String(year))
-                .font(.etchSerif(size: 92, weight: .regular)).tracking(4)
+            Text(subject.title.uppercased())
+                .font(.etchSerif(size: subject.coverTitleSize * 0.77, weight: .regular)).tracking(4)
                 .foregroundStyle(ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.4)
             if let first = plan.runs.first, let last = plan.runs.last {
                 Text("\(Format.date(first.startDate))  —  \(Format.date(last.startDate))".uppercased())
                     .font(.etch(size: 15, weight: .semibold)).tracking(4)
@@ -102,9 +112,9 @@ struct BookPageView: View {
         .padding(margin)
     }
 
-    // MARK: Year statistics — the complication wall
+    // MARK: Statistics — the complication wall
 
-    private func yearStatsPage(_ year: Int) -> some View {
+    private var statsPage: some View {
         let stats = RunStatistics(plan.runs)
         let states = Set(plan.runs.compactMap { PlaceNames.canonicalState($0.state) }.filter { !$0.isEmpty })
         let cities = Set(plan.runs.compactMap { run -> String? in
@@ -113,8 +123,17 @@ struct BookPageView: View {
         })
         let races = plan.runs.filter(\.isRace).count
 
+        // A book *about* a place has already answered "where"; counting one city and one state on
+        // its own statistics page is a complication reporting a constant. It answers "when"
+        // instead — how many years of someone's history happened there.
+        let years = Set(plan.runs.map { Calendar.current.component(.year, from: $0.startDate) })
+        let placeStat: (String, String) = subject.isPlace
+            ? (years.count.formatted(), years.count == 1 ? "YEAR" : "YEARS")
+            : ("\(cities.count) · \(states.count)", "CITIES · STATES")
+
         return VStack(spacing: 40) {
-            pageHeader("THE YEAR", subtitle: String(year))
+            pageHeader(subject.kind == .year ? "THE YEAR" : "THE COLLECTION",
+                       subtitle: subject.title.uppercased())
             Spacer(minLength: 0)
             HStack(spacing: 0) {
                 bigStat(stats.totalRuns.formatted(), "ACTIVITIES")
@@ -129,26 +148,28 @@ struct BookPageView: View {
                 statDivider
                 bigStat(races.formatted(), races == 1 ? "RACE" : "RACES")
                 statDivider
-                bigStat("\(cities.count) · \(states.count)", "CITIES · STATES")
+                bigStat(placeStat.0, placeStat.1)
             }
             Spacer(minLength: 0)
         }
         .padding(margin)
     }
 
-    // MARK: Month page — the month's line-work, every route as a small etching
+    // MARK: Chapter page — the chapter's line-work, every route as a small etching
 
-    private func monthPage(_ monthStart: Date) -> some View {
-        let runs = plan.monthRuns(monthStart)
+    private func chapterPage(_ start: Date) -> some View {
+        let runs = plan.chapterRuns(start)
         let stats = RunStatistics(runs)
         let mapped = runs.filter { $0.coordinates.count > 1 }
         let cells = Array(mapped.prefix(8))
 
         return VStack(alignment: .leading, spacing: 30) {
             HStack(alignment: .firstTextBaseline) {
-                Text(monthName(monthStart))
+                Text(chapterName(start))
                     .font(.etchSerif(size: 54, weight: .regular)).tracking(2)
                     .foregroundStyle(ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                 Spacer()
                 Text("\(stats.totalRuns) \(stats.totalRuns == 1 ? "ACTIVITY" : "ACTIVITIES")  ·  \(Format.distanceValue(stats.totalDistanceMeters).formatted(.number.precision(.fractionLength(0)))) \(UnitSystem.current.label.uppercased())")
                     .font(.etch(size: 16, weight: .semibold)).tracking(3)
@@ -289,7 +310,7 @@ struct BookPageView: View {
 
     // MARK: Closing + back cover
 
-    private func closingPage(_ year: Int) -> some View {
+    private var closingPage: some View {
         let stats = RunStatistics(plan.runs)
         return VStack(spacing: 20) {
             Spacer()
@@ -297,9 +318,11 @@ struct BookPageView: View {
                 .font(.etch(size: 16, weight: .semibold)).tracking(4)
                 .foregroundStyle(subtle)
                 .multilineTextAlignment(.center)
-            Text("\(String(year)) · \(Format.distanceValue(stats.totalDistanceMeters).formatted(.number.precision(.fractionLength(0)))) \(UnitSystem.current.label.uppercased())")
+            Text("\(subject.title.uppercased()) · \(Format.distanceValue(stats.totalDistanceMeters).formatted(.number.precision(.fractionLength(0)))) \(UnitSystem.current.label.uppercased())")
                 .font(.etchSerif(size: 26, weight: .regular)).tracking(3)
                 .foregroundStyle(ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
             Spacer()
             Text("MADE WITH ETCH")
                 .font(.etch(size: 11, weight: .semibold)).tracking(4)
@@ -310,10 +333,10 @@ struct BookPageView: View {
         .padding(margin)
     }
 
-    private func backCoverPage(_ year: Int) -> some View {
+    private var backCoverPage: some View {
         ZStack {
             ground
-            Text(String(year))
+            Text(subject.title.uppercased())
                 .font(.etchSerif(size: 20, weight: .regular)).tracking(8)
                 .foregroundStyle(subtle)
         }
@@ -329,6 +352,8 @@ struct BookPageView: View {
             Text(subtitle)
                 .font(.etchSerif(size: 56, weight: .regular)).tracking(3)
                 .foregroundStyle(ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
         }
         .frame(maxWidth: .infinity)
     }
@@ -367,9 +392,14 @@ struct BookPageView: View {
         return parts.joined(separator: "  ·  ")
     }
 
-    private func monthName(_ date: Date) -> String {
+    /// A chapter's heading. Inside one year "MARCH" is unambiguous; a collection spanning several
+    /// needs the year, and a collection long enough to be chaptered by year is only the year.
+    private func chapterName(_ date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM"
+        switch plan.chapterSpan {
+        case .year:  formatter.dateFormat = "yyyy"
+        case .month: formatter.dateFormat = plan.chapterNamesYear ? "MMMM yyyy" : "MMMM"
+        }
         return formatter.string(from: date)
     }
 
