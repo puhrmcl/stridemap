@@ -729,6 +729,12 @@ struct HomeView: View {
     /// (it would just duplicate the activity-type icon on the pill's left).
     private var metricsRow: some View {
         // Align the two numbers on one baseline; each unit label stacks beneath its own number.
+        //
+        // The row is allowed to shrink rather than truncate. It is the one flexible part of a
+        // pill that now also carries the mark and the avatar, and on the narrowest phone — with
+        // every activity type enabled, so the type selector is showing too — the widest
+        // configuration lands within a few points of the available width. A number that reads
+        // "1,5…" is a defect; the same number a shade smaller is not.
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             metric(
                 value: shownStats.totalRuns.formatted(),
@@ -743,6 +749,8 @@ struct HomeView: View {
                 unit: UnitSystem.current.distanceSuffix
             )
         }
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
     }
 
     /// The Activity Type bottom sheet — tiles for All / Runs / Hikes / Rides / Walks (only the
