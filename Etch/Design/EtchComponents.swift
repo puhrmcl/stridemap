@@ -347,3 +347,65 @@ struct EtchWordmark: View {
             .accessibilityLabel("Etch")
     }
 }
+
+// MARK: - The active filter
+
+/// Says what the filter is currently hiding, and turns it off.
+///
+/// The whole reason a shared filter can be trusted. `RunFilter` lives on `AppModel` for the life
+/// of the session, so a narrowing set on one surface is still narrowing on the next one — which
+/// is the behaviour that was asked for, and also the single fastest way to convince someone the
+/// app has lost their data. A filter you cannot see is indistinguishable from a bug.
+///
+/// So: same chip, same place, on every surface the filter reaches, and one tap clears it. It
+/// draws nothing at all when nothing is filtered, so a clean view stays clean.
+///
+/// It deliberately does *not* show the activity scope. Scope already has a visible control
+/// wherever it applies — the type selector in the map's pill, the scope picker on the Timeline —
+/// and a chip repeating a control the user can already see reads as clutter rather than as
+/// information.
+struct EtchFilterChip: View {
+    let filter: RunFilter
+    let clear: () -> Void
+
+    var body: some View {
+        if filter.isActive {
+            HStack(spacing: 8) {
+                Button(action: clear) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "line.3.horizontal.decrease")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(summary)
+                            .font(.etch(.footnote, weight: .etchMedium))
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .bold))
+                    }
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 6)
+                    .background(Theme.accent.opacity(0.12), in: .capsule)
+                    .foregroundStyle(Theme.accentText)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Filtered: \(summary). Tap to clear.")
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    /// What is actually narrowing the view, named rather than counted.
+    ///
+    /// "3 filters" tells you a number and leaves you to go and find out which; the parts
+    /// themselves fit, and are what someone needs in order to decide whether to clear them.
+    private var summary: String {
+        var parts: [String] = []
+        if filter.mode != .all { parts.append(filter.mode.rawValue) }
+        if filter.dateRange != .all { parts.append(filter.dateRangeLabel) }
+        if let city = filter.city { parts.append(city) }
+        else if let state = filter.state { parts.append(state) }
+        else if let country = filter.country { parts.append(country) }
+        if filter.surface != .any { parts.append(filter.surface.rawValue) }
+        if filter.minDistance != nil || filter.maxDistance != nil { parts.append("Distance") }
+        if filter.minDuration != nil || filter.maxDuration != nil { parts.append("Time") }
+        return parts.isEmpty ? "Filtered" : parts.joined(separator: " · ")
+    }
+}

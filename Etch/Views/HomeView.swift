@@ -562,6 +562,15 @@ struct HomeView: View {
         VStack(alignment: .center, spacing: 8) {
             homePill
 
+            // The same chip the Timeline and Achievements carry, in the same words. The map is
+            // where a filter is usually set, and it was the only surface where the fact was
+            // legible — from a coloured mode icon in the pill, which says "PRs" but never says
+            // "and Phoenix, and last 30 days".
+            EtchFilterChip(filter: appModel.filter) {
+                appModel.setFilter(RunFilter())
+            }
+            .padding(.horizontal, 4)
+
             // Places: independent Country / State / City / Landmark dropdowns under the pill. The
             // Activity Type / View pickers are now bottom sheets (see the overlays below), not
             // dropdowns, so they no longer sit under the pill.

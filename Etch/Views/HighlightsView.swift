@@ -35,7 +35,19 @@ struct HighlightsView: View {
     }
 
     /// Runs limited to the app-wide activity scope (All / Runs / Hikes / Walks).
-    private var scopedRuns: [Run] { runs.scoped(to: scope) }
+    /// The activity types this surface is showing, before the query filter.
+    private var typedRuns: [Run] { runs.scoped(to: scope) }
+
+    /// What Highlights counts.
+    ///
+    /// Same reasoning as the Timeline: the shared filter reaches here, so "your cities" means
+    /// the cities in what you are currently looking at rather than the cities in everything. A
+    /// records page that ignored the filter would quietly contradict the map beside it.
+    private var scopedRuns: [Run] {
+        guard appModel.filter.isActive else { return typedRuns }
+        let prs = appModel.filter.mode == .prs ? RunStatistics(typedRuns).milestoneRunIDs : []
+        return typedRuns.filter { appModel.filter.matches($0, isPR: prs.contains($0.id)) }
+    }
     /// Reach and the per-discipline breakdown describe everywhere you've been, so they include
     /// every activity. Records, personal bests, and year sums use only the counting activities.
     private var reachStats: RunStatistics { RunStatistics(scopedRuns) }
@@ -65,6 +77,12 @@ struct HighlightsView: View {
             }
             .navigationTitle("Achievements")
             .navigationBarTitleDisplayMode(.large)
+            .safeAreaInset(edge: .top) {
+                EtchFilterChip(filter: appModel.filter) {
+                    appModel.setFilter(RunFilter())
+                }
+                .padding(.horizontal, 20)
+            }
             .onAppear {
                 // Heal a stored scope that's since been hidden in Settings so it doesn't linger.
                 if !ActivitySettings.isVisible(appModel.activityScope) { setScope(.all) }

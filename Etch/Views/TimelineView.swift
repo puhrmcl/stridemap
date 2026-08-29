@@ -27,7 +27,26 @@ struct TimelineView: View {
     @State private var scrollTarget: String?
 
     /// Runs limited to the app-wide activity scope (All / Runs / Hikes / Walks).
-    private var scopedRuns: [Run] { runs.scoped(to: appModel.activityScope) }
+    /// The activity types this surface is showing, before the query filter.
+    private var typedRuns: [Run] { runs.scoped(to: appModel.activityScope) }
+
+    /// What the Timeline actually lists.
+    ///
+    /// The shared filter reaches here now. It always could — `appModel.filter` has been
+    /// app-wide session state all along — but only the map ever read it, so setting a filter
+    /// changed the map and left the Timeline showing everything. One filter that means one thing
+    /// everywhere is the point; a filter that silently applies to one of four surfaces is just a
+    /// map control with a misleading name.
+    ///
+    /// PR status is a property of the collection rather than of a run, so it is computed from
+    /// the typed set before narrowing — the same order the map uses, and the reason "PRs" means
+    /// the same runs on both.
+    private var scopedRuns: [Run] {
+        guard appModel.filter.isActive else { return typedRuns }
+        let prs = appModel.filter.mode == .prs ? RunStatistics(typedRuns).milestoneRunIDs : []
+        return typedRuns.filter { appModel.filter.matches($0, isPR: prs.contains($0.id)) }
+    }
+
     private var stats: RunStatistics { RunStatistics(scopedRuns) }
     private var monthGroups: [RunStatistics.MonthGroup] { stats.monthGroups }
     private var years: [Int] { stats.years }
@@ -78,7 +97,16 @@ struct TimelineView: View {
             // navigation arguing with the page's, so inside the tab the control moves up under
             // the header, where it is plainly this page's and not the app's.
             .safeAreaInset(edge: .top) {
-                if embedded && !scopedRuns.isEmpty { scopePicker }
+                VStack(spacing: 8) {
+                    // The chip goes above the scope picker rather than beside it: one says what
+                    // the whole page is narrowed to, the other is a control for this page. Mixing
+                    // them on a line would read as four buttons.
+                    EtchFilterChip(filter: appModel.filter) {
+                        appModel.setFilter(RunFilter())
+                    }
+                    .padding(.horizontal, 20)
+                    if embedded && !scopedRuns.isEmpty { scopePicker }
+                }
             }
             .safeAreaInset(edge: .bottom) {
                 if !embedded && !scopedRuns.isEmpty { scopePicker }
