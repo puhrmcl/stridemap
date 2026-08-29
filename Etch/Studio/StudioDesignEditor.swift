@@ -23,11 +23,13 @@ struct StudioVariantStrip: View {
     /// Changes to this string throw the cache away — used to keep template thumbnails honest when
     /// the map style beneath them changes.
     let refreshKey: String
+    /// Presets get a larger card than the axis strips: they are the decision the section leads
+    /// with, and a chooser you are meant to decide from has to be big enough to decide from.
+    var cardWidth: CGFloat = 88
 
     @State private var thumbnails: [String: UIImage] = [:]
     @State private var renderedKey: String = ""
 
-    private static let cardWidth: CGFloat = 82
     private static let thumbnailScale: CGFloat = 0.3
 
     var body: some View {
@@ -37,7 +39,7 @@ struct StudioVariantStrip: View {
                     StudioThumbCard(
                         title: variant.name,
                         isSelected: variant.matches(config),
-                        width: Self.cardWidth,
+                        width: cardWidth,
                         action: {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 config = variant.apply(config)
@@ -96,11 +98,38 @@ struct StudioDesignEditor: View {
     var onNeedRoom: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 18) {
+            if config.family == .map { presets }
             template
             if config.family == .map { mapStyle }
             look
             orientation
+        }
+    }
+
+    // MARK: Start here
+
+    /// Seven finished posters, first thing. One tap and the piece is done — which is the promise
+    /// the section made and could not keep while it opened on three separate axes that only mean
+    /// something in combination.
+    private var presets: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            StudioGroupLabel(text: "Start here")
+            StudioVariantStrip(
+                run: run, config: $config,
+                variants: StudioPreset.all.map { preset in
+                    StudioVariant(
+                        id: "preset-\(preset.id)",
+                        name: preset.name,
+                        apply: { preset.applied(to: $0) },
+                        matches: { preset.matches($0) }
+                    )
+                },
+                // Presets are whole compositions, so their cards do not follow the recipe the way
+                // the axis strips do — only the content changes them.
+                refreshKey: "presets-\(config.orientation.rawValue)",
+                cardWidth: 96
+            )
         }
     }
 

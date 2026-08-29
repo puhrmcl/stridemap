@@ -111,16 +111,18 @@ struct StudioView: View {
         GeometryReader { geo in
             VStack(spacing: 0) {
                 preview
-                actionBar
                 StudioEditorTray(detent: $detent, availableHeight: geo.size.height) {
                     VStack(spacing: 0) {
                         StudioSectionPicker(section: $section) { raise(to: .medium) }
                             .padding(.bottom, 2)
                         ScrollView {
-                            sectionContent
-                                .padding(.horizontal, 20)
-                                .padding(.top, 10)
-                                .padding(.bottom, 28)
+                            VStack(alignment: .leading, spacing: 20) {
+                                sectionContent
+                                orderRow
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.top, 10)
+                            .padding(.bottom, 28)
                         }
                         .scrollBounceBehavior(.basedOnSize)
                     }
@@ -334,6 +336,10 @@ struct StudioView: View {
             .accessibilityLabel(savedPosterID == nil ? "Keep in Studio" : "Saved — options")
         }
         ToolbarItem(placement: .topBarTrailing) {
+            Button { showExport = true } label: { Image(systemName: "square.and.arrow.up") }
+                .accessibilityLabel("Share or save the image")
+        }
+        ToolbarItem(placement: .topBarTrailing) {
             Button { showPrints = true } label: { Image(systemName: "bag") }
                 .accessibilityLabel("Order a print")
         }
@@ -414,37 +420,39 @@ struct StudioView: View {
 
     // MARK: Action bar
 
-    /// Share and Order, permanently under the artwork.
+    /// Ordering, at the foot of whichever section you are in.
     ///
-    /// These were a whole tab. A tab is a place you go to configure something, and neither of
-    /// these is a configuration — they are the two ways a finished piece leaves the editor, and
-    /// burying them behind a segment meant the primary conversion path was three taps from the
-    /// poster. The one genuine setting that tab held (the share canvas) moved to Customize →
-    /// Advanced, with the other settings.
-    private var actionBar: some View {
-        HStack(spacing: 10) {
-            Button { showExport = true } label: {
-                Label("Share", systemImage: "square.and.arrow.up")
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                    .foregroundStyle(Theme.accent)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                    .background(Theme.accent.opacity(0.12), in: .capsule)
-            }
-            .buttonStyle(.plain)
-
-            Button { showPrints = true } label: {
-                Label("Order Print", systemImage: "bag")
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+    /// This was a permanent band of two buttons between the artwork and the controls, and on a
+    /// 6.9" phone it cost the poster 56 points it could not spare — the artwork was down to about
+    /// two fifths of the screen on the one screen where it is supposed to be the hero. Share and
+    /// the shop both live in the toolbar, which is where they were already reachable; this row is
+    /// the merchandising one, so it sits inside the tray and scrolls with everything else.
+    private var orderRow: some View {
+        Button { showPrints = true } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "bag.fill")
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                    .background(Theme.accent, in: .capsule)
+                    .frame(width: 34, height: 34)
+                    .background(Theme.accent, in: .circle)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Order this print")
+                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text("Papers, frames and sizes — from \(PrintProduct.print.entryPrice.replacingOccurrences(of: "From ", with: ""))")
+                        .font(.caption)
+                        .foregroundStyle(Color.secondary)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.secondary.opacity(0.55))
             }
-            .buttonStyle(.plain)
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 14))
         }
-        .padding(.horizontal, 24)
-        .padding(.bottom, 12)
+        .buttonStyle(.plain)
     }
 
     // MARK: Gallery frame photo picking

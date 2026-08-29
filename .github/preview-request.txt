@@ -11,11 +11,10 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b461: the Nameplate template — the place named large at the top, the
-# map beneath, the figures as peers along the foot — now the default for a new poster.
-# Plus the framed mockup and the route's new start and finish markers.
+# Requested for b462: Design leading with seven finished posters, the action band gone
+# so the artwork gets the room back, and Nameplate as the default composition.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=map-studio,prints,gallery-studio
+screens=map-studio,map-studio@customize,gallery-studio
 appearance=light

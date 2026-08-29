@@ -73,7 +73,47 @@ struct StudioCustomizeEditor: View {
                 door(.advanced, value: config.monochrome ? "B & W" : config.outputSize.name,
                      icon: "slider.horizontal.3")
             }
+
+            // The way out. Every control here can be nudged and several of them interact, so a
+            // recipe can end up somewhere the user cannot retrace — and until now the only route
+            // back was to remember which six things they had touched. Content is untouched: the
+            // title, the data and the photographs are theirs, and this resets how the poster
+            // looks, not what it says.
+            if isDefaulted == false {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        config.textColor = nil
+                        config.groundColor = nil
+                        config.routeColor = nil
+                        config.monochrome = false
+                        config.textScale = 1
+                        config.titleScale = 1
+                        config.locationScale = 1
+                        config.dateScale = 1
+                        config.heroScale = 1
+                        config.statScale = 1
+                        config.font = .editorial
+                    }
+                } label: {
+                    Label("Reset appearance", systemImage: "arrow.counterclockwise")
+                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 42)
+                        .background(Theme.accent.opacity(0.10), in: .capsule)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
+            }
         }
+    }
+
+    /// Whether anything under Customize has been moved off its default — the reset only appears
+    /// when there is something to undo.
+    private var isDefaulted: Bool {
+        isAutoPalette && !config.monochrome && config.font == .editorial
+            && [config.textScale, config.titleScale, config.locationScale,
+                config.dateScale, config.heroScale, config.statScale].allSatisfy { abs($0 - 1) < 0.01 }
     }
 
     private func door(_ target: Detail, value: String?, icon: String) -> some View {
