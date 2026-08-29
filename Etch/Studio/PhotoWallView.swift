@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 import ShopifyCheckoutSheetKit
 
 /// A gallery poster of your run cover photos — a contact-sheet "photo wall" for the runs that have
@@ -22,6 +23,41 @@ struct PhotoWallView: View {
     @State private var posterImage: UIImage?
     /// Runs whose cover photo is a screenshot — kept out of the wall so it reads as photography.
     @State private var screenshotRunIDs: Set<UUID> = []
+
+    /// Photographs chosen straight from the library.
+    ///
+    /// The wall was built only from run cover photos, which quietly made it a product for people
+    /// who already photograph their activities — and left everyone else looking at an empty grid
+    /// with no way forward. A wall of forty pictures is worth making out of a holiday, a season,
+    /// or a race weekend somebody else shot, none of which Etch has a `Run` for.
+    ///
+    /// They live beside the run photos rather than replacing them: the filters, the sort and the
+    /// shuffle are all about *activities* and have nothing to say about a picked image, so picked
+    /// photos keep their chosen order and follow the run photos onto the wall.
+    @State private var addedPhotos: [AddedPhoto] = []
+    @State private var picking: [PhotosPickerItem] = []
+    @State private var isImporting = false
+
+    /// A library photograph on the wall, with a stable identity so the grid can animate and the
+    /// user can tap one away like any other.
+    struct AddedPhoto: Identifiable, Equatable {
+        let id = UUID()
+        let image: UIImage
+        static func == (a: AddedPhoto, b: AddedPhoto) -> Bool { a.id == b.id }
+    }
+
+    /// One tile on the wall: an activity's cover photo, or a picture from the library.
+    enum WallCell: Identifiable, Equatable {
+        case run(Run)
+        case added(AddedPhoto)
+
+        var id: UUID {
+            switch self {
+            case .run(let run):     return run.id
+            case .added(let photo): return photo.id
+            }
+        }
+    }
 
     /// Ordering the wall as the framed object it was designed for.
     @State private var orderPhase: PrintOrderService.Phase?
@@ -93,11 +129,22 @@ struct PhotoWallView: View {
     /// The pool available to show — ordered, minus the ones tapped away.
     private var pool: [Run] { ordered.filter { !excludedIDs.contains($0.id) } }
 
-    /// The runs actually on the wall.
-    private var shown: [Run] { Array(pool.prefix(count)) }
+    /// Everything eligible for the wall: activity photos in the chosen order, then the pictures
+    /// added from the library in the order they were picked.
+    private var cellPool: [WallCell] {
+        pool.map(WallCell.run) + addedPhotos.filter { !excludedIDs.contains($0.id) }.map(WallCell.added)
+    }
+
+    /// The tiles actually on the wall.
+    private var shownCells: [WallCell] { Array(cellPool.prefix(count)) }
+
+    /// The runs on the wall — still needed by the parts that are about activities.
+    private var shown: [Run] {
+        shownCells.compactMap { if case .run(let r) = $0 { return r } else { return nil } }
+    }
 
     /// Upper bound for the count stepper.
-    private var maxCount: Int { max(1, min(pool.count, maxPhotos)) }
+    private var maxCount: Int { max(1, min(cellPool.count, maxPhotos)) }
 
     private func cityLabel(_ place: RunStatistics.TravelPlace) -> String {
         let parts = place.label.components(separatedBy: ", ")
@@ -115,7 +162,7 @@ struct PhotoWallView: View {
 
     /// Columns for the current wall.
     private var columnCount: Int {
-        let n = max(shown.count, 1)
+        let n = max(shownCells.count, 1)
         // The frame this count would be made in decides the arrangement, so what's on screen is a
         // preview of the object. Forty is five across and eight down, because the 20 × 30" sheet
         // is *portrait* — the old rule put it in eight columns, which is a landscape grid bound
@@ -126,7 +173,7 @@ struct PhotoWallView: View {
 
     /// Signature that changes whenever the shown set changes — drives image loading + re-render.
     private var renderKey: String {
-        "\(shown.map { $0.id.uuidString }.joined())-\(columnCount)"
+        "\(shownCells.map { $0.id.uuidString }.joined())-\(columnCount)"
     }
 
     // MARK: Body
@@ -134,12 +181,17 @@ struct PhotoWallView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if photoRuns.isEmpty {
-                    ContentUnavailableView(
-                        "No run photos yet",
-                        systemImage: "photo.on.rectangle.angled",
-                        description: Text("Add photos to your runs — or let Etch find them from your library on a run's page — and they'll gather here as a photo wall.")
-                    )
+                if cellPool.isEmpty {
+                    // Not a dead end any more. The wall used to require activity photos, which
+                    // made it a product for people who already photograph their runs and gave
+                    // everyone else a paragraph explaining why they could not have one.
+                    ContentUnavailableView {
+                        Label("Nothing on the wall yet", systemImage: "photo.on.rectangle.angled")
+                    } description: {
+                        Text("Add photos to your activities — or choose any pictures from your library — and they'll gather here as a wall.")
+                    } actions: {
+                        addPhotosButton
+                    }
                 } else {
                     VStack(spacing: 0) {
                         preview
@@ -197,9 +249,9 @@ struct PhotoWallView: View {
                 columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: columnCount),
                 spacing: 4
             ) {
-                ForEach(shown, id: \.id) { run in
-                    cell(run)
-                        .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { remove(run) } }
+                ForEach(shownCells) { item in
+                    cell(item)
+                        .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { remove(item) } }
                 }
             }
             .padding(16)
@@ -209,12 +261,12 @@ struct PhotoWallView: View {
     /// A strictly square tile: a placeholder rectangle sets the 1:1 shape from the grid-cell width,
     /// and the photo fills it as an overlay that's clipped to the square — so images can never
     /// overflow and overlap their neighbours (the source of the "chaos").
-    private func cell(_ run: Run) -> some View {
+    private func cell(_ item: WallCell) -> some View {
         Rectangle()
             .fill(Theme.Palette.stone)
             .aspectRatio(1, contentMode: .fit)
             .overlay {
-                if let image = images[run.id] {
+                if let image = photo(for: item) {
                     Image(uiImage: image).resizable().scaledToFill()
                 } else {
                     ProgressView().controlSize(.small)
@@ -222,6 +274,19 @@ struct PhotoWallView: View {
             }
             .clipShape(.rect(cornerRadius: 3))
             .contentShape(.rect)
+    }
+
+    /// The picture for a tile. A picked photo already holds its own; a run's is loaded on demand.
+    private func photo(for item: WallCell) -> UIImage? {
+        switch item {
+        case .run(let run):     return images[run.id]
+        case .added(let photo): return photo.image
+        }
+    }
+
+    private func remove(_ item: WallCell) {
+        excludedIDs.insert(item.id)
+        clampCount()
     }
 
     @MainActor
@@ -242,14 +307,15 @@ struct PhotoWallView: View {
                 sortMenu
                 shuffleButton
             }
+            addPhotosButton
             HStack(spacing: 16) {
-                Stepper("Photos: \(shown.count)", value: $count, in: 1...maxCount)
+                Stepper("Photos: \(shownCells.count)", value: $count, in: 1...maxCount)
                     .font(.etch(.subheadline, weight: .medium))
             }
             .frame(maxWidth: 340)
             // Which frame this count would actually be made in, and whether it fills it. The
             // count is a choice about an object, so it says what the object would be.
-            Text(MultiPhotoFrameCatalog.fitDescription(forPhotos: shown.count))
+            Text(MultiPhotoFrameCatalog.fitDescription(forPhotos: shownCells.count))
                 .font(.etch(.caption, weight: .medium))
                 .foregroundStyle(Theme.accent)
             if !excludedIDs.isEmpty {
@@ -291,7 +357,7 @@ struct PhotoWallView: View {
     /// The order renders at the frame's own resolution (5905 × 8858 for the 20 × 30″), which is why
     /// it goes through the banded writer rather than an image: that sheet is a 209 MB bitmap.
     @ViewBuilder private var orderButton: some View {
-        if !shown.isEmpty, !canOrder {
+        if !shownCells.isEmpty, !canOrder {
             // Say why, rather than vanish.
             //
             // This whole block used to be one `if` with four conditions, so a missing storefront
@@ -313,7 +379,7 @@ struct PhotoWallView: View {
             .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 14))
         }
 
-        if canOrder, !shown.isEmpty {
+        if canOrder, !shownCells.isEmpty {
             Button(action: order) {
                 Group {
                     if let orderPhase {
@@ -335,7 +401,7 @@ struct PhotoWallView: View {
             .disabled(orderPhase != nil)
             .frame(maxWidth: 340)
 
-            Text(MultiPhotoFrameCatalog.fitDescription(forPhotos: shown.count))
+            Text(MultiPhotoFrameCatalog.fitDescription(forPhotos: shownCells.count))
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
@@ -343,8 +409,8 @@ struct PhotoWallView: View {
 
     private func order() {
         guard orderPhase == nil else { return }
-        let size = MultiPhotoFrameCatalog.size(forPhotos: shown.count)
-        let runs = shown
+        let size = MultiPhotoFrameCatalog.size(forPhotos: shownCells.count)
+        let items = shownCells
         Task {
             do {
                 orderPhase = .rendering
@@ -352,12 +418,19 @@ struct PhotoWallView: View {
                 // grid drew with — a 1181px cell fed a 600px thumbnail would print soft.
                 let cellPixels = size.printPixels.width / CGFloat(size.columns)
                 var prints: [UIImage] = []
-                for run in runs {
-                    guard let reference = run.photoReferences.first else { continue }
-                    if let image = await PhotoLibrary.image(
-                        for: reference,
-                        targetSize: CGSize(width: cellPixels, height: cellPixels)
-                    ) { prints.append(image) }
+                for item in items {
+                    switch item {
+                    case .run(let run):
+                        guard let reference = run.photoReferences.first else { continue }
+                        if let image = await PhotoLibrary.image(
+                            for: reference,
+                            targetSize: CGSize(width: cellPixels, height: cellPixels)
+                        ) { prints.append(image) }
+                    case .added(let photo):
+                        // Already in memory at whatever the library handed over, which is full
+                        // resolution for a picked image — nothing to re-fetch.
+                        prints.append(photo.image)
+                    }
                 }
                 guard !prints.isEmpty else {
                     orderPhase = nil
@@ -371,7 +444,7 @@ struct PhotoWallView: View {
                 let cart = try await PrintOrderService.checkout(
                     fileAt: fileURL,
                     pixels: size.printPixels,
-                    creationID: "photowall-\(size.sku)-\(runs.count)-\(UUID().uuidString)",
+                    creationID: "photowall-\(size.sku)-\(items.count)-\(UUID().uuidString)",
                     shopifySKU: size.sku,
                     prodigiSKU: size.sku,
                     productHandle: MultiPhotoFrameCatalog.shopifyHandle,
@@ -457,8 +530,48 @@ struct PhotoWallView: View {
 
     // MARK: Actions
 
-    private func remove(_ run: Run) {
-        excludedIDs.insert(run.id)
+    /// Choose pictures from the library.
+    ///
+    /// Capped at what the largest frame can hold, so the picker cannot hand back more photographs
+    /// than any wall could be made from — a limit worth enforcing where the choosing happens
+    /// rather than silently dropping the surplus afterwards.
+    private var addPhotosButton: some View {
+        PhotosPicker(
+            selection: $picking,
+            maxSelectionCount: maxPhotos,
+            matching: .images,
+            photoLibrary: .shared()
+        ) {
+            Label(isImporting ? "Adding…" : "Add photos", systemImage: "photo.badge.plus")
+                .font(.etch(.subheadline, weight: .medium))
+        }
+        .buttonStyle(.etchSecondary)
+        .disabled(isImporting)
+        .onChange(of: picking) { _, items in
+            guard !items.isEmpty else { return }
+            Task { await importPicked(items) }
+        }
+    }
+
+    /// Loads what was picked, appends it, and grows the wall to include it.
+    ///
+    /// The count moves up by however many arrived. Adding six photographs and having the wall
+    /// still show forty would look like the picker had failed.
+    @MainActor
+    private func importPicked(_ items: [PhotosPickerItem]) async {
+        isImporting = true
+        defer { isImporting = false; picking = [] }
+        var loaded: [AddedPhoto] = []
+        for item in items {
+            guard let data = try? await item.loadTransferable(type: Data.self),
+                  let image = UIImage(data: data) else { continue }
+            loaded.append(AddedPhoto(image: image))
+        }
+        guard !loaded.isEmpty else { return }
+        withAnimation(Theme.gentle) {
+            addedPhotos.append(contentsOf: loaded)
+            count = min(maxPhotos, count + loaded.count)
+        }
     }
 
     private func shuffle() {
@@ -483,19 +596,19 @@ struct PhotoWallView: View {
     }
 
     private var posterHeight: CGFloat {
-        let rows = Int(ceil(Double(shown.count) / Double(columnCount)))
+        let rows = Int(ceil(Double(shownCells.count) / Double(columnCount)))
         return posterPadding * 2 + CGFloat(rows) * posterCell + CGFloat(max(0, rows - 1)) * posterSpacing
     }
 
     /// The exported wall: just the photos, no title or footer text.
     private var posterContent: some View {
         let cols = columnCount
-        let rows = shown.chunked(into: cols)
+        let rows = shownCells.chunked(into: cols)
         return VStack(spacing: posterSpacing) {
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 HStack(spacing: posterSpacing) {
-                    ForEach(row, id: \.id) { run in
-                        exportCell(run)
+                    ForEach(row) { item in
+                        exportCell(item)
                     }
                     if row.count < cols {
                         ForEach(0..<(cols - row.count), id: \.self) { _ in
@@ -510,9 +623,9 @@ struct PhotoWallView: View {
         .background(Theme.Palette.bone)
     }
 
-    private func exportCell(_ run: Run) -> some View {
+    private func exportCell(_ item: WallCell) -> some View {
         Group {
-            if let image = images[run.id] {
+            if let image = photo(for: item) {
                 Image(uiImage: image).resizable().scaledToFill()
             } else {
                 Rectangle().fill(Theme.Palette.stone)
@@ -531,7 +644,7 @@ struct PhotoWallView: View {
                 images[run.id] = img
             }
         }
-        guard !shown.isEmpty else { posterImage = nil; return }
+        guard !shownCells.isEmpty else { posterImage = nil; return }
         let renderer = ImageRenderer(content: posterContent)
         renderer.scale = 3
         posterImage = renderer.uiImage

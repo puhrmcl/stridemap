@@ -791,7 +791,14 @@ struct StudioHomeView: View {
             ) { photos.append(image) }
         }
         guard !photos.isEmpty else { return nil }
-        return PhotoWallRenderer.image(photos: photos, size: size, longEdge: 900)
+        // Fills every cell, cycling what there is.
+        //
+        // This is a shop tile, and its job is to say what the object is. Someone with nine
+        // photographs was being shown a forty-cell frame with thirty-one empty rectangles in it,
+        // which does not read as "your wall is nearly empty" — it reads as a broken image. The
+        // wall they would actually receive is still honest about the count; it is drawn by the
+        // editor, from the same renderer, with this off.
+        return PhotoWallRenderer.image(photos: photos, size: size, longEdge: 900, fillsGrid: true)
     }
 
     /// Waits out a burst of changes. Returns false if another change arrived first — `task(id:)`

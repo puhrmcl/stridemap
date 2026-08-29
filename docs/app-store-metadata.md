@@ -74,8 +74,8 @@ EVERY PLACE YOU'VE BEEN
 • Year in Review, with your year played back
 
 ETCH STUDIO — MAKE SOMETHING REAL
-• Map Poster — one route, over real geography
-• Gallery Poster — photos, map and elevation, composed
+• Map Prints — one route, over real geography
+• Gallery Prints — photos, map and elevation, composed
 • Anthology — everything you've done, as one object
 • Lithograph — every city you've run, set as type
 • Photo Wall — forty days, one frame

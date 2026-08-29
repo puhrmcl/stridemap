@@ -26,8 +26,8 @@ enum StudioProduct: String, CaseIterable, Identifiable {
 
     var name: String {
         switch self {
-        case .mapPoster:     return "Map Poster"
-        case .galleryPoster: return "Gallery Poster"
+        case .mapPoster:     return "Map Prints"
+        case .galleryPoster: return "Gallery Prints"
         case .photoWall:     return "Photo Wall"
         case .medalFrame:    return "Medal Frame"
         case .yearBook:      return "Year Book"

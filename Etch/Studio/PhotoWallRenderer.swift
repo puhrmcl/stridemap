@@ -19,6 +19,13 @@ enum PhotoWallRenderer {
     /// - Parameters:
     ///   - photos: images in reading order; fewer than the grid holds leaves paper showing, which
     ///     is exactly what a buyer would receive.
+    ///   - fillsGrid: repeats the supplied photographs until every cell is filled.
+    ///
+    ///     Off for anything a customer will receive — a wall of twelve photographs prints as
+    ///     twelve photographs, and quietly duplicating them to look fuller would be lying about
+    ///     the object. On for the shop's own mockup, which is showing what the *product* is
+    ///     rather than what this person's wall currently holds: a storefront tile with eleven
+    ///     empty rectangles reads as a broken app, not as an invitation.
     ///   - size: the frame being drawn.
     ///   - moulding: frame colour.
     ///   - ground: the paper between and around the photographs.
@@ -27,7 +34,8 @@ enum PhotoWallRenderer {
                       size: MultiPhotoFrameCatalog.Size,
                       moulding: FrameFinish = .black,
                       ground: Color = Theme.Palette.bone,
-                      longEdge: CGFloat = 900) -> UIImage? {
+                      longEdge: CGFloat = 900,
+                      fillsGrid: Bool = false) -> UIImage? {
         let aspect = size.printPixels.width / size.printPixels.height
         let sheet = aspect >= 1
             ? CGSize(width: longEdge, height: longEdge / aspect)
@@ -54,10 +62,20 @@ enum PhotoWallRenderer {
             cg.fill(sheetRect)
 
             for (index, cell) in cells(for: size, in: sheetRect).enumerated() {
-                guard index < photos.count else { continue }
+                let photo: UIImage?
+                if index < photos.count {
+                    photo = photos[index]
+                } else if fillsGrid, !photos.isEmpty {
+                    // Cycle rather than repeat a single image: a grid tiled with one photograph
+                    // reads as an error, where a rotation reads as a wall.
+                    photo = photos[index % photos.count]
+                } else {
+                    photo = nil
+                }
+                guard let photo else { continue }
                 cg.saveGState()
                 cg.clip(to: cell)
-                draw(photos[index], filling: cell)
+                draw(photo, filling: cell)
                 cg.restoreGState()
             }
 
