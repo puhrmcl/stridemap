@@ -164,7 +164,15 @@ enum PrintOrderService {
         let added: (cart: ShopifyStorefront.Cart, lineID: String)
 
         do {
-            let target = try await store.cartID ?? ShopifyStorefront.createEmptyCart().id
+            // Spelled out rather than `??`: the operator takes its right-hand side as an
+            // autoclosure, and an autoclosure cannot be async, so creating the cart there does
+            // not compile.
+            let target: String
+            if let existing = store.cartID {
+                target = existing
+            } else {
+                target = try await ShopifyStorefront.createEmptyCart().id
+            }
             added = try await ShopifyStorefront.addLine(
                 cartID: target, variantID: variant.id, quantity: 1, attributes: attributes
             )
