@@ -222,6 +222,12 @@ enum PosterMap {
     ///
     /// Skipped when the measurement is untrustworthy: a near-black ground makes the gain explode,
     /// and a panel whose land is already the paper needs nothing.
+    ///
+    /// The ratio is taken in *linear* light, not in sRGB. Core Image's working space is linear, so
+    /// `CIColorMatrix` multiplies linearised values — feeding it a ratio computed from encoded
+    /// ones lands the ground near the paper but not on it, which is a fainter seam rather than no
+    /// seam. Both ends are linearised here so the multiply is exact and the ground comes back as
+    /// the paper to the byte.
     private static func groundMatched(_ image: UIImage, to paper: Color) -> UIImage {
         guard let land = dominantColor(of: image) else { return image }
         var pr: CGFloat = 0, pg: CGFloat = 0, pb: CGFloat = 0, pa: CGFloat = 0
@@ -230,10 +236,12 @@ enum PosterMap {
         // A channel this dark carries no reliable ratio — dividing by it turns noise into colour.
         guard land.0 > 0.02, land.1 > 0.02, land.2 > 0.02 else { return image }
 
+        let target = (linear(pr), linear(pg), linear(pb))
+        let source = (linear(land.0), linear(land.1), linear(land.2))
         let gain = (
-            min(max(pr / land.0, 0.25), 4),
-            min(max(pg / land.1, 0.25), 4),
-            min(max(pb / land.2, 0.25), 4)
+            min(max(target.0 / source.0, 0.25), 4),
+            min(max(target.1 / source.1, 0.25), 4),
+            min(max(target.2 / source.2, 0.25), 4)
         )
         // Already on the paper — within a value the print process itself cannot hold apart.
         if abs(gain.0 - 1) < 0.004, abs(gain.1 - 1) < 0.004, abs(gain.2 - 1) < 0.004 { return image }
@@ -252,15 +260,26 @@ enum PosterMap {
         return UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
     }
 
+    /// sRGB → linear light.
+    private static func linear(_ channel: CGFloat) -> CGFloat {
+        channel <= 0.04045 ? channel / 12.92 : pow((channel + 0.055) / 1.055, 2.4)
+    }
+
     /// The panel's land colour: the most common tone in it.
     ///
     /// Mode rather than mean. A map's average is dragged toward whatever happens to be in frame —
     /// a river, a park, a dense downtown — and correcting to an average would tint the sheet by
     /// how much water the route ran past. The ground is by definition the colour most of the panel
     /// is, so the modal bucket finds it whatever else is on the page.
+    ///
+    /// Sampled without interpolation, and at a size large enough that most cells land inside a
+    /// block rather than across a road. Smooth downsampling would be the wrong tool here: it
+    /// averages every road into the land around it, so the "most common tone" comes back as a
+    /// blend that exists nowhere on the panel — brighter than the real ground on a light map, and
+    /// the correction then undershoots by exactly that much.
     private static func dominantColor(of image: UIImage) -> (CGFloat, CGFloat, CGFloat)? {
         guard let cgImage = image.cgImage else { return nil }
-        let side = 64
+        let side = 256
         var pixels = [UInt8](repeating: 0, count: side * side * 4)
         let drew: Bool = pixels.withUnsafeMutableBytes { raw in
             guard let context = CGContext(
@@ -269,19 +288,21 @@ enum PosterMap {
                 bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
                     | CGBitmapInfo.byteOrder32Big.rawValue
             ) else { return false }
-            context.interpolationQuality = .high
+            context.interpolationQuality = .none
             context.draw(cgImage, in: CGRect(x: 0, y: 0, width: side, height: side))
             return true
         }
         guard drew else { return nil }
 
-        // 5 bits per channel: fine enough to tell a paper from a park, coarse enough that the
+        // 6 bits per channel: fine enough to tell a paper from a park, coarse enough that the
         // land does not scatter across a hundred near-identical buckets and lose to a solid one.
-        var counts: [UInt16: Int] = [:]
-        var sums: [UInt16: (Int, Int, Int)] = [:]
+        // Finer than it once was because the samples are now exact pixels rather than blends —
+        // a flat block of land arrives as one repeated value, and there is no reason to blur it.
+        var counts: [UInt32: Int] = [:]
+        var sums: [UInt32: (Int, Int, Int)] = [:]
         for index in stride(from: 0, to: pixels.count, by: 4) {
             let r = Int(pixels[index]), g = Int(pixels[index + 1]), b = Int(pixels[index + 2])
-            let bucket = UInt16((r >> 3) << 10 | (g >> 3) << 5 | (b >> 3))
+            let bucket = UInt32((r >> 2) << 12 | (g >> 2) << 6 | (b >> 2))
             counts[bucket, default: 0] += 1
             let running = sums[bucket] ?? (0, 0, 0)
             sums[bucket] = (running.0 + r, running.1 + g, running.2 + b)
