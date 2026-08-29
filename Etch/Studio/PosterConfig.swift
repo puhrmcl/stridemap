@@ -338,7 +338,13 @@ struct PosterConfig {
     static func makeDefault(for run: Run) -> PosterConfig {
         var c = PosterConfig()
         c.dataSlots = []
-        _ = run
+        // Gallery frames lead with a photograph, which is right until the run has none — then
+        // Portfolio (a single frame) opened on an empty sheet and the product looked broken
+        // rather than unfilled. With no photos the frames lead with the map, and the photograph
+        // moves to the back of the queue where it fills in the moment one is added.
+        if run.photoReferences.isEmpty {
+            c.galleryFrames = [.map, .route, .elevation, .photo]
+        }
         return c
     }
 

@@ -17,5 +17,5 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=map-studio,gallery-studio,studio@medalFrame
+screens=gallery-studio,map-studio
 appearance=light
