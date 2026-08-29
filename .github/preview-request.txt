@@ -11,11 +11,11 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b476: the map wash at its corrected strength, after measuring that the blend
-# mode never applied. Compare the land and water against b474's — the map should keep more of
-# its structure while still reading as paper rather than as Apple's green.
+# Requested for b477: the map's header is one pill now — mark, totals, both selectors and the
+# avatar in a single piece of glass, with the mark noticeably larger. Also the mark on the search
+# page and signing off Settings. Check the pill fits without crowding on a narrow phone.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=home,components
+screens=home,studio
 appearance=both

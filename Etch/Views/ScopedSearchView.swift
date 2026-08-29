@@ -51,6 +51,13 @@ struct ScopedSearchView: View {
             .listStyle(.plain)
             .navigationTitle("Search")
             .navigationBarTitleDisplayMode(.inline)
+            // The mark in place of the word. Search is the one surface reached from every tab,
+            // and it was the one with no sign of whose app it belonged to — the field below says
+            // "search" more plainly than a title ever did, so the slot is better spent on the
+            // brand. The title stays set for VoiceOver, which reads it rather than the image.
+            .toolbar {
+                ToolbarItem(placement: .principal) { EtchWordmark(height: 17) }
+            }
             .searchable(text: $query, prompt: scope.searchPrompt)
             .safeAreaInset(edge: .top, spacing: 0) {
                 if scoped { scopeChip }

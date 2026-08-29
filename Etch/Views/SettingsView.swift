@@ -36,6 +36,7 @@ struct SettingsView: View {
                 statesDiagnosticsSection
                 dataSection
                 aboutSection
+                colophon
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -375,7 +376,28 @@ struct SettingsView: View {
                 Label("Privacy", systemImage: "hand.raised")
             }
         } footer: {
-            Text("Etch stores your runs on this device only. Apple Health and Strava are both read-only.")
+            Text("Etch stores your activities on this device only. Apple Health and Strava are both read-only.")
+        }
+    }
+
+    /// The mark, signing off the last screen of the app.
+    ///
+    /// Settings is where someone lands when something has gone wrong and they are looking for a
+    /// version number to quote — which makes it the one place a brand mark is doing work rather
+    /// than decoration. It sits with the build tag it is being asked about.
+    private var colophon: some View {
+        Section {
+            VStack(spacing: 8) {
+                EtchWordmark(height: 20)
+                    .opacity(0.55)
+                Text(AppInfo.label)
+                    .font(.etch(.caption))
+                    .foregroundStyle(Theme.Ink.tertiary)
+                    .textSelection(.enabled)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .listRowBackground(Color.clear)
         }
     }
 
@@ -393,14 +415,19 @@ private struct PrivacyView: View {
                 Text("Your Data Stays Yours")
                     .font(.etch(.title2, weight: .bold))
                 Text("""
-                Etch reads your running workouts and GPS routes from Apple Health \
-                with read-only access. If you connect Strava, it is used only to enrich \
-                those runs with titles, gear, and race details — its access token is stored \
-                securely in the iOS Keychain. All run data is cached locally on this device.
+                Etch reads your runs, rides, hikes and walks — and their GPS routes — from \
+                Apple Health, with read-only access. If you connect Strava, it is used only to \
+                enrich those activities with titles, gear and race details; its access token is \
+                stored in the iOS Keychain. Your activities are cached on this device.
 
-                Etch does not run its own servers, does not upload your data anywhere, \
-                and does not share your information with third parties. Disconnecting a source \
-                or deleting the cache removes the data from this device.
+                Your activities are never uploaded. There is no account and nothing syncs. \
+                Deleting the cache, or the app, removes them from this device.
+
+                Two things do leave your phone. Some features ask about a place — naming the \
+                city a route ran through, finding the elevation under it, the weather on the \
+                day — and those requests carry coordinates, never your name. And if you order \
+                a print, the artwork you composed is uploaded so the lab can make it, and \
+                checkout takes the name and address needed to post it to you.
                 """)
                 .foregroundStyle(.secondary)
             }

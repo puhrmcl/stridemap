@@ -324,3 +324,26 @@ struct EtchMetaColumns: View {
         }
     }
 }
+
+// MARK: - The mark
+
+/// The Etch wordmark, at a stated height.
+///
+/// A view rather than an `Image` at each call site, for one reason worth writing down: the asset
+/// is trimmed to its own bounding box, so its frame *is* the letterforms. It did not used to be —
+/// two thirds of it was transparent margin — and every place that sized it had learned to
+/// compensate by roughly tripling the number. Those compensations are now wrong, and the way to
+/// stop them coming back is for nobody to size the raw image again.
+///
+/// The asset carries an ink cut and a paper cut, so it inverts with the appearance on its own.
+struct EtchWordmark: View {
+    var height: CGFloat = 18
+
+    var body: some View {
+        Image("BrandLogo")
+            .resizable()
+            .scaledToFit()
+            .frame(height: height)
+            .accessibilityLabel("Etch")
+    }
+}

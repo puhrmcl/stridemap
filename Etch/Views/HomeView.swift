@@ -555,31 +555,12 @@ struct HomeView: View {
     // MARK: Top — totals + mode toggles
 
     private var topBar: some View {
-        // The pill is centred in the screen (its fixed size keeps the layout steady); its dropdowns
-        // drop straight beneath it, centred to match. The Studio-first close button and the sync
-        // indicator float at the row's edges without shifting the pill.
+        // One pill, centred, with the dropdowns falling straight beneath it. The mark, the
+        // totals, the two selectors and the avatar used to be three separate floating objects on
+        // one row — a logo island, a pill, an avatar — which read as three widgets that happened
+        // to share a line rather than as the app's header.
         VStack(alignment: .center, spacing: 8) {
-            ZStack {
-                totalsPill
-                // The map is the app's front door, and it was the one surface that never said
-                // whose app it was. The mark sits at the leading edge and the avatar at the
-                // trailing one, either side of the totals pill — the arrangement every other
-                // surface already uses through `EtchPageHeader`, which is why the map looked
-                // headerless beside them.
-                HStack(spacing: 8) {
-                    wordmark
-                    Spacer(minLength: 8)
-                    if sync.isSyncing {
-                        GlassContainer(padding: 10, cornerRadius: 18) {
-                            HStack(spacing: 6) {
-                                ProgressView().controlSize(.mini)
-                                Text("Syncing").font(.etch(.caption, weight: .medium))
-                            }
-                        }
-                    }
-                    profileButton
-                }
-            }
+            homePill
 
             // Places: independent Country / State / City / Landmark dropdowns under the pill. The
             // Activity Type / View pickers are now bottom sheets (see the overlays below), not
@@ -588,32 +569,87 @@ struct HomeView: View {
         }
     }
 
-    /// The Etch mark, on glass so it holds on any base map — a dark wordmark alone would vanish
-    /// over Satellite, and a light one over paper.
+    /// The map's header: mark, totals, selectors and avatar, in one piece of glass.
     ///
-    /// Sized by the artwork's ink rather than its bounds: two thirds of the asset is transparent
-    /// margin, so a 30pt frame draws a 10pt mark. `StudioHomeView` learned this the same way.
+    /// These were three floating objects a moment ago — a logo island on the left, the totals
+    /// pill in the middle, an avatar on the right — and three islands on one line read as three
+    /// widgets sharing a row, not as a header. Glass is expensive attention: every separate
+    /// surface is another edge, another shadow, another thing hovering over the map. One pill
+    /// spends it once.
+    ///
+    /// The order is deliberate. The mark says whose app this is, the two selectors and the totals
+    /// say what the map is showing, and the avatar closes the row where every other Apple app
+    /// puts an account. Hairlines divide them, so the pill reads as one object with parts rather
+    /// than as buttons in a tray.
+    private var homePill: some View {
+        HStack(spacing: 9) {
+            wordmark
+            pillDivider
+            if !isSingleActivity {
+                typeSelector.frame(height: pillColumnHeight)
+                pillDivider
+            }
+            metricsRow
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.preference(key: PillColumnHeightKey.self, value: geo.size.height)
+                    }
+                )
+            pillDivider
+            viewSelector.frame(height: pillColumnHeight)
+            pillDivider
+            profileButton
+        }
+        .onPreferenceChange(PillColumnHeightKey.self) { if $0 > 0 { pillColumnHeight = $0 } }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
+        .glassBackground(cornerRadius: 23)
+        .background(
+            GeometryReader { geo in
+                Color.clear.preference(key: PillWidthKey.self, value: geo.size.width)
+            }
+        )
+        .onPreferenceChange(PillWidthKey.self) { if $0 > 0 { pillWidth = $0 } }
+    }
+
+    /// The Etch mark, leading the pill.
+    ///
+    /// Sized against the pill's own row height rather than a constant, so it scales with the
+    /// content beside it instead of drifting out of proportion when the metrics change size.
+    /// The asset is trimmed to its own bounding box, so the frame is the letterforms — it used
+    /// to carry two thirds transparent margin, which is why every earlier size looked small.
+    ///
+    /// While a sync is running the mark's own full stop is joined by a spinner: the brand is
+    /// already the leftmost thing on the row, so the app reports work where the eye starts,
+    /// without a second floating container to say it.
     private var wordmark: some View {
-        GlassContainer(padding: 9, cornerRadius: 16) {
+        HStack(spacing: 7) {
             Image("BrandLogo")
                 .resizable()
                 .scaledToFit()
-                .frame(height: 15)
-                .padding(.horizontal, 2)
+                .frame(height: max(18, pillColumnHeight * 0.62))
+                .accessibilityLabel("Etch")
+            if sync.isSyncing {
+                ProgressView()
+                    .controlSize(.mini)
+                    .accessibilityLabel("Syncing")
+            }
         }
-        .accessibilityLabel("Etch")
+        .padding(.leading, 3)
     }
 
     /// The same profile entry point every other surface carries in its header, so the map is no
     /// longer the one place you cannot reach your own account from.
+    ///
+    /// No glass of its own: it is inside the pill now, and glass on glass is two edges where the
+    /// design wanted none.
     private var profileButton: some View {
         Button { appModel.presentedSurface = .profile } label: {
-            ProfileAvatar(size: 38) {
+            ProfileAvatar(size: max(30, pillColumnHeight)) {
                 Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 34))
+                    .font(.system(size: max(30, pillColumnHeight)))
                     .foregroundStyle(Theme.accentOnGlass)
             }
-            .glassCircle()
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Profile")
@@ -632,44 +668,6 @@ struct HomeView: View {
     /// The current activity type's short name — for VoiceOver.
     private var currentScopeName: String {
         appModel.activityScope == .all ? "All" : appModel.activityScope.label
-    }
-
-    /// One glass pill, a single row: the activity-type selector on the left, the totals in the
-    /// middle (tap to open the map-view dropdown), and the filter button on the right (opens the
-    /// full Filters as a bottom sheet). Each side element is sized to the totals' height.
-    private var totalsPill: some View {
-        HStack(spacing: 9) {
-            // The activity-type selector only appears when there's more than one type to choose
-            // between; with a single type the pill leads with the totals.
-            if !isSingleActivity {
-                typeSelector
-                    .frame(height: pillColumnHeight)
-                pillDivider
-            }
-            // Middle: the totals (display only).
-            metricsRow
-                .background(
-                    GeometryReader { geo in
-                        Color.clear.preference(key: PillColumnHeightKey.self, value: geo.size.height)
-                    }
-                )
-            pillDivider
-            // Right: the current view (All Runs / PRs / Places …) with a dropdown chevron — tap to
-            // open the map-view (mode) dropdown.
-            viewSelector
-                .frame(height: pillColumnHeight)
-        }
-        .onPreferenceChange(PillColumnHeightKey.self) { if $0 > 0 { pillColumnHeight = $0 } }
-        .fixedSize(horizontal: true, vertical: false)
-        .padding(.horizontal, 11)
-        .padding(.vertical, 10)
-        .glassBackground(cornerRadius: 21)
-        .background(
-            GeometryReader { geo in
-                Color.clear.preference(key: PillWidthKey.self, value: geo.size.width)
-            }
-        )
-        .onPreferenceChange(PillWidthKey.self) { if $0 > 0 { pillWidth = $0 } }
     }
 
     /// The right control: the current view's icon (map / trophy / heart / pin …) plus a dropdown

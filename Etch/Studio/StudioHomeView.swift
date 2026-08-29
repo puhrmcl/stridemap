@@ -366,11 +366,14 @@ struct StudioHomeView: View {
 
     // MARK: Intro
 
-    /// How much of the BrandLogo artwork is actually ink: **a third**. The rest is transparent
-    /// margin baked into the asset, so a frame height is roughly three times the letterforms it
-    /// produces. Sizing the mark as though the frame were the type is what made every earlier
-    /// value — 26, 28, 40, 46 — come out looking the same and looking small.
-    private static let brandInkFraction: CGFloat = 0.333
+    /// How much of the BrandLogo artwork is actually ink: **all of it**.
+    ///
+    /// It used to be a third — the asset carried two thirds transparent margin, so a frame height
+    /// produced letterforms a third that size, and every earlier value (26, 28, 40, 46) came out
+    /// looking the same and looking small. The asset is now trimmed to its own bounding box, so
+    /// the frame *is* the type. Leaving the old fraction here would have drawn the mark at three
+    /// times its intended size rather than at the headline's height.
+    private static let brandInkFraction: CGFloat = 1
 
     /// A frame tall enough that the wordmark's letterforms clear the headline beneath it.
     /// "Leave your mark." is `.title` bold, whose ink runs cap-height to descender at about 0.93
