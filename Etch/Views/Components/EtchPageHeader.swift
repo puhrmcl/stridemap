@@ -8,9 +8,11 @@ import SwiftUI
 /// a way separate screens never did: the bottom of the app is now identical everywhere, and the
 /// top was the only thing still arguing.
 ///
-/// Title left, profile right, matching the Apple Store's own arrangement. The map is the
-/// exception on purpose: it is a full-bleed surface whose controls float over the terrain, and a
-/// bar across the top of it would cover the thing you came to look at.
+/// Two rows: the mark and the avatar on the first, the page's title on the second. The map is
+/// still the exception in *form* — it is a full-bleed surface whose controls float over the
+/// terrain, and a bar across the top would cover the thing you came to look at — but no longer in
+/// *geometry*: its pill is built from the same `EtchHeaderMetrics`, so the mark and the avatar
+/// occupy identical positions on every tab and stop moving when you switch between them.
 ///
 /// The profile button lives here rather than at each call site, so the avatar, its long-press to
 /// clear the photo, and the sheet it opens are defined once and cannot drift apart.
@@ -34,7 +36,23 @@ struct EtchPageHeader<Trailing: View>: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
+            // Row one: identity. The mark and the avatar, at the geometry every tab shares —
+            // including the map, whose floating pill is built from the same numbers. This row is
+            // the reason the top of the app stops jumping when you change tabs: the two things
+            // the eye tracks across the transition do not move, and only the row beneath them
+            // changes.
+            HStack(alignment: .center, spacing: 12) {
+                EtchWordmark(height: EtchHeaderMetrics.mark)
+                Spacer(minLength: 8)
+                trailing()
+                profileButton
+            }
+            .frame(height: EtchHeaderMetrics.rowHeight)
+
+            // Row two: what this page is. Below the identity rather than beside it, so a long
+            // title can never push the avatar out of position — the failure the fixed row exists
+            // to prevent.
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
                     .font(.etch(.largeTitle, weight: .bold))
@@ -47,21 +65,19 @@ struct EtchPageHeader<Trailing: View>: View {
                         .lineLimit(1)
                 }
             }
-            Spacer(minLength: 8)
-            trailing()
-            profileButton
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 4)
+        .padding(.horizontal, EtchHeaderMetrics.side)
+        .padding(.top, EtchHeaderMetrics.top)
         .sheet(isPresented: $showProfile) { ProfileView() }
     }
 
     private var profileButton: some View {
         Button { showProfile = true } label: {
-            ProfileAvatar(size: 34) {
-                Image(systemName: "person.crop.circle")
-                    .font(.system(size: 30))
-                    .foregroundStyle(Theme.accent)
+            ProfileAvatar(size: EtchHeaderMetrics.avatar) {
+                Image(systemName: "person.crop.circle.fill")
+                    .font(.system(size: EtchHeaderMetrics.avatar))
+                    // Quiet, like the map's. It is an empty slot, not a live signal.
+                    .foregroundStyle(.secondary)
             }
         }
         .buttonStyle(.plain)

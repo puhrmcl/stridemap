@@ -11,11 +11,11 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b479: the shared filter now reaches the Timeline and Achievements, and every
-# surface it touches carries the same chip naming what is narrowing the view. The chip draws
-# nothing when nothing is filtered, so these shots should look unchanged — that is the check.
+# Requested for b481: the top of every tab on one geometry — mark leading, avatar trailing, at
+# identical positions on map, timeline, studio and bag. Flip between the four shots and nothing
+# in the identity row should move. Also the pill's chrome off accent blue.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=home,archive
+screens=home,studio
 appearance=both

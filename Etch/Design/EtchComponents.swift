@@ -414,3 +414,42 @@ struct EtchFilterChip: View {
         return parts.isEmpty ? "Filtered" : parts.joined(separator: " · ")
     }
 }
+
+// MARK: - Header geometry
+
+/// The numbers that keep the top of every tab in the same place.
+///
+/// Switching tabs used to move the mark and the avatar a few points in both axes, because the
+/// map's header is a floating glass pill laid out by one set of paddings and every other tab's
+/// header is flat content laid out by another. A few points is enough: the eye tracks a fixed
+/// element across a transition, and one that shifts reads as the whole screen jumping.
+///
+/// So both are built from these, and the arithmetic is written down rather than tuned by eye:
+///
+///   · The mark's leading edge sits `side` from the screen edge on every tab. On the map that is
+///     the pill's outer padding plus its own interior padding; on the others it is a single
+///     padding. The two are set so they add to the same number.
+///   · The avatar's trailing edge does the same, mirrored.
+///   · The identity row's top sits `top` below the safe area, and the row is `rowHeight` tall,
+///     so the two never disagree about the vertical centre.
+///
+/// Change one of these and both surfaces move together. That is the whole point of them being
+/// here rather than inline.
+enum EtchHeaderMetrics {
+    /// Screen edge → the mark, and the avatar → screen edge.
+    static let side: CGFloat = 20
+    /// Safe area → the top of the identity row.
+    static let top: CGFloat = 17
+    /// The identity row's height. The avatar is the tallest thing in it, so they are the same
+    /// number by definition rather than by coincidence.
+    static let rowHeight: CGFloat = 34
+    /// The avatar's diameter.
+    static let avatar: CGFloat = 34
+    /// The wordmark's height inside the identity row.
+    static let mark: CGFloat = 20
+
+    /// The map pill's own interior horizontal padding. Its outer padding is `side` minus this,
+    /// which is what lands the mark at `side` from the screen edge on the map too.
+    static let pillInterior: CGFloat = 11
+    static var pillOuter: CGFloat { side - pillInterior }
+}

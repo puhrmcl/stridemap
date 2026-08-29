@@ -136,11 +136,16 @@ struct RunMapView: UIViewRepresentable {
             map.pointOfInterestFilter = mapStyle.pointsOfInterest
             map.overrideUserInterfaceStyle = mapStyle.forcedInterfaceStyle
             context.coordinator.applyWash(to: map, style: mapStyle)
+            // The route's blue depends on whether the base is dark, so a style change has to
+            // repaint the routes already on the map. Without this, switching from Standard to
+            // Night leaves every existing route in the un-lifted blue and only newly-added ones
+            // are legible — a bug that looks like the map, not like the styling.
             // Imagery (Satellite/Hybrid) takes longer than a single runloop to switch to realistic
             // elevation; a tilt applied before it settles gets clamped back to flat — which is why
             // 3D used to work only on Standard. `applyTilt` retries, backing off, until the pitch
             // actually takes on whatever base map is active.
             context.coordinator.applyTilt(to: map, pitch: is3D ? 60 : 0)
+            context.coordinator.restyleRoutes()
         }
 
         // Switching between per-run and history rendering changes both geometry (history uses
@@ -336,6 +341,19 @@ struct RunMapView: UIViewRepresentable {
             if !toAdd.isEmpty { map.addOverlays(toAdd, level: .aboveRoads) }
         }
 
+        /// Repaints every route already on the map, for when the *style* rather than the data
+        /// changed. Cheap: it asks MapKit for each existing renderer rather than rebuilding
+        /// overlays, so nothing is removed and re-added and the map does not flash.
+        @MainActor
+        func restyleRoutes() {
+            guard let map else { return }
+            for overlay in overlaysByID.values {
+                if let renderer = map.renderer(for: overlay) as? MKPolylineRenderer {
+                    renderer.apply(style(for: overlay))
+                }
+            }
+        }
+
         func updateSelection(_ selectedID: UUID?) {
             for (id, overlay) in overlaysByID {
                 let shouldSelect = id == selectedID
@@ -385,21 +403,32 @@ struct RunMapView: UIViewRepresentable {
             return renderer
         }
 
+        /// The route's blue, lifted when the map beneath it is dark.
+        ///
+        /// #4A8EAE is the signature colour and it is right on paper and on a light map. On Night,
+        /// Satellite and Hybrid it sits at roughly 2:1 against the ground and the route stops
+        /// reading as the subject of the screen — which is the one thing on the map that must.
+        /// The lifted tone is the same hue with the value raised; it is what the token layer
+        /// already uses for Etch Blue on any dark ground.
+        private var routeBlue: UIColor {
+            UIColor(parent.mapStyle.isDarkBase ? Theme.Brand.blueLift : Theme.Route.recent)
+        }
+
         private func style(for overlay: RunPolyline) -> RouteStyle {
             // History: one colour, thin, low alpha. Every route is identical, so where they
             // overlap the translucent strokes composite darker — turning frequently-run roads
             // into a denser "etch" without a real heatmap pass. Selection/age don't apply.
             if parent.renderStyle == .history {
-                return RouteStyle(color: UIColor(Theme.Route.recent), width: 1.6, alpha: 0.30)
+                return RouteStyle(color: routeBlue, width: 1.6, alpha: 0.30)
             }
 
             if overlay.isSelected {
-                return RouteStyle(color: UIColor(Theme.accent), width: 6, alpha: 1)
+                return RouteStyle(color: routeBlue, width: 6, alpha: 1)
             }
             // Every route renders in the signature blue at a consistent, clearly-visible
             // weight. (The old age-based fade turned most routes slate-grey and translucent,
             // which read as "greyed out" on the default map.)
-            return RouteStyle(color: UIColor(Theme.Route.recent), width: 3, alpha: 0.85)
+            return RouteStyle(color: routeBlue, width: 3, alpha: 0.9)
         }
 
         /// Simplifies a route to at most `maxPoints` by evenly striding, always keeping the

@@ -110,7 +110,6 @@ struct StudioHomeView: View {
                     ScrollViewReader { proxy in
                         ScrollView {
                             VStack(alignment: .leading, spacing: 38) {
-                                if isHome { header }
                                 intro.id("intro")
                                 momentHero.id("hero")
                                 productGrid.id("products")
@@ -133,7 +132,22 @@ struct StudioHomeView: View {
                     }
                 }
             }
-            // The page header lives in the content, so the bar carries no title of its own.
+            // The header pins rather than scrolling with the page.
+            //
+            // It used to sit inside the content, which was defensible on its own — a storefront
+            // reads top to bottom and the buttons are reachable where a reader starts. It stops
+            // being defensible next to the other tabs: Timeline and Bag pin theirs, so scrolling
+            // Studio and switching tabs made the mark and the avatar appear, vanish and reappear
+            // in different places. A fixed element that survives a tab change is worth more than
+            // the few points of height it costs.
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if isHome {
+                    header
+                        .padding(.bottom, 10)
+                        .background(.bar)
+                }
+            }
+            // The page header lives in the safe-area inset, so the bar carries no title.
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             // As a tab, Studio builds its own header in the content (see `header`), so the bar
@@ -401,9 +415,7 @@ struct StudioHomeView: View {
             // tagline treatment belongs only to the home variant (whose toolbar mark is small).
             if !isHome {
                 VStack(alignment: .leading, spacing: 8) {
-                    Image("BrandLogo")
-                        .resizable().scaledToFit().frame(height: Self.mastheadMarkHeight * 0.85)
-                        .accessibilityLabel("Etch")
+                    EtchWordmark(height: Self.mastheadMarkHeight * 0.85)
                     Text("Turn any ride, run, hike or race into gallery-grade art.")
                         .font(.etch(.subheadline))
                         .foregroundStyle(.secondary)

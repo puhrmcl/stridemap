@@ -402,8 +402,10 @@ struct HomeView: View {
             // fades smoothly as the page expands without re-running HomeView's body every frame.
             SheetFade(metrics: sheetMetrics, maxHeight: sheetMaxHeight) {
                 topBar
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
+                    // Outer padding plus the pill's interior lands the mark exactly `side` from
+                    // the screen edge — the same place every other tab puts it.
+                    .padding(.horizontal, EtchHeaderMetrics.pillOuter)
+                    .padding(.top, EtchHeaderMetrics.top - 9)   // less the pill's own vertical padding
             }
         }
         // The docked Apple Maps-style search sheet plus the floating map controls that track its
@@ -610,7 +612,7 @@ struct HomeView: View {
             profileButton
         }
         .onPreferenceChange(PillColumnHeightKey.self) { if $0 > 0 { pillColumnHeight = $0 } }
-        .padding(.horizontal, 11)
+        .padding(.horizontal, EtchHeaderMetrics.pillInterior)
         .padding(.vertical, 9)
         .glassBackground(cornerRadius: 23)
         .background(
@@ -633,18 +635,13 @@ struct HomeView: View {
     /// without a second floating container to say it.
     private var wordmark: some View {
         HStack(spacing: 7) {
-            Image("BrandLogo")
-                .resizable()
-                .scaledToFit()
-                .frame(height: max(18, pillColumnHeight * 0.62))
-                .accessibilityLabel("Etch")
+            EtchWordmark(height: EtchHeaderMetrics.mark)
             if sync.isSyncing {
                 ProgressView()
                     .controlSize(.mini)
                     .accessibilityLabel("Syncing")
             }
         }
-        .padding(.leading, 3)
     }
 
     /// The same profile entry point every other surface carries in its header, so the map is no
@@ -654,10 +651,13 @@ struct HomeView: View {
     /// design wanted none.
     private var profileButton: some View {
         Button { appModel.presentedSurface = .profile } label: {
-            ProfileAvatar(size: max(30, pillColumnHeight)) {
+            ProfileAvatar(size: EtchHeaderMetrics.avatar) {
                 Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: max(30, pillColumnHeight)))
-                    .foregroundStyle(Theme.accentOnGlass)
+                    .font(.system(size: EtchHeaderMetrics.avatar))
+                    // Quiet. It is a placeholder standing in until someone sets a photo, and in
+                    // accent blue it was the loudest thing in the pill — an empty slot shouting
+                    // over the totals it sits beside.
+                    .foregroundStyle(.secondary)
             }
         }
         .buttonStyle(.plain)
@@ -694,7 +694,11 @@ struct HomeView: View {
                     .font(.system(size: 9, weight: .bold))
                     .rotationEffect(.degrees(showModeMenu ? 180 : 0))
             }
-            .foregroundStyle(Theme.accentOnGlass)
+            // Primary, not accent. Two reasons, and they agree: Etch Blue on translucent glass
+            // over a dark map is barely legible — which is what this looked like on a phone —
+            // and blue is supposed to mark what is *live*, not to label the controls. A dropdown
+            // that reports the current view is a control. The route it reveals is what is live.
+            .foregroundStyle(.primary)
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
         }
@@ -725,7 +729,7 @@ struct HomeView: View {
                     .font(.system(size: 9, weight: .bold))
                     .rotationEffect(.degrees(showTypeMenu ? 180 : 0))
             }
-            .foregroundStyle(Theme.accentOnGlass)
+            .foregroundStyle(.primary)
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
         }
