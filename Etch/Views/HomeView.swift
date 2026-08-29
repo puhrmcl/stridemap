@@ -18,27 +18,6 @@ private struct PillWidthKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
-/// The widths of the two groups flanking the totals in the home pill.
-///
-/// The totals are meant to sit on the pill's centre line, and two `Spacer`s alone cannot put them
-/// there: a spacer splits the *leftover* space evenly, so the totals land midway between the two
-/// groups rather than midway across the pill. Whenever the groups differ in width — and they
-/// always do, since the mark is wider than the avatar — the difference lands entirely on the
-/// totals as an offset.
-///
-/// Measuring both and padding the narrower one to match is what makes the two leftovers equal, at
-/// which point the spacers do centre the totals exactly. The measured groups exclude the
-/// balancing pad, so there is no feedback loop.
-private struct PillLeadWidthKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
-}
-
-private struct PillTrailWidthKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
-}
-
 /// The docked search sheet's live drag height, held in a tiny reference object rather than in
 /// `HomeView`'s `@State`. The sheet updates it ~60×/s while dragging; keeping it *out* of HomeView's
 /// own state means the map, the totals pill, and the (expensive) run-statistics derivations are not
@@ -139,9 +118,6 @@ struct HomeView: View {
     /// Measured full width of the totals pill, so its dropdowns and the selected-view strip below
     /// it match the pill exactly (rather than a fixed guess).
     @State private var pillWidth: CGFloat = 250
-    /// Widths of the groups either side of the totals — see `PillLeadWidthKey`.
-    @State private var pillLeadWidth: CGFloat = 0
-    @State private var pillTrailWidth: CGFloat = 0
 
     /// The map-mode dropdown, rendered as a custom panel that extends from the pill (not a detached
     /// native Menu), so it reads as part of the pill.
@@ -617,8 +593,11 @@ struct HomeView: View {
     /// puts an account. Hairlines divide them, so the pill reads as one object with parts rather
     /// than as buttons in a tray.
     private var homePill: some View {
-        HStack(spacing: 9) {
-            // Leading group: identity, and what the map is showing.
+        // The same three slots as every other tab's header, through the same view — mark leading,
+        // the middle on the row's centre line, account trailing. Sharing `EtchCenteredRow` rather
+        // than repeating its measure-and-pad trick is deliberate: two copies of this layout is
+        // exactly how the map's header and the flat ones drifted apart before.
+        EtchCenteredRow(spacing: 9) {
             HStack(spacing: 9) {
                 wordmark
                 pillDivider
@@ -627,60 +606,30 @@ struct HomeView: View {
                     pillDivider
                 }
             }
-            .background(
-                GeometryReader { geo in
-                    Color.clear.preference(key: PillLeadWidthKey.self, value: geo.size.width)
-                }
-            )
-            // Pad whichever group is narrower, so the space left over on each side of the totals
-            // is identical and the spacers below centre them on the pill rather than between the
-            // groups.
-            if pillTrailWidth > pillLeadWidth {
-                Color.clear.frame(width: pillTrailWidth - pillLeadWidth, height: 1)
-            }
-
-            Spacer(minLength: 8)
+        } center: {
             metricsRow
                 .background(
                     GeometryReader { geo in
                         Color.clear.preference(key: PillColumnHeightKey.self, value: geo.size.height)
                     }
                 )
-            Spacer(minLength: 8)
-
-            if pillLeadWidth > pillTrailWidth {
-                Color.clear.frame(width: pillLeadWidth - pillTrailWidth, height: 1)
-            }
-            // Trailing group: the view selector, and the account.
+        } trailing: {
             HStack(spacing: 9) {
                 pillDivider
                 viewSelector.frame(height: pillColumnHeight)
                 pillDivider
                 profileButton
             }
-            .background(
-                GeometryReader { geo in
-                    Color.clear.preference(key: PillTrailWidthKey.self, value: geo.size.width)
-                }
-            )
         }
         // Full width, not content width.
         //
-        // This is the correction to a wrong calculation. The pill's outer padding was set so
-        // that outer + interior would land the mark at `side` from the screen edge — but a
-        // centred, content-sized pill puts its left edge wherever centring happens to put it,
-        // so the padding only ever set a maximum and the mark sat about 40pt further in than
-        // the flat headers'. Measured off the render rather than argued about: 62pt on the map
-        // against 22pt on Studio.
-        //
-        // Spanning the row is what actually fixes it. The mark's leading edge and the avatar's
-        // trailing edge are now pinned by the padding, so they land in the same place as every
-        // other tab's. The pill reads as a header bar rather than a floating island, which is
-        // the honest form for something that carries the app's identity on every screen anyway.
+        // A centred, content-sized pill puts its left edge wherever centring happens to put it,
+        // so its padding only ever set a maximum — the mark sat about 40pt further in than the
+        // flat headers'. Measured off the render rather than argued about: 62pt on the map
+        // against 22pt on Studio. Spanning the row is what pins the mark's leading edge and the
+        // avatar's trailing edge to the padding, which is the point of the shared metrics.
         .frame(maxWidth: .infinity)
         .onPreferenceChange(PillColumnHeightKey.self) { if $0 > 0 { pillColumnHeight = $0 } }
-        .onPreferenceChange(PillLeadWidthKey.self) { if $0 > 0 { pillLeadWidth = $0 } }
-        .onPreferenceChange(PillTrailWidthKey.self) { if $0 > 0 { pillTrailWidth = $0 } }
         .padding(.horizontal, EtchHeaderMetrics.pillInterior)
         .padding(.vertical, 9)
         .glassBackground(cornerRadius: 23)

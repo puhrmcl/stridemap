@@ -8,11 +8,12 @@ import SwiftUI
 /// a way separate screens never did: the bottom of the app is now identical everywhere, and the
 /// top was the only thing still arguing.
 ///
-/// Two rows: the mark and the avatar on the first, the page's title on the second. The map is
-/// still the exception in *form* — it is a full-bleed surface whose controls float over the
-/// terrain, and a bar across the top would cover the thing you came to look at — but no longer in
-/// *geometry*: its pill is built from the same `EtchHeaderMetrics`, so the mark and the avatar
-/// occupy identical positions on every tab and stop moving when you switch between them.
+/// One row: the mark leading, the page's title centred, the avatar trailing — the same three
+/// slots, in the same places, as the map's pill. The map is still the exception in *form* (it is
+/// a full-bleed surface whose controls float over the terrain, and a bar across the top would
+/// cover the thing you came to look at) but not in geometry: both are built from
+/// `EtchHeaderMetrics` and both centre through `EtchCenteredRow`, so the mark, the middle and the
+/// avatar occupy identical positions on every tab and stop moving when you switch between them.
 ///
 /// The profile button lives here rather than at each call site, so the avatar, its long-press to
 /// clear the photo, and the sheet it opens are defined once and cannot drift apart.
@@ -36,36 +37,38 @@ struct EtchPageHeader<Trailing: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // Row one: identity. The mark and the avatar, at the geometry every tab shares —
-            // including the map, whose floating pill is built from the same numbers. This row is
-            // the reason the top of the app stops jumping when you change tabs: the two things
-            // the eye tracks across the transition do not move, and only the row beneath them
-            // changes.
-            HStack(alignment: .center, spacing: 12) {
-                EtchWordmark(height: EtchHeaderMetrics.mark)
-                Spacer(minLength: 8)
+        EtchCenteredRow {
+            EtchWordmark(height: EtchHeaderMetrics.mark)
+        } center: {
+            // The title sits on the row's centre line, at the size and in the slot the map's
+            // totals occupy. That is the whole idea: four tabs, one row, and the only thing that
+            // changes between them is the words in the middle.
+            //
+            // Small, deliberately. It was a 34pt bold largeTitle on its own line, which made the
+            // heading the loudest thing on every page and pushed the identity row up into the
+            // status bar. A page label does not need to shout on a screen you navigated to on
+            // purpose — the tab bar already told you where you are.
+            VStack(spacing: 0) {
+                Text(title)
+                    .font(.etch(.headline, weight: .etchMedium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.etch(.caption2))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+            }
+            .multilineTextAlignment(.center)
+        } trailing: {
+            HStack(spacing: 10) {
                 trailing()
                 profileButton
             }
-            .frame(height: EtchHeaderMetrics.rowHeight)
-
-            // Row two: what this page is. Below the identity rather than beside it, so a long
-            // title can never push the avatar out of position — the failure the fixed row exists
-            // to prevent.
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.etch(.largeTitle, weight: .bold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.etch(.subheadline))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
         }
+        .frame(height: EtchHeaderMetrics.rowHeight)
         .padding(.horizontal, EtchHeaderMetrics.side)
         .padding(.top, EtchHeaderMetrics.top)
         .sheet(isPresented: $showProfile) { ProfileView() }
