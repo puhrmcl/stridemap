@@ -140,8 +140,8 @@ New look throughout, in Etch's own typeface and colour.
 > `etch.nwagtech.com` is set up (see `PLATFORM.md`), switch these to
 > `https://etch.nwagtech.com/privacy.html` and `https://etch.nwagtech.com/`.
 >
-> **The privacy policy needs the same correction this file just had** — `docs/privacy.md`
-> and `docs/privacy.html` still describe an app that uploads nothing.
+> The privacy policy and the support page have both been corrected to match this file —
+> `docs/privacy.md`, `docs/privacy.html` and `docs/index.html`.
 
 ---
 
@@ -254,6 +254,5 @@ Recommended answers:
 - [ ] **Screenshots** — 6.9" iPhone (required) and 6.5"/6.7" as needed. Capture from a
       device with real activities, and include at least one Studio product and one print
       mockup — half the app is invisible in a screenshot set that is all map.
-- [ ] Update `docs/privacy.md` / `docs/privacy.html` to match the App Privacy section above.
 - [ ] Enable **GitHub Pages** so the Privacy Policy + Support URLs resolve (Settings →
       Pages → `main` / `/docs`).
