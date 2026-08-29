@@ -107,6 +107,7 @@ enum StudioRenderer {
         guard request.edition.mapKind != nil else { return nil }
         return await PosterMap.studioPanel(for: request.run, size: panelSize,
                                            edition: request.edition, route: request.routeColor,
+                                           ground: request.groundColor ?? request.edition.ground,
                                            requireOwnCartography: requireOwnCartography)
     }
 
@@ -625,7 +626,7 @@ struct StudioExportSheet: View {
                     VStack(spacing: 12) {
                         ProgressView()
                         Text("Rendering high-resolution…")
-                            .font(.system(.subheadline, design: .rounded))
+                            .font(.system(.subheadline, design: .default))
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -1,4 +1,5 @@
 import UIKit
+import SwiftUI
 import CoreLocation
 import MapLibre
 
@@ -183,13 +184,15 @@ enum EtchMapSnapshotter {
     /// - Returns: the image and its frame, or nil if the snapshot failed — callers fall back to
     ///   Apple's snapshotter, so a tile outage costs a poster its *printability*, never its
     ///   existence.
+    /// - Parameter ground: the poster's paper. It becomes the style's land colour, so the panel
+    ///   comes back already on the sheet rather than on a tone of its own.
     static func snapshot(for coordinates: [CLLocationCoordinate2D],
                          size: CGSize, scale: CGFloat,
-                         edition: StudioEdition) async -> Snapshot? {
+                         edition: StudioEdition, ground: Color? = nil) async -> Snapshot? {
         guard canRender(edition), coordinates.count > 1, size.width > 0, size.height > 0 else {
             return nil
         }
-        guard let styleURL = styleFile(for: edition) else { return nil }
+        guard let styleURL = styleFile(for: edition, ground: ground) else { return nil }
 
         let frame = Frame.fitting(coordinates, aspect: Double(size.width / size.height))
         let options = MLNMapSnapshotOptions(styleURL: styleURL,
@@ -226,16 +229,18 @@ enum EtchMapSnapshotter {
 
     /// MapLibre takes a style by URL, so the generated document is written to a file.
     ///
-    /// Cached per edition: the Studio editor re-renders on every option change, including every
-    /// keystroke in a title field, and serialising the same JSON on each of those would be work
-    /// nobody asked for.
+    /// Cached per edition *and paper*: the Studio editor re-renders on every option change,
+    /// including every keystroke in a title field, and serialising the same JSON on each of those
+    /// would be work nobody asked for. The paper is part of the key because it is part of the
+    /// style — the same edition on two grounds is two different maps, and keying on the edition
+    /// alone would serve the first paper's map for the second one's poster.
     private static var styleFiles: [String: URL] = [:]
 
-    private static func styleFile(for edition: StudioEdition) -> URL? {
-        let key = edition.id.rawValue
+    private static func styleFile(for edition: StudioEdition, ground: Color?) -> URL? {
+        let key = "\(edition.id.rawValue)-\(ground?.hexString ?? "authored")"
         if let existing = styleFiles[key],
            FileManager.default.fileExists(atPath: existing.path) { return existing }
-        guard let data = EtchCartography.styleJSON(for: edition) else { return nil }
+        guard let data = EtchCartography.styleJSON(for: edition, ground: ground) else { return nil }
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("etch-style-\(key).json")
         guard (try? data.write(to: url, options: .atomic)) != nil else { return nil }

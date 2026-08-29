@@ -82,9 +82,13 @@ enum PosterMap {
     /// - Parameter requireOwnCartography: refuses the Apple fallback, returning nil instead. The
     ///   print path sets it: a preview may honestly show an Apple panel and simply not be
     ///   sellable, but a print file built from one would be Apple's map data on merchandise.
+    /// - Parameter ground: the poster's actual paper colour. The panel is finished onto it, so the
+    ///   map's own ground and the sheet around it are the same tone and no seam runs across the
+    ///   print. Nil falls back to the edition's authored ground.
     @MainActor
     static func studioPanel(for run: Run, size: CGSize, edition: StudioEdition,
                             route routeOverride: Color? = nil,
+                            ground groundOverride: Color? = nil,
                             requireOwnCartography: Bool = false) async -> UIImage? {
         guard let kind = edition.mapKind else { return nil }
         let coordinates = run.coordinates
@@ -99,20 +103,26 @@ enum PosterMap {
         // Apple would otherwise be handed straight back to a print asking for our cartography,
         // and the guard would pass while shipping the thing it exists to prevent. Print panels are
         // rendered once per order, so there is nothing to save here anyway.
-        let key = panelKey("studio", run: run, size: size, edition: edition, route: routeOverride)
+        let paper = groundOverride ?? edition.ground
+        let key = panelKey("studio", run: run, size: size, edition: edition,
+                           route: routeOverride, ground: paper)
         if !requireOwnCartography, let cached = panelCache.object(forKey: key) { return cached }
 
         // Etch's own cartography first, when the basemap is live and this edition has an
         // OpenStreetMap equivalent — that is the panel the poster may actually be sold as. Apple
         // remains the fallback, so a tile outage costs a poster its *printability*, never its
         // existence.
+        //
+        // The paper travels into the style, so the basemap's land layer *is* the sheet rather than
+        // a tone that happens to be close to it.
         if EtchMapSnapshotter.canRender(edition),
            let own = await EtchMapSnapshotter.snapshot(for: coordinates, size: size,
-                                                       scale: 2, edition: edition) {
+                                                       scale: 2, edition: edition, ground: paper) {
             let base = edition.panelSaturation.map { desaturated(own.image, saturation: $0) }
                 ?? own.image
             let finished = overlay(
-                base, coordinates: coordinates, size: size, scale: 2,
+                groundMatched(washed(base, edition: edition), to: paper),
+                coordinates: coordinates, size: size, scale: 2,
                 edition: edition, route: routeOverride, isRace: run.isRace,
                 project: { own.frame.point(for: $0, in: size) }
             )
@@ -168,7 +178,8 @@ enum PosterMap {
         }
 
         let image = overlay(
-            baseImage, coordinates: coordinates, size: size, scale: options.scale,
+            groundMatched(washed(baseImage, edition: edition), to: paper),
+            coordinates: coordinates, size: size, scale: options.scale,
             edition: edition, route: routeOverride, isRace: run.isRace,
             project: { snapshot.point(for: $0) }
         )
@@ -176,13 +187,121 @@ enum PosterMap {
         return image
     }
 
-    /// Draws the wash and the route over a map panel.
+    // MARK: Finishing the panel onto the paper
+
+    /// Washes the map toward the edition's material.
+    ///
+    /// This used to happen inside `overlay`, after the route had a rectangle to sit on. It has to
+    /// happen here instead, because `groundMatched` runs next and needs to see the map's *final*
+    /// ground — correcting a tone and then tinting it afterwards would put the seam straight back.
+    private static func washed(_ image: UIImage, edition: StudioEdition) -> UIImage {
+        guard edition.mapWashAlpha > 0 else { return image }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = image.scale
+        format.opaque = true
+        return UIGraphicsImageRenderer(size: image.size, format: format).image { context in
+            image.draw(in: CGRect(origin: .zero, size: image.size))
+            UIColor(edition.mapWash).withAlphaComponent(edition.mapWashAlpha).setFill()
+            context.cgContext.fill(CGRect(origin: .zero, size: image.size))
+        }
+    }
+
+    /// Prints the map onto the poster's own paper.
+    ///
+    /// The seam this removes was the loudest thing separating our sheets from the references: a
+    /// map panel carries its own land colour — Apple's, or an edition's authored ground — and the
+    /// poster around it carries the user's chosen paper. Two tones a few percent apart meet at a
+    /// hard rectangle, and the eye finds that edge instantly. The references have no such edge
+    /// because their maps are drawn *on* the sheet.
+    ///
+    /// The correction is a white balance rather than a fill. The panel's own land colour is
+    /// measured, and a per-channel gain is applied that takes exactly that colour to the paper.
+    /// Land lands on the paper by construction; everything else — roads, water, buildings — moves
+    /// with it and keeps its relationship to the ground, so the map still reads as the map. A flat
+    /// tint could only have averaged the difference away and muddied every feature doing it.
+    ///
+    /// Skipped when the measurement is untrustworthy: a near-black ground makes the gain explode,
+    /// and a panel whose land is already the paper needs nothing.
+    private static func groundMatched(_ image: UIImage, to paper: Color) -> UIImage {
+        guard let land = dominantColor(of: image) else { return image }
+        var pr: CGFloat = 0, pg: CGFloat = 0, pb: CGFloat = 0, pa: CGFloat = 0
+        UIColor(paper).getRed(&pr, green: &pg, blue: &pb, alpha: &pa)
+
+        // A channel this dark carries no reliable ratio — dividing by it turns noise into colour.
+        guard land.0 > 0.02, land.1 > 0.02, land.2 > 0.02 else { return image }
+
+        let gain = (
+            min(max(pr / land.0, 0.25), 4),
+            min(max(pg / land.1, 0.25), 4),
+            min(max(pb / land.2, 0.25), 4)
+        )
+        // Already on the paper — within a value the print process itself cannot hold apart.
+        if abs(gain.0 - 1) < 0.004, abs(gain.1 - 1) < 0.004, abs(gain.2 - 1) < 0.004 { return image }
+
+        guard let input = CIImage(image: image),
+              let filter = CIFilter(name: "CIColorMatrix", parameters: [
+                kCIInputImageKey: input,
+                "inputRVector": CIVector(x: gain.0, y: 0, z: 0, w: 0),
+                "inputGVector": CIVector(x: 0, y: gain.1, z: 0, w: 0),
+                "inputBVector": CIVector(x: 0, y: 0, z: gain.2, w: 0),
+                "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1)
+              ]),
+              let output = filter.outputImage,
+              let cgImage = ciContext.createCGImage(output, from: input.extent)
+        else { return image }
+        return UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
+    }
+
+    /// The panel's land colour: the most common tone in it.
+    ///
+    /// Mode rather than mean. A map's average is dragged toward whatever happens to be in frame —
+    /// a river, a park, a dense downtown — and correcting to an average would tint the sheet by
+    /// how much water the route ran past. The ground is by definition the colour most of the panel
+    /// is, so the modal bucket finds it whatever else is on the page.
+    private static func dominantColor(of image: UIImage) -> (CGFloat, CGFloat, CGFloat)? {
+        guard let cgImage = image.cgImage else { return nil }
+        let side = 64
+        var pixels = [UInt8](repeating: 0, count: side * side * 4)
+        let drew: Bool = pixels.withUnsafeMutableBytes { raw in
+            guard let context = CGContext(
+                data: raw.baseAddress, width: side, height: side, bitsPerComponent: 8,
+                bytesPerRow: side * 4, space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+                    | CGBitmapInfo.byteOrder32Big.rawValue
+            ) else { return false }
+            context.interpolationQuality = .high
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: side, height: side))
+            return true
+        }
+        guard drew else { return nil }
+
+        // 5 bits per channel: fine enough to tell a paper from a park, coarse enough that the
+        // land does not scatter across a hundred near-identical buckets and lose to a solid one.
+        var counts: [UInt16: Int] = [:]
+        var sums: [UInt16: (Int, Int, Int)] = [:]
+        for index in stride(from: 0, to: pixels.count, by: 4) {
+            let r = Int(pixels[index]), g = Int(pixels[index + 1]), b = Int(pixels[index + 2])
+            let bucket = UInt16((r >> 3) << 10 | (g >> 3) << 5 | (b >> 3))
+            counts[bucket, default: 0] += 1
+            let running = sums[bucket] ?? (0, 0, 0)
+            sums[bucket] = (running.0 + r, running.1 + g, running.2 + b)
+        }
+        guard let (bucket, count) = counts.max(by: { $0.value < $1.value }),
+              let total = sums[bucket], count > 0 else { return nil }
+        // The bucket's own mean, not the bucket's centre — a quantised centre would introduce an
+        // error of its own into the very number the correction is built on.
+        return (CGFloat(total.0) / CGFloat(count) / 255,
+                CGFloat(total.1) / CGFloat(count) / 255,
+                CGFloat(total.2) / CGFloat(count) / 255)
+    }
+
+    /// Draws the route over a finished map panel.
     ///
     /// `project` is the only thing that differs between the two sources: Apple hands back a
     /// `point(for:)` from its own snapshot, Etch's basemap projects through the frame it framed
-    /// with. Everything after that — the wash, the glow, the casing, the route, the start and
-    /// finish dots — is the edition's style and must be identical, or the same edition would
-    /// look like two different products depending on which cartography drew it.
+    /// with. Everything after that — the glow, the casing, the route, the start and finish dots —
+    /// is the edition's style and must be identical, or the same edition would look like two
+    /// different products depending on which cartography drew it.
     @MainActor
     private static func overlay(
         _ base: UIImage, coordinates: [CLLocationCoordinate2D], size: CGSize, scale: CGFloat,
@@ -198,9 +317,9 @@ enum PosterMap {
         return renderer.image { context in
             let cg = context.cgContext
 
+            // The wash and the ground correction have already been applied — `base` arrives as the
+            // finished sheet. Anything tinted here would tint the route with it.
             base.draw(in: CGRect(origin: .zero, size: size))
-            UIColor(edition.mapWash).withAlphaComponent(edition.mapWashAlpha).setFill()
-            cg.fill(CGRect(origin: .zero, size: size))
 
             let path = UIBezierPath()
             var started = false

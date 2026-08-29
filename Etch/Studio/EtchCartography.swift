@@ -33,11 +33,15 @@ enum EtchCartography {
     /// A complete MapLibre style document for an edition, as JSON data.
     ///
     /// - Parameter edition: supplies the palette. Only the map surfaces call this.
+    /// - Parameter ground: the poster's paper. The map's land layer is set to exactly this, so the
+    ///   panel and the sheet around it are one tone and no seam runs across the print. Nil uses
+    ///   the edition's authored ground, which is only right when the user has not chosen a paper.
     /// - Parameter labels: whether place names are drawn. A poster usually wants them off — the
     ///   composition carries the location in type it controls, and a second set of names in a
     ///   font nobody chose is the fastest way to make a print look like a screenshot.
-    static func styleJSON(for edition: StudioEdition, labels: Bool = false) -> Data? {
-        let palette = Palette(edition: edition)
+    static func styleJSON(for edition: StudioEdition, ground: Color? = nil,
+                          labels: Bool = false) -> Data? {
+        let palette = Palette(edition: edition, paper: ground)
         let style: [String: Any] = [
             "version": 8,
             "name": "Etch — \(edition.name)",
@@ -66,17 +70,22 @@ enum EtchCartography {
         let building: String
         let label: String
 
-        init(edition: StudioEdition) {
-            let ground = edition.ground
-            let ink = edition.isDark ? Color.white : Theme.Palette.ink
+        /// - Parameter paper: the sheet the poster is printed on. Land is set to it exactly rather
+        ///   than to something close, which is what keeps the panel from having an edge. The ink
+        ///   is then chosen from the *paper*, not from the edition's authored darkness — a light
+        ///   edition on a dark paper needs light linework or the map disappears into the sheet.
+        init(edition: StudioEdition, paper: Color? = nil) {
+            let ground = paper ?? edition.ground
+            let ink = ground.isDarkGround ? Color.white : Theme.Palette.ink
             land = Self.hex(ground)
             // Water takes a touch of the route's colour rather than a generic blue: a coastline
             // that quietly rhymes with the run reads as one design, and a stock blue would be the
             // one thing on the sheet nobody chose.
+            let dark = ground.isDarkGround
             water = Self.hex(Self.blend(ground, edition.route, 0.16))
-            majorRoad = Self.hex(Self.blend(ground, ink, edition.isDark ? 0.34 : 0.26))
-            minorRoad = Self.hex(Self.blend(ground, ink, edition.isDark ? 0.20 : 0.14))
-            building = Self.hex(Self.blend(ground, ink, edition.isDark ? 0.13 : 0.08))
+            majorRoad = Self.hex(Self.blend(ground, ink, dark ? 0.34 : 0.26))
+            minorRoad = Self.hex(Self.blend(ground, ink, dark ? 0.20 : 0.14))
+            building = Self.hex(Self.blend(ground, ink, dark ? 0.13 : 0.08))
             label = Self.hex(Self.blend(ground, ink, 0.62))
         }
 

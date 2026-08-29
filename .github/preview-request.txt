@@ -11,10 +11,10 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b468: titles set as written rather than uppercased, and the rule gone
-# from Nameplate's foot — the two cheapest items from the layout audit.
+# Requested for b469: the map seam. The panel is now finished onto the poster's own paper —
+# look at the join between the map and the sheet below it, which should no longer be findable.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=map-studio,gallery-studio
+screens=map-studio,studio
 appearance=light
