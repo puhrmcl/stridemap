@@ -1014,7 +1014,9 @@ struct StudioComposition: View {
 
     private var routeArt: some View { routeGraphic(width: edition.routeWidth) }
 
-    /// The route as vector art (optional casing under the coloured line), at a given stroke width.
+    /// The route as vector art (optional casing under the coloured line), at a given stroke width,
+    /// with its start and finish marked — the map panels have always marked theirs, and a Minimal
+    /// sheet that showed the same run as an unmarked squiggle was the odd one out.
     private func routeGraphic(width: CGFloat) -> some View {
         ZStack {
             if let casing = casingColor {
@@ -1023,6 +1025,11 @@ struct StudioComposition: View {
             }
             RouteShape(coordinates: run.coordinates)
                 .stroke(routeColor, style: stroke(width))
+            RouteEndpointMarkers(
+                coordinates: run.coordinates,
+                start: accentColor, finish: routeColor, ground: groundColor,
+                isRace: run.isRace, routeWidth: width
+            )
         }
     }
 

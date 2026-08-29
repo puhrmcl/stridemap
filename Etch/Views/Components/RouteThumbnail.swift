@@ -166,7 +166,21 @@ struct RouteShape: Shape {
     let coordinates: [CLLocationCoordinate2D]
 
     func path(in rect: CGRect) -> Path {
-        guard coordinates.count > 1 else { return Path() }
+        let points = Self.projectedPoints(coordinates, in: rect)
+        guard points.count > 1 else { return Path() }
+        var path = Path()
+        for (index, point) in points.enumerated() {
+            if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
+        }
+        return path
+    }
+
+    /// The same projection `path(in:)` uses, exposed so anything drawn *at* the route — start and
+    /// finish markers, most of all — lands on the line rather than near it. Two implementations of
+    /// one projection is how a marker ends up a few points off the end of its own route.
+    static func projectedPoints(_ coordinates: [CLLocationCoordinate2D],
+                                in rect: CGRect) -> [CGPoint] {
+        guard coordinates.count > 1 else { return [] }
         let lats = coordinates.map(\.latitude)
         let lons = coordinates.map(\.longitude)
         let minLat = lats.min()!, maxLat = lats.max()!
@@ -178,18 +192,12 @@ struct RouteShape: Shape {
         let dataHeight = max(maxLat - minLat, 1e-6)
 
         let scale = min(rect.width / dataWidth, rect.height / dataHeight)
-        let drawWidth = dataWidth * scale
-        let drawHeight = dataHeight * scale
-        let offsetX = (rect.width - drawWidth) / 2
-        let offsetY = (rect.height - drawHeight) / 2
+        let offsetX = (rect.width - dataWidth * scale) / 2
+        let offsetY = (rect.height - dataHeight * scale) / 2
 
-        var path = Path()
-        for (index, coordinate) in coordinates.enumerated() {
-            let x = offsetX + (coordinate.longitude - minLon) * lonScale * scale
-            let y = offsetY + (maxLat - coordinate.latitude) * scale   // flip so north is up
-            let point = CGPoint(x: x, y: y)
-            if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
+        return coordinates.map { coordinate in
+            CGPoint(x: offsetX + (coordinate.longitude - minLon) * lonScale * scale,
+                    y: offsetY + (maxLat - coordinate.latitude) * scale)   // flip so north is up
         }
-        return path
     }
 }

@@ -113,7 +113,7 @@ enum PosterMap {
                 ?? own.image
             let finished = overlay(
                 base, coordinates: coordinates, size: size, scale: 2,
-                edition: edition, route: routeOverride,
+                edition: edition, route: routeOverride, isRace: run.isRace,
                 project: { own.frame.point(for: $0, in: size) }
             )
             if !requireOwnCartography { panelCache.setObject(finished, forKey: key) }
@@ -169,7 +169,7 @@ enum PosterMap {
 
         let image = overlay(
             baseImage, coordinates: coordinates, size: size, scale: options.scale,
-            edition: edition, route: routeOverride,
+            edition: edition, route: routeOverride, isRace: run.isRace,
             project: { snapshot.point(for: $0) }
         )
         panelCache.setObject(image, forKey: key)
@@ -186,7 +186,7 @@ enum PosterMap {
     @MainActor
     private static func overlay(
         _ base: UIImage, coordinates: [CLLocationCoordinate2D], size: CGSize, scale: CGFloat,
-        edition: StudioEdition, route routeOverride: Color?,
+        edition: StudioEdition, route routeOverride: Color?, isRace: Bool = false,
         project: (CLLocationCoordinate2D) -> CGPoint
     ) -> UIImage {
         let format = UIGraphicsImageRendererFormat()
@@ -233,7 +233,11 @@ enum PosterMap {
                 dot(cg, at: project(first), fill: UIColor(edition.accent), radius: edition.routeWidth)
             }
             if let last = coordinates.last {
-                dot(cg, at: project(last), fill: route, radius: edition.routeWidth)
+                if isRace {
+                    chequer(cg, at: project(last), fill: route, radius: edition.routeWidth * 1.35)
+                } else {
+                    dot(cg, at: project(last), fill: route, radius: edition.routeWidth)
+                }
             }
         }
     }
@@ -316,7 +320,15 @@ enum PosterMap {
             path.stroke()
 
             if let first = coordinates.first { dot(cg, at: pixel(first), fill: UIColor(edition.accent), radius: edition.routeWidth) }
-            if let last = coordinates.last { dot(cg, at: pixel(last), fill: route, radius: edition.routeWidth) }
+            if let last = coordinates.last {
+                // The contour prints mark their ends the same way the map panels do — a race
+                // finishes under a chequer wherever it is drawn.
+                if run.isRace {
+                    chequer(cg, at: pixel(last), fill: route, radius: edition.routeWidth * 1.35)
+                } else {
+                    dot(cg, at: pixel(last), fill: route, radius: edition.routeWidth)
+                }
+            }
 
             // Waypoint labels — START / FINISH, and the high point over the terrain (its
             // elevation), the way trail prints call out the key points along a route.
@@ -480,6 +492,35 @@ enum PosterMap {
         let rect = CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)
         ctx.setFillColor(fill.cgColor)
         ctx.fillEllipse(in: rect)
+        ctx.setStrokeColor(UIColor.white.cgColor)
+        ctx.setLineWidth(5)
+        ctx.strokeEllipse(in: rect)
+    }
+
+    /// The chequered finish, for a race. Drawn as geometry rather than as a flag glyph: a symbol
+    /// font's flag turns to mush at 300 DPI, and this stays crisp at any size the sheet is
+    /// printed at.
+    private static func chequer(_ ctx: CGContext, at point: CGPoint, fill: UIColor, radius: CGFloat) {
+        let rect = CGRect(x: point.x - radius, y: point.y - radius,
+                          width: radius * 2, height: radius * 2)
+        ctx.setFillColor(fill.cgColor)
+        ctx.fillEllipse(in: rect)
+
+        ctx.saveGState()
+        ctx.addEllipse(in: rect)
+        ctx.clip()
+        let cells = 4
+        let cell = radius * 2 / CGFloat(cells)
+        ctx.setFillColor(UIColor.white.cgColor)
+        for row in 0..<cells {
+            for column in 0..<cells where (row + column).isMultiple(of: 2) {
+                ctx.fill(CGRect(x: rect.minX + CGFloat(column) * cell,
+                                y: rect.minY + CGFloat(row) * cell,
+                                width: cell, height: cell))
+            }
+        }
+        ctx.restoreGState()
+
         ctx.setStrokeColor(UIColor.white.cgColor)
         ctx.setLineWidth(5)
         ctx.strokeEllipse(in: rect)

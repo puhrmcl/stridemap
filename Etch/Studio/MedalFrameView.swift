@@ -136,9 +136,8 @@ struct MedalFrameView: View {
                 // blank rectangle that looks like the finished product.
                 if panel == nil { ProgressView() }
             }
-            .shadow(color: .black.opacity(0.28), radius: 16, y: 10)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 18)
+            .padding(.vertical, 22)
             .animation(.easeInOut(duration: 0.2), value: frameColour)
             .animation(.easeInOut(duration: 0.2), value: mountColour)
     }

@@ -322,15 +322,9 @@ struct PrintShopView: View {
                 if artwork != nil { showProductPreview = true }
             } label: {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 18)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(white: 0.93), Color(white: 0.87)],
-                                startPoint: .top, endPoint: .bottom
-                            )
-                        )
+                    MockupWall()
                     framedPiece
-                        .padding(.vertical, 26)
+                        .padding(.vertical, 30)
                 }
                 .frame(height: 320)
                 .clipShape(.rect(cornerRadius: 18))
@@ -398,11 +392,13 @@ struct PrintShopView: View {
             switch product {
             case .framed:
                 // Full-bleed in the moulding — the verified product (Classic Frame, no mount) has
-                // no mat, so the mockup doesn't draw one. Honest previews only.
-                sheet
-                    .padding(9)                                    // moulding
-                    .background(Color(hex: finish.mouldingHex) ?? .black)
-                    .shadow(color: .black.opacity(0.30), radius: 16, y: 10)
+                // no mat, so the mockup doesn't draw one. Honest previews only: the depth, grain
+                // and glazing below are all things this frame has; a mat is not.
+                FramedPrintMockup(
+                    moulding: Color(hex: finish.mouldingHex) ?? .black,
+                    hasGrain: finish == .natural,
+                    mouldingWidth: 11
+                ) { sheet }
             case .hanger:
                 // The wood sits *over* the print, so the strips are drawn on top of the sheet and
                 // the artwork behind them is inset by what they cover — the same reserve the
@@ -415,8 +411,11 @@ struct PrintShopView: View {
                     .overlay(alignment: .bottom) { hangerStrip }
                     .shadow(color: .black.opacity(0.24), radius: 14, y: 9)
             case .print:
+                // A loose sheet, unframed and unmounted. Two shadows for the same reason the
+                // frame has two: a single soft one reads as a sticker on the wall.
                 sheet
-                    .shadow(color: .black.opacity(0.22), radius: 12, y: 8)
+                    .shadow(color: .black.opacity(0.24), radius: 3, y: 2)
+                    .shadow(color: .black.opacity(0.15), radius: 16, y: 11)
             }
             }
         }
@@ -438,11 +437,22 @@ struct PrintShopView: View {
         return max(3, 250 * (coverInches / max(sheetInches, 1)))
     }
 
+    /// The magnetic batten. A solid timber has a lit face and a shaded one like any other, and the
+    /// edge where it meets the paper casts a line — without those it reads as a printed band rather
+    /// than a piece of wood clamped over the sheet.
     private var hangerStrip: some View {
-        Rectangle()
-            .fill(Color(hex: hangerFinish.woodHex) ?? .brown)
-            .frame(height: hangerStripHeight)
-            .overlay(Rectangle().fill(.black.opacity(0.12)).frame(height: 0.5), alignment: .bottom)
+        let wood = Color(hex: hangerFinish.woodHex) ?? .brown
+        return LinearGradient(
+            stops: [
+                .init(color: wood.mixed(with: .white, amount: 0.16), location: 0),
+                .init(color: wood, location: 0.55),
+                .init(color: wood.mixed(with: .black, amount: 0.18), location: 1)
+            ],
+            startPoint: .top, endPoint: .bottom
+        )
+        .frame(height: hangerStripHeight)
+        .overlay(Rectangle().fill(.black.opacity(0.22)).frame(height: 0.75), alignment: .bottom)
+        .shadow(color: .black.opacity(0.22), radius: 2, y: 1)
     }
 
     /// The product as one flat image for the full-screen viewer: the artwork inside its chosen

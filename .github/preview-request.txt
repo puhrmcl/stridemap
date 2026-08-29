@@ -11,10 +11,11 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b458: the tray again — b457 showed every secondary label, value,
-# chevron and divider rendering invisible against the material background.
+# Requested for b460: the framed mockups, which had to stand next to photographed
+# competitor mockups — depth, grain, glazing and two shadows — plus the route's start
+# and finish markers, which map panels drew and vector routes did not.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=map-studio@content,map-studio@customize,gallery-studio
+screens=prints,map-studio,studio@medalFrame
 appearance=light

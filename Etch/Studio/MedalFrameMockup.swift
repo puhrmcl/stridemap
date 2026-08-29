@@ -22,29 +22,48 @@ struct MedalFrameMockup: View {
     var scale: CGFloat = 1
 
     var body: some View {
-        HStack(spacing: 14 * scale) {
-            RoundedRectangle(cornerRadius: 6 * scale)
-                .fill(Color(hex: MedalFrameCatalog.mountHex(mountColour)) ?? .black)
-                .frame(width: 92 * scale, height: 126 * scale)
-                .overlay {
-                    Image(systemName: "medal")
-                        .font(.system(size: 26 * scale, weight: .light))
-                        .foregroundStyle(.white.opacity(0.22))
+        FramedPrintMockup(
+            moulding: Color(hex: MedalFrameCatalog.mouldingHex(frameColour)) ?? .black,
+            hasGrain: frameColour == "natural" || frameColour == "brown",
+            mouldingWidth: 14 * scale
+        ) {
+            HStack(spacing: 14 * scale) {
+                // The aperture is a window cut through the mount, so it sits *below* the board —
+                // the inner shadow is what makes it read as a well rather than a dark rectangle
+                // printed on the card.
+                RoundedRectangle(cornerRadius: 6 * scale)
+                    .fill(Color(hex: MedalFrameCatalog.mountHex(mountColour)) ?? .black)
+                    .frame(width: 92 * scale, height: 126 * scale)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 6 * scale)
+                            .strokeBorder(
+                                LinearGradient(colors: [.black.opacity(0.55), .white.opacity(0.10)],
+                                               startPoint: .topLeading, endPoint: .bottomTrailing),
+                                lineWidth: 2 * scale
+                            )
+                    }
+                    .overlay {
+                        Image(systemName: "medal")
+                            .font(.system(size: 26 * scale, weight: .light))
+                            .foregroundStyle(.white.opacity(0.22))
+                    }
+                Group {
+                    if let panel {
+                        Image(uiImage: panel).resizable().scaledToFill()
+                    } else {
+                        Rectangle().fill(Theme.Palette.bone)
+                    }
                 }
-            Group {
-                if let panel {
-                    Image(uiImage: panel).resizable().scaledToFill()
-                } else {
-                    Rectangle().fill(Theme.Palette.bone)
+                .frame(width: 92 * scale, height: 126 * scale)
+                .clipped()
+                // The print sits under the mount's bevel too.
+                .overlay {
+                    Rectangle().strokeBorder(.black.opacity(0.18), lineWidth: 1 * scale)
                 }
             }
-            .frame(width: 92 * scale, height: 126 * scale)
-            .clipped()
+            .padding(18 * scale)
+            .background(Color(white: 0.97))        // the snow-white top mount
         }
-        .padding(18 * scale)
-        .background(Color(white: 0.97))            // the snow-white top mount
-        .padding(14 * scale)                       // the moulding
-        .background(Color(hex: MedalFrameCatalog.mouldingHex(frameColour)) ?? .black)
     }
 
     /// The mockup as a flat image, for surfaces that need a `UIImage` rather than a view — the
