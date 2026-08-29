@@ -11,16 +11,30 @@ import UIKit
 /// A product whose whole proposition is "your movement, as art" cannot open on somebody else's
 /// map.
 ///
-/// What it does instead: a wash laid over the basemap, in Etch's own tone, using MapKit's own
-/// overlay levels rather than anything private. `.color` blending keeps the map's luminosity —
-/// every road, block and coastline stays exactly where it was and reads exactly as legibly — and
-/// replaces its hue with the brand's. Apple's map becomes an Etch map without a single tile
-/// being redrawn.
+/// What it does instead: a translucent sheet of the brand's paper laid over the basemap, using
+/// MapKit's own overlay levels rather than anything private.
 ///
-/// Two things keep it honest:
+/// **It is a plain fill, and that is a limitation, not a preference.** The first version of this
+/// drew with `CGBlendMode.color`, which keeps a backdrop's luminosity and replaces only its hue —
+/// the right tool, and it would have re-inked the map without flattening it. It does not work
+/// here. MapKit renders an overlay into its own transparency layer and composites the finished
+/// layer onto the map, so a blend mode set inside `draw(_:zoomScale:in:)` blends against the
+/// layer's own empty pixels and degrades to source-over.
+///
+/// That was measured rather than assumed. Sampling the same ocean before and after, a single
+/// alpha of ~0.775 explains the red and green channels exactly; a `.color` blend would have
+/// landed water near (0.671, 0.738, 0.754) and it landed at (0.847, 0.910, 0.918). One alpha
+/// fitting every channel is source-over, and nothing else.
+///
+/// So this is honest about what it is: a wash. It takes Apple's greens and blues decisively out
+/// of the map and puts Etch's paper in their place, at the cost of some of the map's contrast.
+/// The map stops being recognisably Apple's. It does not become a piece of Etch cartography —
+/// only `EtchCartography` does that, and it needs the basemap archive live.
+///
+/// Two things still hold, and they are the parts that matter:
 ///
 ///   · The wash sits at `.aboveRoads`, which is *below* MapKit's labels, so place names stay
-///     crisp and dark rather than being tinted into the paper.
+///     crisp rather than being bleached into the paper.
 ///   · It is inserted at index 0 of that level, so every route polyline added afterwards draws
 ///     on top of it. Etch Blue stays Etch Blue; the wash never touches the subject.
 ///
@@ -38,16 +52,14 @@ final class EtchMapWash: NSObject, MKOverlay {
     /// The tone the map is washed toward.
     let tone: UIColor
 
-    /// How much of the map's own hue survives. Not 1.0 on purpose: a complete replacement makes
-    /// water and land the same colour, and a map where you cannot find the coastline is a worse
-    /// map however handsome it is. At this strength the sea keeps just enough blue in it to read
-    /// as sea, and everything else lands firmly on Etch's warm neutral.
-    static let strength: CGFloat = 0.76
-
-    /// A second, much lighter pass in `multiply`, which puts the paper's warmth back into the
-    /// whites that `.color` leaves untouched — a `.color` blend cannot tint pure white, and
-    /// Apple's map has a lot of near-white in it.
-    static let paperDepth: CGFloat = 0.12
+    /// How opaque the paper is.
+    ///
+    /// The number is a trade with no clever answer, because a plain fill can only move the map
+    /// toward one colour: too little and Apple's green survives, too much and the map bleaches
+    /// into a flat sheet. Measured at 0.76 the green was gone and the map had lost more contrast
+    /// than it should. 0.68 keeps noticeably more of the coastline and the road structure while
+    /// still reading as paper rather than as Apple's map behind a veil.
+    static let strength: CGFloat = 0.68
 
     init(tone: UIColor) {
         self.tone = tone
@@ -70,7 +82,7 @@ final class EtchMapWash: NSObject, MKOverlay {
     }
 }
 
-/// Draws the wash: one flat fill per tile, twice, in two blend modes.
+/// Draws the wash: one flat fill per tile.
 ///
 /// Cheap by construction. There is no geometry to rasterise — the renderer fills whatever rect
 /// MapKit hands it — so panning and zooming cost the same as they did before.
@@ -84,24 +96,12 @@ final class EtchMapWashRenderer: MKOverlayRenderer {
     }
 
     override func draw(_ mapRect: MKMapRect, zoomScale: MKZoomScale, in context: CGContext) {
-        let rect = self.rect(for: mapRect)
-
-        // Hue and saturation from the wash, luminosity from the map. This is the pass that does
-        // the work: the map's structure is entirely preserved and only its colour changes.
-        context.saveGState()
-        context.setBlendMode(.color)
+        // One fill, source-over. No blend mode: MapKit composites this renderer's own layer onto
+        // the map, so anything set here blends against empty pixels rather than against the
+        // cartography, and every mode collapses to this anyway. Writing the honest operation is
+        // better than writing an ambitious one that silently is not happening.
         context.setAlpha(EtchMapWash.strength)
         context.setFillColor(tone.cgColor)
-        context.fill(rect)
-        context.restoreGState()
-
-        // `.color` leaves white white, and Apple's map is largely near-white. This is what stops
-        // the result reading as "a grey map" and makes it read as ink on warm paper.
-        context.saveGState()
-        context.setBlendMode(.multiply)
-        context.setAlpha(EtchMapWash.paperDepth)
-        context.setFillColor(tone.cgColor)
-        context.fill(rect)
-        context.restoreGState()
+        context.fill(self.rect(for: mapRect))
     }
 }
