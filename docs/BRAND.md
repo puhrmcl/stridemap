@@ -1,48 +1,112 @@
 # Etch — Brand Reference
 
-Source of truth for Etch's visual identity, from the official brand brief.
-Reference when theming the app, building marketing/App Store assets, or
-designing new UI.
+Source of truth for Etch's visual identity, from the Etch Brand System (v1).
+Reference when theming the app, building the storefront, making App Store
+assets, or designing new UI.
+
+This document describes intent. The implementations are
+`Etch/Design/Theme.swift` (colour), `Etch/Design/Typography.swift` (type) and
+`storefront/assets/etch-tokens.css` (both, for the web). They hold the same
+names in the same order; if this file and one of them disagree, the code is
+what ships and this file is the bug.
 
 ## Essence
 
-> Etch is the visual record of an active life. We map the places you move, the
-> miles you earn, and the moments that shape you. **You move in color. Your
-> achievements become etched.**
+> Etch is the home for every run, ride, hike, race, and achievement. We turn
+> your movement into art, your progress into legacy, and your story into
+> something worth remembering.
 
-- **Wordmark:** `etch` (lowercase)
-- **Tagline:** **Leave your mark**
-- **Rally line:** *Every mile. Every place. Etched forever.*
-- **Pillars:** Record your journey · Reveal your story · Make it lasting
+- **Wordmark:** `etch.` (lowercase, with the full stop — the dot is Etch Blue)
+- **Line:** **Remember Everything. Etch It.**
+- **Rally line:** *Your journey. Preserved. Your story. Elevated.*
+- **Sign-off:** *Made to move. Made to last.*
 
-## Color palette (official)
+## Colour palette
 
-| Name | Hex | RGB (0–1) | Role |
-|------|-----|-----------|------|
-| **Etch Ink** | `#101820` | 0.063, 0.094, 0.125 | Near-black ink — text, dark surfaces |
-| **Etch Blue** | `#1473E6` | 0.078, 0.451, 0.902 | Primary/active accent — routes, pins, live, CTAs |
-| **Bone** | `#F4F1EA` | 0.957, 0.945, 0.918 | Warm off-white — light background |
-| **Stone** | `#D8D4CC` | 0.847, 0.831, 0.800 | Warm neutral — surfaces, map land |
-| **Sage** | `#BBC8B2` | 0.733, 0.784, 0.698 | Muted green — greenspace, positive |
-| **Mist** | `#DDE6EA` | 0.867, 0.902, 0.918 | Cool light grey-blue — map water, dividers |
-| **Brass** | `#B08D57` | 0.690, 0.553, 0.341 | Warm metallic — achievements, premium accents |
+| Name | Hex | Role |
+|------|-----|------|
+| **Etch Ink** | `#17212B` | Primary brand colour — logo, headers, dark UI |
+| **Etch Blue** | `#4A8EAE` | Signature accent. Interaction and focus, sparingly |
+| **Warm Canvas** | `#F3F0E9` | Primary light background |
+| **Gallery White** | `#FBFAF7` | Cards, surfaces, print grounds, elevated moments |
+| **Graphite** | `#4A5055` | Secondary text, icons, subtle UI elements |
+| **Mist** | `#C9CDCE` | Dividers, inactive states, borders, map UI |
 
-Blue signals **activity / live experiences**. Bone/Stone/Sage/Mist are the
-map-poster palette (the icon's map look). Brass is reserved for achievement
-moments (PRs, milestones), used sparingly.
+**The balance is the brand.** Roughly 65–70% warm neutrals, 20–25% Etch Ink,
+3–5% Etch Blue. Blue marks what is live — selection, focus, the route itself.
+Etch is not a blue interface, and a screen that has become one has drifted.
+
+### Derived tones
+
+The six above cannot express a two-appearance interface on their own. The
+tokens add a small, named set, each justified where it is defined: `inkDeep`
+and `inkWell` (dark grounds beneath Ink surfaces), `canvasSunken` (the same
+job in light), `blueLift` (Etch Blue on dark), `blueFill` and `blueText`
+(below), `graphiteLight`, `mistDeep`.
+
+### Accessibility
+
+Etch Blue is `3.53:1` on Gallery White. That clears the 3:1 that non-text UI
+needs and falls short of the 4.5:1 that text needs, so there are three blues
+rather than one:
+
+- `accent` — `#4A8EAE`, for icons, strokes, selection marks, the route.
+- `accentFill` — `#3D7B99`, for a solid control carrying a label (4.52:1).
+- `accentText` — `#35708B`, for blue text on Warm Canvas (4.86:1).
+
+Dark mode lifts to `#6FB2D1` (6.8:1 on Etch Ink) and `#8AC3DE` for text.
+
+### Light and dark
+
+Dark is designed, not inverted. The ground deepens out of Etch Ink rather
+than the canvas flipping, and type stays warm — Warm Canvas on ink, never
+white on black.
+
+The app follows the phone. The storefront does not: appearance there is a
+merchant choice made per section, so the dark token set rides Dawn's colour
+schemes 3 and 4 rather than `prefers-color-scheme`.
 
 ## Typography
 
-- **Poppins SemiBold** — clean, modern, geometric.
-- **Generous letter spacing** in headings and tags for a refined look.
-- (App currently uses SF Pro Rounded; migrating headings/tags to Poppins is a
-  tracked direction item — needs the Poppins font bundled, OFL-licensed.)
+| Role | Face | Weights |
+|------|------|---------|
+| Display, headlines, nav, buttons, body, labels, UI | **Neue Haas Grotesk** | 45 Light · 55 Roman · 65 Medium · 75 Bold |
+| Editorial moments | **Tiempos Text** | Regular · Medium · Semibold |
+| iOS system UI where native type is preferable | **SF Pro** | — |
+
+- **Tabular figures** for distance, pace, time, elevation, dates, totals,
+  coordinates and achievement statistics. Always.
+- **Sentence case** for most UI. The one deliberate uppercase is the small
+  tracked metadata label (`PHOENIX, ARIZONA`).
+- Avoid: excessive bold, excessive uppercase, sporty or condensed faces,
+  generic SaaS styling. **No rounded type anywhere** — it was the app's old
+  default and it is the one thing the brand rules out.
+
+### Licensing — open
+
+Neue Haas Grotesk is Monotype; Tiempos Text is Klim. Both are commercial, and
+neither ships with iOS nor lives in this repo. **Licences covering app
+embedding and web use need buying, and the files supplying.**
+
+Until they arrive the tokens resolve to SF Pro and New York on iOS, and to
+the platform grotesk and a Times-lineage serif on the web. Nothing looks
+broken in the meantime, and nothing is blocked on the purchase:
+
+- **iOS** — drop the `.otf` files into the target and list them under
+  `UIAppFonts` in `Info.plist`. `EtchType` already asks for the branded family
+  first and reports which state it is in via `EtchType.isBranded`.
+- **Web** — drop the `.woff2` files into `storefront/assets/` and uncomment
+  the `@font-face` block in `etch-tokens.css`. The stacks already name the
+  licensed faces first.
+
+No selector or call site changes on either surface.
 
 ## Icon system
 
-Minimal **line icons, rounded geometry**, thoughtful detail. Blue used to
-signal activity/live. Reference marks: primary `e`, route (pin + path),
-elevation (peaks), etch studio (framed map), achievement (medal).
+Minimal line icons, thoughtful detail. Blue signals what is live. The app
+icon is the wordmark in Gallery White on an Etch Ink ground, dot in Etch
+Blue; the wordmark asset ships in an ink cut for light grounds and a paper
+cut for dark.
 
 ## Tone of voice
 
@@ -55,18 +119,19 @@ Cinematic runners, roads, and landscapes at golden hour. Movement and place.
 
 ## Signature applications
 
-- The map itself as the hero (clean, light poster style).
-- **Route posters** — a framed print of a single route with title/date/stats
-  (e.g. "Boston Marathon 04.15.24"). A natural share/export feature.
-- Embossed `e` on premium goods (leather, etc.).
+- The map itself as the hero — clean, light, poster style, and **printed on
+  the sheet rather than pasted onto it**: a map panel with its own ground
+  colour leaves a seam, and the seam is what separates our prints from good
+  ones.
+- Route posters — a framed print of a single route with title, date and
+  stats.
+- Embossed mark on premium goods.
 
-## Current app mapping / migration notes
+## Print artwork is not interface
 
-`Etch/Design/Theme.swift` holds the in-app tokens.
-
-- `Theme.accent` / `Theme.Route.recent` = **Etch Blue `#1473E6`** (aligned).
-- Named palette tokens added: `Theme.Palette.ink / bone / stone / sage / mist /
-  brass`.
-- **Open direction items:** Poppins typography for headings/tags; a lighter,
-  brand-tinted default map style (Bone/Stone/Sage/Mist) where MapKit allows;
-  Brass accent on achievement/PR moments; a Route Poster export feature.
+`Theme.Artwork` is deliberately separate from the semantic tokens. A poster
+is a product with its own paper and ink; it does not follow the phone into
+dark mode, and the paper stocks offered to a customer (blueprint, rose,
+topographic, Harbor's slate-navy) are catalogue choices rather than brand
+colours. Interface code must never reach into `Artwork`, and artwork code
+must never reach into `Surface` or `Ink`.
