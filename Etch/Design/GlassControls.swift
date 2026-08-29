@@ -139,3 +139,26 @@ extension View {
             .shadow(color: .black.opacity(0.18), radius: 16, y: 6)
     }
 }
+
+extension View {
+    /// Makes floating map chrome take its appearance from the *map*, not the phone.
+    ///
+    /// This is why the wordmark went missing from the home pill, and it was never absent from the
+    /// view — it was invisible.
+    ///
+    /// Glass here is `.ultraThinMaterial`, which takes its luminance from whatever is behind it.
+    /// Over Night, Satellite or Hybrid the pill is dark whatever the phone is set to. Everything
+    /// *inside* the pill, though, resolves against the app's colour scheme: `.primary` is black in
+    /// light mode, and the `BrandLogo` asset serves its ink cut. So a phone in light mode showing
+    /// a dark base map drew a near-black wordmark on near-black glass, and the mark simply was not
+    /// there to look at. The same combination is what made the blue chrome unreadable earlier —
+    /// one cause, two reports.
+    ///
+    /// Overriding the colour scheme to match the base map fixes all of it at once: the asset flips
+    /// to its paper cut, `.primary` and `.secondary` invert, and the material resolves to the dark
+    /// variant that belongs over dark terrain. The chrome floats on the map, so it should dress
+    /// like the map.
+    func mapChromeAppearance(_ style: MapStyleOption) -> some View {
+        environment(\.colorScheme, style.isDarkBase ? .dark : .light)
+    }
+}

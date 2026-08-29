@@ -406,6 +406,7 @@ struct HomeView: View {
                     // the screen edge — the same place every other tab puts it.
                     .padding(.horizontal, EtchHeaderMetrics.pillOuter)
                     .padding(.top, EtchHeaderMetrics.top - 9)   // less the pill's own vertical padding
+                    .mapChromeAppearance(mapStyle)
             }
         }
         // The docked Apple Maps-style search sheet plus the floating map controls that track its
@@ -437,6 +438,7 @@ struct HomeView: View {
             // there next.
             SheetLayer(metrics: sheetMetrics, maxHeight: sheetMaxHeight) {
                 floatingControls
+                    .mapChromeAppearance(mapStyle)
             }
         }
         .overlay {
