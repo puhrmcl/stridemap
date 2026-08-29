@@ -72,6 +72,17 @@ struct StudioHomeView: View {
         return appModel.activityScope
     }
 
+    /// Every activity of the chosen type — **deliberately not narrowed by `appModel.filter`.**
+    ///
+    /// The shared filter reaches the map, the Timeline and Achievements, and stays set for the
+    /// life of the session. Studio is the one surface it must not reach, and the reason is
+    /// commercial rather than aesthetic: someone arrives here to print a specific activity, and
+    /// a filter they set on the map twenty minutes ago silently hiding it does not read as a
+    /// filter. It reads as Etch having lost the run — which is the last thought anyone has
+    /// before abandoning a purchase.
+    ///
+    /// This is a decision, not an oversight. If a filter is ever wanted here it needs its own
+    /// escape hatch on screen ("12 hidden by filter — Show all") before it is wired up.
     private var scopedRuns: [Run] { runs.scoped(to: scope) }
     /// Only runs with a route make good art.
     private var mapped: [Run] { scopedRuns.filter(\.hasRoute) }

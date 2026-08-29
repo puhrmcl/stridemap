@@ -364,6 +364,11 @@ struct EtchWordmark: View {
 /// wherever it applies — the type selector in the map's pill, the scope picker on the Timeline —
 /// and a chip repeating a control the user can already see reads as clutter rather than as
 /// information.
+///
+/// Two surfaces carry no chip because the filter does not reach them. Studio is exempt on
+/// purpose (see `StudioHomeView.scopedRuns`), and the Bag holds orders rather than activities —
+/// a different noun, with none of these fields, and too few rows for filtering to be anything
+/// but ceremony.
 struct EtchFilterChip: View {
     let filter: RunFilter
     let clear: () -> Void
