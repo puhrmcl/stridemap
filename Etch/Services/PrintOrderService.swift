@@ -118,14 +118,82 @@ enum PrintOrderService {
         )
     }
 
+    /// Renders, uploads, and adds the result to the bag instead of opening a checkout.
+    ///
+    /// Deliberately the same pipeline as `checkout` up to the last step. A line that was added to
+    /// a bag and a line that was bought immediately carry identical attributes, so the fulfilment
+    /// worker cannot tell them apart and does not have to — there is one shape of order, and the
+    /// multi-item support already deployed there is exactly what receives this.
+    ///
+    /// The upload happens now, not at checkout, for the same reason it always has: money must
+    /// never move against an order whose artwork does not exist yet.
+    @MainActor
+    static func addToBag(
+        fileAt fileURL: URL,
+        pixels: CGSize,
+        creationID: String,
+        shopifySKU: String,
+        prodigiSKU: String,
+        productHandle: String,
+        finishAttribute: String,
+        mountAttribute: String = "",
+        contentType: String = "image/png",
+        title: String,
+        detail: String,
+        priceCents: Int,
+        onPhase: (Phase) -> Void
+    ) async throws {
+        onPhase(.uploading)
+        let assetID = UUID().uuidString.lowercased()
+        try await upload(fileAt: fileURL, assetID: assetID, creationID: creationID,
+                         pixels: pixels, contentType: contentType)
+
+        onPhase(.addingToBag)
+        let variant = try await ShopifyStorefront.variant(
+            sku: shopifySKU, productHandle: productHandle
+        )
+        let attributes = [
+            "_etch_asset_id": assetID,
+            "_etch_creation_id": creationID,
+            "_etch_sku": prodigiSKU,
+            "_etch_frame": finishAttribute,
+            "_etch_mount": mountAttribute,
+        ]
+
+        let store = CartStore.shared
+        let added: (cart: ShopifyStorefront.Cart, lineID: String)
+
+        do {
+            let target = try await store.cartID ?? ShopifyStorefront.createEmptyCart().id
+            added = try await ShopifyStorefront.addLine(
+                cartID: target, variantID: variant.id, quantity: 1, attributes: attributes
+            )
+        } catch {
+            // The stored cart is gone, or was already checked out — Shopify retires a cart once
+            // its order completes. Start a fresh one rather than stranding an upload that has
+            // already been made and paid for in render time.
+            store.clear()
+            let fresh = try await ShopifyStorefront.createEmptyCart()
+            added = try await ShopifyStorefront.addLine(
+                cartID: fresh.id, variantID: variant.id, quantity: 1, attributes: attributes
+            )
+        }
+
+        store.adopt(cart: added.cart, item: CartItem(
+            lineID: added.lineID, assetID: assetID, title: title, detail: detail,
+            priceCents: priceCents, addedAt: Date()
+        ))
+    }
+
     enum Phase {
-        case rendering, uploading, openingCheckout
+        case rendering, uploading, openingCheckout, addingToBag
 
         var label: String {
             switch self {
             case .rendering:       return "Rendering your print…"
             case .uploading:       return "Preparing your order…"
             case .openingCheckout: return "Opening checkout…"
+            case .addingToBag:     return "Adding to your bag…"
             }
         }
     }

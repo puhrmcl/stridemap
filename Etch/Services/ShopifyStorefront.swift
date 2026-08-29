@@ -142,6 +142,131 @@ enum ShopifyStorefront {
         return Cart(id: id, checkoutURL: url)
     }
 
+    /// An empty cart, for the bag to fill a line at a time.
+    ///
+    /// The bag always creates empty and then adds, even for its first item, because `cartCreate`
+    /// does not report the ids of the lines it creates and a bag needs them to remove anything.
+    /// One extra round trip buys a uniform path: every line in the bag arrived the same way and
+    /// every one of them can be taken out again.
+    static func createEmptyCart() async throws -> Cart {
+        let mutation = """
+        mutation {
+          cartCreate(input: {}) {
+            cart { id checkoutUrl }
+            userErrors { message }
+          }
+        }
+        """
+        let data = try await execute(query: mutation, variables: [:])
+        guard let payload = data["cartCreate"] as? [String: Any] else {
+            throw StorefrontError.graphQL("Unexpected cart response.")
+        }
+        if let errors = payload["userErrors"] as? [[String: Any]],
+           let first = errors.first, let message = first["message"] as? String {
+            throw StorefrontError.graphQL(message)
+        }
+        guard
+            let cart = payload["cart"] as? [String: Any],
+            let id = cart["id"] as? String,
+            let urlString = cart["checkoutUrl"] as? String,
+            let url = URL(string: urlString)
+        else { throw StorefrontError.graphQL("The bag couldn't be created.") }
+        return Cart(id: id, checkoutURL: url)
+    }
+
+    /// Adds a line to a cart that already exists, and hands back the cart plus the id of the line
+    /// just added.
+    ///
+    /// The line id is found by matching `_etch_asset_id` rather than by taking the last edge:
+    /// Shopify does not promise line order, and taking the wrong id here would mean a customer
+    /// removing one piece from their bag and watching a different one disappear.
+    static func addLine(
+        cartID: String, variantID: String, quantity: Int, attributes: [String: String]
+    ) async throws -> (cart: Cart, lineID: String) {
+        let mutation = """
+        mutation($cartId: ID!, $lines: [CartLineInput!]!) {
+          cartLinesAdd(cartId: $cartId, lines: $lines) {
+            cart {
+              id
+              checkoutUrl
+              lines(first: 50) { edges { node { id attributes { key value } } } }
+            }
+            userErrors { message }
+          }
+        }
+        """
+        let lineAttributes = attributes
+            .sorted { $0.key < $1.key }
+            .map { ["key": $0.key, "value": $0.value] }
+        let lines: [[String: Any]] = [[
+            "merchandiseId": variantID,
+            "quantity": quantity,
+            "attributes": lineAttributes,
+        ]]
+        let data = try await execute(query: mutation,
+                                     variables: ["cartId": cartID, "lines": lines])
+
+        guard let payload = data["cartLinesAdd"] as? [String: Any] else {
+            throw StorefrontError.graphQL("Unexpected cart response.")
+        }
+        if let errors = payload["userErrors"] as? [[String: Any]],
+           let first = errors.first, let message = first["message"] as? String {
+            throw StorefrontError.graphQL(message)
+        }
+        guard
+            let cart = payload["cart"] as? [String: Any],
+            let id = cart["id"] as? String,
+            let urlString = cart["checkoutUrl"] as? String,
+            let url = URL(string: urlString)
+        else { throw StorefrontError.graphQL("The bag couldn't be updated.") }
+
+        let wanted = attributes["_etch_asset_id"] ?? ""
+        let edges = (cart["lines"] as? [String: Any])?["edges"] as? [[String: Any]] ?? []
+        let lineID = edges.compactMap { edge -> String? in
+            guard let node = edge["node"] as? [String: Any],
+                  let nodeID = node["id"] as? String,
+                  let attrs = node["attributes"] as? [[String: Any]] else { return nil }
+            let matches = attrs.contains {
+                ($0["key"] as? String) == "_etch_asset_id" && ($0["value"] as? String) == wanted
+            }
+            return matches ? nodeID : nil
+        }.first
+
+        guard let lineID else {
+            throw StorefrontError.graphQL("The bag couldn't confirm what was added.")
+        }
+        return (Cart(id: id, checkoutURL: url), lineID)
+    }
+
+    /// Removes one line. Returns the cart so the caller can refresh its checkout URL, which
+    /// changes as the cart does.
+    static func removeLine(cartID: String, lineID: String) async throws -> Cart {
+        let mutation = """
+        mutation($cartId: ID!, $lineIds: [ID!]!) {
+          cartLinesRemove(cartId: $cartId, lineIds: $lineIds) {
+            cart { id checkoutUrl }
+            userErrors { message }
+          }
+        }
+        """
+        let data = try await execute(query: mutation,
+                                     variables: ["cartId": cartID, "lineIds": [lineID]])
+        guard let payload = data["cartLinesRemove"] as? [String: Any] else {
+            throw StorefrontError.graphQL("Unexpected cart response.")
+        }
+        if let errors = payload["userErrors"] as? [[String: Any]],
+           let first = errors.first, let message = first["message"] as? String {
+            throw StorefrontError.graphQL(message)
+        }
+        guard
+            let cart = payload["cart"] as? [String: Any],
+            let id = cart["id"] as? String,
+            let urlString = cart["checkoutUrl"] as? String,
+            let url = URL(string: urlString)
+        else { throw StorefrontError.graphQL("The bag couldn't be updated.") }
+        return Cart(id: id, checkoutURL: url)
+    }
+
     // MARK: Transport
 
     private static func execute(query: String, variables: [String: Any]) async throws -> [String: Any] {

@@ -142,9 +142,17 @@ export default {
  *
  * The window is generous on purpose: a buyer who prepares an order, closes the app and returns
  * the next morning must still find their file, and a Shopify webhook that is slow or retried must
- * never race a delete. Two days is far longer than either needs.
+ * never race a delete.
+ *
+ * **It now also has to outlive a bag.** Adding a piece to the bag uploads its file immediately —
+ * money must never move against an order whose artwork does not exist — so everything sitting in
+ * somebody's bag is an unfrozen asset waiting here. Two days was shorter than people leave a
+ * basket, and a bag that outlived its files would check out against lines that could not be
+ * printed: precisely the failure the upload-first ordering exists to prevent. Seven days here,
+ * and the app drops a bag at five, which leaves two days of margin for a slow or retried webhook.
+ * Change one of those numbers and change the other — `CartStore.expiryDays`.
  */
-const UNSOLD_ASSET_TTL_DAYS = 2;
+const UNSOLD_ASSET_TTL_DAYS = 7;
 
 async function sweepUnsoldAssets(env: Env): Promise<void> {
   const cutoff = new Date(Date.now() - UNSOLD_ASSET_TTL_DAYS * 86_400_000).toISOString();

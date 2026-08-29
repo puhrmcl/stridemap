@@ -82,6 +82,9 @@ struct EtchTabView: View {
     /// were looking at anything, so it never becomes the scope.
     @State private var lastDestination: EtchTab = .map
 
+    /// Drives the bag's badge.
+    @State private var cart = CartStore.shared
+
     var body: some View {
         @Bindable var appModel = appModel
         TabView(selection: $appModel.selectedTab) {
@@ -97,6 +100,10 @@ struct EtchTabView: View {
             Tab(EtchTab.bag.title, systemImage: EtchTab.bag.symbol, value: EtchTab.bag) {
                 BagView()
             }
+            // The count is the whole reason the bag is a tab. Pieces are assembled in three
+            // different places, and a basket you cannot see filling up is three separate
+            // purchases wearing one name.
+            .badge(cart.count)
             Tab(value: EtchTab.search, role: .search) {
                 ScopedSearchView(scope: lastDestination)
             }

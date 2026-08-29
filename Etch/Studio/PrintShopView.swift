@@ -42,6 +42,10 @@ struct PrintShopView: View {
     @State private var medalFrameColour = "black"
     @State private var medalMountColour = "Black"
 
+    @State private var isAddingToBag = false
+    /// Drives the confirmation, so adding says something happened rather than looking inert.
+    @State private var addedToBag = false
+
     /// The finish as the order path takes it — one value, so a framed order can never carry a
     /// wood colour or the other way round.
     private var selectedFinish: PrintFinish {
@@ -158,6 +162,23 @@ struct PrintShopView: View {
                     }
                     .interactiveDismissDisabled()  // mid-payment swipe-away protection
             }
+            .overlay(alignment: .top) {
+                if addedToBag {
+                    Label("Added to your bag", systemImage: "checkmark.circle.fill")
+                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16).padding(.vertical, 10)
+                        .background(Theme.accent, in: .capsule)
+                        .shadow(color: .black.opacity(0.2), radius: 10, y: 4)
+                        .padding(.top, 8)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .task {
+                            try? await Task.sleep(for: .seconds(1.8))
+                            withAnimation(.easeInOut(duration: 0.3)) { addedToBag = false }
+                        }
+                }
+            }
+            .animation(.spring(duration: 0.35), value: addedToBag)
             .alert("Couldn't start the order", isPresented: .init(
                 get: { orderError != nil }, set: { if !$0 { orderError = nil } }
             )) {
@@ -223,6 +244,67 @@ struct PrintShopView: View {
                 orderPhase = nil
                 preparedCart = cart
                 if openSheet { checkout = CheckoutTarget(url: cart.checkoutURL) }
+            } catch {
+                orderPhase = nil
+                orderError = error.localizedDescription
+            }
+        }
+    }
+
+    /// Renders and uploads this configuration, then parks it in the bag instead of checking out.
+    private func addToBag() {
+        guard let renderRequest, !isAddingToBag, renderRequest.edition.printReady else { return }
+        let creation = creationID ?? runID?.uuidString ?? UUID().uuidString
+        isAddingToBag = true
+        Task {
+            defer { isAddingToBag = false }
+            do {
+                if isMedal {
+                    let geometry = PrintGeometry(trimWidth: 7.99, trimHeight: 10.0)
+                    var printRequest = renderRequest
+                    printRequest.printAspect = geometry.aspect
+                    printRequest.outputSize = .poster
+                    let fileURL = try await StudioRenderer.printFile(for: printRequest,
+                                                                     geometry: geometry)
+                    defer { try? FileManager.default.removeItem(at: fileURL) }
+                    try await PrintOrderService.addToBag(
+                        fileAt: fileURL, pixels: geometry.trimPixels,
+                        creationID: "medal-\(creation)",
+                        shopifySKU: MedalFrameCatalog.sku, prodigiSKU: MedalFrameCatalog.sku,
+                        productHandle: MedalFrameCatalog.shopifyHandle,
+                        finishAttribute: medalFrameColour, mountAttribute: medalMountColour,
+                        title: subjectTitle ?? "Medal Frame",
+                        detail: "Medal Frame · \(medalFrameColour.capitalized)",
+                        priceCents: EtchConfig.current.prices.medalFrameCents ?? 24900,
+                        onPhase: { orderPhase = $0 }
+                    )
+                } else {
+                    let geometry = size.geometry
+                    var printRequest = renderRequest
+                    printRequest.printAspect = geometry.aspect
+                    printRequest.outputSize = .poster
+                    var reserve: CGFloat = 0
+                    if case .hanger = selectedFinish {
+                        reserve = (PosterHangerCatalog.hangerCoverMM / 25.4) / CGFloat(size.height)
+                    }
+                    let fileURL = try await StudioRenderer.printFile(
+                        for: printRequest, geometry: geometry, reserveFraction: reserve
+                    )
+                    defer { try? FileManager.default.removeItem(at: fileURL) }
+                    try await PrintOrderService.addToBag(
+                        fileAt: fileURL, pixels: geometry.trimPixels, creationID: creation,
+                        shopifySKU: size.shopifySKU(finish: selectedFinish),
+                        prodigiSKU: size.prodigiSKU,
+                        productHandle: product.shopifyHandle,
+                        finishAttribute: selectedFinish.prodigiAttribute,
+                        title: subjectTitle ?? product.name,
+                        detail: configurationLine,
+                        priceCents: size.resolvedPriceCents,
+                        onPhase: { orderPhase = $0 }
+                    )
+                }
+                orderPhase = nil
+                addedToBag = true
             } catch {
                 orderPhase = nil
                 orderError = error.localizedDescription
@@ -759,6 +841,31 @@ struct PrintShopView: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(orderPhase != nil)
+                    }
+
+                    // Buying one piece stays one tap; assembling several is the other button.
+                    // Both render and upload before anything is charged, so a bagged line and a
+                    // bought line are the same thing to fulfilment.
+                    if renderRequest != nil {
+                        Button(action: addToBag) {
+                            Group {
+                                if isAddingToBag {
+                                    HStack(spacing: 8) {
+                                        ProgressView().controlSize(.small)
+                                        Text("Adding…")
+                                    }
+                                } else {
+                                    Label("Add to Bag", systemImage: "bag.badge.plus")
+                                }
+                            }
+                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                            .foregroundStyle(Theme.accent)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Theme.accent.opacity(0.12), in: .rect(cornerRadius: 14))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(orderPhase != nil || isAddingToBag)
                     }
 
                     Text("Secure checkout with Apple Pay or card. Printed to order and shipped to your door.")
