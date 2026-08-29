@@ -71,7 +71,7 @@ EVERY PLACE YOU'VE BEEN
 • Cities, states and countries you've moved through, counted and mapped
 • Landmarks and national parks you've reached
 • Longest, highest, fastest — the days worth remembering
-• Year in Review, with your year played back
+• Your year played back, as an animated recap
 
 ETCH STUDIO — MAKE SOMETHING REAL
 • Map Prints — one route, over real geography
@@ -79,7 +79,7 @@ ETCH STUDIO — MAKE SOMETHING REAL
 • Anthology — everything you've done, as one object
 • Lithograph — every city you've run, set as type
 • Photo Wall — forty days, one frame
-• Year Book — a year of it, bound
+• Year in Review — a year of it, bound
 • Collections — a state, a city, your favorites or every race, bound
 • Medal Frame — the medal, and the day you earned it
 

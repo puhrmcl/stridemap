@@ -11,9 +11,9 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b489: the book's year picker is a dropdown rather than a segmented control that
-# rendered every year as "…"; and Collections — the same book bound around a state, a city, your
-# favorites or your races — is the eighth product tile.
+# Requested for b490: the book's year picker is a dropdown rather than a segmented control that
+# rendered every year as "…"; Collections — the same book bound around a state, a city, your
+# favorites or your races — is the eighth product tile; and the Year Book is now Year in Review.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 

@@ -1,13 +1,13 @@
 import Foundation
 import CoreGraphics
 
-/// The Year Book product of record — Prodigi's A4-landscape layflat photo book, verified live
+/// The book product of record — Prodigi's A4-landscape layflat photo book, verified live
 /// (product + US quote) on 2026-08-26: $28.50 production + $7.60 shipping at the default page
 /// count. Gloss 190gsm pages, matte-laminate hard cover, true layflat binding, white-label.
 enum BookCatalog {
 
     static let prodigiSKU = "BOOK-FE-A4-L-LF-G"
-    static let name = "Etch Year Book"
+    static let name = "Etch Year in Review"
     /// The same object, bound around a place or a shelf of races rather than a calendar year.
     /// One SKU, one price, one production file — two products on the storefront, because "the
     /// year I ran" and "everything I ran in Colorado" are two different things to want.
@@ -43,7 +43,8 @@ enum BookCatalog {
     }
 
     /// The product's URL handle in Shopify, whose variant carries the retail price at checkout.
-    /// Must match the handle on the store's product page exactly.
+    /// Must match the handle on the store's product page exactly — which is why it did not follow
+    /// the rename to Year in Review. Both books check out against this one handle.
     static let shopifyHandle = "year-book"
 
     /// What the book is uploaded as. Every other product in the range is a single PNG sheet;

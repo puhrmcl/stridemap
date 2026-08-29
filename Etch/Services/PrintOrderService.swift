@@ -213,7 +213,7 @@ enum PrintOrderService {
     /// checksum is folded over the file in chunks for the same reason, and `upload(for:fromFile:)`
     /// streams the body rather than materialising it.
     /// `contentType` is a parameter rather than a constant because not every product ships a
-    /// PNG. The Year Book is a multi-page PDF — the lab needs the file typed correctly to
+    /// PNG. The books are multi-page PDFs — the lab needs the file typed correctly to
     /// rasterise it, and the worker stores whatever is declared here and serves it back to
     /// Prodigi under the same type.
     private static func upload(

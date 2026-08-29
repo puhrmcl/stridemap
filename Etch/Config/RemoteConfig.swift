@@ -55,7 +55,10 @@ struct EtchRemoteConfig: Codable, Sendable, Equatable {
         /// new size is a server edit, not a schema change. A SKU absent here keeps its
         /// compiled-in price.
         var bySKU: [String: Int]
-        /// The Year Book's retail price in USD cents.
+        /// The book's retail price in USD cents — Year in Review and Collections are one SKU
+        /// at one price. The field keeps its original name: it is a key in the served JSON
+        /// document and in `fulfilment/config/app.json`, and renaming it here would stop the
+        /// deployed configuration decoding on every installed build.
         var yearBookCents: Int
         /// The medal frame's retail price in USD cents.
         ///

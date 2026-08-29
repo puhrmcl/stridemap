@@ -6,7 +6,7 @@ import ShopifyCheckoutSheetKit
 /// surface previews every page (cover → chapters → races → back cover), exports a print-ready
 /// proof PDF, and orders the book.
 ///
-/// It serves both book products. The Year Book binds a calendar year; a Collection binds a state,
+/// It serves both book products. Year in Review binds a calendar year; a Collection binds a state,
 /// a city, the runs someone starred, or every race they've run. Same object, same SKU, same
 /// production file — the only difference is which question the subject picker asks, which is why
 /// this is one screen and not two.
@@ -52,7 +52,7 @@ struct BookStudioView: View {
 
     private var plan: BookPlan { BookPlan.make(subject: resolvedSubject, runs: allRuns) }
 
-    private var title: String { kind == .year ? "Year Book" : "Collections" }
+    private var title: String { kind == .year ? "Year in Review" : "Collections" }
 
     var body: some View {
         NavigationStack {
@@ -102,7 +102,7 @@ struct BookStudioView: View {
             kind == .year ? "No years to bind yet" : "No collections yet",
             systemImage: kind == .year ? "book.closed" : "books.vertical",
             description: Text(kind == .year
-                ? "A Year Book needs at least \(BookSubject.minimumActivities) activities in one year."
+                ? "A Year in Review needs at least \(BookSubject.minimumActivities) activities in one year."
                 : "A Collection needs at least \(BookSubject.minimumActivities) activities in one state, one city, your favorites, or your races.")
         )
     }

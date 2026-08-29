@@ -7,7 +7,7 @@ import UIKit
 /// is a *choice made inside* buying one — the order Tesla uses, and the reason their
 /// configurator is ten taps rather than seventy.
 enum StudioProduct: String, CaseIterable, Identifiable {
-    case mapPoster, galleryPoster, photoWall, medalFrame, yearBook, collections, wallArt, lithograph
+    case mapPoster, galleryPoster, photoWall, medalFrame, yearInReview, collections, wallArt, lithograph
     var id: String { rawValue }
 
     /// The products the storefront currently offers. The medal frame is built but withheld until
@@ -30,7 +30,7 @@ enum StudioProduct: String, CaseIterable, Identifiable {
         case .galleryPoster: return "Gallery Prints"
         case .photoWall:     return "Photo Wall"
         case .medalFrame:    return "Medal Frame"
-        case .yearBook:      return "Year Book"
+        case .yearInReview:  return "Year in Review"
         case .collections:   return "Collections"
         case .wallArt:       return "Anthology"
         case .lithograph:    return "Lithograph"
@@ -44,7 +44,7 @@ enum StudioProduct: String, CaseIterable, Identifiable {
         case .galleryPoster: return "Photos, map and elevation, composed."
         case .photoWall:     return "Forty days, one frame."
         case .medalFrame:    return "The medal, and the day you earned it."
-        case .yearBook:      return "A year of it, bound."
+        case .yearInReview:  return "A year of it, bound."
         case .collections:   return "A state, a city, your races — bound."
         case .wallArt:       return "Everything you've done, as one object."
         case .lithograph:    return "Every city you've run, set as type."
@@ -53,7 +53,7 @@ enum StudioProduct: String, CaseIterable, Identifiable {
 
     var priceLine: String {
         switch self {
-        case .yearBook, .collections:
+        case .yearInReview, .collections:
             return BookCatalog.price
         case .photoWall:
             return MultiPhotoFrameCatalog.price
@@ -83,12 +83,12 @@ enum StudioProduct: String, CaseIterable, Identifiable {
     /// Shown until this product's own preview has rendered.
     var placeholderSymbol: String {
         switch self {
-        case .yearBook:    return "book.pages"
-        case .collections: return "books.vertical"
-        case .photoWall:   return "square.grid.3x3"
-        case .medalFrame:  return "medal"
-        case .lithograph:  return "text.justify.leading"
-        default:           return "photo.artframe"
+        case .yearInReview: return "book.pages"
+        case .collections:  return "books.vertical"
+        case .photoWall:    return "square.grid.3x3"
+        case .medalFrame:   return "medal"
+        case .lithograph:   return "text.justify.leading"
+        default:            return "photo.artframe"
         }
     }
 
@@ -129,13 +129,13 @@ enum MedalFrameCatalog {
     ///
     /// That shipping figure is the problem, not the frame. It is 37% of the landed cost, because
     /// this is the one product in the range made only in the UK — every other item has a US or EU
-    /// line. At the range's usual 55% margin the rung would be about $335, roughly three Year
-    /// Books, which is a different shop from the one the rest of the catalogue describes.
+    /// line. At the range's usual 55% margin the rung would be about $335, roughly three of the
+    /// books, which is a different shop from the one the rest of the catalogue describes.
     ///
     /// **Set at $249**, deliberately below that. It earns 39.4% gross, 36.4% after payment fees —
     /// $90.58 a frame — against the 45–62% the rest of the range makes. The trade was made with
     /// the numbers in view: a medal frame is bought once, for a race someone trained a year for,
-    /// and pricing it like three Year Books loses the sale rather than the margin. It is the
+    /// and pricing it like three of the books loses the sale rather than the margin. It is the
     /// thinnest rung in the catalogue and the first one a shipping change should be re-checked
     /// against; `prices.medalFrameCents` moves it from the served document without a build.
     static var price: String {

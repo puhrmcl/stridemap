@@ -321,7 +321,7 @@ struct CollectionBrowserView: View {
     /// led by a live thumbnail of *this* user's data in that style (a text row asked the buyer
     /// to imagine the product; the thumbnail is the product).
     @State private var archiveThumbs: [MapArtStyle: UIImage] = [:]
-    @State private var showYearBook = false
+    @State private var showYearInReview = false
 
     private var archiveList: some View {
         VStack(spacing: 0) {
@@ -352,7 +352,7 @@ struct CollectionBrowserView: View {
 
             // The Archive's other object: the whole year as a layflat hardcover.
             Divider().padding(.leading, 20)
-            Button { showYearBook = true } label: {
+            Button { showYearInReview = true } label: {
                 HStack(spacing: 14) {
                     RoundedRectangle(cornerRadius: 6)
                         .fill(Theme.Palette.bone)
@@ -365,7 +365,7 @@ struct CollectionBrowserView: View {
                         .overlay(RoundedRectangle(cornerRadius: 6)
                             .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("The Year Book")
+                        Text("Year in Review")
                             .font(.etch(.subheadline, weight: .semibold))
                         Text("A year of it, bound — layflat hardcover, composed from your months and races.")
                             .font(.caption)
@@ -381,7 +381,7 @@ struct CollectionBrowserView: View {
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .sheet(isPresented: $showYearBook) { BookStudioView(kind: .year) }
+            .sheet(isPresented: $showYearInReview) { BookStudioView(kind: .year) }
         }
         .background(.primary.opacity(0.05), in: .rect(cornerRadius: 18))
         .task(id: runs.count) { await renderArchiveThumbnails() }

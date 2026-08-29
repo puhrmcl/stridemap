@@ -3,7 +3,7 @@ import Foundation
 /// One book page, in PDF order: the first spec becomes the front cover, the last the back cover
 /// (per the layflat print guide), everything between is interior content.
 ///
-/// None of these carry the year any more. A page that prints "2025" on a Year Book prints
+/// None of these carry the year any more. A page that prints "2025" in a Year in Review prints
 /// "Colorado" on a Collection, and the thing it prints is the plan's `subject` — so the spec says
 /// *which page this is* and the plan says *what the book is about*.
 enum BookPageSpec {
