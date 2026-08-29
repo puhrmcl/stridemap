@@ -16,6 +16,9 @@ struct StudioHomeView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(AppModel.self) private var appModel
+    /// Drives the bag button's badge.
+    @State private var cart = CartStore.shared
+    @State private var showBag = false
     @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
 
     /// Posters the user kept, newest edit first.
@@ -131,6 +134,9 @@ struct StudioHomeView: View {
                         }
                     }
                 }
+            }
+            .sheet(isPresented: $showBag) {
+                NavigationStack { BagView() }
             }
             // The header pins rather than scrolling with the page.
             //
@@ -386,7 +392,43 @@ struct StudioHomeView: View {
     /// the same header, a mark in that slot read as a different kind of page rather than a
     /// branded one. The brand still opens the app; the shop is now just labelled like a shop.
     private var header: some View {
-        EtchPageHeader("Studio")
+        EtchPageHeader("Studio") {
+            bagButton
+        }
+    }
+
+    /// The bag, beside the account, on the page that fills it.
+    ///
+    /// It used to be a quarter of the tab bar. That put a shopping basket at the same rank as the
+    /// map on a bar most people open to look at where they have been — and it sat one tap from
+    /// every screen including the three that cannot add anything to it. Here it is adjacent to the
+    /// products, which is where a basket belongs and where a shop puts one.
+    ///
+    /// The badge comes with it. The count was the whole argument for the bag being a tab: pieces
+    /// are assembled in three different places, and a basket you cannot see filling up is three
+    /// separate purchases wearing one name. A badge on this button says the same thing in the
+    /// place the buying happens.
+    @ViewBuilder private var bagButton: some View {
+        Button { showBag = true } label: {
+            Image(systemName: "bag")
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(Theme.Ink.primary)
+                .frame(width: EtchHeaderMetrics.avatar, height: EtchHeaderMetrics.avatar)
+                .overlay(alignment: .topTrailing) {
+                    if cart.count > 0 {
+                        Text("\(cart.count)")
+                            .font(.etch(size: 10, weight: .semibold))
+                            .foregroundStyle(Theme.Ink.onAccent)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Theme.accentFill, in: .capsule)
+                            .offset(x: 4, y: -2)
+                    }
+                }
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(cart.count > 0 ? "Bag, \(cart.count) items" : "Bag")
     }
 
     // MARK: Intro

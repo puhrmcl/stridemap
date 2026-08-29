@@ -15,19 +15,24 @@ import SwiftData
 /// back out of. `.search` exists here only because `Tab(role: .search)` needs a selection value,
 /// and the system draws it detached from the others — which is exactly the relationship.
 enum EtchTab: String, Hashable, CaseIterable, Identifiable {
-    case map, timeline, studio, bag, search
+    case map, timeline, achievements, studio, bag, search
     var id: String { rawValue }
 
-    /// The four that are destinations. `search` is excluded on purpose — see above.
-    static var destinations: [EtchTab] { [.map, .timeline, .studio, .bag] }
+    /// The four that are destinations. `search` is excluded on purpose — see above; so is
+    /// `bag`, which is now a button in Studio's header rather than a bar item. A bag belongs
+    /// beside the thing you fill it from, and giving it a permanent quarter of the bar put a
+    /// shopping basket at the same rank as the map on a screen most people open to look at
+    /// where they have been.
+    static var destinations: [EtchTab] { [.map, .timeline, .achievements, .studio] }
 
     var title: String {
         switch self {
-        case .map:      return "Map"
-        case .timeline: return "Timeline"
-        case .studio:   return "Studio"
-        case .bag:      return "Bag"
-        case .search:   return "Search"
+        case .map:          return "Map"
+        case .timeline:     return "Timeline"
+        case .achievements: return "Achievements"
+        case .studio:       return "Studio"
+        case .bag:          return "Bag"
+        case .search:       return "Search"
         }
     }
 
@@ -40,11 +45,12 @@ enum EtchTab: String, Hashable, CaseIterable, Identifiable {
     /// of the set has.
     var symbol: String {
         switch self {
-        case .map:      return "map"
-        case .timeline: return "rectangle.grid.2x2"
-        case .studio:   return "photo"
-        case .bag:      return "bag"
-        case .search:   return "magnifyingglass"
+        case .map:          return "map"
+        case .timeline:     return "rectangle.grid.2x2"
+        case .achievements: return "trophy"
+        case .studio:       return "photo"
+        case .bag:          return "bag"
+        case .search:       return "magnifyingglass"
         }
     }
 
@@ -55,11 +61,12 @@ enum EtchTab: String, Hashable, CaseIterable, Identifiable {
     /// memory a fixed position exists to build.
     var searchPrompt: String {
         switch self {
-        case .map:      return "Search places and activities"
-        case .timeline: return "Search your activities"
-        case .studio:   return "Search products and sizes"
-        case .bag:      return "Search your orders"
-        case .search:   return "Search"
+        case .map:          return "Search places and activities"
+        case .timeline:     return "Search your activities"
+        case .achievements: return "Search your records"
+        case .studio:       return "Search products and sizes"
+        case .bag:          return "Search your orders"
+        case .search:       return "Search"
         }
     }
 }
@@ -94,16 +101,13 @@ struct EtchTabView: View {
             Tab(EtchTab.timeline.title, systemImage: EtchTab.timeline.symbol, value: EtchTab.timeline) {
                 TimelineTab()
             }
+            Tab(EtchTab.achievements.title, systemImage: EtchTab.achievements.symbol,
+                value: EtchTab.achievements) {
+                AchievementsTab()
+            }
             Tab(EtchTab.studio.title, systemImage: EtchTab.studio.symbol, value: EtchTab.studio) {
                 StudioHomeView(isHome: true)
             }
-            Tab(EtchTab.bag.title, systemImage: EtchTab.bag.symbol, value: EtchTab.bag) {
-                BagView()
-            }
-            // The count is the whole reason the bag is a tab. Pieces are assembled in three
-            // different places, and a basket you cannot see filling up is three separate
-            // purchases wearing one name.
-            .badge(cart.count)
             Tab(value: EtchTab.search, role: .search) {
                 ScopedSearchView(scope: lastDestination)
             }
@@ -124,20 +128,14 @@ struct EtchTabView: View {
     }
 }
 
-/// Timeline, laid out on Apple Photos' model, with Achievements reachable from its header.
+/// Timeline, laid out on Apple Photos' model.
 ///
 /// Photos gives the page one title, a quiet line saying what you are looking at, and exactly one
-/// scope control — Years / Months / All — and nothing else competing. Etch's Timeline had grown
-/// two controls because Achievements was made half of a segmented pair it was never parallel to:
-/// Years, Months and All are three arrangements of one thing, and Achievements is a different
-/// thing. It is an action in the header now, which is where a page keeps the door to somewhere
-/// else.
-///
-/// It is still not a fifth tab. Timeline is the frequent destination; Achievements is the reward
-/// you visit occasionally, and a tab is a poor home for something you open a few times a year.
+/// scope control — Years / Months / All — and nothing else competing. Achievements used to be a
+/// button in this header; it is a tab of its own now, and a page should not carry a second door
+/// to somewhere the bar already goes.
 struct TimelineTab: View {
     @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
-    @State private var showAchievements = false
     /// The date span of whatever Timeline currently has on screen, written by it as you scroll.
     @State private var visibleSpan: String?
 
@@ -156,33 +154,11 @@ struct TimelineTab: View {
                 .safeAreaInset(edge: .top, spacing: 0) {
                     // The span while scrolling, the summary otherwise — Photos shows where you
                     // are when there is a where, and what you have when there isn't.
-                    EtchPageHeader("Timeline", subtitle: visibleSpan ?? summary) {
-                        Button { showAchievements = true } label: {
-                            Image(systemName: "trophy")
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundStyle(Theme.accent)
-                                .frame(width: 34, height: 34)
-                                .background(Theme.accent.opacity(0.12), in: .circle)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Achievements")
-                    }
-                    .padding(.bottom, 8)
+                    EtchPageHeader("Timeline", subtitle: visibleSpan ?? summary)
+                        .padding(.bottom, 8)
                     .background(.bar)
                 }
                 .toolbar(.hidden, for: .navigationBar)
-                .sheet(isPresented: $showAchievements) {
-                    NavigationStack {
-                        HighlightsView(embedded: true)
-                            .navigationTitle("Achievements")
-                            .navigationBarTitleDisplayMode(.inline)
-                            .toolbar {
-                                ToolbarItem(placement: .topBarTrailing) {
-                                    Button("Done") { showAchievements = false }
-                                }
-                            }
-                    }
-                }
         }
     }
 
@@ -195,3 +171,22 @@ struct TimelineTab: View {
         return "\(count) · \(Format.distance(metres, decimals: 0))"
     }
 }
+
+/// Achievements, as its own destination.
+///
+/// It used to be a button in Timeline's header, on the reasoning that a tab is a poor home for
+/// something you open a few times a year. That reasoning was about the *old* Achievements, which
+/// counted records. It now counts cities, states, countries and parks as well — the answer to
+/// "where have I been", which is the question this whole app is built around — and a door to that
+/// buried in another page's corner was hiding the better half of the product.
+///
+/// The bar had room because the Bag left it for Studio's header, where a basket belongs beside
+/// the thing that fills it.
+struct AchievementsTab: View {
+    var body: some View {
+        NavigationStack {
+            HighlightsView(embedded: true)
+        }
+    }
+}
+

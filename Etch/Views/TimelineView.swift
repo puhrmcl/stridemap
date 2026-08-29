@@ -14,6 +14,8 @@ struct TimelineView: View {
     /// answer. Nil while nothing is measured, so the header can fall back to its summary.
     var visibleSpan: Binding<String?> = .constant(nil)
     @Environment(AppModel.self) private var appModel
+    /// The activity pushed onto this tab's own stack — see `open(_:)`.
+    @State private var pushedRun: Run?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
@@ -89,6 +91,9 @@ struct TimelineView: View {
             }
             .navigationTitle("Timeline")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(item: $pushedRun) { run in
+                RunDetailView(run: run)
+            }
             // Years / Months / All sits at the bottom as a sheet, and at the top inside the tab.
             //
             // Apple Photos docks exactly this control in a floating capsule at the foot of the
@@ -333,10 +338,24 @@ struct TimelineView: View {
     }
 
     private func open(_ run: Run) {
-        // Swap this sheet for the run's detail (no dismiss(), which would clear the selection
-        // before the detail could present).
+        // As a tab, push. As a sheet, hand off to the map.
+        //
+        // This used to only do the second thing: select the run and clear `presentedSurface`,
+        // leaving HomeView's sheet router to present the detail. That worked while Timeline *was*
+        // a sheet HomeView had presented — clearing the surface dismissed it and the detail came
+        // up behind. Once Timeline became a tab there was nothing to dismiss and HomeView was on
+        // a different tab, so the tap set a selection that nobody presented and the thumbnail
+        // simply stopped responding.
+        //
+        // Pushing is also the better answer for a tab: you are in the Timeline, you open an
+        // activity, and Back returns you to the row you were looking at — rather than being
+        // thrown to a modal over a map you were not on.
         appModel.select(run)
-        appModel.presentedSurface = nil
+        if embedded {
+            pushedRun = run
+        } else {
+            appModel.presentedSurface = nil
+        }
     }
 }
 

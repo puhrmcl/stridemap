@@ -11,11 +11,11 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b486: the wordmark was reported missing from the home pill. It was never absent
-# — on a dark base map in light appearance it drew ink on near-black glass. Map chrome now takes
-# its appearance from the map. Also check the centred slot lands on the midpoint in frame one.
+# Requested for b487: Achievements is a tab between Timeline and Studio, the Bag has moved to
+# Studio's header beside the avatar, and tapping a Timeline thumbnail opens the activity again.
+# `tabs` photographs the bar; `tabs@achievements` and `tabs@studio` open those two.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=home,studio
+screens=tabs,tabs@studio
 appearance=both

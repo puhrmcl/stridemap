@@ -9,6 +9,8 @@ struct HighlightsView: View {
     /// True when pushed inside the Explore hub's navigation stack (no own NavigationStack).
     var embedded: Bool = false
     @Environment(AppModel.self) private var appModel
+    /// The activity pushed onto this tab's own stack — see `focus(_:)`.
+    @State private var pushedRun: Run?
     @Environment(\.dismiss) private var dismiss
     @Query private var runs: [Run]
 
@@ -76,12 +78,25 @@ struct HighlightsView: View {
                 .padding(20)
             }
             .navigationTitle("Achievements")
-            .navigationBarTitleDisplayMode(.large)
-            .safeAreaInset(edge: .top) {
-                EtchFilterChip(filter: appModel.filter) {
-                    appModel.setFilter(RunFilter())
+            .navigationDestination(item: $pushedRun) { run in
+                RunDetailView(run: run)
+            }
+            // As a tab it wears the shared masthead like its neighbours; as a sheet it keeps the
+            // navigation bar it is presented in.
+            .navigationBarTitleDisplayMode(embedded ? .inline : .large)
+            .toolbar(embedded ? .hidden : .automatic, for: .navigationBar)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 8) {
+                    if embedded {
+                        EtchPageHeader("Achievements")
+                    }
+                    EtchFilterChip(filter: appModel.filter) {
+                        appModel.setFilter(RunFilter())
+                    }
+                    .padding(.horizontal, 20)
                 }
-                .padding(.horizontal, 20)
+                .padding(.bottom, embedded ? 8 : 0)
+                .background(embedded ? AnyShapeStyle(.bar) : AnyShapeStyle(.clear))
             }
             .onAppear {
                 // Heal a stored scope that's since been hidden in Settings so it doesn't linger.
@@ -415,10 +430,18 @@ struct HighlightsView: View {
     }
 
     private func focus(_ run: Run) {
-        // Swap the Highlights sheet for the run's detail and zoom the map to it. We do NOT call
-        // dismiss() here: dismissing sets the shared sheet binding to nil, which clears the
-        // selection before the run detail can present. Changing the state does the swap.
-        appModel.select(run)             // selectedRunID (opens detail) + focus command (zoom)
-        appModel.presentedSurface = nil  // closes Highlights; detail takes its place
+        // As a tab, push. As a sheet, hand off to the map.
+        //
+        // The second branch is the original behaviour and is still right when Highlights is a
+        // sheet HomeView presented: clearing the surface dismisses it and HomeView's router
+        // brings up the detail behind. It is wrong for a tab — there is nothing to dismiss and
+        // HomeView is elsewhere — which is exactly how the Timeline's thumbnails went dead.
+        // Fixed here at the same time rather than waiting for the same report twice.
+        appModel.select(run)             // selectedRunID + the map's focus command
+        if embedded {
+            pushedRun = run
+        } else {
+            appModel.presentedSurface = nil
+        }
     }
 }

@@ -99,9 +99,11 @@ struct ScopedSearchView: View {
         return activeScope != .studio
     }
 
+    /// The Bag is no longer a tab, so a search can never be scoped to it; Studio is the only
+    /// place products are the answer.
     private var includesProducts: Bool {
         guard let activeScope else { return true }
-        return activeScope == .studio || activeScope == .bag
+        return activeScope == .studio
     }
 
     private var trimmed: String { query.trimmingCharacters(in: .whitespaces) }
