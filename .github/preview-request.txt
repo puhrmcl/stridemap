@@ -11,11 +11,11 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b453: the rebuilt Studio editor — Design / Content / Customize in a
-# detented tray with the poster persistent above it — plus the medal frame tile, which
-# now draws the frame instead of a bare poster.
+# Requested for b457: Content and Customize, which have never been photographed —
+# the editor can now be opened on a named section — plus Gallery, to confirm a run with
+# no photographs now leads with the map instead of an empty frame.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=gallery-studio,map-studio
+screens=map-studio@content,map-studio@customize,gallery-studio
 appearance=light

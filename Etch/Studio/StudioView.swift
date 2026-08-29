@@ -131,7 +131,10 @@ struct StudioView: View {
         .navigationTitle(family == .map ? "Map Studio" : "Gallery Studio")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbarContent }
-        .onAppear { if config.family != family { config.family = family } }
+        .onAppear {
+            if config.family != family { config.family = family }
+            applyPreviewSection()
+        }
         .overlay(alignment: .top) { savedConfirmation }
         // Hand the composed artwork to the shop so the frame mockup shows the user's own piece
         // rather than a placeholder — the whole point of the preview.
@@ -205,6 +208,16 @@ struct StudioView: View {
             // rather than making the user resize it by hand first.
             StudioCustomizeEditor(run: run, config: $config, onNeedRoom: { raise(to: .expanded) })
         }
+    }
+
+    /// Opens the editor on a named section, so CI can photograph Content and Customize — which
+    /// are otherwise two taps past the screen a launch lands on. `map-studio@content` reaches
+    /// them; inert without the environment variable, like the rest of the harness.
+    private func applyPreviewSection() {
+        guard let anchor = ProcessInfo.processInfo.environment["ETCH_PREVIEW_SCROLL"],
+              let named = StudioSection(rawValue: anchor) else { return }
+        section = named
+        detent = .expanded
     }
 
     /// Grows the tray to at least the given stop, never shrinking it — a control asking for room
