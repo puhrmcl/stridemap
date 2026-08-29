@@ -63,15 +63,15 @@ struct StudioCustomizeEditor: View {
                 door(.typography, value: StudioTypeSystem.current(for: config)?.name ?? "Custom",
                      icon: "textformat")
                 Divider()
-                door(.colours, value: StudioPalette.current(for: config)?.name ?? "Custom",
-                     icon: "paintpalette")
+                door(.colours, value: paletteName, icon: "paintpalette")
                 Divider()
                 door(.route, value: config.routeColor == nil ? "Auto" : "Custom",
                      icon: "point.topleft.down.to.point.bottomright.curvepath")
                 Divider()
                 door(.layout, value: config.orientation.name, icon: "square.resize")
                 Divider()
-                door(.advanced, value: config.monochrome ? "B & W" : nil, icon: "slider.horizontal.3")
+                door(.advanced, value: config.monochrome ? "B & W" : config.outputSize.name,
+                     icon: "slider.horizontal.3")
             }
         }
     }
@@ -83,25 +83,62 @@ struct StudioCustomizeEditor: View {
         }
     }
 
+    /// True when all three inks are left to the chosen style. This is what a fresh poster is, and
+    /// it is not "Custom" — nothing has been customised yet.
+    private var isAutoPalette: Bool {
+        config.textColor == nil && config.groundColor == nil && config.routeColor == nil
+    }
+
+    private var paletteName: String {
+        if isAutoPalette { return "Auto" }
+        return StudioPalette.current(for: config)?.name ?? "Custom"
+    }
+
     private var palettes: some View {
         VStack(alignment: .leading, spacing: 8) {
             StudioGroupLabel(text: "Palette")
             let active = StudioPalette.current(for: config)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
+                    // Auto leads, and it is the state a new poster opens in — so the selected
+                    // chip is the first one rather than one scrolled off the right-hand end.
+                    // It is also the only way back: without it, returning to the style's own
+                    // colours meant opening Colours and tapping Auto on three separate rows.
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            config.textColor = nil
+                            config.groundColor = nil
+                            config.routeColor = nil
+                        }
+                    } label: {
+                        Text("Auto")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(isAutoPalette ? .white : Color.primary)
+                            .padding(.horizontal, 14)
+                            .frame(height: 34)
+                            .background(isAutoPalette ? Theme.accent : Color.secondary.opacity(0.12),
+                                        in: .capsule)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(isAutoPalette ? [.isSelected] : [])
+
                     ForEach(StudioPalette.allCases) { palette in
                         paletteChip(palette, isSelected: active == palette)
                     }
+                    // "Custom" is lit only when the colours are genuinely hand-set — neither a
+                    // named palette nor Auto. Testing `active == nil` alone would light it
+                    // beside Auto on every new poster.
+                    let isCustom = active == nil && !isAutoPalette
                     Button {
                         withAnimation(.easeInOut(duration: 0.22)) { detail = .colours }
                         onNeedRoom()
                     } label: {
-                        Text(active == nil ? "Custom" : "Custom…")
+                        Text(isCustom ? "Custom" : "Custom…")
                             .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .foregroundStyle(active == nil ? .white : Theme.accent)
+                            .foregroundStyle(isCustom ? .white : Theme.accent)
                             .padding(.horizontal, 12)
                             .frame(height: 34)
-                            .background(active == nil ? Theme.accent : Theme.accent.opacity(0.12),
+                            .background(isCustom ? Theme.accent : Theme.accent.opacity(0.12),
                                         in: .capsule)
                     }
                     .buttonStyle(.plain)
