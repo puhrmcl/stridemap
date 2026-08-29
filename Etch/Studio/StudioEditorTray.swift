@@ -160,8 +160,8 @@ struct StudioSectionPicker: View {
                 } label: {
                     VStack(spacing: 6) {
                         Text(s.name)
-                            .font(.etch(.subheadline)
-                                .weight(section == s ? .semibold : .regular))
+                            .font(.etch(.subheadline,
+                                        weight: section == s ? .semibold : .regular))
                             .foregroundStyle(section == s ? Theme.accent : Color.secondary)
                         ZStack {
                             Capsule().fill(.clear).frame(height: 2)
