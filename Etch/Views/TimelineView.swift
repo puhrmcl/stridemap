@@ -53,6 +53,29 @@ struct TimelineView: View {
     private var monthGroups: [RunStatistics.MonthGroup] { stats.monthGroups }
     private var years: [Int] { stats.years }
 
+    // MARK: Oldest at the top, newest at the foot
+    //
+    // Apple Photos' order, and the one thing about it people navigate by without thinking: your
+    // most recent pictures are where the scroll view opens, at the bottom, and history runs
+    // upwards from there. A list that starts newest-first reads correctly for a *feed*, which a
+    // timeline is not — the point of a timeline is that time goes one way down the page.
+    //
+    // `RunStatistics` keeps handing everything back newest-first, because that is what every
+    // other surface wants: Achievements, the recap, the book's subject picker. Only this view
+    // reads bottom-up, so the reversal lives here rather than in the shared source.
+
+    /// Months oldest-first, and each month's activities oldest-first inside it — so the newest
+    /// activity in the whole history is the last tile on the page.
+    private var timelineMonths: [RunStatistics.MonthGroup] {
+        monthGroups.reversed().map { group in
+            var ordered = group
+            ordered.runs = group.runs.reversed()
+            return ordered
+        }
+    }
+    private var timelineYears: [Int] { years.reversed() }
+    private var timelineRuns: [Run] { scopedRuns.reversed() }
+
     var body: some View {
         NavRoot(embedded) {
             Group {
@@ -71,6 +94,13 @@ struct TimelineView: View {
                             case .all: allContent
                             }
                         }
+                        // Opens on the newest activity, which now sits at the foot of the page.
+                        //
+                        // `.initialOffset` and not the plain anchor: the plain one re-pins to the
+                        // bottom whenever the content grows, so a sync finishing while you were
+                        // reading 2019 would throw you back to last week. This sets where the
+                        // scroll view *starts* and then leaves it alone.
+                        .defaultScrollAnchor(.bottom, for: .initialOffset)
                         // Which tiles are actually on screen, rather than a guess from the scroll
                         // offset — a lazy grid's offset says nothing reliable about which row you
                         // are looking at. Only the dated scopes report: Years already prints its
@@ -171,7 +201,7 @@ struct TimelineView: View {
 
     private var yearsContent: some View {
         LazyVStack(spacing: 16) {
-            ForEach(years, id: \.self) { year in
+            ForEach(timelineYears, id: \.self) { year in
                 let yearRuns = runs(in: year)
                 Button {
                     scrollTarget = firstMonthID(ofYear: year)
@@ -196,7 +226,7 @@ struct TimelineView: View {
     private var monthsContent: some View {
         // Headers scroll with the content (not pinned) for an Apple Photos-style feel.
         LazyVStack(alignment: .leading, spacing: 28) {
-            ForEach(monthGroups) { group in
+            ForEach(timelineMonths) { group in
                 Section {
                     monthGrid(group.runs)
                 } header: {
@@ -253,7 +283,7 @@ struct TimelineView: View {
     /// tile it is a shape.
     private var allContent: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 5), spacing: 2) {
-            ForEach(scopedRuns) { run in
+            ForEach(timelineRuns) { run in
                 // A run with no photograph shows where it happened rather than a bare line.
                 //
                 // The flat route drawing is a shape with no place attached: two loops of similar
@@ -350,10 +380,18 @@ struct TimelineView: View {
         // Pushing is also the better answer for a tab: you are in the Timeline, you open an
         // activity, and Back returns you to the row you were looking at — rather than being
         // thrown to a modal over a map you were not on.
-        appModel.select(run)
+        // Push only — deliberately *not* `appModel.select(run)`.
+        //
+        // `select` sets `selectedRunID` as well as aiming the map, and HomeView's sheet router
+        // reads `selectedRunID` as "present this run". HomeView is still mounted on the map tab
+        // while you are here, so one tap opened the activity twice: a sheet rising from the
+        // bottom, and the pushed page behind it. The map still gets its camera command, so going
+        // back to the map lands on the activity you just read about.
         if embedded {
+            appModel.focus(on: run)
             pushedRun = run
         } else {
+            appModel.select(run)
             appModel.presentedSurface = nil
         }
     }

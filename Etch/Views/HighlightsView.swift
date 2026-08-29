@@ -437,10 +437,16 @@ struct HighlightsView: View {
         // brings up the detail behind. It is wrong for a tab — there is nothing to dismiss and
         // HomeView is elsewhere — which is exactly how the Timeline's thumbnails went dead.
         // Fixed here at the same time rather than waiting for the same report twice.
-        appModel.select(run)             // selectedRunID + the map's focus command
+        // Pushing sets no `selectedRunID`: HomeView's sheet router reads that as "present this
+        // run", and HomeView stays mounted on the map tab, so setting it here opened the activity
+        // twice — a sheet from the bottom over the pushed page. The map still gets its camera
+        // command. Same fix as the Timeline's, made here at the same time rather than waiting for
+        // the same report twice.
         if embedded {
+            appModel.focus(on: run)
             pushedRun = run
         } else {
+            appModel.select(run)
             appModel.presentedSurface = nil
         }
     }

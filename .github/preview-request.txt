@@ -11,11 +11,11 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b491: the Collections product tile itself. b490's shot of studio@collections
-# landed on the curated-sets shelf instead, because that shelf and the new product tile shared
-# the anchor id "collections"; the shelf is "curated" now.
+# Requested for b492: the Timeline runs oldest-at-top now, opening on the newest activity at
+# the foot of the page, the way Apple Photos does. Also: tapping a thumbnail opens the activity
+# once — it was opening a sheet and a pushed page at the same time.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=yearbook,collections,studio@collections
+screens=tabs@timeline
 appearance=both
