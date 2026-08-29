@@ -78,7 +78,12 @@ struct StudioEditorTray<Content: View>: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .frame(height: resolvedHeight, alignment: .top)
-        .background(.regularMaterial)
+        // Solid, not a material. A control tray is read, not looked through: over
+        // `.regularMaterial` SwiftUI renders hierarchical styles with vibrancy, and in light mode
+        // that took every secondary label, trailing value, chevron and divider in this panel down
+        // to invisible — the b457 renders showed rows carrying an icon and a title and nothing
+        // else. The concrete colours below are the other half of that fix.
+        .background(Color(.systemBackground))
         .clipShape(.rect(topLeadingRadius: 20, topTrailingRadius: 20))
         .overlay(alignment: .top) {
             // A hairline rather than a shadow: the tray sits against the artwork, and a drop
@@ -202,12 +207,12 @@ struct StudioDrillRow: View {
                 if let value {
                     Text(value)
                         .font(.system(.subheadline, design: .rounded))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.secondary)
                         .lineLimit(1)
                 }
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Color.secondary.opacity(0.55))
             }
             .padding(.vertical, 11)
             .contentShape(Rectangle())
@@ -249,7 +254,7 @@ struct StudioGroupLabel: View {
         Text(text.uppercased())
             .font(.system(size: 11, weight: .semibold))
             .tracking(1.4)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

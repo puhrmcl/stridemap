@@ -129,7 +129,7 @@ struct StudioContentEditor: View {
 
                 Text(line.name)
                     .font(.system(.subheadline, design: .rounded))
-                    .foregroundStyle(show.wrappedValue ? .primary : .secondary)
+                    .foregroundStyle(show.wrappedValue ? Color.primary : Color.secondary)
 
                 Spacer(minLength: 8)
 
@@ -141,11 +141,11 @@ struct StudioContentEditor: View {
                     HStack(spacing: 4) {
                         Text(text.wrappedValue.isEmpty ? placeholder : text.wrappedValue)
                             .font(.system(.subheadline, design: .rounded))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.secondary)
                             .lineLimit(1)
                         Image(systemName: "pencil")
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(Color.secondary.opacity(0.55))
                     }
                 }
                 .buttonStyle(.plain)
@@ -202,7 +202,7 @@ struct StudioContentEditor: View {
                 if isHeadline {
                     Text(metric == .none ? "None" : metric.label.capitalized)
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Color.secondary.opacity(0.55))
                 }
             }
 
@@ -231,11 +231,11 @@ struct StudioContentEditor: View {
                     HStack(spacing: 4) {
                         Text(metric == .none ? "None" : (metric.value(for: run) ?? "—"))
                             .font(.system(.subheadline, design: .rounded))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.secondary)
                             .lineLimit(1)
                         Image(systemName: "chevron.right")
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(Color.secondary.opacity(0.55))
                     }
                 }
                 .buttonStyle(.plain)
@@ -249,7 +249,7 @@ struct StudioContentEditor: View {
                     } label: {
                         Image(systemName: "minus.circle.fill")
                             .font(.system(size: 16))
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(Color.secondary.opacity(0.55))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Remove \(label)")

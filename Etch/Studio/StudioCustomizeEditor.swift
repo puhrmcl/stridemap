@@ -215,7 +215,7 @@ struct StudioCustomizeEditor: View {
         HStack(spacing: 10) {
             Text(title)
                 .font(.system(.caption, design: .rounded).weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.secondary)
                 .frame(width: 84, alignment: .leading)
             Picker(title, selection: scale) {
                 if wide { Text("XS").tag(CGFloat(0.7)) }
@@ -268,7 +268,7 @@ struct StudioCustomizeEditor: View {
             // did nothing would be worse than the gap.
             Text("Route weight and casing come from the chosen map style. Per-poster control over thickness and start/finish markers needs renderer work — it is not hidden elsewhere in this editor.")
                 .font(.caption)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Color.secondary.opacity(0.55))
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -296,7 +296,7 @@ struct StudioCustomizeEditor: View {
             } else {
                 Text("In portrait the data always sits beneath the artwork. Switch to landscape to move it.")
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Color.secondary.opacity(0.55))
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -321,7 +321,7 @@ struct StudioCustomizeEditor: View {
             .pickerStyle(.segmented)
             Text("Poster keeps print proportions. Square, Feed and Story mat the piece onto a social canvas for sharing — the print itself is always composed at poster proportions.")
                 .font(.caption)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Color.secondary.opacity(0.55))
                 .fixedSize(horizontal: false, vertical: true)
         }
     }

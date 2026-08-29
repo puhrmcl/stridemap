@@ -11,9 +11,8 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b457: Content and Customize, which have never been photographed —
-# the editor can now be opened on a named section — plus Gallery, to confirm a run with
-# no photographs now leads with the map instead of an empty frame.
+# Requested for b458: the tray again — b457 showed every secondary label, value,
+# chevron and divider rendering invisible against the material background.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
