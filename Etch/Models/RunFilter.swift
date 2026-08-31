@@ -91,9 +91,20 @@ struct RunFilter: Equatable {
         case .trail: if !run.isTrail { return false }
         }
 
+        // States and countries compare canonically, because the geocoder does not.
+        //
+        // One library can hold "AZ" and "Arizona" for the same place, depending on which app
+        // wrote the activity and when. Comparing the raw strings meant a filter set to Arizona
+        // silently dropped every run stored as AZ — the filter looked like it worked, and simply
+        // showed you half your history. Cities have no such abbreviations, so they stay exact.
         if let city, run.city != city { return false }
-        if let state, run.state != state { return false }
-        if let country, run.country != country { return false }
+        if let state, PlaceNames.canonicalState(run.state) != PlaceNames.canonicalState(state) {
+            return false
+        }
+        if let country,
+           PlaceNames.canonicalCountry(run.country) != PlaceNames.canonicalCountry(country) {
+            return false
+        }
 
         if let minDistance, run.distance < minDistance { return false }
         if let maxDistance, run.distance > maxDistance { return false }

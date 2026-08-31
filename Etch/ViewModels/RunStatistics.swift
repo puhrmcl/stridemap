@@ -26,8 +26,13 @@ struct RunStatistics {
     // MARK: Geography
 
     var cities: [String] { unique(runs.compactMap(\.city)) }
-    var states: [String] { unique(runs.compactMap(\.state)) }
-    var countries: [String] { unique(runs.compactMap(\.country)) }
+    /// Canonical, so "AZ" and "Arizona" are one place rather than two.
+    ///
+    /// These feed the filter's Where pickers and the states/countries counts. Listing the raw
+    /// values gave two rows for one state, each selecting half of it, and counted a single state
+    /// twice in the reach tiles whenever a library had been written by more than one app.
+    var states: [String] { unique(runs.compactMap { PlaceNames.canonicalState($0.state) }) }
+    var countries: [String] { unique(runs.compactMap { PlaceNames.canonicalCountry($0.country) }) }
 
     private func unique(_ values: [String]) -> [String] {
         Array(Set(values.filter { !$0.isEmpty })).sorted()

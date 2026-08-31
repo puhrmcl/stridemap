@@ -5,6 +5,31 @@ import SwiftUI
 struct CitiesListView: View {
     /// One entry per city, already sorted by run count descending (`RunStatistics.travelPlaces`).
     let places: [RunStatistics.TravelPlace]
+    @Environment(AppModel.self) private var appModel
+    @Environment(\.dismiss) private var dismiss
+
+    /// Narrows the whole app to one city, then steps back so the result is visible.
+    ///
+    /// This is the fast path the location filter never had. Races and PRs are one tap on the map;
+    /// a place took opening the filter sheet, scrolling to Where and picking from a menu — which
+    /// is a lot of work to ask of someone already looking at a list of their cities.
+    ///
+    /// Popping is part of it. Applying a filter and staying on a page that does not show the
+    /// filter would be a global change with no visible effect; going back one step lands on
+    /// Achievements, where the chip states what is now set and clears it in a tap.
+    private func narrow(to place: RunStatistics.TravelPlace) {
+        guard let city = place.runs.first?.city, !city.isEmpty else { return }
+        var filter = appModel.filter
+        // The city alone, not city + state. Two cities of the same name in different states is a
+        // real thing, but the pairing here comes from one group of activities that already share
+        // both — and setting the state as well would survive a later change of city and quietly
+        // narrow something the user never asked to narrow.
+        filter.city = city
+        filter.state = nil
+        filter.country = nil
+        appModel.setFilter(filter)
+        dismiss()
+    }
 
     private var totalRuns: Int { places.reduce(0) { $0 + $1.runs.count } }
     /// Every activity behind the list, so the count can be named in the right word — "42 hikes"
@@ -70,11 +95,16 @@ struct CitiesListView: View {
                 .font(.etch(.title3, weight: .bold))
 
             ForEach(Array(places.enumerated()), id: \.element.id) { index, place in
-                CityRow(
-                    rank: index + 1,
-                    place: place,
-                    fraction: Double(place.runs.count) / Double(maxRuns)
-                )
+                Button {
+                    narrow(to: place)
+                } label: {
+                    CityRow(
+                        rank: index + 1,
+                        place: place,
+                        fraction: Double(place.runs.count) / Double(maxRuns)
+                    )
+                }
+                .buttonStyle(.plain)
                 .id(place.id)
             }
         }
@@ -117,9 +147,17 @@ private struct CityRow: View {
             Text(ActivityScope.noun(for: place.runs))
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            // The same glyph the filter chip wears, so the row says what tapping it does. A row
+            // that silently changes app-wide state needs to look like a control, and a chevron
+            // would promise a page that does not exist.
+            Image(systemName: "line.3.horizontal.decrease")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Theme.accent)
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 16)
         .background(.regularMaterial, in: .rect(cornerRadius: 16))
+        .contentShape(.rect)
     }
 }

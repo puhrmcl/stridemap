@@ -5,6 +5,22 @@ import SwiftData
 /// any run started inside it; deeper blue means more runs there.
 struct StatesView: View {
     @Query private var runs: [Run]
+    @Environment(AppModel.self) private var appModel
+    @Environment(\.dismiss) private var dismiss
+
+    /// Narrows the whole app to one state, then steps back so the result is visible.
+    ///
+    /// The name here comes from the boundary file, which spells states out in full, while a run's
+    /// stored `state` is whatever geocoded it — often "AZ". `RunFilter` compares both canonically
+    /// for exactly this reason; without that, tapping Arizona here would filter to nothing.
+    private func narrow(to state: String) {
+        var filter = appModel.filter
+        filter.state = state
+        filter.city = nil
+        filter.country = nil
+        appModel.setFilter(filter)
+        dismiss()
+    }
 
     @State private var counts: [String: Int] = [:]
     @State private var didCompute = false
@@ -81,10 +97,15 @@ struct StatesView: View {
                 .font(.etch(.title3, weight: .bold))
 
             ForEach(ranked, id: \.name) { item in
-                StateRow(name: item.name, count: item.count,
-                         fraction: Double(item.count) / Double(maxCount),
-                         scope: ActivityScope.of(runs))
-                    .id(item.name)
+                Button {
+                    narrow(to: item.name)
+                } label: {
+                    StateRow(name: item.name, count: item.count,
+                             fraction: Double(item.count) / Double(maxCount),
+                             scope: ActivityScope.of(runs))
+                }
+                .buttonStyle(.plain)
+                .id(item.name)
             }
         }
     }
@@ -146,9 +167,15 @@ private struct StateRow: View {
             Text(scope.noun(count))
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            // The filter chip's own glyph, so the row reads as a control rather than a statistic.
+            Image(systemName: "line.3.horizontal.decrease")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Theme.accent)
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 16)
         .background(.regularMaterial, in: .rect(cornerRadius: 16))
+        .contentShape(.rect)
     }
 }

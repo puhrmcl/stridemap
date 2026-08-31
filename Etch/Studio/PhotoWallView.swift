@@ -9,8 +9,11 @@ struct PhotoWallView: View {
     /// The activity-scoped runs to draw from (Studio passes its current scope).
     let runs: [Run]
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var appModel
 
     @State private var filter: Filter = .all
+    /// Whether the wall has already taken its opening filter from the app's.
+    @State private var didSeedFromAppFilter = false
     @State private var sort: SortOrder = .newest
     /// Forty is the wall's default because it fills the 20 × 30" sheet to its corners: five
     /// across, eight down.
@@ -103,7 +106,9 @@ struct PhotoWallView: View {
             let cal = Calendar.current
             return photoRuns.filter { cal.component(.year, from: $0.startDate) == y }
         case .state(let s):
-            return photoRuns.filter { ($0.state ?? "") == s }
+            return photoRuns.filter {
+                PlaceNames.canonicalState($0.state) == PlaceNames.canonicalState(s)
+            }
         case .place(let name):
             let places = RunStatistics(photoRuns).travelPlaces
             guard let place = places.first(where: { cityLabel($0) == name }) else { return photoRuns }
@@ -152,6 +157,36 @@ struct PhotoWallView: View {
     private func cityLabel(_ place: RunStatistics.TravelPlace) -> String {
         let parts = place.label.components(separatedBy: ", ")
         return parts.count >= 2 ? parts.prefix(2).joined(separator: ", ") : place.label
+    }
+
+    /// Opens the wall on whatever place the app is currently filtered to.
+    ///
+    /// Studio deliberately ignores the shared filter everywhere else, and the reason is written
+    /// down where `scopedRuns` is defined: someone arrives here to print a specific activity, and
+    /// a filter they set on the map twenty minutes ago silently hiding it reads as Etch having
+    /// lost the run. That note set the condition for ever wiring one up — it needs an escape
+    /// hatch on screen — and the wall is the one product that already has it. Its own filter
+    /// control sits above the grid, names the place, and offers "All Photos" as its first item.
+    ///
+    /// So this is a seed, not a narrowing: it sets the control the user can already see and
+    /// change, once, on the way in. Nothing is hidden that the wall does not say it is hiding.
+    private func seedFromAppFilter() {
+        guard !didSeedFromAppFilter else { return }
+        didSeedFromAppFilter = true
+        let active = appModel.filter
+        if let city = active.city, !city.isEmpty {
+            let place = RunStatistics(photoRuns).travelPlaces
+                .first { $0.runs.contains { $0.city == city } }
+            if let place { filter = .place(cityLabel(place)) }
+        } else if let state = active.state, !state.isEmpty {
+            // Only if there is something behind it. Opening the wall on an empty grid is the
+            // exact failure Studio's no-filter rule exists to prevent, and a control that names
+            // the place does not undo a first impression of "my photographs are gone".
+            let hasPhotos = photoRuns.contains {
+                PlaceNames.canonicalState($0.state) == PlaceNames.canonicalState(state)
+            }
+            if hasPhotos { filter = .state(state) }
+        }
     }
 
     private var filterLabel: String {
@@ -238,7 +273,12 @@ struct PhotoWallView: View {
                 Button("OK", role: .cancel) {}
             } message: { Text(orderError ?? "") }
             .onChange(of: filter) { excludedIDs = []; clampCount() }
-            .onAppear { clampCount() }
+            // Seeded before the count is clamped, so the stepper is bounded by the filtered pool
+            // rather than by the whole library and then snapped down a moment later.
+            .onAppear {
+                seedFromAppFilter()
+                clampCount()
+            }
             .task { detectScreenshots() }
             .task(id: renderKey) { await loadAndRender() }
             .addedToBagToast($addedToBag)
@@ -497,7 +537,10 @@ struct PhotoWallView: View {
     private var filterMenu: some View {
         let stats = RunStatistics(photoRuns)
         let years = stats.years
-        let grouped = Dictionary(grouping: photoRuns.filter { !($0.state ?? "").isEmpty }, by: { $0.state ?? "" })
+        // Canonical, so a library written by two apps does not offer "AZ" and "Arizona" as two
+        // states, each holding half the photographs.
+        let grouped = Dictionary(grouping: photoRuns.filter { !($0.state ?? "").isEmpty },
+                                 by: { PlaceNames.canonicalState($0.state) ?? "" })
         let states = grouped.map { (name: $0.key, count: $0.value.count) }
             .sorted { $0.count != $1.count ? $0.count > $1.count : $0.name < $1.name }
         let places = stats.travelPlaces
