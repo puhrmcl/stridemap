@@ -143,6 +143,12 @@ enum MedalFrameCatalog {
         return (Double(cents) / 100).formatted(.currency(code: "USD").precision(.fractionLength(0)))
     }
 
+    /// What a bagged line records as its price. The bag is a local list waiting for a Shopify
+    /// checkout, which prices the order itself — this is what the reader sees while the line sits
+    /// there, so it falls back to the shipped default rather than to zero. The product is not
+    /// listed at all while `isAvailable` is false, so the fallback is a belt, not a policy.
+    static var priceCents: Int { EtchConfig.current.prices.medalFrameCents ?? 24900 }
+
     /// The product's URL handle in Shopify, whose variant carries the retail price at checkout.
     static let shopifyHandle = "medal-frame"
 
@@ -279,6 +285,9 @@ enum MultiPhotoFrameCatalog {
         guard let cents = EtchConfig.current.prices.photoWallCents else { return "—" }
         return (Double(cents) / 100).formatted(.currency(code: "USD").precision(.fractionLength(0)))
     }
+
+    /// What a bagged line records as its price — see `MedalFrameCatalog.priceCents`.
+    static var priceCents: Int { EtchConfig.current.prices.photoWallCents ?? 19900 }
 
     static let frameColours = ["black", "brown", "dark grey", "gold",
                                "light grey", "natural", "silver", "white"]

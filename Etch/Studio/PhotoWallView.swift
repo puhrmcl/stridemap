@@ -63,6 +63,9 @@ struct PhotoWallView: View {
     @State private var orderPhase: PrintOrderService.Phase?
     @State private var orderError: String?
     @State private var checkoutURL: URL?
+    /// In flight, and the confirmation that follows.
+    @State private var isAddingToBag = false
+    @State private var addedToBag = false
 
     /// Hard ceiling on one wall: the largest grid any confirmed frame size takes — 6 × 9 on the
     /// 24 × 36". A wall that reads well on screen is therefore always one that can be made.
@@ -238,6 +241,7 @@ struct PhotoWallView: View {
             .onAppear { clampCount() }
             .task { detectScreenshots() }
             .task(id: renderKey) { await loadAndRender() }
+            .addedToBagToast($addedToBag)
         }
     }
 
@@ -380,7 +384,7 @@ struct PhotoWallView: View {
         }
 
         if canOrder, !shownCells.isEmpty {
-            Button(action: order) {
+            Button { order(.checkout) } label: {
                 Group {
                     if let orderPhase {
                         HStack(spacing: 10) {
@@ -401,17 +405,26 @@ struct PhotoWallView: View {
             .disabled(orderPhase != nil)
             .frame(maxWidth: 340)
 
+            // A wall is forty photographs and one frame — the piece someone builds *and then*
+            // goes looking for a print of the race that is in it. One shipment, not two.
+            AddToBagButton(isWorking: isAddingToBag, isDisabled: orderPhase != nil) {
+                order(.bag)
+            }
+            .frame(maxWidth: 340)
+
             Text(MultiPhotoFrameCatalog.fitDescription(forPhotos: shownCells.count))
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
     }
 
-    private func order() {
-        guard orderPhase == nil else { return }
+    private func order(_ destination: StudioOrderDestination) {
+        guard orderPhase == nil, !isAddingToBag else { return }
         let size = MultiPhotoFrameCatalog.size(forPhotos: shownCells.count)
         let items = shownCells
+        if destination == .bag { isAddingToBag = true }
         Task {
+            defer { isAddingToBag = false }
             do {
                 orderPhase = .rendering
                 // Photographs at the cell's real print size, not the on-screen thumbnails the
@@ -441,18 +454,39 @@ struct PhotoWallView: View {
                 let fileURL = try await PhotoWallRenderer.printFile(photos: prints, size: size)
                 defer { try? FileManager.default.removeItem(at: fileURL) }
 
-                let cart = try await PrintOrderService.checkout(
-                    fileAt: fileURL,
-                    pixels: size.printPixels,
-                    creationID: "photowall-\(size.sku)-\(items.count)-\(UUID().uuidString)",
-                    shopifySKU: size.sku,
-                    prodigiSKU: size.sku,
-                    productHandle: MultiPhotoFrameCatalog.shopifyHandle,
-                    finishAttribute: MultiPhotoFrameCatalog.frameColours.first ?? "black",
-                    onPhase: { orderPhase = $0 }
-                )
-                orderPhase = nil
-                checkoutURL = cart.checkoutURL
+                let creationID = "photowall-\(size.sku)-\(items.count)-\(UUID().uuidString)"
+                let frame = MultiPhotoFrameCatalog.frameColours.first ?? "black"
+                switch destination {
+                case .checkout:
+                    let cart = try await PrintOrderService.checkout(
+                        fileAt: fileURL,
+                        pixels: size.printPixels,
+                        creationID: creationID,
+                        shopifySKU: size.sku,
+                        prodigiSKU: size.sku,
+                        productHandle: MultiPhotoFrameCatalog.shopifyHandle,
+                        finishAttribute: frame,
+                        onPhase: { orderPhase = $0 }
+                    )
+                    orderPhase = nil
+                    checkoutURL = cart.checkoutURL
+                case .bag:
+                    try await PrintOrderService.addToBag(
+                        fileAt: fileURL,
+                        pixels: size.printPixels,
+                        creationID: creationID,
+                        shopifySKU: size.sku,
+                        prodigiSKU: size.sku,
+                        productHandle: MultiPhotoFrameCatalog.shopifyHandle,
+                        finishAttribute: frame,
+                        title: "Photo Wall",
+                        detail: "\(size.label) · \(items.count) photos",
+                        priceCents: MultiPhotoFrameCatalog.priceCents,
+                        onPhase: { orderPhase = $0 }
+                    )
+                    orderPhase = nil
+                    addedToBag = true
+                }
             } catch {
                 orderPhase = nil
                 orderError = error.localizedDescription

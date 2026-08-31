@@ -30,6 +30,9 @@ struct MedalFrameView: View {
     @State private var mountColour = "Black"
 
     @State private var panel: UIImage?
+    /// In flight, and the confirmation that follows.
+    @State private var isAddingToBag = false
+    @State private var addedToBag = false
     @State private var orderPhase: PrintOrderService.Phase?
     @State private var orderError: String?
     @State private var checkoutURL: URL?
@@ -94,6 +97,7 @@ struct MedalFrameView: View {
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
             }
             .task(id: recipeKey) { await renderPanel() }
+            .addedToBagToast($addedToBag)
             .sheet(isPresented: $customizing, onDismiss: { panel = nil }) {
                 StudioView(run: run, poster: savedRecipe)
             }
@@ -194,7 +198,7 @@ struct MedalFrameView: View {
             }
 
             if canOrder {
-                Button(action: order) {
+                Button { order(.checkout) } label: {
                     Group {
                         if let orderPhase {
                             HStack(spacing: 10) {
@@ -213,6 +217,13 @@ struct MedalFrameView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(orderPhase != nil || panel == nil)
+
+                // The frame is bought for one race, and the print of that race is the thing most
+                // often bought with it. Two objects, one shipment.
+                AddToBagButton(isWorking: isAddingToBag,
+                               isDisabled: orderPhase != nil || panel == nil) {
+                    order(.bag)
+                }
 
                 Text("Made in the UK and shipped to your door. Your medal is yours to fit — the frame arrives ready for it.")
                     .font(.caption)
@@ -236,9 +247,11 @@ struct MedalFrameView: View {
         .background(.regularMaterial, in: .rect(cornerRadius: 18))
     }
 
-    private func order() {
-        guard orderPhase == nil else { return }
+    private func order(_ destination: StudioOrderDestination) {
+        guard orderPhase == nil, !isAddingToBag else { return }
+        if destination == .bag { isAddingToBag = true }
         Task {
+            defer { isAddingToBag = false }
             do {
                 orderPhase = .rendering
                 var request = panelConfig.request(for: run)
@@ -248,19 +261,39 @@ struct MedalFrameView: View {
                 let fileURL = try await StudioRenderer.printFile(for: request, geometry: geometry)
                 defer { try? FileManager.default.removeItem(at: fileURL) }
 
-                let cart = try await PrintOrderService.checkout(
-                    fileAt: fileURL,
-                    pixels: geometry.trimPixels,
-                    creationID: "medal-\(run.id.uuidString)",
-                    shopifySKU: MedalFrameCatalog.sku,
-                    prodigiSKU: MedalFrameCatalog.sku,
-                    productHandle: MedalFrameCatalog.shopifyHandle,
-                    finishAttribute: frameColour,
-                    mountAttribute: mountColour,
-                    onPhase: { orderPhase = $0 }
-                )
-                orderPhase = nil
-                checkoutURL = cart.checkoutURL
+                switch destination {
+                case .checkout:
+                    let cart = try await PrintOrderService.checkout(
+                        fileAt: fileURL,
+                        pixels: geometry.trimPixels,
+                        creationID: "medal-\(run.id.uuidString)",
+                        shopifySKU: MedalFrameCatalog.sku,
+                        prodigiSKU: MedalFrameCatalog.sku,
+                        productHandle: MedalFrameCatalog.shopifyHandle,
+                        finishAttribute: frameColour,
+                        mountAttribute: mountColour,
+                        onPhase: { orderPhase = $0 }
+                    )
+                    orderPhase = nil
+                    checkoutURL = cart.checkoutURL
+                case .bag:
+                    try await PrintOrderService.addToBag(
+                        fileAt: fileURL,
+                        pixels: geometry.trimPixels,
+                        creationID: "medal-\(run.id.uuidString)",
+                        shopifySKU: MedalFrameCatalog.sku,
+                        prodigiSKU: MedalFrameCatalog.sku,
+                        productHandle: MedalFrameCatalog.shopifyHandle,
+                        finishAttribute: frameColour,
+                        mountAttribute: mountColour,
+                        title: run.name,
+                        detail: "Medal Frame · \(frameColour.capitalized)",
+                        priceCents: MedalFrameCatalog.priceCents,
+                        onPhase: { orderPhase = $0 }
+                    )
+                    orderPhase = nil
+                    addedToBag = true
+                }
             } catch {
                 orderPhase = nil
                 orderError = error.localizedDescription

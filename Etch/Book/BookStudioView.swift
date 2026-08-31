@@ -34,6 +34,9 @@ struct BookStudioView: View {
     @State private var orderPhase: PrintOrderService.Phase?
     @State private var orderError: String?
     @State private var checkoutURL: URL?
+    /// Non-nil while a bag add is in flight, and the confirmation that follows it.
+    @State private var isAddingToBag = false
+    @State private var addedToBag = false
 
     private var canOrder: Bool {
         PrintOrderService.isConfigured && EtchConfig.current.ordering.enabled && !plan.runs.isEmpty
@@ -94,6 +97,7 @@ struct BookStudioView: View {
                 Button("OK", role: .cancel) {}
             } message: { Text(orderError ?? "") }
             .task(id: resolvedSubject) { await renderPreviews() }
+            .addedToBagToast($addedToBag)
         }
     }
 
@@ -200,6 +204,16 @@ struct BookStudioView: View {
             // one that costs $119 should not be the second of two identical buttons.
             orderButton
 
+            // A book is the piece most likely to be bought alongside something else — it is the
+            // object people reach for at the end of a year, next to a print of the race that made
+            // it. Buying it alone was the only thing this screen allowed.
+            if canOrder {
+                AddToBagButton(isWorking: isAddingToBag,
+                               isDisabled: orderPhase != nil || isExporting) {
+                    order(.bag)
+                }
+            }
+
             if let proofURL {
                 ShareLink(item: proofURL) {
                     Label("Share Proof PDF", systemImage: "square.and.arrow.up")
@@ -252,7 +266,7 @@ struct BookStudioView: View {
     /// order is a thing you commit to, and the page should not invite the second before the first.
     @ViewBuilder private var orderButton: some View {
         if canOrder {
-            Button(action: order) {
+            Button { order(.checkout) } label: {
                 Group {
                     if let orderPhase {
                         HStack(spacing: 10) {
@@ -274,10 +288,12 @@ struct BookStudioView: View {
         }
     }
 
-    private func order() {
-        guard orderPhase == nil else { return }
+    private func order(_ destination: StudioOrderDestination) {
+        guard orderPhase == nil, !isAddingToBag else { return }
         let plan = plan
+        if destination == .bag { isAddingToBag = true }
         Task {
+            defer { isAddingToBag = false }
             do {
                 // The proof and the production file are the same document, so an exported proof
                 // is reused rather than rendered twice — `exportPDF` writes one file per subject
@@ -298,19 +314,40 @@ struct BookStudioView: View {
                 // Stable across reorders on purpose: the creation id is what lets a second copy
                 // of the 2026 book be reproduced rather than re-imagined. The asset id beneath it
                 // is fresh every time, so nothing frozen is ever overwritten.
-                let cart = try await PrintOrderService.checkout(
-                    fileAt: fileURL,
-                    pixels: BookCatalog.pagePixelSize,
-                    creationID: "book-\(plan.subject.slug)-\(plan.pageCount)p",
-                    shopifySKU: BookCatalog.prodigiSKU,
-                    prodigiSKU: BookCatalog.prodigiSKU,
-                    productHandle: BookCatalog.shopifyHandle,
-                    finishAttribute: "",
-                    contentType: BookCatalog.contentType,
-                    onPhase: { orderPhase = $0 }
-                )
-                orderPhase = nil
-                checkoutURL = cart.checkoutURL
+                let creationID = "book-\(plan.subject.slug)-\(plan.pageCount)p"
+                switch destination {
+                case .checkout:
+                    let cart = try await PrintOrderService.checkout(
+                        fileAt: fileURL,
+                        pixels: BookCatalog.pagePixelSize,
+                        creationID: creationID,
+                        shopifySKU: BookCatalog.prodigiSKU,
+                        prodigiSKU: BookCatalog.prodigiSKU,
+                        productHandle: BookCatalog.shopifyHandle,
+                        finishAttribute: "",
+                        contentType: BookCatalog.contentType,
+                        onPhase: { orderPhase = $0 }
+                    )
+                    orderPhase = nil
+                    checkoutURL = cart.checkoutURL
+                case .bag:
+                    try await PrintOrderService.addToBag(
+                        fileAt: fileURL,
+                        pixels: BookCatalog.pagePixelSize,
+                        creationID: creationID,
+                        shopifySKU: BookCatalog.prodigiSKU,
+                        prodigiSKU: BookCatalog.prodigiSKU,
+                        productHandle: BookCatalog.shopifyHandle,
+                        finishAttribute: "",
+                        contentType: BookCatalog.contentType,
+                        title: plan.subject.productName,
+                        detail: "\(plan.subject.menuLabel) · \(plan.pageCount) pages",
+                        priceCents: BookCatalog.priceCents,
+                        onPhase: { orderPhase = $0 }
+                    )
+                    orderPhase = nil
+                    addedToBag = true
+                }
             } catch {
                 orderPhase = nil
                 orderError = error.localizedDescription

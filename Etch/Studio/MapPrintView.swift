@@ -59,6 +59,11 @@ struct MapPrintView: View {
     @State private var indexPhotoStamp = 0
     /// The direct order path, for the compositions made of our own ink.
     @State private var showSizeDialog = false
+    /// Which way the size dialog is about to send the piece. Chosen before the dialog opens, so
+    /// the sizes stay one list of sizes rather than two lists of size-and-verb.
+    @State private var pendingDestination: StudioOrderDestination = .checkout
+    @State private var isAddingToBag = false
+    @State private var addedToBag = false
     @State private var orderPhase: PrintOrderService.Phase?
     @State private var orderError: String?
     @State private var checkoutURL: URL?
@@ -241,10 +246,35 @@ struct MapPrintView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
+                // One bag, two verbs behind it.
+                //
+                // Both need a size, so both open the same size list with the destination already
+                // chosen — putting two verbs on every size row would have doubled a list whose
+                // whole job is to compare sizes. And a second toolbar button would have meant
+                // `bag` beside `bag.badge.plus`, two glyphs a few points apart that are nearly
+                // indistinguishable at that size: a choice the reader has to squint at is worse
+                // than a menu they have to open.
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        if canOrder { showSizeDialog = true } else { showPrints = true }
-                    } label: { Image(systemName: "bag") }
+                    if canOrder {
+                        Menu {
+                            Button {
+                                pendingDestination = .checkout
+                                showSizeDialog = true
+                            } label: { Label("Buy now", systemImage: "bag") }
+                            Button {
+                                pendingDestination = .bag
+                                showSizeDialog = true
+                            } label: { Label("Add to Bag", systemImage: "bag.badge.plus") }
+                        } label: {
+                            Image(systemName: "bag")
+                        }
+                        .disabled(orderPhase != nil || isAddingToBag)
+                    } else {
+                        // Not printable — the map-based pieces draw on Apple snapshots, which are
+                        // licensed for screens and not for merchandise. The bag still opens the
+                        // shop to browse rather than pretending this piece can be ordered.
+                        Button { showPrints = true } label: { Image(systemName: "bag") }
+                    }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showExport = true } label: { Image(systemName: "square.and.arrow.up") }
@@ -257,9 +287,11 @@ struct MapPrintView: View {
                 PrintShopView(subjectTitle: request.title, artwork: rendered[currentKey])
             }
             .task(id: currentKey) { await renderIfNeeded(currentKey) }
-            .confirmationDialog("Order this piece", isPresented: $showSizeDialog, titleVisibility: .visible) {
+            .addedToBagToast($addedToBag)
+            .confirmationDialog(pendingDestination == .bag ? "Add to bag" : "Order this piece",
+                                isPresented: $showSizeDialog, titleVisibility: .visible) {
                 ForEach(PrintProduct.print.sizes) { size in
-                    Button("\(size.label) · \(size.price)") { order(size) }
+                    Button("\(size.label) · \(size.price)") { order(size, pendingDestination) }
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
@@ -762,28 +794,50 @@ struct MapPrintView: View {
     /// Renders this composition at print resolution — banded, so a 24 × 36 never exists as one
     /// allocation — freezes it into the fulfilment worker, and opens checkout. Same pipeline,
     /// same hidden line attributes, same single shape of order the worker already understands.
-    private func order(_ size: PrintSize) {
-        guard orderPhase == nil else { return }
+    private func order(_ size: PrintSize, _ destination: StudioOrderDestination) {
+        guard orderPhase == nil, !isAddingToBag else { return }
         let request = request
+        if destination == .bag { isAddingToBag = true }
         Task {
+            defer { isAddingToBag = false }
             do {
                 orderPhase = .rendering
                 let fileURL = try await MapPrintRenderer.printFile(for: request, geometry: size.geometry)
                 defer { try? FileManager.default.removeItem(at: fileURL) }
 
                 let piece = request.cityIndex ? "cityindex" : "anthology-\(request.artStyle.rawValue)"
-                let cart = try await PrintOrderService.checkout(
-                    fileAt: fileURL,
-                    pixels: size.geometry.trimPixels,
-                    creationID: "\(piece)-\(size.prodigiSKU)-\(UUID().uuidString)",
-                    shopifySKU: size.prodigiSKU,
-                    prodigiSKU: size.prodigiSKU,
-                    productHandle: PrintProduct.print.shopifyHandle,
-                    finishAttribute: "",
-                    onPhase: { orderPhase = $0 }
-                )
-                orderPhase = nil
-                checkoutURL = cart.checkoutURL
+                let creationID = "\(piece)-\(size.prodigiSKU)-\(UUID().uuidString)"
+                switch destination {
+                case .checkout:
+                    let cart = try await PrintOrderService.checkout(
+                        fileAt: fileURL,
+                        pixels: size.geometry.trimPixels,
+                        creationID: creationID,
+                        shopifySKU: size.prodigiSKU,
+                        prodigiSKU: size.prodigiSKU,
+                        productHandle: PrintProduct.print.shopifyHandle,
+                        finishAttribute: "",
+                        onPhase: { orderPhase = $0 }
+                    )
+                    orderPhase = nil
+                    checkoutURL = cart.checkoutURL
+                case .bag:
+                    try await PrintOrderService.addToBag(
+                        fileAt: fileURL,
+                        pixels: size.geometry.trimPixels,
+                        creationID: creationID,
+                        shopifySKU: size.prodigiSKU,
+                        prodigiSKU: size.prodigiSKU,
+                        productHandle: PrintProduct.print.shopifyHandle,
+                        finishAttribute: "",
+                        title: request.title,
+                        detail: "\(size.label) · \(PrintProduct.print.name)",
+                        priceCents: size.resolvedPriceCents,
+                        onPhase: { orderPhase = $0 }
+                    )
+                    orderPhase = nil
+                    addedToBag = true
+                }
             } catch {
                 orderPhase = nil
                 orderError = error.localizedDescription
