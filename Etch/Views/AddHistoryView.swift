@@ -134,7 +134,7 @@ struct ImportGuide: Identifiable {
             steps: [
                 "Sign in at nike.com and open your Privacy settings.",
                 "Request a copy of your data, then download the .zip Nike emails you.",
-                "Choose that .zip here — Etch reads your runs from inside it."
+                "Choose that .zip here — Etch reads your activities from inside it."
             ],
             note: "No need to unzip — pick the file exactly as Nike sends it."
         ),
@@ -159,7 +159,7 @@ struct ImportGuide: Identifiable {
         ImportGuide(
             id: "other", name: "Other fitness app", symbol: "square.and.arrow.down",
             steps: [
-                "Most apps can export a run as .gpx or .tcx.",
+                "Most apps can export an activity as .gpx or .tcx.",
                 "Save the files to your phone (Files, iCloud Drive, or AirDrop).",
                 "Choose them here."
             ],

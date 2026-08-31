@@ -236,7 +236,7 @@ struct StudioHomeView: View {
             let outcome = await service.parse(urls: [url])
             isParsingImport = false
             if outcome.activities.isEmpty {
-                importError = "Couldn't read a run from that file. Etch supports GPX, TCX, and FIT."
+                importError = "Couldn't read an activity from that file. Etch supports GPX, TCX, and FIT."
             } else {
                 let best = outcome.activities.max { $0.coordinates.count < $1.coordinates.count }
                 importDraft = ImportedRunDraft(activity: best ?? outcome.activities[0])

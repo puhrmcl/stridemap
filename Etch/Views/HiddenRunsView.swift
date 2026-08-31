@@ -13,9 +13,9 @@ struct HiddenRunsView: View {
         Group {
             if hidden.isEmpty {
                 ContentUnavailableView(
-                    "No Hidden Runs",
+                    "Nothing hidden",
                     systemImage: "eye",
-                    description: Text("Runs you hide from the run detail screen appear here, where you can bring them back.")
+                    description: Text("Activities you hide from the detail screen appear here, where you can bring them back.")
                 )
             } else {
                 List {
@@ -37,7 +37,7 @@ struct HiddenRunsView: View {
                 }
             }
         }
-        .navigationTitle("Hidden Runs")
+        .navigationTitle("Hidden Activities")
         .navigationBarTitleDisplayMode(.inline)
     }
 

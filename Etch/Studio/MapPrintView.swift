@@ -140,7 +140,7 @@ struct MapPrintView: View {
 
     private var artFilterLabel: String {
         switch artFilter {
-        case .all:       return "All Runs"
+        case .all:       return "Everything"
         case .favorites: return "Favorites"
         case .races:     return "Races"
         case .year(let y): return String(y)
@@ -503,7 +503,7 @@ struct MapPrintView: View {
     private var descriptorText: String {
         if kind.isArt { return artStyle.descriptor }
         if kind == .cities && cityIndexOn { return "Every city, ranked by visits — set as type." }
-        if focusName != nil { return "A single \(singularKindName), framed to its runs." }
+        if focusName != nil { return "A single \(singularKindName), framed to its activities." }
         return kind.descriptor
     }
 

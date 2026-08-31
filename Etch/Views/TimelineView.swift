@@ -110,9 +110,9 @@ struct TimelineView: View {
             Group {
                 if scopedRuns.isEmpty {
                     ContentUnavailableView(
-                        "No Runs Yet",
+                        "Nothing here yet",
                         systemImage: "calendar",
-                        description: Text("Sync your runs to build your timeline.")
+                        description: Text("Sync your activities to build your timeline.")
                     )
                 } else {
                     ScrollViewReader { proxy in
@@ -251,7 +251,11 @@ struct TimelineView: View {
                         year: year,
                         hero: hero(in: yearRuns),
                         count: yearRuns.count,
-                        countNoun: appModel.activityScope.countNoun,
+                        // The year's own activities name themselves. The selector's word is
+                        // right for the page and wrong for a card: on All Activities a year
+                        // of nothing but hikes was captioned "activities" when it could say
+                        // "hikes", and that is the whole complaint about this vocabulary.
+                        countNoun: ActivityScope.noun(for: yearRuns, count: yearRuns.count),
                         distanceMeters: yearRuns.reduce(0) { $0 + $1.distance }
                     )
                 }
@@ -361,7 +365,7 @@ struct TimelineView: View {
         .buttonStyle(.plain)
         .contextMenu {
             Button(role: .destructive) { delete(run) } label: {
-                Label("Delete Run", systemImage: "trash")
+                Label("Delete Activity", systemImage: "trash")
             }
         }
     }

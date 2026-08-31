@@ -45,10 +45,10 @@ struct ProfileView: View {
                 }
 
                 Section {
-                    row(title: "Search", subtitle: "Find a run by name, place, or date",
+                    row(title: "Search", subtitle: "Find an activity by name, place, or date",
                         systemName: "magnifyingglass") { showSearch = true }
                     activityFilterRow
-                    row(title: "Import Activity", subtitle: "Bring in runs from other apps",
+                    row(title: "Import Activity", subtitle: "Bring in activities from other apps",
                         systemName: "square.and.arrow.down") { showImport = true }
                     row(title: "Settings", subtitle: "Account, units, sync, and more",
                         systemName: "gearshape") { showSettings = true }

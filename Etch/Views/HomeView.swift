@@ -1490,7 +1490,7 @@ struct HomeView: View {
                 Image(systemName: "figure.run.circle")
                     .font(.system(size: 44))
                     .foregroundStyle(.secondary)
-                Text("No runs yet")
+                Text("Nothing here yet")
                     .font(.etch(.title3, weight: .semibold))
                 Button("Sync now") {
                     Task { await sync.sync() }
@@ -1514,9 +1514,9 @@ struct HomeView: View {
 
     private var syncingLabel: String {
         if case .syncing(let imported) = sync.status, imported > 0 {
-            return "Importing runs… \(imported)"
+            return "Importing activities… \(imported)"
         }
-        return "Importing your runs…"
+        return "Importing your activities…"
     }
 
     // MARK: Sheet plumbing

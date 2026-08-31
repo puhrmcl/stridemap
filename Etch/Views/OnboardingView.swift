@@ -27,7 +27,7 @@ struct OnboardingView: View {
                     Text("Etch")
                         .font(.etch(size: 40, weight: .bold))
 
-                    Text("Every run you've ever taken,\nwoven into one living map.")
+                    Text("Every mile you've ever moved,\nwoven into one living map.")
                         .font(.etch(.title3))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -41,7 +41,7 @@ struct OnboardingView: View {
 
                     stravaButton
 
-                    Text("Your runs come from Apple Health — including workouts from Nike Run Club, Garmin, COROS, Strava, and more. Nothing is shared.")
+                    Text("Your activities come from Apple Health — runs, rides, hikes and walks, including workouts from Nike Run Club, Garmin, COROS, Strava, and more. Nothing is shared.")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)

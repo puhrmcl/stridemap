@@ -219,7 +219,7 @@ struct ImportPreviewView: View {
             }
             .buttonStyle(.plain)
         } else {
-            Text(summary.found > 0 ? "Everything here is already in Etch." : "No runs found in these files.")
+            Text(summary.found > 0 ? "Everything here is already in Etch." : "No activities found in these files.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity)

@@ -107,7 +107,7 @@ struct RunDetailView: View {
                     VStack(spacing: 4) {
                         hideButton
                         deleteButton
-                        Text("Hiding keeps a run in Etch but off your map, timeline, and totals — handy for a synced run you don't want counted. Manage hidden runs in Settings.")
+                        Text("Hiding keeps an activity in Etch but off your map, timeline, and totals — handy for a synced activity you don't want counted. Manage hidden activities in Settings.")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -116,7 +116,7 @@ struct RunDetailView: View {
                 }
                 .padding(20)
             }
-            .confirmationDialog("Delete this run? This can't be undone.", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+            .confirmationDialog("Delete this activity? This can't be undone.", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
                 Button("Delete Run", role: .destructive) { deleteRun() }
                 Button("Cancel", role: .cancel) {}
             }
@@ -718,7 +718,7 @@ struct RunDetailView: View {
                     .foregroundStyle(.secondary)
                     .disabled(isFindingPhotos)
                 }
-                Text("Etch can find photos you took during this run.")
+                Text("Etch can find photos you took during this activity.")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             } else {

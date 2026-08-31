@@ -10,7 +10,7 @@ enum MapPrintKind: String, CaseIterable, Identifiable {
     var name: String {
         switch self {
         case .artMap:    return "Anthology"
-        case .allRuns:   return "All Runs"
+        case .allRuns:   return "Everything"
         case .states:    return "States"
         case .cities:    return "Cities"
         case .countries: return "Countries"
@@ -118,7 +118,7 @@ enum StateMetric: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var name: String {
         switch self {
-        case .runs:     return "Runs"
+        case .runs:     return "Activities"
         case .miles:    return "Miles"
         case .cities:   return "Cities"
         case .highElev: return "High Elev"
@@ -349,7 +349,11 @@ struct MapPrintRequest {
         if stats.cities.count == 1, let c = stats.cities.first { return c }
         if stats.states.count == 1, let s = stats.states.first { return s }
         if stats.countries.count == 1, let c = stats.countries.first { return c }
-        return "Your Runs"
+        // The last-resort title, printed on the artwork itself. It said "Your Runs" over a wall
+        // of hikes, which is the one place this vocabulary costs money rather than credibility.
+        return ActivityScope.of(runs) == .all
+            ? "Your Activities"
+            : "Your \(ActivityScope.of(runs).label)"
     }
 
     // MARK: Region

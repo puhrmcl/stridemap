@@ -26,7 +26,7 @@ struct HubView: View {
     private let exploreSection: [Item] = [
         Item(surface: .timeline, title: "Timeline", subtitle: "Browse your history by year", icon: "square.grid.2x2"),
         Item(surface: .highlights, title: "Achievements", subtitle: "Records, reach, and recaps", icon: "trophy"),
-        Item(surface: .studio, title: "Studio", subtitle: "Turn a run into a print", icon: "photo.artframe"),
+        Item(surface: .studio, title: "Studio", subtitle: "Turn an activity into a print", icon: "photo.artframe"),
         Item(surface: .filters, title: "Filter", subtitle: "Activity, distance, time, location…", icon: "line.3.horizontal.decrease")
     ]
 
@@ -78,7 +78,7 @@ struct HubView: View {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.secondary)
-                TextField("Search runs, places, dates…", text: $query)
+                TextField("Search activities, places, dates…", text: $query)
                     .focused($searchFocused)
                     .submitLabel(.search)
                     .autocorrectionDisabled()

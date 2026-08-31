@@ -17,7 +17,7 @@ struct UnmappedRunsView: View {
                 ContentUnavailableView(
                     "Everything's on the map",
                     systemImage: "mappin.and.ellipse",
-                    description: Text("Runs without GPS — indoor or treadmill runs — show up here so you can place them on the map.")
+                    description: Text("Activities without GPS — indoor or treadmill efforts — show up here so you can place them on the map.")
                 )
             } else {
                 Section {
@@ -26,11 +26,11 @@ struct UnmappedRunsView: View {
                             .buttonStyle(.plain)
                     }
                 } footer: {
-                    Text("Tap a run to place it on the map. Etch suggests a nearby spot from your recent runs — confirm it or drag to adjust.")
+                    Text("Tap an activity to place it on the map. Etch suggests a nearby spot from your recent activities — confirm it or drag to adjust.")
                 }
             }
         }
-        .navigationTitle("Unmapped Runs")
+        .navigationTitle("Unmapped Activities")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $picking) { run in
             LocationPickerView(title: run.name, start: suggestion(for: run)) { coordinate in

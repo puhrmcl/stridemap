@@ -32,7 +32,7 @@ struct ImportRunView: View {
     init(activity: ImportedActivity, onAdded: ((Run) -> Void)? = nil) {
         self.activity = activity
         self.onAdded = onAdded
-        _title = State(initialValue: activity.name?.isEmpty == false ? activity.name! : "Imported Run")
+        _title = State(initialValue: activity.name?.isEmpty == false ? activity.name! : "Imported Activity")
         _makeRace = State(initialValue: activity.isRace ?? false)
     }
 
@@ -89,7 +89,7 @@ struct ImportRunView: View {
                     Label("Count toward my totals", systemImage: "sum")
                 }
             } footer: {
-                Text("Off keeps this run out of your distance, activity count, and records while it still appears on the map, in your timeline, and in Studio.")
+                Text("Off keeps this activity out of your distance, activity count, and records while it still appears on the map, in your timeline, and in Studio.")
             }
         }
         .navigationTitle("Import an Activity")

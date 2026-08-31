@@ -15,7 +15,7 @@ struct RunStackView: View {
                 }
             }
             .listStyle(.plain)
-            .navigationTitle("\(runs.count) runs here")
+            .navigationTitle("\(runs.count) \(ActivityScope.noun(for: runs)) here")
             .navigationBarTitleDisplayMode(.inline)
         }
     }

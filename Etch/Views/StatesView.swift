@@ -77,7 +77,7 @@ struct StatesView: View {
 
     private var stateList: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Where you've run")
+            Text("Where you've been")
                 .font(.etch(.title3, weight: .bold))
 
             ForEach(ranked, id: \.name) { item in
@@ -88,7 +88,7 @@ struct StatesView: View {
     }
 
     private var emptyHint: some View {
-        Text("States appear once your runs have GPS locations.")
+        Text("States appear once your activities have GPS locations.")
             .font(.footnote)
             .foregroundStyle(.secondary)
             .padding(10)
@@ -134,7 +134,7 @@ private struct StateRow: View {
                 .font(.etch(.headline))
                 .foregroundStyle(.primary)
                 .monospacedDigit()
-            Text(count == 1 ? "run" : "runs")
+            Text(ActivityScope.of(runs).noun(count))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

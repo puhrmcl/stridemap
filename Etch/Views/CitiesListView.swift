@@ -7,6 +7,9 @@ struct CitiesListView: View {
     let places: [RunStatistics.TravelPlace]
 
     private var totalRuns: Int { places.reduce(0) { $0 + $1.runs.count } }
+    /// Every activity behind the list, so the count can be named in the right word — "42 hikes"
+    /// when that is all this history holds, "activities" the moment it is mixed.
+    private var allRuns: [Run] { places.flatMap(\.runs) }
     private var totalDistance: Double { places.reduce(0) { $0 + $1.totalDistance } }
     private var maxRuns: Int { places.map(\.runs.count).max() ?? 1 }
 
@@ -16,7 +19,7 @@ struct CitiesListView: View {
                 ContentUnavailableView(
                     "No cities yet",
                     systemImage: "building.2",
-                    description: Text("Cities appear once your runs have GPS locations.")
+                    description: Text("Cities appear once your activities have GPS locations.")
                 )
                 .padding(.top, 60)
             } else {
@@ -52,7 +55,7 @@ struct CitiesListView: View {
                     .font(.etch(.title3, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
-            Text("\(totalRuns) runs · \(Format.distance(totalDistance, decimals: 0))")
+            Text("\(totalRuns) \(ActivityScope.noun(for: allRuns, count: totalRuns)) · \(Format.distance(totalDistance, decimals: 0))")
                 .font(.etch(.subheadline))
                 .foregroundStyle(.secondary)
         }
@@ -63,7 +66,7 @@ struct CitiesListView: View {
 
     private var list: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Where you've run")
+            Text("Where you've been")
                 .font(.etch(.title3, weight: .bold))
 
             ForEach(Array(places.enumerated()), id: \.element.id) { index, place in
@@ -111,7 +114,7 @@ private struct CityRow: View {
                 .font(.etch(.headline))
                 .foregroundStyle(.primary)
                 .monospacedDigit()
-            Text("runs")
+            Text(ActivityScope.noun(for: place.runs))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

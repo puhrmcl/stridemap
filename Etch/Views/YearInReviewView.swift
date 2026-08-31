@@ -77,7 +77,7 @@ struct YearInReviewView: View {
         Button {
             isPlaying ? stop() : play()
         } label: {
-            Label(isPlaying ? "Stop" : "Play \(mappableRuns.count) runs", systemImage: isPlaying ? "stop.fill" : "play.fill")
+            Label(isPlaying ? "Stop" : "Play \(mappableRuns.count) \(ActivityScope.noun(for: mappableRuns))", systemImage: isPlaying ? "stop.fill" : "play.fill")
                 .font(.etch(.subheadline, weight: .semibold))
                 .padding(.horizontal, 18)
                 .padding(.vertical, 10)
@@ -121,7 +121,7 @@ struct YearInReviewView: View {
             Text(Format.distanceValue(stats.totalDistanceMeters).formatted(.number.precision(.fractionLength(0))))
                 .font(.etch(size: 60, weight: .heavy))
                 .foregroundStyle(Theme.accent)
-            Text("\(UnitSystem.current.label.lowercased()) run in \(String(year))")
+            Text("\(UnitSystem.current.label.lowercased()) in \(String(year))")
                 .font(.etch(.headline))
                 .foregroundStyle(.secondary)
         }
@@ -139,7 +139,7 @@ struct YearInReviewView: View {
     private var superlatives: some View {
         VStack(spacing: 10) {
             if let longest = stats.longestRun {
-                SuperlativeRow(icon: "arrow.left.and.right", title: "Longest Run", value: Format.distance(longest.distance), subtitle: longest.name)
+                SuperlativeRow(icon: "arrow.left.and.right", title: "Furthest", value: Format.distance(longest.distance), subtitle: longest.name)
             }
             if let climb = stats.highestClimb {
                 SuperlativeRow(icon: "mountain.2", title: "Highest Climb", value: Format.elevation(climb.elevationGain), subtitle: climb.name)

@@ -49,9 +49,47 @@ enum ActivityScope: String, CaseIterable, Identifiable {
         }
     }
 
+    /// The same word for a single one — "1 hike", "1 activity".
+    var singularNoun: String {
+        switch self {
+        case .all:   return "activity"
+        case .runs:  return "run"
+        case .hikes: return "hike"
+        case .rides: return "ride"
+        case .walks: return "walk"
+        }
+    }
+
+    /// The noun that counts a set, agreeing with the count: "1 hike", "12 hikes", "9 activities".
+    func noun(_ count: Int) -> String { count == 1 ? singularNoun : countNoun }
+
     /// Pace / speed comparisons only make sense for runs — hikes, rides and walks are time /
     /// elevation / speed efforts, so run-style pace superlatives and PRs are hidden for them.
     var usesPace: Bool { self == .runs || self == .all }
+
+    /// The scope a particular set of activities *is*: the one type when they are all one type,
+    /// `.all` when they are mixed.
+    ///
+    /// Read from the activities rather than from the selector, which is what makes it right in
+    /// the places the selector cannot reach. A Cities list is handed a set of activities and has
+    /// no idea what the map is filtered to; asking the set is both simpler than plumbing the
+    /// scope through every screen and more accurate than it — a history of nothing but hikes
+    /// should say "42 hikes" even while the selector sits on All Activities.
+    static func of(_ runs: [Run]) -> ActivityScope {
+        var seen: Set<ActivityType> = []
+        for run in runs {
+            seen.insert(run.activityType)
+            if seen.count > 1 { return .all }
+        }
+        guard let only = seen.first,
+              let scope = allCases.first(where: { $0.activityType == only }) else { return .all }
+        return scope
+    }
+
+    /// The word to count a set of activities in — "42 hikes", "9 activities", "1 run".
+    static func noun(for runs: [Run], count: Int? = nil) -> String {
+        of(runs).noun(count ?? runs.count)
+    }
 }
 
 /// Per-activity visibility. Runs are the base and always shown; hikes and walks can each be turned

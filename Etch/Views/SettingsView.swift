@@ -43,7 +43,7 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
             }
-            .confirmationDialog("Delete all cached runs? You can re-sync from Strava.", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+            .confirmationDialog("Delete all cached activities? You can re-sync from Strava.", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
                 Button("Delete Cache", role: .destructive) { deleteCache() }
             }
             .alert("Strava", isPresented: Binding(get: { connectError != nil }, set: { if !$0 { connectError = nil } })) {
@@ -104,7 +104,7 @@ struct SettingsView: View {
         } header: {
             Text("Sources")
         } footer: {
-            Text("Runs come from Apple Health, including workouts recorded by Nike Run Club, Garmin, COROS, Polar, Wahoo, and others. Connect Strava to add titles, gear, and race details, or add your history from files exported by another app.")
+            Text("Activities come from Apple Health, including workouts recorded by Nike Run Club, Garmin, COROS, Polar, Wahoo, and others. Connect Strava to add titles, gear, and race details, or add your history from files exported by another app.")
         }
     }
 
@@ -142,7 +142,7 @@ struct SettingsView: View {
                 HiddenRunsView()
             } label: {
                 HStack {
-                    Label("Hidden Runs", systemImage: "eye.slash")
+                    Label("Hidden Activities", systemImage: "eye.slash")
                     Spacer()
                     let count = runs.filter(\.isHidden).count
                     if count > 0 {
@@ -154,7 +154,7 @@ struct SettingsView: View {
                 UnmappedRunsView()
             } label: {
                 HStack {
-                    Label("Unmapped Runs", systemImage: "mappin.slash")
+                    Label("Unmapped Activities", systemImage: "mappin.slash")
                     Spacer()
                     let count = runs.filter { $0.needsLocation && !$0.isHidden }.count
                     if count > 0 {
@@ -203,7 +203,7 @@ struct SettingsView: View {
                 .disabled(sync.isRecoveringRoutes || sync.isSyncing)
             }
         } footer: {
-            Text("Some apps save a run to Apple Health before its GPS route finishes syncing. Etch recovers those maps automatically; use this to check now.")
+            Text("Some apps save an activity to Apple Health before its GPS route finishes syncing. Etch recovers those maps automatically; use this to check now.")
         }
     }
 
@@ -213,7 +213,7 @@ struct SettingsView: View {
                 Task { await findAllPhotos() }
             } label: {
                 HStack {
-                    Label("Find Photos for All Runs", systemImage: "photo.on.rectangle.angled")
+                    Label("Find Photos for All Activities", systemImage: "photo.on.rectangle.angled")
                     Spacer()
                     if isMatchingPhotos {
                         if let p = photoProgress {
@@ -228,7 +228,7 @@ struct SettingsView: View {
         } header: {
             Text("Photos")
         } footer: {
-            Text("Matches photos from your library to each run by time and location, and attaches them. Runs without GPS match by time only. Your photos stay on this device.")
+            Text("Matches photos from your library to each activity by time and location, and attaches them. Activities without GPS match by time only. Your photos stay on this device.")
         }
     }
 
@@ -300,8 +300,8 @@ struct SettingsView: View {
 
     private var routeDiagnosticsSection: some View {
         Section {
-            LabeledContent("Cached Runs", value: runs.count.formatted())
-            LabeledContent("Runs with Maps", value: runs.filter(\.hasRoute).count.formatted())
+            LabeledContent("Cached Activities", value: runs.count.formatted())
+            LabeledContent("Activities with Maps", value: runs.filter(\.hasRoute).count.formatted())
             ForEach(routeBreakdown, id: \.source) { row in
                 LabeledContent(row.source, value: "\(row.withMaps)/\(row.total) maps")
             }
@@ -334,12 +334,12 @@ struct SettingsView: View {
     private var statesDiagnosticsSection: some View {
         Section {
             LabeledContent("US map regions", value: USStateBoundaries.shared.boundaries.count.formatted())
-            LabeledContent("Runs with GPS", value: locatedRunCount.formatted())
+            LabeledContent("Activities with GPS", value: locatedRunCount.formatted())
             LabeledContent("States detected", value: detectedStateCount.formatted())
         } header: {
             Text("Map Coverage")
         } footer: {
-            Text("The States map shades a state when a run started inside it. \"US map regions\" should be 51 (50 states + DC); if it's 0 the boundary data didn't ship. \"Runs with GPS\" is how many runs have a route to place — only these can be attributed to a state or city.")
+            Text("The States map shades a state when an activity started inside it. \"US map regions\" should be 51 (50 states + DC); if it's 0 the boundary data didn't ship. \"Activities with GPS\" is how many have a route to place — only these can be attributed to a state or city.")
         }
     }
 
