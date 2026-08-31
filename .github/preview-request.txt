@@ -13,9 +13,10 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Re-requested for b507: the first run put the Photos permission sheet over both shots —
-# seeding photo references made the very first tile ask for the library. The workflow now
-# grants photos alongside location, so these come back clean.
+# Re-requested for b507: the first two runs put the Photos permission sheet over both shots —
+# seeding photo references made the very first tile ask for the library, and `simctl privacy
+# grant photos` did not settle it. PhotoLibrary now returns nil outright under ETCH_PREVIEW,
+# so nothing asks. The simulator's library is empty either way.
 #
 # Two things to look at.
 #

@@ -140,9 +140,19 @@ enum PhotoLibrary {
 
     // MARK: Image loading
 
+    /// True while CI is photographing a screen. The harness seeds photo references that point at
+    /// nothing, and the first `PHAsset` fetch against an undetermined authorization puts the
+    /// system's "would like full access to your Photo Library" sheet over whatever was being
+    /// photographed — which is how b507's first pair of screenshots came back. Nothing is being
+    /// suppressed here that a simulator could have loaded: its library is empty either way.
+    private static var isPreview: Bool {
+        ProcessInfo.processInfo.environment["ETCH_PREVIEW"]?.isEmpty == false
+    }
+
     /// Loads an image for an asset identifier at (roughly) the target size. Returns nil if the
     /// asset no longer exists (e.g. deleted from the library).
     static func image(for identifier: String, targetSize: CGSize) async -> UIImage? {
+        guard !isPreview else { return nil }
         guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject
         else { return nil }
 
@@ -161,6 +171,7 @@ enum PhotoLibrary {
 
     /// Loads the full-resolution image for an asset, for sharing. Nil if the asset is gone.
     static func fullImage(for identifier: String) async -> UIImage? {
+        guard !isPreview else { return nil }
         guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject
         else { return nil }
 
