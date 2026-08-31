@@ -138,7 +138,9 @@ struct RunDetailView: View {
                 RunPhotoViewer(
                     identifiers: run.photoReferences,
                     selection: selection.id,
-                    onDelete: deletePhoto
+                    coverIdentifier: run.photoReferences.first,
+                    onDelete: deletePhoto,
+                    onSetCover: setDefaultPhoto
                 )
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -734,6 +736,7 @@ struct RunDetailView: View {
                                             .padding(5)
                                             .background(Theme.accent, in: .circle)
                                             .padding(6)
+                                            .accessibilityLabel("Cover photo")
                                     }
                                 }
                                 .opacity(draggingPhoto == identifier ? 0.5 : 1)
@@ -755,7 +758,7 @@ struct RunDetailView: View {
                                         Button {
                                             setDefaultPhoto(identifier)
                                         } label: {
-                                            Label("Set as Default", systemImage: "star")
+                                            Label("Make Cover Photo", systemImage: "star")
                                         }
                                     }
                                     Button(role: .destructive) {
@@ -814,8 +817,12 @@ struct RunDetailView: View {
         try? context.save()
     }
 
-    /// Makes a photo the run's default (cover) by moving it to the front — this is the photo
-    /// used on tiles, the timeline, and the Studio "Memory" edition.
+    /// Makes a photo the run's cover by moving it to the front of `photoReferences`.
+    ///
+    /// First-is-cover is the whole mechanism, and it is why this is a reorder rather than a flag:
+    /// eight places already read `photoReferences.first` — the route thumbnail, the month tile,
+    /// the Photo Wall, a book's race page, the Studio storefront — and every one of them picks up
+    /// a new cover without knowing the concept exists.
     private func setDefaultPhoto(_ identifier: String) {
         guard let index = run.photoReferences.firstIndex(of: identifier), index != 0 else { return }
         var refs = run.photoReferences
