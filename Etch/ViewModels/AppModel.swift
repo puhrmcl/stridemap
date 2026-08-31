@@ -56,6 +56,24 @@ final class AppModel {
     }
     var presentedSurface: Surface?
 
+    /// Tapping the tab you are already on.
+    ///
+    /// Every iOS app of any size does something with this — Photos and Mail return you to the top
+    /// of the list, Safari to the top of the page — because a tab bar is the only navigation
+    /// always within reach, and "get me back to the start" is the thing you most often want from
+    /// somewhere deep in a long scroll. Etch's lists run the other way round, oldest at the top,
+    /// so the start is the foot: the newest activity.
+    ///
+    /// The tab alone cannot carry the signal, because the selection has not changed — hence the
+    /// counter. Views watch the count and check the tab.
+    private(set) var reselectedTab: EtchTab = .map
+    private(set) var reselectCount = 0
+
+    func reselect(_ tab: EtchTab) {
+        reselectedTab = tab
+        reselectCount += 1
+    }
+
     /// Runs sharing (nearly) the same start point, surfaced as a pick-list when a tight
     /// cluster is tapped — so stacked runs at one location can be told apart and opened.
     var stackedRunIDs: [UUID]?

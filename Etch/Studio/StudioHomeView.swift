@@ -137,6 +137,15 @@ struct StudioHomeView: View {
                                 proxy.scrollTo(anchor, anchor: .top)
                             }
                         }
+                        // Tap Studio while you are already in Studio and the storefront returns
+                        // to the top — the same gesture the Timeline answers, so the bar means
+                        // one thing rather than one thing per tab.
+                        .onChange(of: appModel.reselectCount) { _, _ in
+                            guard appModel.reselectedTab == .studio else { return }
+                            withAnimation(.easeInOut(duration: 0.35)) {
+                                proxy.scrollTo("intro", anchor: .top)
+                            }
+                        }
                     }
                 }
             }

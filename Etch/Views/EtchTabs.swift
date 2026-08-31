@@ -114,9 +114,24 @@ struct EtchTabView: View {
     /// Drives the bag's badge.
     @State private var cart = CartStore.shared
 
+    /// The selection, with a re-tap turned into a signal.
+    ///
+    /// A `TabView` binding is written on every tap, including one that does not change the
+    /// selection — which is the only place that gesture can be observed, since by the time a page
+    /// sees it nothing about the state has moved. The write still happens either way; the extra
+    /// line is the announcement.
+    private var selection: Binding<EtchTab> {
+        Binding(
+            get: { appModel.selectedTab },
+            set: { tapped in
+                if tapped == appModel.selectedTab { appModel.reselect(tapped) }
+                appModel.selectedTab = tapped
+            }
+        )
+    }
+
     var body: some View {
-        @Bindable var appModel = appModel
-        TabView(selection: $appModel.selectedTab) {
+        TabView(selection: selection) {
             Tab(EtchTab.map.title, image: EtchTab.map.image, value: EtchTab.map) {
                 HomeView()
             }

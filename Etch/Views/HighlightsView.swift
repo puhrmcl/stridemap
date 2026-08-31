@@ -57,53 +57,66 @@ struct HighlightsView: View {
 
     var body: some View {
         NavRoot(embedded) {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // With more than one activity type, offer the switcher; a single type just
-                    // shows its own achievements with no chooser.
-                    if !isSingleActivity { scopeSwitcher }
-                    if scope == .all {
-                        // The bigger story: combined reach, a per-discipline hub, and recaps.
-                        reachSection
-                        breakdownSection
-                        recapsSection
-                    } else {
-                        // One discipline's deep dive: its records, bests, and recaps.
-                        reachSection
-                        superlativesSection
-                        personalBestsSection
-                        recapsSection
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // With more than one activity type, offer the switcher; a single type just
+                        // shows its own achievements with no chooser.
+                        if !isSingleActivity { scopeSwitcher }
+                        if scope == .all {
+                            // The bigger story: combined reach, a per-discipline hub, and recaps.
+                            reachSection
+                            breakdownSection
+                            recapsSection
+                        } else {
+                            // One discipline's deep dive: its records, bests, and recaps.
+                            reachSection
+                            superlativesSection
+                            personalBestsSection
+                            recapsSection
+                        }
                     }
+                    .padding(20)
+                    // The whole content is the anchor, scrolled to its own top edge. Nothing on
+                    // this page carries an id of its own and the first section changes with the
+                    // scope, so naming a section would name a different one depending on where
+                    // you were.
+                    .id("top")
                 }
-                .padding(20)
-            }
-            .navigationTitle("Achievements")
-            .navigationDestination(item: $pushedRun) { run in
-                RunDetailView(run: run)
-            }
-            // As a tab it wears the shared masthead like its neighbours; as a sheet it keeps the
-            // navigation bar it is presented in.
-            .navigationBarTitleDisplayMode(embedded ? .inline : .large)
-            .toolbar(embedded ? .hidden : .automatic, for: .navigationBar)
-            .safeAreaInset(edge: .top, spacing: 0) {
-                VStack(spacing: 8) {
-                    if embedded {
-                        EtchPageHeader("Achievements")
-                    }
-                    EtchFilterChip(filter: appModel.filter) {
-                        appModel.setFilter(RunFilter())
-                    }
-                    .padding(.horizontal, 20)
+                // Tap Achievements while you are already there and the page returns to the top.
+                .onChange(of: appModel.reselectCount) { _, _ in
+                    guard appModel.reselectedTab == .achievements else { return }
+                    pushedRun = nil
+                    withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo("top", anchor: .top) }
                 }
-                .padding(.bottom, embedded ? 8 : 0)
-                .background(embedded ? AnyShapeStyle(.bar) : AnyShapeStyle(.clear))
+                .navigationTitle("Achievements")
+                .navigationDestination(item: $pushedRun) { run in
+                    RunDetailView(run: run)
+                }
+                // As a tab it wears the shared masthead like its neighbours; as a sheet it keeps the
+                // navigation bar it is presented in.
+                .navigationBarTitleDisplayMode(embedded ? .inline : .large)
+                .toolbar(embedded ? .hidden : .automatic, for: .navigationBar)
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    VStack(spacing: 8) {
+                        if embedded {
+                            EtchPageHeader("Achievements")
+                        }
+                        EtchFilterChip(filter: appModel.filter) {
+                            appModel.setFilter(RunFilter())
+                        }
+                        .padding(.horizontal, 20)
+                    }
+                    .padding(.bottom, embedded ? 8 : 0)
+                    .background(embedded ? AnyShapeStyle(.bar) : AnyShapeStyle(.clear))
+                }
+                .onAppear {
+                    // Heal a stored scope that's since been hidden in Settings so it doesn't linger.
+                    if !ActivitySettings.isVisible(appModel.activityScope) { setScope(.all) }
+                }
+                // Recompute the GPS-attributed reach whenever the scope or the located-run set changes.
+                .task(id: reachKey) { await computeReachGeo() }
             }
-            .onAppear {
-                // Heal a stored scope that's since been hidden in Settings so it doesn't linger.
-                if !ActivitySettings.isVisible(appModel.activityScope) { setScope(.all) }
-            }
-            // Recompute the GPS-attributed reach whenever the scope or the located-run set changes.
-            .task(id: reachKey) { await computeReachGeo() }
         }
     }
 

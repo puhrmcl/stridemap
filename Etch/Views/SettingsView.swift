@@ -108,10 +108,6 @@ struct SettingsView: View {
         }
     }
 
-    private var runsMissingMaps: Int {
-        runs.filter { $0.healthKitID != nil && !$0.hasRoute }.count
-    }
-
     private var activitiesSection: some View {
         Section {
             Toggle(isOn: $includeRuns) {
@@ -186,25 +182,65 @@ struct SettingsView: View {
             }
             .disabled(sync.isSyncing || !sync.hasAnySource)
 
-            if healthKit.isAvailable {
-                Button {
-                    Task { await sync.resyncHealthKitRoutes() }
-                } label: {
-                    HStack {
-                        Label("Recover Missing Maps", systemImage: "map")
-                        Spacer()
-                        if sync.isRecoveringRoutes { ProgressView().controlSize(.small) }
-                        else if runsMissingMaps > 0 {
-                            Text("\(runsMissingMaps)")
-                                .foregroundStyle(.secondary).font(.caption)
-                        }
-                    }
-                }
-                .disabled(sync.isRecoveringRoutes || sync.isSyncing)
-            }
+            if healthKit.isAvailable { recoverMapsRow }
         } footer: {
-            Text("Some apps save an activity to Apple Health before its GPS route finishes syncing. Etch recovers those maps automatically; use this to check now.")
+            Text(mapRecoveryFooter)
         }
+    }
+
+    /// "Recover Missing Maps", rebuilt as a control rather than a spinner.
+    ///
+    /// Three things were wrong with it. It was disabled whenever *any* pass was running, and
+    /// since one starts after every sync that was most of the time — so the tap did nothing and
+    /// the spinner you saw belonged to a background pass. It showed no progress, so ninety
+    /// seconds of real work and a stall looked the same. And its badge counted every activity
+    /// without a map, including the ones Apple Health will never have a route for, so the number
+    /// never moved however well a pass went.
+    ///
+    /// Now it reports counts while it runs, becomes a stop button, and says what the last pass
+    /// found when it finishes.
+    @ViewBuilder private var recoverMapsRow: some View {
+        Button {
+            if sync.isRecoveringRoutes {
+                sync.cancelRouteRecovery()
+            } else {
+                Task { await sync.resyncHealthKitRoutes() }
+            }
+        } label: {
+            HStack {
+                Label(sync.isRecoveringRoutes ? "Stop Checking" : "Recover Missing Maps",
+                      systemImage: sync.isRecoveringRoutes ? "stop.circle" : "map")
+                Spacer()
+                if let progress = sync.routeProgress {
+                    Text("\(progress.checked)/\(progress.total)")
+                        .foregroundStyle(.secondary).font(.caption).monospacedDigit()
+                } else if sync.isRecoveringRoutes {
+                    ProgressView().controlSize(.small)
+                } else if sync.pendingRouteCount > 0 {
+                    Text("\(sync.pendingRouteCount)")
+                        .foregroundStyle(.secondary).font(.caption).monospacedDigit()
+                }
+            }
+        }
+        .disabled(sync.isSyncing)
+
+        if let result = sync.lastRouteResult, !sync.isRecoveringRoutes {
+            Text(result)
+                .font(.etch(.caption))
+                .foregroundStyle(Theme.Ink.tertiary)
+        }
+    }
+
+    /// Explains the number beside the row, including the part of it that will never come down.
+    private var mapRecoveryFooter: String {
+        let base = "Some apps save an activity to Apple Health before its GPS route finishes syncing. "
+            + "Etch picks those up automatically; use this to check now — it works through the "
+            + "library a few hundred at a time, so tap again to continue."
+        let writtenOff = sync.writtenOffRouteCount
+        guard writtenOff > 0 else { return base }
+        return base + " \(writtenOff) activities have no route in Apple Health at all — the app "
+            + "that recorded them never saved one — so they are not counted above. Once everything "
+            + "else is checked, tapping again gives those another look."
     }
 
     private var photosSection: some View {

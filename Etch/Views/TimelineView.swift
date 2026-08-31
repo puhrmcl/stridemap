@@ -122,9 +122,17 @@ struct TimelineView: View {
     ///
     /// It stands down when `scrollTarget` is set, because that means a year card was tapped and
     /// the user asked to land somewhere specific. Two scrolls arguing would be worse than either.
+    ///
+    /// `force` is the re-tap on the Timeline tab: an explicit "take me back to the newest" that
+    /// deliberately ignores both the once-per-scope rule and wherever you had scrolled to.
     @MainActor
-    private func landOnNewest(_ proxy: ScrollViewProxy) async {
-        guard scrollTarget == nil, landedScope != scope else { return }
+    private func landOnNewest(_ proxy: ScrollViewProxy, force: Bool = false) async {
+        if force {
+            // An explicit request outranks a pending year-card jump.
+            scrollTarget = nil
+        } else {
+            guard scrollTarget == nil, landedScope != scope else { return }
+        }
 
         // Wait for there to be something to land on.
         //
@@ -145,7 +153,15 @@ struct TimelineView: View {
         // first scroll resolves against a content height that is still partly an estimate; the
         // second corrects it once the real rows exist. On a few hundred tiles that is a
         // screenful of difference, and on a thousand it is several.
-        proxy.scrollTo(target, anchor: .bottom)
+        //
+        // Arriving is silent; being taken back is animated. A page that simply *is* at the foot
+        // when it opens needs no motion, but a jump you asked for from wherever you had scrolled
+        // to should show you it happened.
+        if force {
+            withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(target, anchor: .bottom) }
+        } else {
+            proxy.scrollTo(target, anchor: .bottom)
+        }
         try? await Task.sleep(nanoseconds: 220_000_000)
         guard !Task.isCancelled, scrollTarget == nil else { return }
         proxy.scrollTo(target, anchor: .bottom)
@@ -195,6 +211,18 @@ struct TimelineView: View {
                         // puts that item's bottom edge on the viewport's bottom edge, and lazy
                         // content materialises toward a named target rather than being guessed at.
                         .task(id: scope) { await landOnNewest(proxy) }
+                        // Tap the Timeline tab you are already on and you come back to the
+                        // newest activity — the top of the list, which here is the foot of the
+                        // page. Applies in whichever scope is showing: the newest year, the
+                        // newest month, the newest activity, the newest photograph.
+                        .task(id: appModel.reselectCount) {
+                            guard appModel.reselectCount > 0,
+                                  appModel.reselectedTab == .timeline else { return }
+                            // Back out of an open activity first. Re-tapping a tab means "back to
+                            // the start of this tab", and the start is not a detail page.
+                            pushedRun = nil
+                            await landOnNewest(proxy, force: true)
+                        }
                         // Which tiles are actually on screen, rather than a guess from the scroll
                         // offset — a lazy grid's offset says nothing reliable about which row you
                         // are looking at. Only the dated scopes report: Years already prints its

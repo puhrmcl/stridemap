@@ -21,8 +21,24 @@ final class SyncService {
     }
 
     private(set) var status: Status = .idle
-    /// True while a manual "recover missing maps" pass is running (drives the Settings UI).
+    /// True while a route-recovery pass is running (drives the Settings UI).
     private(set) var isRecoveringRoutes = false
+
+    /// How far the running route-recovery pass has got. A spinner alone cannot tell a pass that
+    /// is working through nine hundred activities from one that is stuck, and on a large library
+    /// those look identical for a minute and a half.
+    struct RouteProgress: Equatable {
+        var checked: Int
+        var total: Int
+        var recovered: Int
+    }
+    private(set) var routeProgress: RouteProgress?
+    /// What the last finished pass actually did, e.g. "Checked 210 · 14 maps found". Kept so the
+    /// row can say something other than nothing once the spinner stops.
+    private(set) var lastRouteResult: String?
+    /// The pass in flight, so a manual request can take over from an automatic one and so the
+    /// deadline has something to cancel.
+    private var recoveryTask: Task<Void, Never>?
     /// Guards against overlapping landmark-detection passes.
     private var isDetectingLandmarks = false
     /// Short human-readable result of the last sync (e.g. "Health: 0 workouts"), shown on the
@@ -346,47 +362,130 @@ final class SyncService {
     /// saving progressively so the map fills in as it goes. Safe to run repeatedly; recent
     /// runs keep retrying, older route-less runs are marked `.unavailable` so history isn't
     /// rescanned forever.
+    /// The automatic pass, run after a sync and whenever HealthKit reports new route data.
+    /// Newest first, bounded, and it stands aside for anything already running.
     func recoverMissingRoutes(limit: Int = 150) async {
-        guard !isRecoveringRoutes, healthKitProvider.isAvailable else { return }
-        isRecoveringRoutes = true
-        defer { isRecoveringRoutes = false }
-        await hydratePendingRoutes(limit: limit)
+        guard healthKitProvider.isAvailable, recoveryTask == nil else { return }
+        await runRecovery(limit: limit, oldestCheckedFirst: false, reopenWrittenOffIfIdle: false)
     }
 
-    /// Manual "Recover Missing Maps" entry point. Re-opens runs previously written off, then
-    /// hydrates. Exposed for a Settings action; idempotent and safe to invoke anytime.
+    /// Manual "Recover Missing Maps" entry point.
+    ///
+    /// It **takes over** from an automatic pass rather than declining, which is the bug that made
+    /// this button look broken: `recoverMissingRoutes` fires at the end of every sync, a sync now
+    /// runs on every launch, and so a background pass was usually in flight while you were
+    /// standing in Settings. The old guard returned immediately, the row stayed disabled behind a
+    /// spinner that belonged to something else, and the tap did nothing at all.
+    ///
+    /// It also sweeps least-recently-checked first, so tapping again continues through the
+    /// library instead of re-checking the same newest hundred and fifty every time.
     func resyncHealthKitRoutes() async {
-        guard !isRecoveringRoutes, healthKitProvider.isAvailable else { return }
-        isRecoveringRoutes = true
-        defer { isRecoveringRoutes = false }
+        guard healthKitProvider.isAvailable else { return }
+        recoveryTask?.cancel()
+        await recoveryTask?.value
+        await runRecovery(limit: 600, oldestCheckedFirst: true, reopenWrittenOffIfIdle: true)
+    }
 
-        // Reset write-offs so the user's explicit request re-checks everything once more.
+    /// Stops the pass in flight. The Settings row doubles as a stop while one is running — a
+    /// ninety-second operation with no way out is not a control, it is a wait.
+    func cancelRouteRecovery() {
+        recoveryTask?.cancel()
+    }
+
+    /// Runs one pass under a wall-clock deadline that can actually fire.
+    ///
+    /// The deadline used to be a `Date()` comparison inside the consume loop, which is only
+    /// reached when an item arrives — so a pass that stalled on a slow HealthKit query sat there
+    /// with the spinner up and never tripped it. A watchdog that cancels the task works whether
+    /// the loop is running or suspended.
+    private func runRecovery(limit: Int, oldestCheckedFirst: Bool, reopenWrittenOffIfIdle: Bool) async {
+        let task = Task { @MainActor in
+            isRecoveringRoutes = true
+            defer {
+                isRecoveringRoutes = false
+                routeProgress = nil
+            }
+            if reopenWrittenOffIfIdle { reopenWrittenOffRoutesIfNothingElsePending() }
+            await hydratePendingRoutes(limit: limit, oldestCheckedFirst: oldestCheckedFirst)
+        }
+        recoveryTask = task
+        let watchdog = Task { [hydrationDeadline] in
+            try? await Task.sleep(for: .seconds(hydrationDeadline))
+            task.cancel()
+        }
+        await task.value
+        watchdog.cancel()
+        if recoveryTask == task { recoveryTask = nil }
+    }
+
+    /// Re-opens routes previously ruled `.unavailable`, but only once there is nothing else left
+    /// to check.
+    ///
+    /// Every manual tap used to reopen the lot, which is why the sweep never converged: a library
+    /// where nine hundred activities were recorded by an app that writes no route would re-queue
+    /// all nine hundred on every tap, hit the deadline, and finish having made no progress that
+    /// survived. Written-off runs are worth a second look — a source can start writing routes, or
+    /// a query can have failed in a way we mistook for absence — but as the last thing tried, not
+    /// the first.
+    private func reopenWrittenOffRoutesIfNothingElsePending() {
+        guard pendingRouteCount == 0, writtenOffRouteCount > 0 else { return }
         let unavailable = RouteSyncStatus.unavailable.rawValue
         let descriptor = FetchDescriptor<Run>(
             predicate: #Predicate { $0.healthKitID != nil && $0.summaryPolyline == "" && $0.routeStatusRaw == unavailable }
         )
-        if let stale = try? context.fetch(descriptor) {
-            for run in stale {
-                run.routeStatus = .unknown
-                run.routeCheckCount = 0
-            }
-            try? context.save()
+        guard let stale = try? context.fetch(descriptor) else { return }
+        for run in stale {
+            run.routeStatus = .unknown
+            run.routeCheckCount = 0
         }
+        try? context.save()
+    }
 
-        await hydratePendingRoutes(limit: 2000)
+    /// Activities whose map could still turn up — the number the Settings badge should show, and
+    /// the one that falls as passes run.
+    var pendingRouteCount: Int {
+        let unavailable = RouteSyncStatus.unavailable.rawValue
+        let descriptor = FetchDescriptor<Run>(
+            predicate: #Predicate {
+                $0.healthKitID != nil && $0.summaryPolyline == "" && $0.routeStatusRaw != unavailable
+            }
+        )
+        return (try? context.fetchCount(descriptor)) ?? 0
+    }
+
+    /// Activities Apple Health holds no route for. Nothing will recover these until the app that
+    /// recorded them writes one, so counting them as "missing" is what made the badge look stuck
+    /// at nine hundred no matter how well a pass went.
+    var writtenOffRouteCount: Int {
+        let unavailable = RouteSyncStatus.unavailable.rawValue
+        let descriptor = FetchDescriptor<Run>(
+            predicate: #Predicate {
+                $0.healthKitID != nil && $0.summaryPolyline == "" && $0.routeStatusRaw == unavailable
+            }
+        )
+        return (try? context.fetchCount(descriptor)) ?? 0
     }
 
     /// Core hydration. Callers own the `isRecoveringRoutes` flag so it always resets.
-    private func hydratePendingRoutes(limit: Int) async {
+    private func hydratePendingRoutes(limit: Int, oldestCheckedFirst: Bool = false) async {
         let unavailable = RouteSyncStatus.unavailable.rawValue
+        // Newest-first for the automatic pass: a route that is still arriving belongs to a run
+        // you did today. Least-recently-checked for the manual sweep, so successive taps advance
+        // through the library instead of grinding the same head of the list.
         var descriptor = FetchDescriptor<Run>(
             predicate: #Predicate {
                 $0.healthKitID != nil && $0.summaryPolyline == "" && $0.routeStatusRaw != unavailable
             },
-            sortBy: [SortDescriptor(\.startDate, order: .reverse)]
+            sortBy: oldestCheckedFirst
+                ? [SortDescriptor(\.routeCheckedAt, order: .forward)]
+                : [SortDescriptor(\.startDate, order: .reverse)]
         )
         descriptor.fetchLimit = limit
-        guard let pending = try? context.fetch(descriptor), !pending.isEmpty else { return }
+        guard let pending = try? context.fetch(descriptor), !pending.isEmpty else {
+            lastRouteResult = "Nothing left to check"
+            return
+        }
+        routeProgress = RouteProgress(checked: 0, total: pending.count, recovered: 0)
 
         let runsByID = Dictionary(
             pending.compactMap { run in run.healthKitID.map { ($0, run) } },
@@ -398,6 +497,7 @@ final class SyncService {
 
         var processed = 0, recovered = 0, noRoute = 0, failed = 0
         for await item in healthKitProvider.routeStream(forWorkoutUUIDs: Set(runsByID.keys), since: since) {
+            if Task.isCancelled { break }
             if let run = runsByID[item.id] {
                 run.routeCheckedAt = Date()
                 run.routeCheckCount += 1
@@ -423,11 +523,25 @@ final class SyncService {
                 }
             }
             processed += 1
+            routeProgress = RouteProgress(checked: processed, total: pending.count, recovered: recovered)
             if processed % 20 == 0 { try? context.save() }   // let the map fill in as we go
             if Date() > deadline { break }
         }
 
         try? context.save()
+        // Say what happened. "Recover Missing Maps" that spins and then goes quiet is
+        // indistinguishable from one that failed, which is most of why this looked broken: a
+        // pass can be working perfectly and still find nothing, because Apple Health genuinely
+        // holds no route for those activities.
+        let remaining = pendingRouteCount
+        if recovered > 0 {
+            lastRouteResult = "Checked \(processed) · \(recovered) map\(recovered == 1 ? "" : "s") recovered"
+                + (remaining > 0 ? " · \(remaining) still to check" : "")
+        } else if remaining > 0 {
+            lastRouteResult = "Checked \(processed) · none had a route yet · \(remaining) to go"
+        } else {
+            lastRouteResult = "Checked \(processed) · no routes in Apple Health for these"
+        }
         HealthKitLog.route("[Etch HealthKit] Route pass: \(recovered) recovered · \(noRoute) no-route · \(failed) failed · of \(processed)")
     }
 }
