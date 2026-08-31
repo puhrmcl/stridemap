@@ -113,8 +113,13 @@ Two options: **Size** (`12 × 18″`, `16 × 24″`) × **Frame** (`Natural`, `B
 | `POSTER-HANGER-60-24X36-PORT-NATURAL` | $129 |
 | `POSTER-HANGER-60-24X36-PORT-WHITE` | $129 |
 
-One size so far — the 12×18 and 16×24 hangers were not on Prodigi's product page and have to
-be read off it before they can be listed. Option: **Wood** (`Black`, `Natural`, `White`).
+One size so far — the 12×18 and 16×24 hangers were not on Prodigi's product page and have to be
+read off it before they can be listed. Option: **Wood** (`Black`, `Natural`, `White`).
+
+The hanger is the cheapest finish in the range and needs no new artwork: its 24×36 print area is
+7200 × 10800, identical to `GLOBAL-HGE-24X36` and `GLOBAL-CFP-24X36`. The one geometry rule it
+does carry is that the wooden battens cover 15mm at the top and bottom, so the composition keeps
+those bands clear — handled in the renderer, nothing to configure here.
 
 ### 4. Year in Review / Collections — handle `year-book`
 
@@ -136,8 +141,9 @@ receipt, say so and I will split the handle; it is a code change, not a Shopify 
 | `GLOBAL-MPF-20X30` | $199 |
 | `GLOBAL-MPF-24X36` | $199 |
 
-One price across sizes today, because only `photoWallCents` is served. See **Decision 1**
-below — this product may not be visible in the app at all yet.
+One price across sizes today: `photoWallCents` prices the product rather than the size, because
+the three frames cost within a few dollars of each other wholesale and a three-rung ladder on a
+$199 object is a decision the buyer does not need to make.
 
 ### 6. Medal Frame — handle `medal-frame`
 
@@ -146,7 +152,8 @@ below — this product may not be visible in the app at all yet.
 | `MEDAL-FRA-CLA-MOUNT-30X40` | $249 |
 
 Frame and mount colours travel as **line-item attributes**, not variants, so there is one
-variant here. See **Decision 1**.
+variant here — eight frame colours and two mount colours would otherwise be sixteen variants of
+an identical object.
 
 ---
 
@@ -264,44 +271,40 @@ Each step fails differently, so do them in sequence and stop at the first failur
 
 ---
 
-## Two decisions before Step 2
+## Settled, and what it means for Step 2
 
-### Decision 1 — Are the Medal Frame and Photo Wall being sold yet?
+Both of these were open when this document was written. They are decided now, and the served
+configuration (`fulfilment/config/app.json`, v2) reflects it.
 
-Right now the answer depends on which config the app loaded, which is not a state anything
-should be in.
+### The Medal Frame and the Photo Wall are being sold
 
-`fulfilment/config/app.json` — the served document — sets only `yearBookCents`. It does **not**
-set `medalFrameCents` or `photoWallCents`. Both are `Int?`, and both products gate their
-availability on their price being non-nil:
+They gate on their price being set:
 
 ```swift
 static var isAvailable: Bool { EtchConfig.current.prices.medalFrameCents != nil }
 ```
 
-But the **built-in fallback** in `Etch/Config/RemoteConfig.swift` does set them, to `24900`
-and `19900`.
+The served document previously set only `yearBookCents`, while the built-in fallback in
+`Etch/Config/RemoteConfig.swift` also set the other two — so the products were hidden when the
+document loaded and visible when the app fell back to its defaults. The same build behaved as two
+different shops depending on connectivity.
 
-So: when the served document loads, those two products are **hidden**. When the network is
-unavailable and the app falls back to its built-in defaults, they **appear**. Same build, two
-different shops, decided by connectivity.
+`medalFrameCents` (24900) and `photoWallCents` (19900) are now in the served document, matching
+the fallback. Both products are listed in every state. **Create products 5 and 6.**
 
-Pick one and I will make it true in both places:
+### The hanger is listed
 
-- **Sell them** → add `"medalFrameCents": 24900, "photoWallCents": 19900` to `app.json`, create
-  products 5 and 6 in Step 2.
-- **Hold them** → remove them from the built-in defaults, and skip products 5 and 6 for now.
+`PosterHangerCatalog.isAvailable` resolves true — the banded print writer removed the size ceiling
+that used to gate it — so "Print with Hanger" already appears in the shop's format picker.
+`POSTER-HANGER-60-24X36-PORT` is priced at 12900 in the served document. **Create product 3**, or
+that format fails at checkout.
 
-### Decision 2 — Is the hanger listed?
+### One rule worth carrying
 
-`PosterHangerCatalog.isAvailable` now resolves **true** — the banded print writer removed the
-size ceiling that used to gate it. So the Print with Hanger appears in the shop's format
-picker, and product 3 needs to exist in Shopify or that format will fail at checkout.
-
-If you would rather not carry it yet, say so and I will gate it off explicitly rather than
-leaving a listed format nobody can buy.
-
----
+Deleting a price key from the served document removes a product from the app. It reads as a
+pricing edit and behaves as a delisting. The deploy workflow now range-checks all three
+non-per-SKU prices, so a typo fails the deploy rather than reaching a device — but a *missing*
+key is a valid document, and the shop quietly shrinks.
 
 ## What is not on this list
 

@@ -37,7 +37,13 @@ jobs:
           ordering = config['ordering']
           assert isinstance(ordering['enabled'], bool), "ordering.enabled must be a boolean"
           prices = config['prices']
-          assert isinstance(prices['yearBookCents'], int), "yearBookCents must be cents (integer)"
+          # The three product prices that are not per-SKU. Each one is also a switch: the
+          # medal frame and the photo wall are listed in the app only while their price is set,
+          # so a deleted key silently removes a product from the shop.
+          for key in ('yearBookCents', 'medalFrameCents', 'photoWallCents'):
+              cents = prices.get(key)
+              assert isinstance(cents, int), f"{key} must be cents (integer)"
+              assert 500 <= cents <= 100000, f"{key}: {cents} cents looks wrong"
           for sku, cents in prices['bySKU'].items():
               assert isinstance(cents, int), f"{sku}: price must be cents (integer)"
               assert 500 <= cents <= 100000, f"{sku}: {cents} cents looks wrong"
