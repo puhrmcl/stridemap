@@ -348,25 +348,16 @@ struct HighlightsView: View {
             Text("Records")
                 .font(.etch(.title3, weight: .bold))
 
-            if let furthest = stats.longestRun {
-                SuperlativeRow(icon: "arrow.left.and.right", title: "Furthest", value: Format.distance(furthest.distance), subtitle: furthest.name) { focus(furthest) }
+            // Rendered from `stats.records(usesPace:)` rather than composed here, so the records
+            // this page shows and the records search finds are the same list. Pace records are
+            // gated inside it, on the same rule as before: pace is a running concept.
+            ForEach(records.filter { $0.group == .superlative }) { record in
+                SuperlativeRow(icon: record.symbol, title: record.title,
+                               value: record.value, subtitle: record.detail) { focus(record.run) }
             }
-            if let longest = stats.longestDurationRun {
-                SuperlativeRow(icon: "clock", title: "Longest", value: Format.duration(longest.movingTime), subtitle: longest.name) { focus(longest) }
-            }
-            if let climb = stats.highestClimb {
-                SuperlativeRow(icon: "mountain.2", title: "Highest Climb", value: Format.elevation(climb.elevationGain), subtitle: climb.name) { focus(climb) }
-            }
-            // Pace is a running concept — hidden for hikes/walks.
-            if scope.usesPace, let fastest = stats.fastestRun {
-                SuperlativeRow(icon: "bolt.fill", title: "Fastest Pace", value: Format.pace(secondsPerKm: fastest.paceSecondsPerKm), subtitle: fastest.name) { focus(fastest) }
-            }
-            if let north = stats.northernmostRun {
-                SuperlativeRow(icon: "arrow.up", title: "Northernmost", value: north.placeLabel.isEmpty ? "—" : north.placeLabel, subtitle: north.name) { focus(north) }
-            }
-            if let south = stats.southernmostRun {
-                SuperlativeRow(icon: "arrow.down", title: "Southernmost", value: south.placeLabel.isEmpty ? "—" : south.placeLabel, subtitle: south.name) { focus(south) }
-            }
+            // Most Visited stays here rather than joining the list: it is a record about a place
+            // rather than about an activity, it opens a different screen, and forcing it into a
+            // shape built around "the run that holds it" would have meant inventing one.
             if let visited = stats.mostVisitedArea {
                 NavigationLink {
                     CitiesListView(places: stats.travelPlaces)
@@ -378,22 +369,20 @@ struct HighlightsView: View {
         }
     }
 
+    /// Every record this history holds, from the one definition both this page and search read.
+    private var records: [RunStatistics.Record] { stats.records(usesPace: scope.usesPace) }
+
     @ViewBuilder
     private var personalBestsSection: some View {
-        let prs = stats.personalRecords
-        // Distance-time PRs are a running concept; only shown when pace applies.
-        if scope.usesPace, !prs.isEmpty {
+        let bests = records.filter { $0.group == .personalBest }
+        if !bests.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Personal Bests")
                     .font(.etch(.title3, weight: .bold))
 
-                ForEach(prs) { pr in
-                    SuperlativeRow(
-                        icon: "stopwatch",
-                        title: pr.label,
-                        value: Format.duration(pr.time),
-                        subtitle: "\(Format.pace(secondsPerKm: pr.run.paceSecondsPerKm)) pace"
-                    ) { focus(pr.run) }
+                ForEach(bests) { pr in
+                    SuperlativeRow(icon: pr.symbol, title: pr.title,
+                                   value: pr.value, subtitle: pr.detail) { focus(pr.run) }
                 }
             }
         }

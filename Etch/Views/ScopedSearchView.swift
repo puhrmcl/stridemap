@@ -30,6 +30,16 @@ struct ScopedSearchView: View {
                 if trimmed.isEmpty {
                     starter
                 } else {
+                    // Records lead from Achievements, because on that tab they *are* the answer —
+                    // "furthest" is a question about the history, not about one activity.
+                    if !matchingRecords.isEmpty && includesRecords {
+                        Section("Records") {
+                            ForEach(matchingRecords) { record in
+                                Button { open(record.run) } label: { recordRow(record) }
+                                    .buttonStyle(.plain)
+                            }
+                        }
+                    }
                     if !matchingRuns.isEmpty && includesActivities {
                         Section("Activities") {
                             ForEach(matchingRuns.prefix(20), id: \.id) { run in
@@ -45,7 +55,7 @@ struct ScopedSearchView: View {
                             }
                         }
                     }
-                    if matchingRuns.isEmpty && matchingProducts.isEmpty {
+                    if matchingRuns.isEmpty && matchingProducts.isEmpty && matchingRecords.isEmpty {
                         ContentUnavailableView.search(text: trimmed)
                     }
                 }
@@ -109,6 +119,17 @@ struct ScopedSearchView: View {
             }
         }
 
+        // From Achievements the records are the shelf worth opening on — the whole page is
+        // records, and a search reached from it should not start by offering last Tuesday's run.
+        if includesRecords, !records.isEmpty {
+            Section("Records") {
+                ForEach(records.prefix(6)) { record in
+                    Button { open(record.run) } label: { recordRow(record) }
+                        .buttonStyle(.plain)
+                }
+            }
+        }
+
         if includesActivities, !recent.isEmpty {
             Section("Recent") {
                 ForEach(recent, id: \.id) { run in
@@ -154,6 +175,14 @@ struct ScopedSearchView: View {
         }
         if let year = stats.years.first { out.append(String(year)) }
         if runs.contains(where: \.isRace) { out.append("race") }
+
+        // From Achievements, lead with the words that find a record. They are the reason someone
+        // reached for search from that page, and they are also the least guessable thing here.
+        if includesRecords, !records.isEmpty {
+            out.insert(contentsOf: ["furthest", "fastest"].filter { term in
+                records.contains { $0.haystack.contains(term) }
+            }, at: 0)
+        }
 
         // A distance they own, in the form the app prints it — which is the form that matches.
         if let longest = runs.max(by: { $0.distance < $1.distance }) {
@@ -220,6 +249,50 @@ struct ScopedSearchView: View {
     private var includesProducts: Bool {
         guard let activeScope else { return true }
         return activeScope == .studio
+    }
+
+    /// Records answer from Achievements, and from an unscoped search. They are deliberately not
+    /// offered from the Map or Studio: a record is a fact about the whole history, and a search
+    /// scoped to a storefront that returned "Fastest Pace" would be answering a question nobody
+    /// standing there asked.
+    private var includesRecords: Bool {
+        guard let activeScope else { return true }
+        return activeScope == .achievements
+    }
+
+    /// The records this history holds, from the same list Achievements renders.
+    private var records: [RunStatistics.Record] {
+        RunStatistics(runs.countingTotals).records(usesPace: appModel.activityScope.usesPace)
+    }
+
+    private var matchingRecords: [RunStatistics.Record] {
+        let q = trimmed.lowercased()
+        guard !q.isEmpty else { return [] }
+        return records.filter { $0.haystack.contains(q) }
+    }
+
+    private func recordRow(_ record: RunStatistics.Record) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: record.symbol)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+                .frame(width: 26)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(record.title)
+                    .font(.etch(.subheadline, weight: .semibold))
+                    .foregroundStyle(.primary)
+                Text(record.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Text(record.value)
+                .font(.etch(.subheadline, weight: .semibold))
+                .foregroundStyle(.primary)
+                .monospacedDigit()
+        }
+        .contentShape(.rect)
     }
 
     private var trimmed: String { query.trimmingCharacters(in: .whitespaces) }
