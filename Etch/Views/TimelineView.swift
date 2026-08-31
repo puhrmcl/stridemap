@@ -76,6 +76,35 @@ struct TimelineView: View {
     private var timelineYears: [Int] { years.reversed() }
     private var timelineRuns: [Run] { scopedRuns.reversed() }
 
+    /// The scope this view has already placed itself in. Landing is a thing that happens when you
+    /// arrive or change scope — not every time the tab is re-entered, which would throw away the
+    /// place you had scrolled to for the sake of repeating an opening move.
+    @State private var landedScope: Scope?
+
+    /// Puts the newest activity on screen, at the foot, when the page opens or the scope changes.
+    ///
+    /// The scroll view only exists once there is something to show — the empty case is a different
+    /// branch entirely — so this runs with content already in hand rather than racing the query.
+    /// The sleep is for layout, not for data: the target has to be a row the scroll view can find.
+    ///
+    /// It stands down when `scrollTarget` is set, because that means a year card was tapped and
+    /// the user asked to land somewhere specific. Two scrolls arguing would be worse than either.
+    @MainActor
+    private func landOnNewest(_ proxy: ScrollViewProxy) async {
+        guard scrollTarget == nil, landedScope != scope else { return }
+        try? await Task.sleep(nanoseconds: 60_000_000)
+        guard !Task.isCancelled, scrollTarget == nil else { return }
+        landedScope = scope
+        switch scope {
+        case .years:
+            if let year = timelineYears.last { proxy.scrollTo(year, anchor: .bottom) }
+        case .months:
+            if let group = timelineMonths.last { proxy.scrollTo(group.id, anchor: .bottom) }
+        case .all:
+            if let run = timelineRuns.last { proxy.scrollTo(run.id, anchor: .bottom) }
+        }
+    }
+
     var body: some View {
         NavRoot(embedded) {
             Group {
@@ -96,11 +125,18 @@ struct TimelineView: View {
                         }
                         // Opens on the newest activity, which now sits at the foot of the page.
                         //
-                        // `.initialOffset` and not the plain anchor: the plain one re-pins to the
-                        // bottom whenever the content grows, so a sync finishing while you were
-                        // reading 2019 would throw you back to last week. This sets where the
-                        // scroll view *starts* and then leaves it alone.
-                        .defaultScrollAnchor(.bottom, for: .initialOffset)
+                        // Deliberately *not* `.defaultScrollAnchor(.bottom, …)`, which is what
+                        // this was and what broke it: that anchor resolves against the content
+                        // height the scroll view knows at first layout, and inside a LazyVStack
+                        // that height is an estimate from the handful of rows built so far. On a
+                        // thousand-activity history the estimate was long, so the view opened
+                        // scrolled clean past the end — the last card's bottom edge at the top of
+                        // the screen and an empty page under it.
+                        //
+                        // Naming the last item instead is exact: `scrollTo(_:anchor:.bottom)`
+                        // puts that item's bottom edge on the viewport's bottom edge, and lazy
+                        // content materialises toward a named target rather than being guessed at.
+                        .task(id: scope) { await landOnNewest(proxy) }
                         // Which tiles are actually on screen, rather than a guess from the scroll
                         // offset — a lazy grid's offset says nothing reliable about which row you
                         // are looking at. Only the dated scopes report: Years already prints its
