@@ -165,7 +165,7 @@ struct SettingsView: View {
         } header: {
             Text("Activities")
         } footer: {
-            Text("Turn a type off to hide it everywhere — the totals, maps, achievements, and studio all scope to what's on. Walks are off by default because Apple Watch logs many short walks. Turning a type on imports it on the next sync; a full Delete & re-sync backfills older ones. With everything off, Etch prompts you to pick an activity.")
+            Text("Turn a type off to hide it everywhere — the totals, maps, achievements, and studio all scope to what's on. Walks are off by default because Apple Watch logs many short walks. Turning a type on imports its full history from Apple Health, not just new ones. With everything off, Etch prompts you to pick an activity.")
         }
     }
 
@@ -404,7 +404,7 @@ struct SettingsView: View {
     private func deleteCache() {
         for run in runs { context.delete(run) }
         try? context.save()
-        UserDefaults.standard.removeObject(forKey: "lastSyncDate")
+        sync.forgetHealthKitHistory()
     }
 }
 

@@ -88,25 +88,49 @@ final class SyncService {
 
     // MARK: Sync
 
+    /// Set when a sync is requested while one is already running — the HealthKit observer
+    /// firing mid-import, say. Dropping that request would leave the workout that triggered it
+    /// unimported until something else happened to kick a sync off, so it's remembered and
+    /// drained instead.
+    private var syncAgainWhenIdle = false
+
     func sync() async {
-        guard !isSyncing, hasAnySource else { return }
+        guard hasAnySource else { return }
+        if isSyncing {
+            syncAgainWhenIdle = true
+            return
+        }
+        await performSync()
+        while syncAgainWhenIdle {
+            syncAgainWhenIdle = false
+            await performSync()
+        }
+    }
+
+    private func performSync() async {
         status = .syncing(imported: 0)
         var imported = 0
 
         do {
-            let since = lastSyncDate
-
             // 1. Primary: HealthKit (and any future primary providers). Time-boxed so a
             // slow/unresponsive HealthKit store can never leave the import spinner up forever.
+            // `lastSyncDate` is passed for the provider protocol's sake; HealthKit reads by
+            // anchor instead, because a workout can arrive in Health long after it started.
             if healthKitProvider.isAvailable {
-                let activities = await healthKitActivities(since: since, timeout: 15)
+                let activities = await healthKitActivities(since: lastSyncDate, timeout: 15)
+                var healthImported = 0
                 for activity in activities {
                     if try ingestor.ingestPrimary(activity) == .inserted {
                         imported += 1
+                        healthImported += 1
                         status = .syncing(imported: imported)
                     }
                 }
                 try context.save()
+                // Only now is it safe to advance HealthKit's read anchors: everything they
+                // covered is on disk. A timeout or a throw above leaves them where they were,
+                // so the next sync re-reads those workouts rather than losing them.
+                healthKitProvider.commitAnchors()
 
                 if activities.isEmpty {
                     // Nothing imported — say why: how many workouts of any type exist vs runs.
@@ -116,7 +140,7 @@ final class SyncService {
                     }
                     lastDiagnostic = "Health: \(summary)"
                 } else {
-                    lastDiagnostic = "Health: \(activities.count) runs imported"
+                    lastDiagnostic = "Health: \(activities.count) new workouts read, \(healthImported) imported"
                 }
             } else {
                 lastDiagnostic = "Apple Health unavailable"
@@ -179,6 +203,15 @@ final class SyncService {
         } catch {
             status = .failed(error.localizedDescription)
         }
+    }
+
+    /// Clears every high-water mark so the next sync re-reads the whole history from scratch.
+    /// Paired with "Delete cached activities" — deleting the library while HealthKit's anchors
+    /// stay caught up would leave an empty app that never refills.
+    func forgetHealthKitHistory() {
+        healthKitProvider.resetAnchors()
+        lastSyncDate = nil
+        UserDefaults.standard.removeObject(forKey: "lastSyncDate")
     }
 
     /// Fetches HealthKit activities with a hard timeout, returning whatever's available (or

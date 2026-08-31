@@ -10,22 +10,11 @@ struct RootView: View {
     @Environment(SyncService.self) private var sync
     @Environment(AppModel.self) private var appModel
 
-    /// Whether *any* run exists — not the runs themselves.
-    ///
-    /// This was `@Query private var runs: [Run]`, used for a single `runs.isEmpty` check. That
-    /// made the root view a dependant of every Run in the store, so the first launch — which
-    /// imports a whole HealthKit history — re-evaluated `body` on each batch of inserts and tore
-    /// down and rebuilt the entire content tree underneath, map and all, hundreds of times while
-    /// the splash was fading. Fetching one row with no properties answers the same question and
-    /// leaves the root still.
-    @Query(Self.existenceProbe) private var anyRun: [Run]
-
-    private static var existenceProbe: FetchDescriptor<Run> {
-        var descriptor = FetchDescriptor<Run>()
-        descriptor.fetchLimit = 1
-        descriptor.propertiesToFetch = []
-        return descriptor
-    }
+    // Deliberately no `@Query` here. The root once fetched runs to decide whether to sync,
+    // which made it a dependant of every Run in the store: the first launch re-evaluated `body`
+    // on each batch of inserts and tore down the whole content tree, map and all, hundreds of
+    // times while the splash faded. The launch sync is now unconditional, so the root needs to
+    // know nothing about the library.
 
     @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding = false
     /// New users pick their activities and default view here before entering the app.
@@ -93,10 +82,12 @@ struct RootView: View {
         .animation(Theme.gentle, value: didCompleteSetup)
         .task(id: isReady) {
             guard isReady else { return }
-            // Import on first appearance, then keep observing for new workouts. Also run when
-            // Strava was just connected but its full history hasn't been backfilled yet, so
-            // maps attach to pre-existing runs without a manual "Sync Now".
-            if anyRun.isEmpty || sync.needsStravaBackfill { await sync.sync() }
+            // Import on every launch, then keep observing for new workouts. This used to run
+            // only when the library was empty, which left the app entirely dependent on the
+            // HealthKit observer firing — so a workout that landed while Etch was closed could
+            // sit there unnoticed. The HealthKit read is anchored, so a launch with nothing new
+            // costs one query per type and imports nothing.
+            await sync.sync()
             // Backfill place names for located runs still missing them (e.g. a file/ZIP import in a
             // prior session that never ran a full sync): state/country fill instantly offline, and
             // cities continue filling via the bounded geocoder.

@@ -18,10 +18,19 @@ final class HealthKitProvider: ActivityProvider {
         self.store = store
     }
 
+    /// Reads workouts that are *new to the Health store* since the last committed anchor.
+    ///
+    /// `since` is deliberately ignored. Filtering by start date looks equivalent but silently
+    /// drops the most common case there is: a watch or a third-party app (Garmin, COROS, Polar,
+    /// Wahoo, Strava) writes a workout into Health hours — sometimes days — after it happened.
+    /// Its *start* date is then older than our last sync, so a date-bounded query never sees it
+    /// again, on this launch or any future one. An anchored query keys off arrival in the store
+    /// instead, so a late upload still comes through on the next sync.
+    ///
+    /// Metadata only. Routes are hydrated separately (`routeStream`) so a large first import
+    /// isn't blocked fetching a GPS trace for every workout before any run appears.
     func fetchActivities(since: Date?) async throws -> [ImportedActivity] {
-        // Metadata only. Routes are hydrated separately (`routeStream`) so a large first
-        // import isn't blocked fetching a GPS trace for every workout before any run appears.
-        let workouts = try await runningWorkouts(since: since)
+        let workouts = try await newWorkouts()
         return workouts.map { makeActivity(from: $0, coordinates: []) }
     }
 
@@ -122,6 +131,10 @@ final class HealthKitProvider: ActivityProvider {
 
     /// The activity types we ingest from Apple Health. Running always; hiking unless turned off;
     /// walking only when opted in (Apple Watch auto-logs many short walks, so it's off by default).
+    /// Every type Etch can import, regardless of what's switched on — so a reset clears the
+    /// anchors of types that happen to be off right now too.
+    private static let allImportableTypes: [HKWorkoutActivityType] = [.running, .hiking, .cycling, .walking]
+
     private static var importedWorkoutTypes: [HKWorkoutActivityType] {
         var types: [HKWorkoutActivityType] = []
         if ActivitySettings.includeRuns { types.append(.running) }
@@ -129,6 +142,80 @@ final class HealthKitProvider: ActivityProvider {
         if ActivitySettings.includeRides { types.append(.cycling) }
         if ActivitySettings.includeWalks { types.append(.walking) }
         return types
+    }
+
+    // MARK: Anchored import
+
+    /// Anchors are held per workout type rather than one for the whole query. Two reasons:
+    /// an anchor is only meaningful for the predicate it was produced by, and turning a type
+    /// on in Settings should backfill *that* type's history (its anchor is nil) without
+    /// re-reading the types already imported.
+    private static func anchorKey(for type: HKWorkoutActivityType) -> String {
+        "hkWorkoutAnchor.\(type.rawValue)"
+    }
+
+    private func anchor(for type: HKWorkoutActivityType) -> HKQueryAnchor? {
+        guard let data = UserDefaults.standard.data(forKey: Self.anchorKey(for: type)) else { return nil }
+        return try? NSKeyedUnarchiver.unarchivedObject(ofClass: HKQueryAnchor.self, from: data)
+    }
+
+    /// Anchors advanced by the last `fetchActivities`, held until the caller confirms the
+    /// workouts were actually saved. Committing inside the query would lose workouts for good
+    /// whenever the sync that read them times out or throws before `context.save()`.
+    private var pendingAnchors: [HKWorkoutActivityType: HKQueryAnchor] = [:]
+
+    /// Persists the anchors from the last read. Call only after the activities it returned
+    /// have been ingested and saved.
+    func commitAnchors() {
+        for (type, anchor) in pendingAnchors {
+            guard let data = try? NSKeyedArchiver.archivedData(
+                withRootObject: anchor, requiringSecureCoding: true) else { continue }
+            UserDefaults.standard.set(data, forKey: Self.anchorKey(for: type))
+        }
+        pendingAnchors = [:]
+    }
+
+    /// Forgets every anchor, so the next sync re-reads the full workout history. Used by
+    /// "Delete cached activities", which would otherwise leave the store empty and the
+    /// anchors caught up — a library that could never repopulate.
+    func resetAnchors() {
+        pendingAnchors = [:]
+        for type in Self.allImportableTypes {
+            UserDefaults.standard.removeObject(forKey: Self.anchorKey(for: type))
+        }
+    }
+
+    private func newWorkouts() async throws -> [HKWorkout] {
+        var collected: [HKWorkout] = []
+        for type in Self.importedWorkoutTypes {
+            let (workouts, newAnchor) = try await anchoredWorkouts(of: type, anchor: anchor(for: type))
+            if let newAnchor { pendingAnchors[type] = newAnchor }
+            collected.append(contentsOf: workouts)
+        }
+        return collected.sorted { $0.startDate > $1.startDate }
+    }
+
+    private func anchoredWorkouts(
+        of type: HKWorkoutActivityType,
+        anchor: HKQueryAnchor?
+    ) async throws -> ([HKWorkout], HKQueryAnchor?) {
+        try await withCheckedThrowingContinuation { continuation in
+            // No `updateHandler`, so the results handler runs exactly once and the
+            // continuation cannot be resumed twice.
+            let query = HKAnchoredObjectQuery(
+                type: HKObjectType.workoutType(),
+                predicate: HKQuery.predicateForWorkouts(with: type),
+                anchor: anchor,
+                limit: HKObjectQueryNoLimit
+            ) { _, samples, _, newAnchor, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: ((samples as? [HKWorkout]) ?? [], newAnchor))
+                }
+            }
+            store.execute(query)
+        }
     }
 
     private func runningWorkouts(since: Date?) async throws -> [HKWorkout] {
