@@ -11,9 +11,11 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b498: the vocabulary audit — a history of hikes should never be counted in
-# "runs". home and tabs@timeline carry the totals pill and the year cards; archive reaches the
-# Cities and States screens that Achievements links to.
+# Requested for b499: the vocabulary audit, photographed. b498's preview run never produced
+# shots — the build it was rendering did not compile — so these are the first pictures of the
+# audited wording. home and tabs@timeline carry the totals pill and the year cards; archive is
+# the Studio collection shelf. The Cities and States screens are reached from Achievements and
+# have no preview screen of their own, so their wording still needs a device.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
