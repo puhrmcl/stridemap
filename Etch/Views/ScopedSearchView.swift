@@ -27,7 +27,9 @@ struct ScopedSearchView: View {
     var body: some View {
         NavigationStack {
             List {
-                if !trimmed.isEmpty {
+                if trimmed.isEmpty {
+                    starter
+                } else {
                     if !matchingRuns.isEmpty && includesActivities {
                         Section("Activities") {
                             ForEach(matchingRuns.prefix(20), id: \.id) { run in
@@ -66,6 +68,117 @@ struct ScopedSearchView: View {
                 if scoped { scopeChip }
             }
         }
+    }
+
+    // MARK: Before anything is typed
+
+    /// What the screen offers instead of nothing.
+    ///
+    /// An empty search page was a black rectangle, which is a waste of the one surface every tab
+    /// leads to — and worse than a waste here, because this search is far wider than it looks.
+    /// `haystack(for:)` matches a name, a place, a date, a year, a distance in two forms, an
+    /// elevation, an activity type, the word "race" — and an activity's own **notes**. Nobody
+    /// would guess any of that from a prompt reading "Search your activities".
+    ///
+    /// So the empty state teaches, using this person's own history as the examples: every chip is
+    /// a query drawn from what they actually have, which means none of them can return nothing.
+    @ViewBuilder private var starter: some View {
+        if !suggestions.isEmpty {
+            Section {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(suggestions, id: \.self) { term in
+                            Button { query = term } label: {
+                                Text(term)
+                                    .font(.etch(.subheadline, weight: .semibold))
+                                    .foregroundStyle(Theme.accent)
+                                    .padding(.horizontal, 13).padding(.vertical, 7)
+                                    .background(Theme.accent.opacity(0.12), in: .capsule)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 20).padding(.vertical, 2)
+                }
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+            } header: {
+                Text("Try these")
+            } footer: {
+                Text("Search covers names, places, dates, distances and activity types — and anything you wrote in an activity's notes.")
+            }
+        }
+
+        if includesActivities, !recent.isEmpty {
+            Section("Recent") {
+                ForEach(recent, id: \.id) { run in
+                    Button { open(run) } label: { runRow(run) }
+                        .buttonStyle(.plain)
+                }
+            }
+        }
+
+        // Studio excludes activities from its results, so offering recent ones there would promise
+        // something a search from this scope will not deliver. The catalogue is the useful answer
+        // from a storefront anyway.
+        if includesProducts, !catalogue.isEmpty {
+            Section("Products") {
+                ForEach(catalogue, id: \.self) { name in
+                    Button { query = name } label: {
+                        Label(name, systemImage: "photo.artframe")
+                            .foregroundStyle(.primary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    /// The eight most recent activities — "the one from Tuesday" is the commonest reason anyone
+    /// opens a search, and it needs no typing at all.
+    private var recent: [Run] { Array(runs.prefix(8)) }
+
+    private var catalogue: [String] { StudioProduct.offered.map(\.name) }
+
+    /// Example queries, each drawn from this history so each one returns results.
+    ///
+    /// Ordered by how much they teach: a place and a year are what people expect to work; a bare
+    /// distance figure and an activity type are the two that surprise them.
+    private var suggestions: [String] {
+        var out: [String] = []
+        let stats = RunStatistics(runs)
+
+        if let city = stats.travelPlaces.first?.label
+            .components(separatedBy: ", ").first, !city.isEmpty {
+            out.append(city)
+        }
+        if let year = stats.years.first { out.append(String(year)) }
+        if runs.contains(where: \.isRace) { out.append("race") }
+
+        // A distance they own, in the form the app prints it — which is the form that matches.
+        if let longest = runs.max(by: { $0.distance < $1.distance }) {
+            let figure = String(format: "%.1f", Format.distanceValue(longest.distance))
+            if figure != "0.0" { out.append(figure) }
+        }
+
+        // A type they actually have, and not the one they have most of — the point is to show
+        // that type is searchable at all.
+        let types: [ActivityScope] = [.hikes, .rides, .walks, .runs]
+        if let other = types.first(where: { scope in
+            guard let type = scope.activityType else { return false }
+            return runs.contains { $0.activityType == type }
+        }) {
+            out.append(other.singularNoun)
+        }
+
+        // A second place, if there is one worth naming.
+        if stats.travelPlaces.count > 1,
+           let second = stats.travelPlaces.dropFirst().first?.label
+            .components(separatedBy: ", ").first, !second.isEmpty, !out.contains(second) {
+            out.append(second)
+        }
+
+        return Array(out.prefix(6))
     }
 
     /// "Searching in Studio ⊗" — the scope made visible, and removable.

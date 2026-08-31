@@ -138,6 +138,7 @@ struct TimelineTab: View {
     @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
     /// The date span of whatever Timeline currently has on screen, written by it as you scroll.
     @State private var visibleSpan: String?
+    @State private var showGallery = false
 
     var body: some View {
         NavigationStack {
@@ -154,13 +155,39 @@ struct TimelineTab: View {
                 .safeAreaInset(edge: .top, spacing: 0) {
                     // The span while scrolling, the summary otherwise — Photos shows where you
                     // are when there is a where, and what you have when there isn't.
-                    EtchPageHeader("Timeline", subtitle: visibleSpan ?? summary)
-                        .padding(.bottom, 8)
+                    EtchPageHeader("Timeline", subtitle: visibleSpan ?? summary) {
+                        photosButton
+                    }
+                    .padding(.bottom, 8)
                     .background(.bar)
                 }
                 .toolbar(.hidden, for: .navigationBar)
+                .fullScreenCover(isPresented: $showGallery) { PhotoGalleryView() }
         }
     }
+
+    /// The door to every photograph at once.
+    ///
+    /// It belongs on this page rather than on its own tab: the gallery is the same history in a
+    /// different arrangement, the way Years, Months and All are — and the bar already carries four
+    /// destinations, which is as many as a bar can hold before it stops being navigable.
+    ///
+    /// Hidden when there is nothing behind it. A door to an empty room is worse than no door.
+    @ViewBuilder private var photosButton: some View {
+        if hasPhotos {
+            Button { showGallery = true } label: {
+                Image(systemName: "photo.on.rectangle.angled")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .frame(width: EtchHeaderMetrics.avatar, height: EtchHeaderMetrics.avatar)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("All photos")
+        }
+    }
+
+    private var hasPhotos: Bool { runs.contains { !$0.photoReferences.isEmpty } }
 
     /// What the history amounts to — shown under the title until a scroll reports a date span,
     /// which is the more useful answer while you are moving through it.

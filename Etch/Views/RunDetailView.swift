@@ -138,7 +138,7 @@ struct RunDetailView: View {
                 RunPhotoViewer(
                     identifiers: run.photoReferences,
                     selection: selection.id,
-                    coverIdentifier: run.photoReferences.first,
+                    isCoverPhoto: { $0 == run.photoReferences.first },
                     onDelete: deletePhoto,
                     onSetCover: setDefaultPhoto
                 )

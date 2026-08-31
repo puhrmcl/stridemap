@@ -30,9 +30,13 @@ struct RunPhotoThumbnail: View {
 struct RunPhotoViewer: View {
     let identifiers: [String]
     @State var selection: String
-    /// The run's cover photo as the model has it — the one that represents this activity on tiles,
-    /// in the timeline, on the Photo Wall and on a book's race page.
-    var coverIdentifier: String?
+    /// Whether a given photo is currently its activity's cover — the one that represents it on
+    /// tiles, in the timeline, on the Photo Wall and on a book's race page.
+    ///
+    /// A closure rather than a single identifier, because the gallery swipes across every
+    /// activity's photos at once: which photo is "the cover" changes with the page, and only the
+    /// caller knows whose cover it would be.
+    var isCoverPhoto: ((String) -> Bool)?
     var onDelete: (String) -> Void
     /// Makes the visible photo the cover. Optional so a viewer opened somewhere without a run to
     /// write back to simply does not offer it.
@@ -42,8 +46,8 @@ struct RunPhotoViewer: View {
     /// Full-resolution image for the current photo, loaded for sharing.
     @State private var shareImage: UIImage?
 
-    /// The cover as *this screen* knows it, so the star fills on the tap rather than on the next
-    /// model update. Nil until something is chosen here; the model's value stands until then.
+    /// The photo chosen as a cover on this screen, so the star fills on the tap rather than on the
+    /// next model update. Only ever the one that was tapped; every other page asks the model.
     @State private var pickedCover: String?
 
     /// The page order, snapshotted on first appearance.
@@ -54,8 +58,9 @@ struct RunPhotoViewer: View {
     @State private var order: [String] = []
     private var pages: [String] { order.isEmpty ? identifiers : order }
 
-    private var cover: String? { pickedCover ?? coverIdentifier }
-    private var isCover: Bool { cover == selection }
+    private var isCover: Bool {
+        pickedCover == selection || (isCoverPhoto?(selection) ?? false)
+    }
 
     var body: some View {
         NavigationStack {
