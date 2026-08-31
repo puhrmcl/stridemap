@@ -167,7 +167,11 @@ struct TimelineTab: View {
     private var summary: String? {
         guard !runs.isEmpty else { return nil }
         let metres = runs.reduce(0.0) { $0 + $1.distance }
-        let count = runs.count == 1 ? "1 activity" : "\(runs.count) activities"
+        // Named from the history rather than fixed at "activities", so the header agrees with
+        // the year cards directly beneath it. Found by looking at the render: a history of
+        // nothing but runs printed "220 activities" over three cards each captioned "N runs",
+        // which reads as two parts of one screen disagreeing about what they are counting.
+        let count = "\(runs.count) \(ActivityScope.noun(for: runs))"
         return "\(count) · \(Format.distance(metres, decimals: 0))"
     }
 }

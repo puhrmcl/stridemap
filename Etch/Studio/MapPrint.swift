@@ -21,11 +21,11 @@ enum MapPrintKind: String, CaseIterable, Identifiable {
     var descriptor: String {
         switch self {
         case .artMap:    return "The body of work as one abstract piece — no map, no words."
-        case .allRuns:   return "Every route you've run, on one map."
-        case .states:    return "The states you've run in, filled."
-        case .cities:    return "Every city you've run in, pinned."
-        case .countries: return "Every country you've run in, pinned."
-        case .landmarks: return "Parks, monuments & notable places you've run."
+        case .allRuns:   return "Every route you've covered, on one map."
+        case .states:    return "The states you've moved through, filled."
+        case .cities:    return "Every city you've moved through, pinned."
+        case .countries: return "Every country you've moved through, pinned."
+        case .landmarks: return "Parks, monuments & notable places you've reached."
         }
     }
 
@@ -156,9 +156,9 @@ enum MapArtStyle: String, CaseIterable, Identifiable {
     }
     var descriptor: String {
         switch self {
-        case .grid:          return "Every run as its own glyph, in a grid."
+        case .grid:          return "Every activity as its own glyph, in a grid."
         case .ridgeline:     return "Every climb stacked — your elevations as one mountain chain."
-        case .rings:         return "Your years as tree rings — every run a mark in its season."
+        case .rings:         return "Your years as tree rings — every activity a mark in its season."
         case .thread:        return "Every mile as one unbroken line."
         case .strata:        return "Your years in layers — every day's distance, banked."
         }
