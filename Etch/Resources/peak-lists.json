@@ -1,0 +1,36 @@
+{
+  "_comment": [
+    "Peak-bagging lists, as data rather than code — the same rule Courses/ follows, so completing",
+    "a list is a file drop and not a release. Every row is one summit: display name, elevation in",
+    "feet as its list publishes it, and the summit coordinate used to decide whether a hike reached",
+    "it.",
+    "",
+    "INCOMPLETE ON PURPOSE. colorado14ers carries 9 of its 58. Only rows verified against a source",
+    "are here; the rest are absent rather than guessed, because these numbers get printed on a wall",
+    "and a remembered elevation is not a fact. The gap is load-bearing: PeakCatalog reports the list",
+    "as incomplete, and the 14ers poster stays unlisted until the count matches — the same rule the",
+    "medal frame and the hanger follow. Fill in the remaining 49 and the product turns itself on.",
+    "",
+    "One reason not to trust memory here, found while writing this file: Torreys Peak is 14,267 ft",
+    "on its source and 14,275 ft in several secondary lists. Eight feet is nothing on a mountain and",
+    "everything on a poster someone paid for."
+  ],
+  "lists": {
+    "colorado14ers": {
+      "title": "Colorado 14ers",
+      "total": 58,
+      "source": "Wikipedia summit articles, retrieved 2026-08",
+      "peaks": [
+        { "name": "Torreys Peak",     "feet": 14267, "lat": 39.6428115, "lon": -105.8211654 },
+        { "name": "Tabeguache Peak",  "feet": 14157, "lat": 38.6254994, "lon": -106.2508550 },
+        { "name": "Sunlight Peak",    "feet": 14059, "lat": 37.6272215, "lon": -107.5958933 },
+        { "name": "Handies Peak",     "feet": 14056, "lat": 37.9129769, "lon": -107.5044042 },
+        { "name": "Redcloud Peak",    "feet": 14036, "lat": 37.9408302, "lon": -107.4220017 },
+        { "name": "Pyramid Peak",     "feet": 14027, "lat": 39.0716843, "lon": -106.9501651 },
+        { "name": "San Luis Peak",    "feet": 14020, "lat": 37.9867757, "lon": -106.9312578 },
+        { "name": "Wetterhorn Peak",  "feet": 14019, "lat": 38.0605503, "lon": -107.5108924 },
+        { "name": "Sunshine Peak",    "feet": 14005, "lat": 37.9227749, "lon": -107.4256129 }
+      ]
+    }
+  }
+}
