@@ -50,8 +50,9 @@ struct ScopedSearchView: View {
                     }
                     if !matchingProducts.isEmpty && includesProducts {
                         Section("Products") {
-                            ForEach(matchingProducts, id: \.self) { name in
-                                Label(name, systemImage: "photo.artframe")
+                            ForEach(matchingProducts) { hit in
+                                Button { open(hit) } label: { productRow(hit) }
+                                    .buttonStyle(.plain)
                             }
                         }
                     }
@@ -142,14 +143,11 @@ struct ScopedSearchView: View {
         // Studio excludes activities from its results, so offering recent ones there would promise
         // something a search from this scope will not deliver. The catalogue is the useful answer
         // from a storefront anyway.
-        if includesProducts, !catalogue.isEmpty {
+        if includesProducts, !catalogueHits.isEmpty {
             Section("Products") {
-                ForEach(catalogue, id: \.self) { name in
-                    Button { query = name } label: {
-                        Label(name, systemImage: "photo.artframe")
-                            .foregroundStyle(.primary)
-                    }
-                    .buttonStyle(.plain)
+                ForEach(catalogueHits) { hit in
+                    Button { open(hit) } label: { productRow(hit) }
+                        .buttonStyle(.plain)
                 }
             }
         }
@@ -158,8 +156,6 @@ struct ScopedSearchView: View {
     /// The eight most recent activities — "the one from Tuesday" is the commonest reason anyone
     /// opens a search, and it needs no typing at all.
     private var recent: [Run] { Array(runs.prefix(8)) }
-
-    private var catalogue: [String] { StudioProduct.offered.map(\.name) }
 
     /// Example queries, each drawn from this history so each one returns results.
     ///
@@ -331,16 +327,99 @@ struct ScopedSearchView: View {
         return parts.joined(separator: " ").lowercased()
     }
 
+    /// A product result, and what tapping it opens.
+    ///
+    /// This used to be a list of strings, which is why a search for "medal frame" returned a row
+    /// that did nothing at all: a name is not a destination. Each hit now carries the thing it
+    /// names, so the row can hand it to Studio.
+    enum ProductHit: Identifiable, Hashable {
+        /// One of the eight things Studio makes.
+        case product(StudioProduct)
+        /// A paper, a frame or a size — which is a question about the print catalogue rather than
+        /// about a product, so it opens the shop.
+        case format(PrintProduct)
+
+        var id: String {
+            switch self {
+            case .product(let p): return "product-\(p.rawValue)"
+            case .format(let f):  return "format-\(f.rawValue)"
+            }
+        }
+        var name: String {
+            switch self {
+            case .product(let p): return p.name
+            case .format(let f):  return f.name
+            }
+        }
+        var detail: String {
+            switch self {
+            case .product(let p): return p.line
+            case .format(let f):  return f.tagline
+            }
+        }
+        var symbol: String {
+            switch self {
+            case .product(let p): return p.placeholderSymbol
+            case .format(let f):  return f.symbol
+            }
+        }
+        /// What a search should match, including the sizes a format comes in — "16x24" should
+        /// find the Fine-Art Print even though no product is called that.
+        var haystack: String {
+            switch self {
+            case .product(let p):
+                return "\(p.name) \(p.line)".lowercased()
+            case .format(let f):
+                let sizes = f.sizes.map(\.label).joined(separator: " ")
+                return "\(f.name) \(f.tagline) \(f.material) \(sizes)".lowercased()
+            }
+        }
+    }
+
     /// The catalogue, by the names a customer would type — the product, not the SKU.
-    private var matchingProducts: [String] {
+    private var catalogueHits: [ProductHit] {
+        StudioProduct.offered.map { ProductHit.product($0) }
+            + PrintProduct.offered.map { ProductHit.format($0) }
+    }
+
+    private var matchingProducts: [ProductHit] {
         let q = trimmed.lowercased()
         guard !q.isEmpty else { return [] }
-        var names = StudioProduct.offered.map(\.name)
-        names += PrintProduct.offered.map(\.name)
-        names += PrintProduct.offered.flatMap { product in
-            product.sizes.map { "\(product.name) · \($0.label)" }
+        return catalogueHits.filter { $0.haystack.contains(q) }
+    }
+
+    /// Hands the choice to Studio and goes there. Studio owns what opening a product means — a
+    /// picker for the ones that need an activity, a sheet for the books, a kind for the aggregate
+    /// prints — and none of that routing is reachable from here.
+    private func open(_ hit: ProductHit) {
+        switch hit {
+        case .product(let product): appModel.studioRequest = .product(product)
+        case .format:               appModel.studioRequest = .prints
         }
-        return names.filter { $0.lowercased().contains(q) }
+        appModel.selectedTab = .studio
+    }
+
+    private func productRow(_ hit: ProductHit) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: hit.symbol)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+                .frame(width: 26)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(hit.name)
+                    .font(.etch(.subheadline, weight: .semibold))
+                    .foregroundStyle(.primary)
+                Text(hit.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.tertiary)
+        }
+        .contentShape(.rect)
     }
 
     private func runRow(_ run: Run) -> some View {

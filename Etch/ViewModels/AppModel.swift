@@ -60,6 +60,23 @@ final class AppModel {
     /// cluster is tapped — so stacked runs at one location can be told apart and opened.
     var stackedRunIDs: [UUID]?
 
+    /// A product Studio should open as soon as it appears.
+    ///
+    /// Studio's routing is eight cases of local `@State` — a picker for the ones that need an
+    /// activity, a sheet for the books, a kind for the aggregate prints — and none of it is
+    /// reachable from another tab. Rather than teach search that routing, or duplicate it, the
+    /// request is left here and Studio answers it on arrival. One definition of what "open the
+    /// medal frame" means, in the file that owns the medal frame.
+    ///
+    /// Cleared by Studio once acted on, so returning to the tab later does not re-open it.
+    var studioRequest: StudioRequest?
+
+    enum StudioRequest: Hashable {
+        case product(StudioProduct)
+        /// The print catalogue itself — what a search for a paper or a size is asking for.
+        case prints
+    }
+
     /// A saved Studio poster to open directly in the editor (from an explore-page thumbnail).
     var studioPoster: SavedPoster?
 

@@ -859,6 +859,17 @@ struct StudioHomeView: View {
         }
         .padding(.horizontal, 20)
         .sheet(isPresented: $showPrints) { PrintShopView(subjectTitle: nil) }
+        // A product asked for from somewhere else — search, today. Studio owns what opening a
+        // product means, so the request arrives as a value and is answered by the same `open`
+        // the tiles call. Cleared immediately, so coming back to the tab later does not reopen it.
+        .onChange(of: appModel.studioRequest, initial: true) { _, request in
+            guard let request else { return }
+            appModel.studioRequest = nil
+            switch request {
+            case .product(let product): open(product)
+            case .prints:               showPrints = true
+            }
+        }
         .sheet(isPresented: $showYearInReview) { BookStudioView(kind: .year) }
         .sheet(isPresented: $showCollections) { BookStudioView(kind: .collection) }
         // The product grid's picker leads with standouts and stops at thirty recent runs, which
