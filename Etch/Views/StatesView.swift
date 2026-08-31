@@ -81,7 +81,9 @@ struct StatesView: View {
                 .font(.etch(.title3, weight: .bold))
 
             ForEach(ranked, id: \.name) { item in
-                StateRow(name: item.name, count: item.count, fraction: Double(item.count) / Double(maxCount))
+                StateRow(name: item.name, count: item.count,
+                         fraction: Double(item.count) / Double(maxCount),
+                         scope: ActivityScope.of(runs))
                     .id(item.name)
             }
         }
@@ -115,6 +117,13 @@ private struct StateRow: View {
     let name: String
     let count: Int
     let fraction: Double
+    /// The word this list counts in, worked out once by the parent from the whole history.
+    ///
+    /// One noun for the whole list rather than one per state. A state could hold nothing but
+    /// hikes while the history is mixed, and naming each row from its own activities would be
+    /// more precise and read as broken — "12 hikes" above "9 activities" above "4 runs" looks
+    /// like a bug, not like precision.
+    let scope: ActivityScope
 
     var body: some View {
         HStack(spacing: 14) {
@@ -134,7 +143,7 @@ private struct StateRow: View {
                 .font(.etch(.headline))
                 .foregroundStyle(.primary)
                 .monospacedDigit()
-            Text(ActivityScope.of(runs).noun(count))
+            Text(scope.noun(count))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
