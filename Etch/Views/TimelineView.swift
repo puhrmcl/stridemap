@@ -446,18 +446,25 @@ struct TimelineView: View {
             )
             .padding(.top, 60)
         } else {
-            LazyVStack(alignment: .leading, spacing: 22, pinnedViews: [.sectionHeaders]) {
+            // One grid, sectioned — not a stack of grids.
+            //
+            // It was a LazyVStack of per-month LazyVGrids, which reads the same and does not
+            // behave the same: a scroll target four hundred tiles down sits inside a lazy
+            // container nested in another lazy container, and `scrollTo` cannot resolve a
+            // position the outer container has not built the inner one for yet. The page opened
+            // at the top every time while All, which is a single grid, landed correctly. A
+            // LazyVGrid's own section headers span every column, so the arrangement is identical
+            // and the scroll target is reachable.
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 5),
+                      spacing: 2, pinnedViews: [.sectionHeaders]) {
                 ForEach(photoMonths) { month in
                     Section {
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 5),
-                                  spacing: 2) {
-                            ForEach(month.photos) { photo in
-                                Button { openedPhoto = OpenedGalleryPhoto(id: photo.photoID) } label: {
-                                    GalleryTile(identifier: photo.photoID)
-                                }
-                                .buttonStyle(.plain)
-                                .id(photo.id)
+                        ForEach(month.photos) { photo in
+                            Button { openedPhoto = OpenedGalleryPhoto(id: photo.photoID) } label: {
+                                GalleryTile(identifier: photo.photoID)
                             }
+                            .buttonStyle(.plain)
+                            .id(photo.id)
                         }
                     } header: {
                         galleryHeader(month)
@@ -479,7 +486,10 @@ struct TimelineView: View {
                 .monospacedDigit()
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 7)
+        // Asymmetric: the gap belongs *above* a month, separating it from the one before. The
+        // grid's own row spacing is 2pt, so without this the headers sat on the tiles.
+        .padding(.top, 18)
+        .padding(.bottom, 8)
         .background(.bar)
     }
 
