@@ -13,7 +13,11 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b507: two things to look at.
+# Re-requested for b507: the first run put the Photos permission sheet over both shots —
+# seeding photo references made the very first tile ask for the library. The workflow now
+# grants photos alongside location, so these come back clean.
+#
+# Two things to look at.
 #
 #   tabs@timeline — the drawn glyph set. Five icons on one 28pt grid at a 1.7pt stroke,
 #   replacing five SF Symbols that never quite became a family. What to check: that they

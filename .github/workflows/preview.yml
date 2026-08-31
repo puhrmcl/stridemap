@@ -109,6 +109,10 @@ jobs:
           xcrun simctl spawn "$UDID" defaults write com.nwagtech.etch didCompleteOnboarding -bool true
           xcrun simctl spawn "$UDID" defaults write com.nwagtech.etch didCompleteSetup -bool true
           xcrun simctl privacy "$UDID" grant location com.nwagtech.etch || true
+          # Photos too, or the first screen that touches the library puts a system permission
+          # sheet over whatever was being photographed. The simulator's library is empty, so
+          # this grants access to nothing — it only keeps the alert off the shot.
+          xcrun simctl privacy "$UDID" grant photos com.nwagtech.etch || true
 
           MODES="$APPEARANCE"
           [ "$APPEARANCE" = "both" ] && MODES="light dark"
