@@ -296,6 +296,9 @@ final class SyncService {
                 // Don't clobber a state/country the offline pass already set from boundaries.
                 if run.state == nil { run.state = place.state }
                 if run.country == nil { run.country = place.country }
+                // Place names arriving is a content change, and the screens that group by city
+                // or state cache their work against this timestamp.
+                run.updatedAt = Date()
             }
         }
         try? context.save()
@@ -320,6 +323,7 @@ final class SyncService {
                   let stateName = boundaries.region(containing: coordinate) else { continue }
             run.state = stateName
             if run.country == nil { run.country = "United States" }
+            run.updatedAt = Date()
             changed = true
         }
         if changed { try? context.save() }
@@ -353,6 +357,7 @@ final class SyncService {
                 for run in clusterRuns {
                     run.landmarkName = name
                     run.landmarkChecked = true
+                    run.updatedAt = Date()
                 }
             } catch {
                 // Search failed (throttled / offline) — stop and back off; retry next pass.

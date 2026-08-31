@@ -181,6 +181,11 @@ struct RunDetailView: View {
 
                         Button {
                             run.isFavorite.toggle()
+                            // Bumped because surfaces that cache their derived lists key off it:
+                            // the Favorites filter is one of them, so a heart that did not touch
+                            // this would leave the map and Timeline showing the old set.
+                            run.updatedAt = Date()
+                            try? context.save()
                         } label: {
                             Image(systemName: run.isFavorite ? "heart.fill" : "heart")
                                 .foregroundStyle(run.isFavorite ? Theme.accent : .secondary)
