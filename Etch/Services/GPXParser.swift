@@ -53,6 +53,14 @@ struct GPXParser: ActivityFileParser {
                 if let latS = attributeDict["lat"], let lonS = attributeDict["lon"],
                    let lat = Double(latS), let lon = Double(lonS) {
                     point = Track.Point(coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon))
+                    // GPX 1.1 puts elevation in a child <ele>, and that is what the end-element
+                    // handler below reads. GaiaGPS exports it as an *attribute* instead, which
+                    // parses cleanly and silently arrives with no elevation at all — the one
+                    // number a summit hike is actually about. Accepted here so a Gaia route keeps
+                    // its profile; a child <ele> still wins, because it is the spec.
+                    if let eleS = attributeDict["ele"], let ele = Double(eleS) {
+                        point?.elevation = ele
+                    }
                 }
             default:
                 break

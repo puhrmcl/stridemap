@@ -341,7 +341,10 @@ enum RaceCatalog {
         event("south-mountain-national", "South Mountain (National Trail)", "Phoenix", "Arizona", "United States", .hike, 12_875, 2, 15, 33.3400, -112.0700),
         event("flatiron", "Flatiron (Siphon Draw)", "Apache Junction", "Arizona", "United States", .hike, 8_690, 2, 15, 33.4520, -111.4790),
         event("four-peaks-brown", "Four Peaks (Brown's Peak)", "Payson", "Arizona", "United States", .hike, 14_484, 4, 15, 33.6800, -111.3300),
-        event("humphreys-peak", "Humphreys Peak", "Flagstaff", "Arizona", "United States", .hike, 16_898, 8, 15, 35.3464, -111.6780),
+        // Arizona's high point, 12,633 ft. Distance corrected 16,898 → 16,093 (10.5 → 10.0 mi) to
+        // match the figure the trail is actually published under; the bundled course measures
+        // 9.56 mi, which is the usual gap between a traced line and a cited round trip.
+        event("humphreys-peak", "Humphreys Peak", "Flagstaff", "Arizona", "United States", .hike, 16_093, 8, 15, 35.3464, -111.6780),
         event("cathedral-rock", "Cathedral Rock", "Sedona", "Arizona", "United States", .hike, 1_931, 3, 15, 34.8200, -111.7920),
         event("devils-bridge", "Devil's Bridge", "Sedona", "Arizona", "United States", .hike, 6_759, 3, 15, 34.9020, -111.8140),
         event("west-fork-oak-creek", "West Fork of Oak Creek", "Sedona", "Arizona", "United States", .hike, 10_460, 10, 15, 34.9930, -111.7440),
