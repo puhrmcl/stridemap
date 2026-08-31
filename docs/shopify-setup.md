@@ -204,29 +204,25 @@ the matching secret is rejected — which looks exactly like the webhook not fir
 
 ---
 
-## Step 6 — Worker secrets
+## Step 6 — The webhook secret (no terminal needed)
 
-One terminal session, in `fulfilment/`:
+**This step was wrong in the first version of this document.** It told you to run
+`wrangler secret put` locally, which contradicts the premise of this whole project — you have no
+machine to run it on. `.github/workflows/deploy-fulfilment.yml` already does it: it provisions
+the R2 bucket and the D1 database, deploys the worker, and pushes every secret from repository
+secrets. There is nothing to install.
 
-```
-wrangler secret put SHOPIFY_WEBHOOK_SECRET   # the value from Step 5
-wrangler secret put UPLOAD_TOKEN             # invent a long random string; keep a copy
-wrangler secret put PRODIGI_API_KEY          # Prodigi sandbox key for now
-```
+The worker is already deployed and holding `UPLOAD_TOKEN` and `PRODIGI_API_KEY`. The one secret
+it does *not* have is Shopify's, because the store did not exist when it was last deployed — the
+workflow writes the literal `not-configured-yet` in its place, so webhook verification currently
+rejects everything.
 
-`UPLOAD_TOKEN` is the bearer the app presents when uploading a print file. You need the same
-value again in Step 7 — generate it once, paste it twice, then forget it.
+1. GitHub → repository **Settings → Secrets and variables → Actions → New repository secret**.
+2. Name `SHOPIFY_WEBHOOK_SECRET`, value the signing secret Shopify showed you in Step 5.
+3. **Actions → Deploy fulfilment worker → Run workflow.** That pushes it to the worker.
 
-If the bound resources do not exist yet:
-
-```
-wrangler r2 bucket create etch-production-assets
-wrangler d1 create etch-fulfilment      # paste the database_id into wrangler.toml
-wrangler d1 execute etch-fulfilment --file=schema.sql
-wrangler deploy
-```
-
----
+Until this is done, a paid order produces nothing: Shopify sends the webhook, the worker rejects
+the signature, and no Prodigi order is created.
 
 ## Step 7 — Xcode Cloud environment variables
 
