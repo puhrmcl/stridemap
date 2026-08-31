@@ -11,13 +11,12 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b499: the vocabulary audit, photographed. b498's preview run never produced
-# shots — the build it was rendering did not compile — so these are the first pictures of the
-# audited wording. home and tabs@timeline carry the totals pill and the year cards; archive is
-# the Studio collection shelf. The Cities and States screens are reached from Achievements and
-# have no preview screen of their own, so their wording still needs a device.
+# Requested for b502: the search page now has something on it before you type — example queries
+# drawn from your own history, and the last eight activities. Also the new photo-gallery button in
+# the Timeline header. The gallery itself is a full-screen cover the harness cannot open, so this
+# photographs the door rather than the room.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=home,tabs@timeline,archive
+screens=tabs@timeline,tabs@search
 appearance=both
