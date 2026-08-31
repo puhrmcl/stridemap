@@ -11,11 +11,14 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b492: the Timeline runs oldest-at-top now, opening on the newest activity at
-# the foot of the page, the way Apple Photos does. Also: tapping a thumbnail opens the activity
-# once — it was opening a sheet and a pushed page at the same time.
+# Requested for b493, four changes at once:
+#   home        — the activity icon stays on the pill with one activity type enabled (the seeded
+#                 history is runs only, so this is exactly that case). No chevron, no tap.
+#   tabs@timeline — Years oldest-at-top, opening at the foot rather than scrolled past the end.
+#   yearbook    — Add to Bag beside the order button.
+#   wall-art:grid — the bag toolbar item is a menu now (Buy now / Add to Bag).
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=tabs@timeline
+screens=home,tabs@timeline,yearbook,wall-art:grid
 appearance=both
