@@ -150,6 +150,10 @@ struct TimelineView: View {
                             guard let target = scrollTarget else { return }
                             try? await Task.sleep(nanoseconds: 80_000_000)
                             withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(target, anchor: .top) }
+                            // This counts as having landed. Without it, leaving the tab and
+                            // coming back would run the open-on-newest move and throw away the
+                            // month the year card was tapped to reach.
+                            landedScope = scope
                             scrollTarget = nil
                         }
                     }
@@ -240,7 +244,7 @@ struct TimelineView: View {
             ForEach(timelineYears, id: \.self) { year in
                 let yearRuns = runs(in: year)
                 Button {
-                    scrollTarget = firstMonthID(ofYear: year)
+                    scrollTarget = openingMonthID(ofYear: year)
                     withAnimation(.easeInOut(duration: 0.25)) { scope = .months }
                 } label: {
                     YearCard(
@@ -390,12 +394,25 @@ struct TimelineView: View {
         return scopedRuns.filter { cal.component(.year, from: $0.startDate) == year }
     }
 
-    /// The id of the earliest month group in a year — the beginning of that year.
-    private func firstMonthID(ofYear year: Int) -> String? {
+    /// The month a year card opens on: that year's copy of the month we are in now.
+    ///
+    /// It used to open on January, which is the beginning of the year and almost never what the
+    /// question was. Tapping 2023 in August is nearly always "what was I doing this time in 2023"
+    /// — the comparison a training year invites — and landing on January means scrolling past
+    /// seven months to ask it.
+    ///
+    /// A year rarely has every month, so the nearest one it does have stands in. Ties break toward
+    /// the later month: between June and October in an August gap, October is the one you can
+    /// scroll *back* from without leaving the year.
+    private func openingMonthID(ofYear year: Int) -> String? {
         let cal = Calendar.current
-        return monthGroups
-            .filter { cal.component(.year, from: $0.date) == year }
-            .min(by: { $0.date < $1.date })?.id
+        let months = monthGroups.filter { cal.component(.year, from: $0.date) == year }
+        let target = cal.component(.month, from: .now)
+        return months.min { a, b in
+            let da = abs(cal.component(.month, from: a.date) - target)
+            let db = abs(cal.component(.month, from: b.date) - target)
+            return da == db ? a.date > b.date : da < db
+        }?.id
     }
 
     /// The most representative run for a year's hero image: the longest one that has a route.
