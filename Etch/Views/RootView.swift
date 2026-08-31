@@ -87,6 +87,9 @@ struct RootView: View {
             // HealthKit observer firing — so a workout that landed while Etch was closed could
             // sit there unnoticed. The HealthKit read is anchored, so a launch with nothing new
             // costs one query per type and imports nothing.
+            // Before anything reads the library: correct activities the event library filed as
+            // runs when they were summits or rides. Runs once, then never again.
+            sync.repairLibraryActivityTypes()
             await sync.sync()
             // Backfill place names for located runs still missing them (e.g. a file/ZIP import in a
             // prior session that never ran a full sync): state/country fill instantly offline, and

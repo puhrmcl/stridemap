@@ -470,8 +470,25 @@ struct RunDetailView: View {
         return items
     }
 
+    /// What the Type card says.
+    ///
+    /// It used to print `sportType` alone, which is a free-text label from whichever source wrote
+    /// the activity and is not what anything in the app acts on. When the two disagreed the card
+    /// stated the wrong one, silently: a summit added from the library read "Hike" here while the
+    /// records, the totals and every scope filed it as a run, so the one screen that could have
+    /// revealed the mismatch was the screen that hid it.
+    ///
+    /// The classification wins. The provider's wording is kept only when it agrees and says more
+    /// — "Trail Run" over a plain "Run" — so the extra detail is not lost to the correction.
     private var cleanSportType: String {
-        run.sportType.replacingOccurrences(of: "Run", with: " Run").trimmingCharacters(in: .whitespaces)
+        let classified = run.activityType.detailLabel
+        let provider = run.sportType
+            .replacingOccurrences(of: "Run", with: " Run")
+            .trimmingCharacters(in: .whitespaces)
+        guard ActivityType.parse(run.sportType) == run.activityType, !provider.isEmpty else {
+            return classified
+        }
+        return provider
     }
 
     private func metric(_ label: String, _ value: String, _ icon: String) -> some View {
@@ -1013,6 +1030,14 @@ private struct EditRunSheet: View {
         }
         run.startDate = date
         run.activityType = type
+        // Keep the free-text label in step with the type. They are two fields saying one thing —
+        // `activityType` is what the app scopes and ranks by, `sportType` is what gets displayed
+        // — so writing one without the other leaves a card that reads "Run" on an activity the
+        // app has filed under hikes. Only rewritten when it no longer describes the type, so a
+        // provider's more specific wording ("Trail Run", "Virtual Run") survives an unrelated edit.
+        if ActivityType.parse(run.sportType) != type {
+            run.sportType = type.detailLabel
+        }
         run.bibNumber = bib.trimmingCharacters(in: .whitespacesAndNewlines)
         run.finishPlace = finishPlace.trimmingCharacters(in: .whitespacesAndNewlines)
         run.updatedAt = Date()

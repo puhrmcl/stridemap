@@ -221,6 +221,40 @@ final class SyncService {
         }
     }
 
+    /// One-time repair for activities added from the event library before their normalised type
+    /// was being written.
+    ///
+    /// `RaceCatalog.makeRun` set `sportType` from the event's discipline and left `activityType`
+    /// at its `.run` default, so every summit and ride added from the library was filed as a run:
+    /// it appeared under the Runs scope, counted toward running totals, and could take a running
+    /// record — a Humphreys Peak hike held Longest Run at eight hours. The detail card read
+    /// `sportType` and said "Hike", which is why it looked correctly tagged.
+    ///
+    /// Deliberately narrow. Only library-created activities are touched, because those are the
+    /// only ones where the type was never written at all — every other creation path sets both
+    /// fields from one source. A blanket "trust sportType" would undo the type on any activity
+    /// somebody had corrected by hand.
+    func repairLibraryActivityTypes() {
+        let key = "didRepairLibraryActivityTypes"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        defer { UserDefaults.standard.set(true, forKey: key) }
+
+        guard let all = try? context.fetch(FetchDescriptor<Run>()) else { return }
+        var repaired = 0
+        for run in all {
+            guard run.sourceExternalID?.hasPrefix("race:") == true else { continue }
+            let classified = ActivityType.parse(run.sportType)
+            guard classified != run.activityType else { continue }
+            run.activityType = classified
+            run.updatedAt = Date()
+            repaired += 1
+        }
+        if repaired > 0 {
+            try? context.save()
+            lastDiagnostic += " · repaired \(repaired) library activity type\(repaired == 1 ? "" : "s")"
+        }
+    }
+
     /// Clears every high-water mark so the next sync re-reads the whole history from scratch.
     /// Paired with "Delete cached activities" — deleting the library while HealthKit's anchors
     /// stay caught up would leave an empty app that never refills.

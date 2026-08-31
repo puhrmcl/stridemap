@@ -37,12 +37,25 @@ enum EventDiscipline: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// The `Run.sportType` an entry of this kind becomes.
+    /// The `Run.sportType` an entry of this kind becomes — the provider-style free-text label.
     var sportType: String {
         switch self {
         case .run:  return "Run"
         case .ride: return "Ride"
         case .hike: return "Hike"
+        }
+    }
+
+    /// The normalised type an entry of this kind becomes.
+    ///
+    /// This is the one the app actually acts on: `scoped(to:)`, the records, the totals and the
+    /// activity selector all read `Run.activityType`, and `sportType` is only ever displayed.
+    /// Setting one and not the other is how a summit ended up holding the Longest *Run* record.
+    var activityType: ActivityType {
+        switch self {
+        case .run:  return .run
+        case .ride: return .ride
+        case .hike: return .hike
         }
     }
 
@@ -501,6 +514,12 @@ enum RaceCatalog {
             maxLongitude: box.maxLon
         )
         run.importMethod = .manual
+        // `Run.init` takes `sportType` but not `activityType` — the enum defaults to `.run` and
+        // has to be written afterwards, which every other creation path does and this one did
+        // not. The result was a summit that displayed as a Hike (the detail card reads
+        // `sportType`) while every scope, record and total in the app read `.run` and counted it
+        // as one. Humphreys Peak held the Longest Run record for eight hours.
+        run.activityType = event.discipline.activityType
         run.raceIsCustom = true
         run.sourceExternalID = "race:\(event.id):\(year)"
         run.bibNumber = bibNumber
