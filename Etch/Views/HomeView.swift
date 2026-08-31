@@ -931,7 +931,11 @@ struct HomeView: View {
     private func metric(value: String, unit: String) -> some View {
         VStack(spacing: 0) {
             Text(value)
-                .font(.etch(size: 19, weight: .bold))
+                // Down from 19 as the mark went up to 25. The pill is a fixed width with a
+                // flexible middle, so those two numbers trade against each other directly: the
+                // totals give back roughly what the wordmark took, and the row keeps the same
+                // breathing room on the narrowest phone with every activity type enabled.
+                .font(.etch(size: 17, weight: .bold))
                 // Monospaced digits so the count/distance don't jitter the pill as they tick.
                 .monospacedDigit()
                 .contentTransition(.numericText())

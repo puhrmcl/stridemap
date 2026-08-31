@@ -446,7 +446,13 @@ enum EtchHeaderMetrics {
     /// The avatar's diameter.
     static let avatar: CGFloat = 34
     /// The wordmark's height inside the identity row.
-    static let mark: CGFloat = 20
+    ///
+    /// Read against `rowHeight`, not in isolation: at 25 in a 34pt row the mark carries about
+    /// four and a half points of air above and below, which is what lets it sit as the row's
+    /// anchor rather than as one more small thing on a line of small things. Every surface takes
+    /// its mark from here — the map pill and the flat page headers both — so the brand is one
+    /// size across the app by construction rather than by four constants agreeing.
+    static let mark: CGFloat = 25
 
     /// The map pill's own interior horizontal padding. Its outer padding is `side` minus this,
     /// which is what lands the mark at `side` from the screen edge on the map too.

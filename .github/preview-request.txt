@@ -11,14 +11,12 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b493, four changes at once:
-#   home        — the activity icon stays on the pill with one activity type enabled (the seeded
-#                 history is runs only, so this is exactly that case). No chevron, no tap.
-#   tabs@timeline — Years oldest-at-top, opening at the foot rather than scrolled past the end.
-#   yearbook    — Add to Bag beside the order button.
-#   wall-art:grid — the bag toolbar item is a menu now (Buy now / Add to Bag).
+# Requested for b494: the wordmark is 25pt tall in every header — the map pill, the flat page
+# headers, and Search, which was the odd one at 17. The map pill's totals drop 19 → 17 to pay
+# for the width. Wanted on one map shot and two flat headers so the size can be held against
+# itself across containers.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=home,tabs@timeline,yearbook,wall-art:grid
+screens=home,tabs@timeline,tabs@studio
 appearance=both

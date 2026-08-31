@@ -56,7 +56,10 @@ struct ScopedSearchView: View {
             // "search" more plainly than a title ever did, so the slot is better spent on the
             // brand. The title stays set for VoiceOver, which reads it rather than the image.
             .toolbar {
-                ToolbarItem(placement: .principal) { EtchWordmark(height: 17) }
+                // Takes the shared header size rather than a literal of its own. Search sat at
+                // 17 while every other page sat at 20, which read as the brand shrinking when
+                // you reached the one surface every tab leads to.
+                ToolbarItem(placement: .principal) { EtchWordmark(height: EtchHeaderMetrics.mark) }
             }
             .searchable(text: $query, prompt: scope.searchPrompt)
             .safeAreaInset(edge: .top, spacing: 0) {
