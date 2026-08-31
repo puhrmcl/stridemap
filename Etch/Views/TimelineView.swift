@@ -1,8 +1,9 @@
 import SwiftUI
 import SwiftData
 
-/// Running history browsed like Apple Photos: a Years / Months / All segmented control, with
-/// route thumbnails standing in for photos. Tap any run to zoom the map to it.
+/// History browsed like Apple Photos: a Years / Months / All / Gallery segmented control, with
+/// route thumbnails standing in for photos in the first three and the real photographs in the
+/// fourth. Tap any tile to open what it belongs to.
 struct TimelineView: View {
     /// True when pushed inside the Explore hub's navigation stack (no own NavigationStack).
     var embedded: Bool = false
@@ -20,13 +21,31 @@ struct TimelineView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
 
+    /// Named so CI can photograph a scope other than the one the page opens on — the preview
+    /// harness cannot tap a segmented control, so without this Gallery and All are unverifiable.
+    init(embedded: Bool = false,
+         visibleSpan: Binding<String?> = .constant(nil),
+         scope: Scope = .years) {
+        self.embedded = embedded
+        self.visibleSpan = visibleSpan
+        _scope = State(initialValue: scope)
+    }
+
+    /// Gallery is a fourth arrangement of the same history, not a separate place.
+    ///
+    /// It was a corner button in the page header opening a full-screen cover, which made the
+    /// photographs feel like a side door off the Timeline rather than one of its views. Years,
+    /// Months, All and Gallery are four ways of looking at the same activities — by year, by month,
+    /// by activity, by photograph — so they belong in one control.
     enum Scope: String, CaseIterable, Identifiable {
-        case years = "Years", months = "Months", all = "All"
+        case years = "Years", months = "Months", all = "All", gallery = "Gallery"
         var id: String { rawValue }
     }
     @State private var scope: Scope = .years
     /// Month section to scroll to after switching to Months (set when a year tile is tapped).
     @State private var scrollTarget: String?
+    /// The photograph the full-screen viewer is opened on, in the Gallery scope.
+    @State private var openedPhoto: OpenedGalleryPhoto?
 
     /// Runs limited to the app-wide activity scope (All / Runs / Hikes / Walks).
     /// The activity types this surface is showing, before the query filter.
@@ -76,6 +95,20 @@ struct TimelineView: View {
     private var timelineYears: [Int] { years.reversed() }
     private var timelineRuns: [Run] { scopedRuns.reversed() }
 
+    // MARK: Gallery
+
+    /// Every photograph in the scoped history, in the same months-oldest-first order as the rest
+    /// of the page. Scoped rather than global on purpose: a filter that narrows the Timeline to
+    /// races should narrow the pictures to races too, or the control means two things.
+    private var photoMonths: [GalleryMonth] { GalleryIndex.months(in: scopedRuns) }
+    private var photos: [GalleryPhoto] { photoMonths.flatMap(\.photos) }
+    /// Whether the Gallery scope has anything behind it. A door to an empty room is worse than
+    /// no door, so the segment is simply absent until there is a photograph in the library.
+    private var hasPhotos: Bool { typedRuns.contains { !$0.photoReferences.isEmpty } }
+    private var availableScopes: [Scope] {
+        hasPhotos ? Scope.allCases : Scope.allCases.filter { $0 != .gallery }
+    }
+
     /// The scope this view has already placed itself in. Landing is a thing that happens when you
     /// arrive or change scope — not every time the tab is re-entered, which would throw away the
     /// place you had scrolled to for the sake of repeating an opening move.
@@ -102,6 +135,8 @@ struct TimelineView: View {
             if let group = timelineMonths.last { proxy.scrollTo(group.id, anchor: .bottom) }
         case .all:
             if let run = timelineRuns.last { proxy.scrollTo(run.id, anchor: .bottom) }
+        case .gallery:
+            if let photo = photos.last { proxy.scrollTo(photo.id, anchor: .bottom) }
         }
     }
 
@@ -121,6 +156,7 @@ struct TimelineView: View {
                             case .years: yearsContent
                             case .months: monthsContent
                             case .all: allContent
+                            case .gallery: galleryContent
                             }
                         }
                         // Opens on the newest activity, which now sits at the foot of the page.
@@ -145,6 +181,12 @@ struct TimelineView: View {
                             guard scope != .years else { visibleSpan.wrappedValue = nil; return }
                             visibleSpan.wrappedValue = span(forVisible: Set(ids))
                         }
+                        // Gallery reports no span of its own — its tiles are photographs, not
+                        // activities — so the header would otherwise keep printing the dates of
+                        // whatever the previous scope last saw.
+                        .onChange(of: scope) { _, new in
+                            if new == .gallery { visibleSpan.wrappedValue = nil }
+                        }
                         // After a year tile switches us to Months, scroll to that year's start.
                         .task(id: scrollTarget) {
                             guard let target = scrollTarget else { return }
@@ -163,6 +205,19 @@ struct TimelineView: View {
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(item: $pushedRun) { run in
                 RunDetailView(run: run)
+            }
+            // The viewer walks the whole gallery rather than one activity's photos: this is a
+            // gallery, and stopping the swipe at an activity boundary would be the filing cabinet
+            // again. The cover action still resolves per photo, to whichever activity owns the
+            // one on screen.
+            .fullScreenCover(item: $openedPhoto) { selection in
+                RunPhotoViewer(
+                    identifiers: photos.map(\.photoID),
+                    selection: selection.id,
+                    isCoverPhoto: { id in owner(of: id)?.photoReferences.first == id },
+                    onDelete: deletePhoto,
+                    onSetCover: setCover
+                )
             }
             // Years / Months / All sits at the bottom as a sheet, and at the top inside the tab.
             //
@@ -227,14 +282,23 @@ struct TimelineView: View {
 
     // MARK: Scope control
 
+    /// Four equal segments need the width three did not. The inset was 44pt a side, which on a
+    /// 375pt screen leaves 71pt per segment — enough for "Months" and not for "Gallery", and a
+    /// segmented control that runs out of room truncates to an ellipsis rather than shrinking.
     private var scopePicker: some View {
         Picker("View", selection: $scope.animation(.easeInOut(duration: 0.25))) {
-            ForEach(Scope.allCases) { Text($0.rawValue).tag($0) }
+            ForEach(availableScopes) { Text($0.rawValue).tag($0) }
         }
         .pickerStyle(.segmented)
-        .padding(.horizontal, 44)
+        .padding(.horizontal, availableScopes.count > 3 ? 20 : 44)
         .padding(.vertical, 10)
         .background(.ultraThinMaterial)
+        // The last photograph in the library can be deleted from inside the viewer, which takes
+        // the segment away while it is the selected one. Land somewhere real rather than on a
+        // scope the control no longer offers.
+        .onChange(of: hasPhotos) { _, has in
+            if !has, scope == .gallery { scope = .all }
+        }
     }
 
     // MARK: Years
@@ -340,6 +404,87 @@ struct TimelineView: View {
         }
         .scrollTargetLayout()
         .padding(.top, 2)
+    }
+
+    // MARK: Gallery
+
+    /// Every photograph, at the same density as All — five across, hairline gutters, edge to edge
+    /// — under pinned month headers. Pinned rather than scrolling because a wall of photographs
+    /// has no other way of telling you where you are: a route tile carries its own title, a
+    /// picture of a mountain carries nothing.
+    @ViewBuilder
+    private var galleryContent: some View {
+        if photos.isEmpty {
+            ContentUnavailableView(
+                "No photos here",
+                systemImage: "photo.on.rectangle.angled",
+                description: Text(appModel.filter.isActive
+                    ? "No photos on the activities this filter is showing."
+                    : "Photos you attach to an activity — or that Etch matches from your library — collect here.")
+            )
+            .padding(.top, 60)
+        } else {
+            LazyVStack(alignment: .leading, spacing: 22, pinnedViews: [.sectionHeaders]) {
+                ForEach(photoMonths) { month in
+                    Section {
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 5),
+                                  spacing: 2) {
+                            ForEach(month.photos) { photo in
+                                Button { openedPhoto = OpenedGalleryPhoto(id: photo.photoID) } label: {
+                                    GalleryTile(identifier: photo.photoID)
+                                }
+                                .buttonStyle(.plain)
+                                .id(photo.id)
+                            }
+                        }
+                    } header: {
+                        galleryHeader(month)
+                    }
+                }
+            }
+            .padding(.top, 2)
+        }
+    }
+
+    private func galleryHeader(_ month: GalleryMonth) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(month.title)
+                .font(.etch(.headline, weight: .semibold))
+            Spacer(minLength: 0)
+            Text("\(month.photos.count)")
+                .font(.etch(.footnote, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(.bar)
+    }
+
+    /// The activity a photograph belongs to. First match wins on the rare shared picture — the
+    /// cover it would set is that activity's, which is the one the reader tapped through from.
+    private func owner(of photoID: String) -> Run? {
+        runs.first { $0.photoReferences.contains(photoID) }
+    }
+
+    private func deletePhoto(_ photoID: String) {
+        guard let run = owner(of: photoID) else { return }
+        run.photoReferences.removeAll { $0 == photoID }
+        run.updatedAt = Date()
+        try? context.save()
+    }
+
+    /// Makes a photograph its activity's cover, from here as much as from the activity itself —
+    /// the gallery is where you see a picture big enough to decide.
+    private func setCover(_ photoID: String) {
+        guard let run = owner(of: photoID),
+              let index = run.photoReferences.firstIndex(of: photoID), index != 0 else { return }
+        var refs = run.photoReferences
+        refs.remove(at: index)
+        refs.insert(photoID, at: 0)
+        run.photoReferences = refs
+        run.updatedAt = Date()
+        try? context.save()
     }
 
     // MARK: Pieces
@@ -453,6 +598,10 @@ struct TimelineView: View {
         }
     }
 }
+
+/// The photo a full-screen viewer is opened on. File-local: `RunDetailView` has its own, and one
+/// shared type in the global namespace for two call sites is not an abstraction, it is a name.
+private struct OpenedGalleryPhoto: Identifiable { let id: String }
 
 /// A large hero card for a single year: the year's standout route, with the year and totals
 /// laid over a darkening gradient.

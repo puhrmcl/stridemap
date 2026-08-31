@@ -415,8 +415,14 @@ struct StudioHomeView: View {
     /// place the buying happens.
     @ViewBuilder private var bagButton: some View {
         Button { showBag = true } label: {
-            Image(systemName: "bag")
-                .font(.system(size: 17, weight: .medium))
+            // The bar's own bag, not SF Symbols' — this button sits in the header of the tab the
+            // bar's fifth glyph would have belonged to, and a header drawn in one hand and a bar
+            // in another is exactly the mismatch the drawn set exists to remove.
+            Image(EtchTab.bag.image)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 22, height: 22)
                 .foregroundStyle(Theme.Ink.primary)
                 .frame(width: EtchHeaderMetrics.avatar, height: EtchHeaderMetrics.avatar)
                 .overlay(alignment: .topTrailing) {

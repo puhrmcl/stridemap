@@ -36,17 +36,39 @@ enum EtchTab: String, Hashable, CaseIterable, Identifiable {
         }
     }
 
-    /// Tab glyphs, chosen to sit together rather than one at a time.
+    /// Tab glyphs, drawn for this bar rather than assembled from SF Symbols.
     ///
-    /// Studio stays a canvas — the tab is where you *make* something, and a shopfront said only
-    /// that you could buy one. `photo.artframe` was the wrong canvas though: a hard rectangle
-    /// with a heavy frame, beside a rounded bag and a rounded map, on a bar whose whole look is
-    /// soft capsules. `photo` is the same idea drawn minimally, with the rounded corners the rest
-    /// of the set has.
+    /// SF Symbols are a set, but they are Apple's set: drawn to sit beside system text at the
+    /// system's stroke weight, with each glyph solving its own problem. Picked one at a time they
+    /// never quite become a family — `rectangle.grid.2x2` is a heavier drawing than `trophy`,
+    /// which is heavier than `map`, and on a bar the width of a phone that reads as five icons
+    /// that happen to be next to each other.
+    ///
+    /// These are five drawings on one grid: a 28pt box, a 1.7pt stroke, round caps and joins, the
+    /// same optical margin on every side. That is what makes the modern bars — Nike's, the Apple
+    /// Store's — look like one object rather than a row of borrowed pictures.
+    ///
+    /// They ship as vector assets with the template rendering intent, so the bar tints them for
+    /// selection and appearance exactly as it does a system symbol.
+    var image: String {
+        switch self {
+        case .map:          return "TabMap"
+        case .timeline:     return "TabTimeline"
+        case .achievements: return "TabAchievements"
+        case .studio:       return "TabStudio"
+        case .bag:          return "TabBag"
+        case .search:       return "TabSearch"
+        }
+    }
+
+    /// The SF Symbol equivalent, for the places outside the bar that draw a tab's glyph inline
+    /// with text — the search sheet's scope chip, for one. A 28pt outline drawn for a tab bar is
+    /// the wrong weight beside an 11pt label, and a symbol scales with the type where an image
+    /// does not.
     var symbol: String {
         switch self {
         case .map:          return "map"
-        case .timeline:     return "rectangle.grid.2x2"
+        case .timeline:     return "square.grid.2x2"
         case .achievements: return "trophy"
         case .studio:       return "photo"
         case .bag:          return "bag"
@@ -95,20 +117,25 @@ struct EtchTabView: View {
     var body: some View {
         @Bindable var appModel = appModel
         TabView(selection: $appModel.selectedTab) {
-            Tab(EtchTab.map.title, systemImage: EtchTab.map.symbol, value: EtchTab.map) {
+            Tab(EtchTab.map.title, image: EtchTab.map.image, value: EtchTab.map) {
                 HomeView()
             }
-            Tab(EtchTab.timeline.title, systemImage: EtchTab.timeline.symbol, value: EtchTab.timeline) {
+            Tab(EtchTab.timeline.title, image: EtchTab.timeline.image, value: EtchTab.timeline) {
                 TimelineTab()
             }
-            Tab(EtchTab.achievements.title, systemImage: EtchTab.achievements.symbol,
+            Tab(EtchTab.achievements.title, image: EtchTab.achievements.image,
                 value: EtchTab.achievements) {
                 AchievementsTab()
             }
-            Tab(EtchTab.studio.title, systemImage: EtchTab.studio.symbol, value: EtchTab.studio) {
+            Tab(EtchTab.studio.title, image: EtchTab.studio.image, value: EtchTab.studio) {
                 StudioHomeView(isHome: true)
             }
-            Tab(value: EtchTab.search, role: .search) {
+            // The search glyph carries a sparkle, which is the convention every app that searches
+            // across your own things has landed on. It is still `role: .search`, so the system
+            // keeps drawing it detached from the other four — the relationship matters more than
+            // the picture.
+            Tab(EtchTab.search.title, image: EtchTab.search.image,
+                value: EtchTab.search, role: .search) {
                 ScopedSearchView(scope: lastDestination)
             }
         }
@@ -138,7 +165,6 @@ struct TimelineTab: View {
     @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
     /// The date span of whatever Timeline currently has on screen, written by it as you scroll.
     @State private var visibleSpan: String?
-    @State private var showGallery = false
 
     var body: some View {
         NavigationStack {
@@ -155,39 +181,19 @@ struct TimelineTab: View {
                 .safeAreaInset(edge: .top, spacing: 0) {
                     // The span while scrolling, the summary otherwise — Photos shows where you
                     // are when there is a where, and what you have when there isn't.
-                    EtchPageHeader("Timeline", subtitle: visibleSpan ?? summary) {
-                        photosButton
-                    }
-                    .padding(.bottom, 8)
-                    .background(.bar)
+                    //
+                    // Nothing else lives up here. The gallery was briefly a glyph in this corner
+                    // opening a full-screen cover, which made the photographs a side door off the
+                    // page instead of one of its views. They are a fourth segment in the control
+                    // below now, beside Years, Months and All, where the other three arrangements
+                    // of the same history already are.
+                    EtchPageHeader("Timeline", subtitle: visibleSpan ?? summary)
+                        .padding(.bottom, 8)
+                        .background(.bar)
                 }
                 .toolbar(.hidden, for: .navigationBar)
-                .fullScreenCover(isPresented: $showGallery) { PhotoGalleryView() }
         }
     }
-
-    /// The door to every photograph at once.
-    ///
-    /// It belongs on this page rather than on its own tab: the gallery is the same history in a
-    /// different arrangement, the way Years, Months and All are — and the bar already carries four
-    /// destinations, which is as many as a bar can hold before it stops being navigable.
-    ///
-    /// Hidden when there is nothing behind it. A door to an empty room is worse than no door.
-    @ViewBuilder private var photosButton: some View {
-        if hasPhotos {
-            Button { showGallery = true } label: {
-                Image(systemName: "photo.on.rectangle.angled")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .frame(width: EtchHeaderMetrics.avatar, height: EtchHeaderMetrics.avatar)
-                    .contentShape(.rect)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("All photos")
-        }
-    }
-
-    private var hasPhotos: Bool { runs.contains { !$0.photoReferences.isEmpty } }
 
     /// What the history amounts to — shown under the title until a scroll reports a date span,
     /// which is the more useful answer while you are moving through it.

@@ -69,8 +69,11 @@ struct RunPhotoViewer: View {
                     FullPhoto(identifier: id).tag(id)
                 }
             }
-            .tabViewStyle(.page(indexDisplayMode: identifiers.count > 1 ? .automatic : .never))
+            // Page dots go away once the filmstrip is there. Two indicators of the same position,
+            // one of which shows you the actual photographs, is one too many.
+            .tabViewStyle(.page(indexDisplayMode: .never))
             .background(Color.black.ignoresSafeArea())
+            .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button { dismiss() } label: { Image(systemName: "xmark") }
@@ -91,13 +94,6 @@ struct RunPhotoViewer: View {
                         dismiss()
                     } label: { Image(systemName: "trash") }
                 }
-                // The cover action sits at the bottom rather than in the toolbar with the others.
-                // It is the one control here that changes what this activity looks like everywhere
-                // else in the app, and it needs to say which photo is currently carrying that job —
-                // neither of which a 22pt toolbar glyph can do.
-                if onSetCover != nil {
-                    ToolbarItem(placement: .bottomBar) { coverButton }
-                }
             }
             .toolbarBackground(.visible, for: .navigationBar)
             .onAppear { if order.isEmpty { order = identifiers } }
@@ -107,6 +103,65 @@ struct RunPhotoViewer: View {
         .task(id: selection) {
             shareImage = nil
             shareImage = await PhotoLibrary.fullImage(for: selection)
+        }
+    }
+
+    // MARK: The bottom bar
+
+    /// The filmstrip, with the cover action under it.
+    ///
+    /// Both are here rather than in the toolbar because both are about *this* photograph and the
+    /// ones around it. The cover action in particular is the one control on this screen that
+    /// changes what the activity looks like everywhere else in the app, and it has to say which
+    /// photo is currently carrying that job — neither of which a 22pt toolbar glyph can do.
+    @ViewBuilder
+    private var bottomBar: some View {
+        if pages.count > 1 || onSetCover != nil {
+            VStack(spacing: 10) {
+                if pages.count > 1 { filmstrip }
+                if onSetCover != nil { coverButton }
+            }
+            .padding(.top, 10)
+            .padding(.bottom, 6)
+            .background(.ultraThinMaterial)
+        }
+    }
+
+    /// Every photograph in the set, as a scrubbable strip under the one you are looking at.
+    ///
+    /// Swiping is fine for the next picture and useless for the fortieth: a gallery viewer opened
+    /// on a photograph from 2023 is a thousand swipes from one taken last week. The strip is how
+    /// Photos solves it — you see where you are in the set, what is on either side, and you can
+    /// jump. The current frame is drawn taller with a light border so the strip reads as a
+    /// position, not just a row of thumbnails.
+    private var filmstrip: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 3) {
+                    ForEach(pages, id: \.self) { id in
+                        FilmstripFrame(identifier: id, isCurrent: id == selection)
+                            .id(id)
+                            .onTapGesture {
+                                withAnimation(.easeInOut(duration: 0.2)) { selection = id }
+                            }
+                    }
+                }
+                .padding(.horizontal, 14)
+                .frame(height: FilmstripFrame.tall)
+            }
+            .frame(height: FilmstripFrame.tall)
+            // Follows the pager, in both directions: swiping the photo scrolls the strip, and
+            // tapping the strip pages the photo. `.center` keeps the current frame in the middle
+            // except at the two ends, where the scroll view clamps — which is the right answer,
+            // since the first and last photographs have nothing to be centred against.
+            .onChange(of: selection) { _, id in
+                withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .center) }
+            }
+            .task {
+                // No animation on the way in: the strip should already be in position when the
+                // viewer appears, not scroll there while you watch.
+                proxy.scrollTo(selection, anchor: .center)
+            }
         }
     }
 
@@ -133,6 +188,48 @@ struct RunPhotoViewer: View {
         .buttonStyle(.plain)
         .animation(.snappy(duration: 0.2), value: isCover)
         .accessibilityLabel(isCover ? "This is the cover photo" : "Make this the cover photo")
+    }
+}
+
+/// One frame in the filmstrip. The current one is taller and outlined; the rest are dimmed, so a
+/// glance down finds your place without reading anything.
+private struct FilmstripFrame: View {
+    let identifier: String
+    let isCurrent: Bool
+    @State private var image: UIImage?
+
+    /// The strip's height, and the current frame's. Named so the ScrollView and the frame cannot
+    /// disagree about it — a strip 2pt shorter than its tallest child clips the border.
+    static let tall: CGFloat = 54
+    private static let short: CGFloat = 40
+
+    private var side: CGFloat { isCurrent ? Self.tall : Self.short }
+
+    var body: some View {
+        Color.clear
+            .frame(width: side, height: side)
+            .overlay {
+                if let image {
+                    Image(uiImage: image).resizable().scaledToFill()
+                } else {
+                    Rectangle().fill(.white.opacity(0.12))
+                }
+            }
+            .clipShape(.rect(cornerRadius: isCurrent ? 6 : 4))
+            .overlay {
+                RoundedRectangle(cornerRadius: isCurrent ? 6 : 4)
+                    .strokeBorder(.white.opacity(isCurrent ? 0.9 : 0), lineWidth: 1.5)
+            }
+            .opacity(isCurrent ? 1 : 0.55)
+            .frame(width: side, height: Self.tall)
+            .contentShape(.rect)
+            .animation(.easeInOut(duration: 0.2), value: isCurrent)
+            .task(id: identifier) {
+                image = await PhotoLibrary.image(
+                    for: identifier,
+                    targetSize: CGSize(width: 160, height: 160)
+                )
+            }
     }
 }
 

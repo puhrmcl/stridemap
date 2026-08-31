@@ -8,15 +8,23 @@
 #             map-studio, gallery-studio, detail, components
 #             wall-art accepts a style: wall-art:grid, wall-art:ridgeline, wall-art:rings,
 #             wall-art:thread, wall-art:strata
+#             timeline accepts a scope: timeline:years, timeline:months, timeline:all,
+#             timeline:gallery
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b505: the map header keeps its positions and loses its pane. Only the totals sit
-# on glass now; the mark, the two selectors and the avatar float on the terrain with a halo for
-# legibility. home in both appearances — the light shot is the one that matters, because a white
-# halo under dark chrome is the half of this that is easy to get wrong.
+# Requested for b507: two things to look at.
+#
+#   tabs@timeline — the drawn glyph set. Five icons on one 28pt grid at a 1.7pt stroke,
+#   replacing five SF Symbols that never quite became a family. What to check: that they
+#   render at all (they are vector assets, not symbols), that they tint for selection, and
+#   that they read as one set rather than five pictures.
+#
+#   timeline:gallery — Gallery as the fourth segment beside Years / Months / All. The tiles
+#   are placeholders (the simulator has no photo library), so what is being checked is the
+#   four-up scope control not truncating, the month headers, and the grid.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=home
+screens=tabs@timeline,timeline:gallery
 appearance=both

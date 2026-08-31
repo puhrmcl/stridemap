@@ -157,6 +157,16 @@ enum PreviewHarness {
             )
             run.elevationSeries = elevations
             if isRace { run.finishPlace = "\(Int(random() * 400) + 12)" }
+            // Photographs, so the Timeline's Gallery scope has a wall to lay out. The identifiers
+            // resolve to nothing in a simulator with an empty photo library, so every tile draws
+            // its placeholder — which is the point: what CI can check here is the grid, the month
+            // headers, the four-up scope control and where the page lands, not the pictures.
+            // Most activities have none, a few have a handful; that lopsidedness is what makes a
+            // month header's count worth printing.
+            let photoCount = [0, 0, 0, 1, 2, 4][index % 6]
+            if photoCount > 0 {
+                run.photoReferences = (0..<photoCount).map { "preview-photo-\(index)-\($0)" }
+            }
             context.insert(run)
         }
         try? context.save()
@@ -191,6 +201,13 @@ struct PreviewHarnessView: View {
                 // tab bar, since every other case renders a view directly and never sees it.
                 // "tabs@studio" opens the shell on that tab.
                 case let name where name.hasPrefix("tabs"): EtchTabView()
+                // The Timeline on a named scope. CI cannot tap a segmented control, so
+                // "timeline:gallery" (or :all / :months) is the only way its other three
+                // arrangements ever get photographed.
+                case let name where name.hasPrefix("timeline"):
+                    NavigationStack {
+                        TimelineView(embedded: true, scope: timelineScope(from: name))
+                    }
                 case "archive":         CollectionBrowserView(collection: .archive, runs: allRuns)
                 case "course":          CollectionBrowserView(collection: .course, runs: allRuns)
                 case "summit":          CollectionBrowserView(collection: .summit, runs: allRuns)
@@ -249,6 +266,14 @@ struct PreviewHarnessView: View {
         let parts = name.split(separator: ":", maxSplits: 1)
         guard parts.count == 2 else { return .grid }
         return MapArtStyle(rawValue: String(parts[1])) ?? .grid
+    }
+
+    /// The scope named after the colon in `timeline:<scope>`, defaulting to Years — the one the
+    /// page opens on for real.
+    private func timelineScope(from name: String) -> TimelineView.Scope {
+        let parts = name.split(separator: ":", maxSplits: 1)
+        guard parts.count == 2 else { return .years }
+        return TimelineView.Scope(rawValue: String(parts[1]).capitalized) ?? .years
     }
 
     /// Opens the editor straight on the requested product, past the Map/Gallery chooser.
