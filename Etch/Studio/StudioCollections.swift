@@ -126,31 +126,40 @@ enum StudioCollections {
         let name: String
         let park: String
         let coordinate: CLLocationCoordinate2D
+        /// The summit's own height, when the entry tops out on one. Nil for the hikes that do
+        /// not summit anything, and for routes that stop short of the top.
+        let elevationMeters: Double?
+        /// The peak-bagging lists it belongs to.
+        let lists: Set<PeakList>
+
+        /// "12,633 ft" — nil where there is no summit to quote.
+        var elevationLabel: String? {
+            elevationMeters.map { Format.summitElevation($0) }
+        }
     }
 
-    /// Curated from what people actually chase (permit lotteries are the tell): the hikes that top
-    /// every list and already have finisher culture with no premium personal-route product.
-    static let iconicSummits: [IconicSummit] = [
-        IconicSummit(name: "Half Dome", park: "Yosemite",
-                     coordinate: CLLocationCoordinate2D(latitude: 37.7459, longitude: -119.5332)),
-        IconicSummit(name: "Angels Landing", park: "Zion",
-                     coordinate: CLLocationCoordinate2D(latitude: 37.2690, longitude: -112.9469)),
-        IconicSummit(name: "Rim to Rim", park: "Grand Canyon",
-                     coordinate: CLLocationCoordinate2D(latitude: 36.0544, longitude: -112.1401)),
-        IconicSummit(name: "Delicate Arch", park: "Arches",
-                     coordinate: CLLocationCoordinate2D(latitude: 38.7436, longitude: -109.4993)),
-        IconicSummit(name: "Old Rag", park: "Shenandoah",
-                     coordinate: CLLocationCoordinate2D(latitude: 38.5514, longitude: -78.3161)),
-        IconicSummit(name: "Emerald Lake", park: "Rocky Mountain",
-                     coordinate: CLLocationCoordinate2D(latitude: 40.3095, longitude: -105.6455)),
-        IconicSummit(name: "Camelback Mountain", park: "Phoenix",
-                     coordinate: CLLocationCoordinate2D(latitude: 33.5151, longitude: -111.9619)),
-        IconicSummit(name: "Highline Trail", park: "Glacier",
-                     coordinate: CLLocationCoordinate2D(latitude: 48.6967, longitude: -113.7183))
-    ]
+    /// Every summit the collection can recognise, taken from the event library.
+    ///
+    /// This used to be its own hand-written list of eight, sitting a few hundred lines away from
+    /// a hiking catalog of forty-odd that already carried the same peaks with better data. Two
+    /// lists of the same thing is one list plus a bug: a hike matched to `humphreys-peak` in the
+    /// catalog was invisible here, so Arizona's high point produced a poster captioned
+    /// "3,684 ft of climb" rather than one that knew what mountain it was.
+    ///
+    /// Derived rather than duplicated now. Adding a peak to the library adds it here.
+    static let iconicSummits: [IconicSummit] = RaceCatalog.events.compactMap { event in
+        guard event.discipline == .hike, let start = event.start else { return nil }
+        return IconicSummit(name: event.summitName, park: event.city, coordinate: start,
+                            elevationMeters: event.summitMeters, lists: event.peakLists)
+    }
 
     /// Genuine climbing, in metres of gain — below this a hike is a walk, not a summit piece.
     static let summitGainFloor: Double = 120
+
+    /// How close a hike has to start to a library summit to be called that summit. Trailheads sit
+    /// a few kilometres from the peaks they serve, so this cannot be tight; the catalog's closest
+    /// neighbours are about six kilometres apart, so it cannot be loose either.
+    static let summitMatchRadius: Double = 5_000
 
     /// The user's summit-worthy activities: hikes with real elevation gain, or anything matched to
     /// an iconic trail. Iconic matches lead; the rest rank by climb. Preset: Midnight Atlas — gold
@@ -167,8 +176,13 @@ enum StudioCollections {
                 return a.0.elevationGain > b.0.elevationGain
             }
             .map { run, iconic in
-                let subtitle = iconic.map { "\($0.name) · \($0.park)" }
-                    ?? "\(Format.elevationGain(run.elevationGain)) of climb"
+                // The peak's own height leads when we know it. "Humphreys Peak · 12,633 ft"
+                // says what the piece is about; "Humphreys Peak · Flagstaff" says where you
+                // parked, and "3,684 ft of climb" — the old fallback for everything — says
+                // nothing a hundred other hikes could not also say.
+                let subtitle = iconic.map { summit in
+                    [summit.name, summit.elevationLabel ?? summit.park].joined(separator: " · ")
+                } ?? "\(Format.elevationGain(run.elevationGain)) of climb"
                 return CollectionPiece(run: run, preset: summitPreset(for: run, iconic: iconic),
                                        subtitle: subtitle)
             }
@@ -183,18 +197,34 @@ enum StudioCollections {
         preset.heroMetric = .elevationGain
         preset.dataSlots = [.distance, .time]
         preset.showElevation = true
-        if let iconic { preset.title = iconic.name.uppercased() }
+        if let iconic {
+            preset.title = iconic.name.uppercased()
+            // The nameplate's second line becomes the summit rather than the city: a poster of a
+            // mountain should print the mountain's height, which is the one number the climb was
+            // measured against and the one a hiker quotes when asked about it.
+            if let elevation = iconic.elevationLabel {
+                preset.location = elevation.uppercased()
+            }
+        }
         return preset
     }
 
-    /// The iconic trail this activity belongs to, if its start sits within ~20 km of one.
+    /// The trail this activity belongs to: the **nearest** library summit within `summitMatchRadius`
+    /// of where it started.
+    ///
+    /// Nearest, not first — which mattered the moment this stopped reading a list of eight. Two of
+    /// the catalog's Phoenix peaks sit six kilometres apart, so a `first` match inside a twenty
+    /// kilometre radius returned whichever happened to be earlier in the array, and every Piestewa
+    /// hike came back as Camelback. The radius tightened with it: twenty kilometres was a safe
+    /// spacing for eight famous trailheads and is far too loose for forty.
     static func iconicSummit(for run: Run) -> IconicSummit? {
         guard let lat = run.startLatitude, let lon = run.startLongitude else { return nil }
         let start = CLLocation(latitude: lat, longitude: lon)
-        return iconicSummits.first {
-            start.distance(from: CLLocation(latitude: $0.coordinate.latitude,
-                                            longitude: $0.coordinate.longitude)) < 20_000
-        }
+        return iconicSummits
+            .map { ($0, start.distance(from: CLLocation(latitude: $0.coordinate.latitude,
+                                                        longitude: $0.coordinate.longitude))) }
+            .filter { $0.1 < summitMatchRadius }
+            .min { $0.1 < $1.1 }?.0
     }
 
     // MARK: The Archive Collection

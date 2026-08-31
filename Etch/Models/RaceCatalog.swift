@@ -50,6 +50,36 @@ enum EventDiscipline: String, CaseIterable, Identifiable, Sendable {
     var hasFinisherFields: Bool { self != .hike }
 }
 
+/// The peak-bagging lists a summit belongs to.
+///
+/// These are the lists with finisher culture — the ones people organise years around and keep a
+/// tally of. That is the whole test for adding one: a list nobody counts is a category, not an
+/// achievement, and it earns no poster.
+enum PeakList: String, CaseIterable, Identifiable, Sendable {
+    /// The highest point in its US state.
+    case stateHighPoint
+    /// Colorado's 58 peaks above 14,000 ft.
+    case colorado14ers
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .stateHighPoint: return "State High Points"
+        case .colorado14ers:  return "Colorado 14ers"
+        }
+    }
+
+    /// How many are on the list. A checklist piece has to name its denominator — "23" means
+    /// nothing, "23 of 58" is the whole story.
+    var total: Int {
+        switch self {
+        case .stateHighPoint: return 50
+        case .colorado14ers:  return 58
+        }
+    }
+}
+
 /// Where an event's drawn route comes from, and how much it can be trusted.
 enum CourseSource {
     /// An official or participant-supplied file bundled with the app. Trustworthy.
@@ -81,6 +111,31 @@ struct RaceEvent: Identifiable {
     /// Hand-traced geometry for the handful of events carrying it. A bundled course file always
     /// wins over this.
     var tracedCourse: [CLLocationCoordinate2D] = []
+
+    /// The summit's own elevation in metres, when the entry tops out on a named high point.
+    ///
+    /// Nil is meaningful rather than missing: Rim to Rim, The Narrows and Havasu Falls are hikes
+    /// that never summit anything, and a piece that printed an elevation for them would be
+    /// inventing a fact. Nil for Camp Muir too — that route stops 4,000 ft below Rainier's top,
+    /// and quoting the mountain's height for a hike that did not reach it is the same lie.
+    var summitMeters: Double? = nil
+
+    /// The peak-bagging lists this summit belongs to.
+    var peakLists: Set<PeakList> = []
+
+    /// The peak without its route in parentheses — "Camelback Mountain", not "Camelback Mountain
+    /// (Echo Canyon)". The route matters in a picker, where you are choosing which way you went;
+    /// it is noise on a nameplate, which is naming the mountain.
+    var summitName: String {
+        guard let cut = name.firstIndex(of: "(") else { return name }
+        return String(name[..<cut]).trimmingCharacters(in: .whitespaces)
+    }
+
+    /// The elevation as a nameplate prints it — "12,633 ft" — in the reader's own units.
+    var summitLabel: String? {
+        guard let summitMeters else { return nil }
+        return Format.summitElevation(summitMeters)
+    }
 
     /// Where this event's route would come from today.
     var courseSource: CourseSource {
@@ -189,12 +244,14 @@ enum RaceCatalog {
                               _ discipline: EventDiscipline, _ distance: Double,
                               _ month: Int, _ day: Int,
                               _ lat: Double, _ lon: Double,
-                              traced: [CLLocationCoordinate2D] = []) -> RaceEvent {
+                              traced: [CLLocationCoordinate2D] = [],
+                              summit: Double? = nil,
+                              lists: Set<PeakList> = []) -> RaceEvent {
         RaceEvent(id: id, name: name, city: city, state: state, country: country,
                   discipline: discipline, distanceMeters: distance,
                   typicalMonth: month, typicalDay: day,
                   start: CLLocationCoordinate2D(latitude: lat, longitude: lon),
-                  tracedCourse: traced)
+                  tracedCourse: traced, summitMeters: summit, peakLists: lists)
     }
 
     private static func c(_ lat: Double, _ lon: Double) -> CLLocationCoordinate2D {
@@ -336,60 +393,60 @@ enum RaceCatalog {
 
     private static let hiking: [RaceEvent] = [
         // ── Arizona
-        event("camelback", "Camelback Mountain (Echo Canyon)", "Phoenix", "Arizona", "United States", .hike, 4_023, 3, 15, 33.5225, -111.9631),
-        event("piestewa-peak", "Piestewa Peak (Summit Trail)", "Phoenix", "Arizona", "United States", .hike, 3_219, 3, 15, 33.5450, -112.0230),
+        event("camelback", "Camelback Mountain (Echo Canyon)", "Phoenix", "Arizona", "United States", .hike, 4_023, 3, 15, 33.5225, -111.9631, summit: 824),
+        event("piestewa-peak", "Piestewa Peak (Summit Trail)", "Phoenix", "Arizona", "United States", .hike, 3_219, 3, 15, 33.5450, -112.0230, summit: 796),
         event("south-mountain-national", "South Mountain (National Trail)", "Phoenix", "Arizona", "United States", .hike, 12_875, 2, 15, 33.3400, -112.0700),
-        event("flatiron", "Flatiron (Siphon Draw)", "Apache Junction", "Arizona", "United States", .hike, 8_690, 2, 15, 33.4520, -111.4790),
-        event("four-peaks-brown", "Four Peaks (Brown's Peak)", "Payson", "Arizona", "United States", .hike, 14_484, 4, 15, 33.6800, -111.3300),
+        event("flatiron", "Flatiron (Siphon Draw)", "Apache Junction", "Arizona", "United States", .hike, 8_690, 2, 15, 33.4520, -111.4790, summit: 1_482),
+        event("four-peaks-brown", "Four Peaks (Brown's Peak)", "Payson", "Arizona", "United States", .hike, 14_484, 4, 15, 33.6800, -111.3300, summit: 2_334),
         // Arizona's high point, 12,633 ft. Distance corrected 16,898 → 16,093 (10.5 → 10.0 mi) to
         // match the figure the trail is actually published under; the bundled course measures
         // 9.56 mi, which is the usual gap between a traced line and a cited round trip.
-        event("humphreys-peak", "Humphreys Peak", "Flagstaff", "Arizona", "United States", .hike, 16_093, 8, 15, 35.3464, -111.6780),
+        event("humphreys-peak", "Humphreys Peak", "Flagstaff", "Arizona", "United States", .hike, 16_093, 8, 15, 35.3464, -111.6780, summit: 3_851, lists: [.stateHighPoint]),
         event("cathedral-rock", "Cathedral Rock", "Sedona", "Arizona", "United States", .hike, 1_931, 3, 15, 34.8200, -111.7920),
         event("devils-bridge", "Devil's Bridge", "Sedona", "Arizona", "United States", .hike, 6_759, 3, 15, 34.9020, -111.8140),
         event("west-fork-oak-creek", "West Fork of Oak Creek", "Sedona", "Arizona", "United States", .hike, 10_460, 10, 15, 34.9930, -111.7440),
-        event("picacho-peak", "Picacho Peak (Hunter Trail)", "Picacho", "Arizona", "United States", .hike, 5_150, 2, 15, 32.6440, -111.4000),
+        event("picacho-peak", "Picacho Peak (Hunter Trail)", "Picacho", "Arizona", "United States", .hike, 5_150, 2, 15, 32.6440, -111.4000, summit: 1_028),
         event("havasu-falls", "Havasu Falls", "Supai", "Arizona", "United States", .hike, 32_187, 5, 15, 36.1580, -112.7080),
         event("bright-angel", "Bright Angel Trail", "Grand Canyon", "Arizona", "United States", .hike, 30_578, 4, 15, 36.0574, -112.1436),
         event("rim-to-rim", "Grand Canyon Rim to Rim", "Grand Canyon", "Arizona", "United States", .hike, 38_624, 10, 10, 36.0544, -112.1401),
 
         // ── The West
-        event("half-dome", "Half Dome", "Yosemite National Park", "California", "United States", .hike, 22_530, 7, 15, 37.7459, -119.5332),
-        event("mount-whitney", "Mount Whitney", "Lone Pine", "California", "United States", .hike, 35_405, 8, 1, 36.5865, -118.2920),
-        event("mount-shasta", "Mount Shasta (Avalanche Gulch)", "Mount Shasta", "California", "United States", .hike, 18_000, 6, 15, 41.3530, -122.2320),
-        event("angels-landing", "Angels Landing", "Zion National Park", "Utah", "United States", .hike, 8_690, 5, 15, 37.2690, -112.9469),
+        event("half-dome", "Half Dome", "Yosemite National Park", "California", "United States", .hike, 22_530, 7, 15, 37.7459, -119.5332, summit: 2_694),
+        event("mount-whitney", "Mount Whitney", "Lone Pine", "California", "United States", .hike, 35_405, 8, 1, 36.5865, -118.2920, summit: 4_421, lists: [.stateHighPoint]),
+        event("mount-shasta", "Mount Shasta (Avalanche Gulch)", "Mount Shasta", "California", "United States", .hike, 18_000, 6, 15, 41.3530, -122.2320, summit: 4_322),
+        event("angels-landing", "Angels Landing", "Zion National Park", "Utah", "United States", .hike, 8_690, 5, 15, 37.2690, -112.9469, summit: 1_765),
         event("the-narrows", "The Narrows", "Zion National Park", "Utah", "United States", .hike, 15_127, 6, 15, 37.2982, -112.9481),
         event("delicate-arch", "Delicate Arch", "Moab", "Utah", "United States", .hike, 4_828, 4, 15, 38.7360, -109.5200),
-        event("mount-timpanogos", "Mount Timpanogos", "American Fork", "Utah", "United States", .hike, 22_531, 8, 15, 40.4050, -111.6380),
-        event("longs-peak", "Longs Peak", "Estes Park", "Colorado", "United States", .hike, 24_140, 8, 1, 40.2549, -105.6151),
-        event("mount-elbert", "Mount Elbert", "Leadville", "Colorado", "United States", .hike, 15_288, 8, 1, 39.1178, -106.4453),
-        event("quandary-peak", "Quandary Peak", "Breckenridge", "Colorado", "United States", .hike, 10_621, 8, 1, 39.3970, -106.0640),
-        event("grays-torreys", "Grays and Torreys Peaks", "Georgetown", "Colorado", "United States", .hike, 13_679, 8, 1, 39.6600, -105.7700),
+        event("mount-timpanogos", "Mount Timpanogos", "American Fork", "Utah", "United States", .hike, 22_531, 8, 15, 40.4050, -111.6380, summit: 3_582),
+        event("longs-peak", "Longs Peak", "Estes Park", "Colorado", "United States", .hike, 24_140, 8, 1, 40.2549, -105.6151, summit: 4_346, lists: [.colorado14ers]),
+        event("mount-elbert", "Mount Elbert", "Leadville", "Colorado", "United States", .hike, 15_288, 8, 1, 39.1178, -106.4453, summit: 4_401, lists: [.stateHighPoint, .colorado14ers]),
+        event("quandary-peak", "Quandary Peak", "Breckenridge", "Colorado", "United States", .hike, 10_621, 8, 1, 39.3970, -106.0640, summit: 4_350, lists: [.colorado14ers]),
+        event("grays-torreys", "Grays and Torreys Peaks", "Georgetown", "Colorado", "United States", .hike, 13_679, 8, 1, 39.6600, -105.7700, summit: 4_352, lists: [.colorado14ers]),
         event("mount-rainier-muir", "Mount Rainier (Camp Muir)", "Ashford", "Washington", "United States", .hike, 14_484, 7, 15, 46.7860, -121.7350),
-        event("mount-si", "Mount Si", "North Bend", "Washington", "United States", .hike, 12_875, 6, 15, 47.4879, -121.7230),
-        event("mount-st-helens", "Mount St. Helens (Monitor Ridge)", "Cougar", "Washington", "United States", .hike, 16_093, 7, 15, 46.1470, -122.1830),
+        event("mount-si", "Mount Si", "North Bend", "Washington", "United States", .hike, 12_875, 6, 15, 47.4879, -121.7230, summit: 1_189),
+        event("mount-st-helens", "Mount St. Helens (Monitor Ridge)", "Cougar", "Washington", "United States", .hike, 16_093, 7, 15, 46.1470, -122.1830, summit: 2_549),
         event("the-enchantments", "The Enchantments", "Leavenworth", "Washington", "United States", .hike, 29_000, 9, 15, 47.5560, -120.8250),
-        event("mount-hood", "Mount Hood (Timberline)", "Government Camp", "Oregon", "United States", .hike, 12_875, 5, 15, 45.3311, -121.7110),
+        event("mount-hood", "Mount Hood (Timberline)", "Government Camp", "Oregon", "United States", .hike, 12_875, 5, 15, 45.3311, -121.7110, summit: 3_429),
         event("kalalau", "Kalalau Trail", "Kauai", "Hawaii", "United States", .hike, 35_405, 5, 15, 22.2199, -159.5828),
 
         // ── The East
-        event("mount-katahdin", "Mount Katahdin", "Millinocket", "Maine", "United States", .hike, 16_093, 9, 1, 45.9044, -68.9216),
-        event("cadillac-north-ridge", "Cadillac Mountain (North Ridge)", "Bar Harbor", "Maine", "United States", .hike, 7_242, 8, 15, 44.3720, -68.2270),
-        event("mount-washington", "Mount Washington (Tuckerman Ravine)", "Gorham", "New Hampshire", "United States", .hike, 13_518, 7, 15, 44.2571, -71.3033),
-        event("mount-marcy", "Mount Marcy", "Lake Placid", "New York", "United States", .hike, 24_945, 8, 15, 44.1830, -73.9640),
-        event("old-rag", "Old Rag Mountain", "Sperryville", "Virginia", "United States", .hike, 14_726, 5, 15, 38.5700, -78.2870),
-        event("mount-mitchell", "Mount Mitchell", "Burnsville", "North Carolina", "United States", .hike, 9_656, 6, 15, 35.7650, -82.2650),
-        event("guadalupe-peak", "Guadalupe Peak", "Salt Flat", "Texas", "United States", .hike, 13_679, 3, 15, 31.8910, -104.8280),
+        event("mount-katahdin", "Mount Katahdin", "Millinocket", "Maine", "United States", .hike, 16_093, 9, 1, 45.9044, -68.9216, summit: 1_606, lists: [.stateHighPoint]),
+        event("cadillac-north-ridge", "Cadillac Mountain (North Ridge)", "Bar Harbor", "Maine", "United States", .hike, 7_242, 8, 15, 44.3720, -68.2270, summit: 466),
+        event("mount-washington", "Mount Washington (Tuckerman Ravine)", "Gorham", "New Hampshire", "United States", .hike, 13_518, 7, 15, 44.2571, -71.3033, summit: 1_917, lists: [.stateHighPoint]),
+        event("mount-marcy", "Mount Marcy", "Lake Placid", "New York", "United States", .hike, 24_945, 8, 15, 44.1830, -73.9640, summit: 1_629, lists: [.stateHighPoint]),
+        event("old-rag", "Old Rag Mountain", "Sperryville", "Virginia", "United States", .hike, 14_726, 5, 15, 38.5700, -78.2870, summit: 1_003),
+        event("mount-mitchell", "Mount Mitchell", "Burnsville", "North Carolina", "United States", .hike, 9_656, 6, 15, 35.7650, -82.2650, summit: 2_037, lists: [.stateHighPoint]),
+        event("guadalupe-peak", "Guadalupe Peak", "Salt Flat", "Texas", "United States", .hike, 13_679, 3, 15, 31.8910, -104.8280, summit: 2_667, lists: [.stateHighPoint]),
 
         // ── International
-        event("mount-fuji", "Mount Fuji (Yoshida Trail)", "Fujiyoshida", nil, "Japan", .hike, 15_000, 8, 1, 35.3900, 138.7300),
-        event("kilimanjaro", "Kilimanjaro (Machame Route)", "Moshi", nil, "Tanzania", .hike, 62_000, 8, 1, -3.1330, 37.2660),
+        event("mount-fuji", "Mount Fuji (Yoshida Trail)", "Fujiyoshida", nil, "Japan", .hike, 15_000, 8, 1, 35.3900, 138.7300, summit: 3_776),
+        event("kilimanjaro", "Kilimanjaro (Machame Route)", "Moshi", nil, "Tanzania", .hike, 62_000, 8, 1, -3.1330, 37.2660, summit: 5_895),
         event("everest-base-camp", "Everest Base Camp Trek", "Lukla", nil, "Nepal", .hike, 130_000, 10, 15, 27.8060, 86.7130),
-        event("ben-nevis", "Ben Nevis", "Fort William", nil, "United Kingdom", .hike, 17_000, 7, 15, 56.7969, -5.0037),
-        event("snowdon", "Snowdon (Llanberis Path)", "Llanberis", nil, "United Kingdom", .hike, 14_484, 7, 15, 53.1200, -4.1280),
-        event("table-mountain", "Table Mountain (Platteklip Gorge)", "Cape Town", nil, "South Africa", .hike, 5_472, 2, 15, -33.9550, 18.4050),
-        event("tongariro", "Tongariro Alpine Crossing", "Tongariro", nil, "New Zealand", .hike, 19_400, 2, 15, -39.1330, 175.6200),
-        event("roys-peak", "Roys Peak", "Wanaka", nil, "New Zealand", .hike, 16_000, 2, 15, -44.6480, 169.0700)
+        event("ben-nevis", "Ben Nevis", "Fort William", nil, "United Kingdom", .hike, 17_000, 7, 15, 56.7969, -5.0037, summit: 1_345),
+        event("snowdon", "Snowdon (Llanberis Path)", "Llanberis", nil, "United Kingdom", .hike, 14_484, 7, 15, 53.1200, -4.1280, summit: 1_085),
+        event("table-mountain", "Table Mountain (Platteklip Gorge)", "Cape Town", nil, "South Africa", .hike, 5_472, 2, 15, -33.9550, 18.4050, summit: 1_086),
+        event("tongariro", "Tongariro Alpine Crossing", "Tongariro", nil, "New Zealand", .hike, 19_400, 2, 15, -39.1330, 175.6200, summit: 1_886),
+        event("roys-peak", "Roys Peak", "Wanaka", nil, "New Zealand", .hike, 16_000, 2, 15, -44.6480, 169.0700, summit: 1_578)
     ]
 
     // MARK: - Building a Run from a chosen event

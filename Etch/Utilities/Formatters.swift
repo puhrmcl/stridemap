@@ -54,6 +54,17 @@ enum Format {
         return "\(Int(meters)) m"
     }
 
+    /// An altitude above sea level, grouped — "12,633 ft".
+    ///
+    /// Separate from `elevation(_:)` because it is a different quantity and reads differently.
+    /// Gain is usually hundreds and prints fine ungrouped; a summit is five digits, and
+    /// "12633 FT" set across a nameplate is a number nobody can read at a glance.
+    static func summitElevation(_ meters: Double, unit: UnitSystem = .current) -> String {
+        let value = unit == .miles ? Int((meters * 3.28084).rounded()) : Int(meters.rounded())
+        let grouped = value.formatted(.number.grouping(.automatic))
+        return "\(grouped) \(unit == .miles ? "ft" : "m")"
+    }
+
     /// Elevation *gain* (ascent) with a delta triangle, e.g. "△ 1,204 ft". The value is the
     /// change in elevation over the run, not an absolute altitude.
     static func elevationGain(_ meters: Double, unit: UnitSystem = .current) -> String {
