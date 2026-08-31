@@ -603,10 +603,8 @@ struct HomeView: View {
             HStack(spacing: 9) {
                 wordmark
                 pillDivider
-                if !isSingleActivity {
-                    typeSelector.frame(height: pillColumnHeight)
-                    pillDivider
-                }
+                typeSelector.frame(height: pillColumnHeight)
+                pillDivider
             }
         } center: {
             metricsRow
@@ -695,8 +693,12 @@ struct HomeView: View {
     }
 
     /// The current activity type's short name — for VoiceOver.
+    ///
+    /// Reads `effectiveScope`, which is what the totals beside it are counting. The stored scope
+    /// can name a type that Settings has since hidden, and announcing "Runs" over a pill showing
+    /// hikes is worse than useless to someone who cannot see the icon.
     private var currentScopeName: String {
-        appModel.activityScope == .all ? "All" : appModel.activityScope.label
+        effectiveScope == .all ? "All" : effectiveScope.label
     }
 
     /// The right control: the current view's icon (map / trophy / heart / pin …) plus a dropdown
@@ -737,25 +739,42 @@ struct HomeView: View {
 
     /// The activity-type selector on the left of the pill — All Types / Runs / Hikes / Rides /
     /// Walks. The small chevron beside the icon signals it's a dropdown; it drops from the icon.
-    private var typeSelector: some View {
-        Button {
-            withAnimation(Theme.spring) { showTypeMenu.toggle(); showModeMenu = false }
-        } label: {
-            HStack(spacing: 3) {
-                Image(systemName: appModel.activityScope.icon)
-                    .font(.system(size: 17, weight: .semibold))
-                    .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .bold))
-                    .rotationEffect(.degrees(showTypeMenu ? 180 : 0))
+    ///
+    /// With one activity type the icon stays and only the chevron and the tap go away. It used to
+    /// disappear entirely, on the reasoning that a control with nothing to choose is not a
+    /// control — true, and beside the point: the icon is also the pill's statement of *what you
+    /// are looking at*, and removing it left the mark stranded against the totals with a hole
+    /// where the subject should be. What it loses is its affordance, not its meaning.
+    @ViewBuilder private var typeSelector: some View {
+        if isSingleActivity {
+            Image(systemName: effectiveScope.icon)
+                .font(.system(size: 17, weight: .semibold))
+                .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
+                .foregroundStyle(.primary)
+                .frame(maxHeight: .infinity)
+                // Not a button, so it says what it is rather than inviting a tap that does
+                // nothing. Enabling a second activity type in Settings brings the chevron back.
+                .accessibilityLabel("Showing \(currentScopeName)")
+        } else {
+            Button {
+                withAnimation(Theme.spring) { showTypeMenu.toggle(); showModeMenu = false }
+            } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: effectiveScope.icon)
+                        .font(.system(size: 17, weight: .semibold))
+                        .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .bold))
+                        .rotationEffect(.degrees(showTypeMenu ? 180 : 0))
+                }
+                .foregroundStyle(.primary)
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
             }
-            .foregroundStyle(.primary)
-            .frame(maxHeight: .infinity)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .accessibilityLabel("Activity Type, \(currentScopeName)")
+            .accessibilityHint("Double tap to change activity type.")
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Activity Type, \(currentScopeName)")
-        .accessibilityHint("Double tap to change activity type.")
     }
 
     /// The totals — activity count then distance, separated by a dot. Count has no leading icon
