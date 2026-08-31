@@ -462,6 +462,7 @@ final class SyncService {
     /// a query can have failed in a way we mistook for absence — but as the last thing tried, not
     /// the first.
     private func reopenWrittenOffRoutesIfNothingElsePending() {
+        refreshRouteCounts()
         guard pendingRouteCount == 0, writtenOffRouteCount > 0 else { return }
         let unavailable = RouteSyncStatus.unavailable.rawValue
         let descriptor = FetchDescriptor<Run>(
@@ -475,29 +476,32 @@ final class SyncService {
         try? context.save()
     }
 
-    /// Activities whose map could still turn up — the number the Settings badge should show, and
-    /// the one that falls as passes run.
-    var pendingRouteCount: Int {
-        let unavailable = RouteSyncStatus.unavailable.rawValue
-        let descriptor = FetchDescriptor<Run>(
-            predicate: #Predicate {
-                $0.healthKitID != nil && $0.summaryPolyline == "" && $0.routeStatusRaw != unavailable
-            }
-        )
-        return (try? context.fetchCount(descriptor)) ?? 0
-    }
+    /// Activities whose map could still turn up — the number the Settings badge shows, and the
+    /// one that falls as passes run.
+    private(set) var pendingRouteCount = 0
 
     /// Activities Apple Health holds no route for. Nothing will recover these until the app that
     /// recorded them writes one, so counting them as "missing" is what made the badge look stuck
     /// at nine hundred no matter how well a pass went.
-    var writtenOffRouteCount: Int {
+    private(set) var writtenOffRouteCount = 0
+
+    /// Recounts both. Stored rather than computed: as computed properties these ran two SwiftData
+    /// counts on every evaluation of the Settings list's body, and — being derived from the store
+    /// rather than from an observed property — never told SwiftUI to re-read them anyway.
+    func refreshRouteCounts() {
         let unavailable = RouteSyncStatus.unavailable.rawValue
-        let descriptor = FetchDescriptor<Run>(
+        let pending = FetchDescriptor<Run>(
+            predicate: #Predicate {
+                $0.healthKitID != nil && $0.summaryPolyline == "" && $0.routeStatusRaw != unavailable
+            }
+        )
+        let writtenOff = FetchDescriptor<Run>(
             predicate: #Predicate {
                 $0.healthKitID != nil && $0.summaryPolyline == "" && $0.routeStatusRaw == unavailable
             }
         )
-        return (try? context.fetchCount(descriptor)) ?? 0
+        pendingRouteCount = (try? context.fetchCount(pending)) ?? 0
+        writtenOffRouteCount = (try? context.fetchCount(writtenOff)) ?? 0
     }
 
     /// Core hydration. Callers own the `isRecoveringRoutes` flag so it always resets.
@@ -563,6 +567,7 @@ final class SyncService {
         }
 
         try? context.save()
+        refreshRouteCounts()
         // Say what happened. "Recover Missing Maps" that spins and then goes quiet is
         // indistinguishable from one that failed, which is most of why this looked broken: a
         // pass can be working perfectly and still find nothing, because Apple Health genuinely

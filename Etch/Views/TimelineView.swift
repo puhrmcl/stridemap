@@ -47,64 +47,134 @@ struct TimelineView: View {
     /// The photograph the full-screen viewer is opened on, in the Gallery scope.
     @State private var openedPhoto: OpenedGalleryPhoto?
 
-    /// Runs limited to the app-wide activity scope (All / Runs / Hikes / Walks).
-    /// The activity types this surface is showing, before the query filter.
-    private var typedRuns: [Run] { runs.scoped(to: appModel.activityScope) }
+    // MARK: Derived data, computed once per change
+    //
+    // Every list on this page used to be a computed property chained onto another computed
+    // property, recomputed from scratch on each access: `scopedRuns` filtered the whole library,
+    // `monthGroups` regrouped it through `Calendar` (the expensive part), `photoMonths` walked
+    // every photo reference and sorted them, and `timelineRuns` allocated a full reversed copy.
+    // Nothing was cached, so one evaluation of `body` ran ten or more passes over the library —
+    // and `body` runs a great deal more often than the data changes.
+    //
+    // Three things made that expensive rather than merely wasteful. The page reports its visible
+    // date span through a binding, so *scrolling* rewrote the parent's state and re-ran all of
+    // it. All four tabs stay alive in a `TabView`, so any change to `AppModel` re-ran all of it
+    // on tabs nobody was looking at. And a year card's `runs(in:)` filtered the library again per
+    // card. On a thousand-activity library that is the whole "slow and delayed" feeling.
+    //
+    // So the work happens once, when its inputs actually change, and `body` reads arrays.
 
-    /// What the Timeline actually lists.
-    ///
-    /// The shared filter reaches here now. It always could — `appModel.filter` has been
-    /// app-wide session state all along — but only the map ever read it, so setting a filter
-    /// changed the map and left the Timeline showing everything. One filter that means one thing
-    /// everywhere is the point; a filter that silently applies to one of four surfaces is just a
-    /// map control with a misleading name.
-    ///
-    /// PR status is a property of the collection rather than of a run, so it is computed from
-    /// the typed set before narrowing — the same order the map uses, and the reason "PRs" means
-    /// the same runs on both.
-    private var scopedRuns: [Run] {
-        guard appModel.filter.isActive else { return typedRuns }
-        let prs = appModel.filter.mode == .prs ? RunStatistics(typedRuns).milestoneRunIDs : []
-        return typedRuns.filter { appModel.filter.matches($0, isPR: prs.contains($0.id)) }
+    private struct Derived {
+        var ready = false
+        var scopedRuns: [Run] = []
+        /// Oldest-first, each month's activities oldest-first inside it — so the newest activity
+        /// in the whole history is the last tile on the page.
+        ///
+        /// Apple Photos' order, and the one thing about it people navigate by without thinking.
+        /// `RunStatistics` hands everything back newest-first because that is what every other
+        /// surface wants; only this view reads bottom-up, so the reversal lives here.
+        var months: [RunStatistics.MonthGroup] = []
+        /// Newest-first, as the rest of the app orders them — used for the opening-month lookup.
+        var monthGroups: [RunStatistics.MonthGroup] = []
+        var years: [Int] = []
+        var runsByYear: [Int: [Run]] = [:]
+        var reversedRuns: [Run] = []
+        var photoMonths: [GalleryMonth] = []
+        var photos: [GalleryPhoto] = []
+        var hasPhotos = false
+        /// Start dates by activity id, so the visible-span readout is a handful of dictionary
+        /// lookups rather than a filter over the library on every scroll update.
+        var datesByID: [UUID: Date] = [:]
     }
 
-    private var stats: RunStatistics { RunStatistics(scopedRuns) }
-    private var monthGroups: [RunStatistics.MonthGroup] { stats.monthGroups }
-    private var years: [Int] { stats.years }
+    @State private var derived = Derived()
 
-    // MARK: Oldest at the top, newest at the foot
-    //
-    // Apple Photos' order, and the one thing about it people navigate by without thinking: your
-    // most recent pictures are where the scroll view opens, at the bottom, and history runs
-    // upwards from there. A list that starts newest-first reads correctly for a *feed*, which a
-    // timeline is not — the point of a timeline is that time goes one way down the page.
-    //
-    // `RunStatistics` keeps handing everything back newest-first, because that is what every
-    // other surface wants: Achievements, the recap, the book's subject picker. Only this view
-    // reads bottom-up, so the reversal lives here rather than in the shared source.
+    /// Everything that changes what this page shows, as one comparable value.
+    ///
+    /// `newestEdit` is what catches an in-place edit — a favourite toggled, a route hydrated, a
+    /// photo attached — which changes no count. It is an O(n) pass over one `Date` per activity,
+    /// which is the cheapest thing in this file and the reason it can stand in for all the work
+    /// it guards.
+    private struct DerivedKey: Equatable {
+        var count = 0
+        var newestEdit = 0.0
+        var scope: ActivityScope = .all
+        var filter = RunFilter()
+        var typeMask = 0
+    }
 
-    /// Months oldest-first, and each month's activities oldest-first inside it — so the newest
-    /// activity in the whole history is the last tile on the page.
-    private var timelineMonths: [RunStatistics.MonthGroup] {
-        monthGroups.reversed().map { group in
+    private var derivedKey: DerivedKey {
+        var newest = 0.0
+        for run in runs { newest = max(newest, run.updatedAt.timeIntervalSinceReferenceDate) }
+        return DerivedKey(count: runs.count, newestEdit: newest,
+                          scope: appModel.activityScope, filter: appModel.filter,
+                          typeMask: ActivitySettings.mask)
+    }
+
+    /// Rebuilds the page's data.
+    ///
+    /// The shared filter reaches here — `appModel.filter` has been app-wide session state all
+    /// along, but only the map ever read it, so setting a filter changed the map and left the
+    /// Timeline showing everything. PR status is a property of the collection rather than of a
+    /// run, so it is computed from the typed set before narrowing — the same order the map uses,
+    /// and the reason "PRs" means the same activities on both.
+    private func rebuildDerived() {
+        let typed = runs.scoped(to: appModel.activityScope)
+        let scoped: [Run]
+        if appModel.filter.isActive {
+            let prs = appModel.filter.mode == .prs ? RunStatistics(typed).milestoneRunIDs : []
+            scoped = typed.filter { appModel.filter.matches($0, isPR: prs.contains($0.id)) }
+        } else {
+            scoped = typed
+        }
+
+        let stats = RunStatistics(scoped)
+        let groups = stats.monthGroups
+        let calendar = Calendar.current
+
+        var next = Derived()
+        next.ready = true
+        next.scopedRuns = scoped
+        next.monthGroups = groups
+        next.months = groups.reversed().map { group in
             var ordered = group
             ordered.runs = group.runs.reversed()
             return ordered
         }
+        next.years = stats.years.reversed()
+        next.reversedRuns = scoped.reversed()
+        next.photoMonths = GalleryIndex.months(in: scoped)
+        next.photos = next.photoMonths.flatMap(\.photos)
+        next.hasPhotos = typed.contains { !$0.photoReferences.isEmpty }
+
+        var byYear: [Int: [Run]] = [:]
+        var dates: [UUID: Date] = [:]
+        dates.reserveCapacity(scoped.count)
+        for run in scoped {
+            byYear[calendar.component(.year, from: run.startDate), default: []].append(run)
+            dates[run.id] = run.startDate
+        }
+        next.runsByYear = byYear
+        next.datesByID = dates
+
+        derived = next
     }
-    private var timelineYears: [Int] { years.reversed() }
-    private var timelineRuns: [Run] { scopedRuns.reversed() }
+
+    private var scopedRuns: [Run] { derived.scopedRuns }
+    private var timelineMonths: [RunStatistics.MonthGroup] { derived.months }
+    private var timelineYears: [Int] { derived.years }
+    private var timelineRuns: [Run] { derived.reversedRuns }
 
     // MARK: Gallery
 
     /// Every photograph in the scoped history, in the same months-oldest-first order as the rest
     /// of the page. Scoped rather than global on purpose: a filter that narrows the Timeline to
     /// races should narrow the pictures to races too, or the control means two things.
-    private var photoMonths: [GalleryMonth] { GalleryIndex.months(in: scopedRuns) }
-    private var photos: [GalleryPhoto] { photoMonths.flatMap(\.photos) }
+    private var photoMonths: [GalleryMonth] { derived.photoMonths }
+    private var photos: [GalleryPhoto] { derived.photos }
     /// Whether the Gallery scope has anything behind it. A door to an empty room is worse than
     /// no door, so the segment is simply absent until there is a photograph in the library.
-    private var hasPhotos: Bool { typedRuns.contains { !$0.photoReferences.isEmpty } }
+    private var hasPhotos: Bool { derived.hasPhotos }
     private var availableScopes: [Scope] {
         hasPhotos ? Scope.allCases : Scope.allCases.filter { $0 != .gallery }
     }
@@ -181,7 +251,12 @@ struct TimelineView: View {
     var body: some View {
         NavRoot(embedded) {
             Group {
-                if scopedRuns.isEmpty {
+                if !derived.ready {
+                    // The one frame between the first layout and the first rebuild. Blank rather
+                    // than the empty state, which would flash "Nothing here yet" over a full
+                    // library every time the page appeared.
+                    Color.clear
+                } else if scopedRuns.isEmpty {
                     ContentUnavailableView(
                         "Nothing here yet",
                         systemImage: "calendar",
@@ -227,9 +302,15 @@ struct TimelineView: View {
                         // offset — a lazy grid's offset says nothing reliable about which row you
                         // are looking at. Only the dated scopes report: Years already prints its
                         // own year on every card, so a span under the title would say it twice.
+                        //
+                        // Written only when it actually changes. This binding is the parent's
+                        // state, so every write re-renders the whole page — and the callback runs
+                        // continuously while a finger is down, which meant a scroll was rebuilding
+                        // the Timeline dozens of times a second to arrive at the same seven words
+                        // it already had. The span only moves when you cross a day.
                         .onScrollTargetVisibilityChange(idType: UUID.self) { ids in
-                            guard scope != .years else { visibleSpan.wrappedValue = nil; return }
-                            visibleSpan.wrappedValue = span(forVisible: Set(ids))
+                            let next = scope == .years ? nil : span(forVisible: Set(ids))
+                            if next != visibleSpan.wrappedValue { visibleSpan.wrappedValue = next }
                         }
                         // Gallery reports no span of its own — its tiles are photographs, not
                         // activities — so the header would otherwise keep printing the dates of
@@ -253,6 +334,8 @@ struct TimelineView: View {
             }
             .navigationTitle("Timeline")
             .navigationBarTitleDisplayMode(.inline)
+            // The one place the page's data is built. Everything else on this view reads arrays.
+            .onChange(of: derivedKey, initial: true) { _, _ in rebuildDerived() }
             .navigationDestination(item: $pushedRun) { run in
                 RunDetailView(run: run)
             }
@@ -302,8 +385,14 @@ struct TimelineView: View {
     /// month, a span inside a year shares the year, and only a span crossing years spells both
     /// ends out. A header that said "Aug 23, 2021 – Aug 27, 2021" would be accurate and unreadable.
     private func span(forVisible ids: Set<UUID>) -> String? {
-        let dates = scopedRuns.filter { ids.contains($0.id) }.map(\.startDate)
-        guard let first = dates.min(), let last = dates.max() else { return nil }
+        // A dictionary lookup per visible tile, not a filter over the library per scroll update.
+        var first: Date?, last: Date?
+        for id in ids {
+            guard let date = derived.datesByID[id] else { continue }
+            if first == nil || date < first! { first = date }
+            if last == nil || date > last! { last = date }
+        }
+        guard let first, let last else { return nil }
 
         let calendar = Calendar.current
         if calendar.isDate(first, inSameDayAs: last) {
@@ -598,10 +687,10 @@ struct TimelineView: View {
 
     // MARK: Data helpers
 
-    private func runs(in year: Int) -> [Run] {
-        let cal = Calendar.current
-        return scopedRuns.filter { cal.component(.year, from: $0.startDate) == year }
-    }
+    /// Grouped once in the rebuild rather than filtered per card. Six year cards on a
+    /// thousand-activity library meant six full passes and six thousand `Calendar` calls, every
+    /// time the page re-rendered.
+    private func runs(in year: Int) -> [Run] { derived.runsByYear[year] ?? [] }
 
     /// The month a year card opens on: that year's copy of the month we are in now.
     ///
@@ -615,7 +704,7 @@ struct TimelineView: View {
     /// scroll *back* from without leaving the year.
     private func openingMonthID(ofYear year: Int) -> String? {
         let cal = Calendar.current
-        let months = monthGroups.filter { cal.component(.year, from: $0.date) == year }
+        let months = derived.monthGroups.filter { cal.component(.year, from: $0.date) == year }
         let target = cal.component(.month, from: .now)
         return months.min { a, b in
             let da = abs(cal.component(.month, from: a.date) - target)

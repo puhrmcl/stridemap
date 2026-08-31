@@ -36,24 +36,104 @@ struct HighlightsView: View {
         return appModel.activityScope
     }
 
-    /// Runs limited to the app-wide activity scope (All / Runs / Hikes / Walks).
-    /// The activity types this surface is showing, before the query filter.
-    private var typedRuns: [Run] { runs.scoped(to: scope) }
+    // MARK: Derived data, computed once per change
+    //
+    // This was the most expensive page in the app to render, and none of it was cached. Reading
+    // `stats.totalElevationMeters / Double(stats.totalRuns)` scoped the library, ran
+    // `countingTotals` and built a `RunStatistics` twice for one division. `reachStats
+    // .travelPlaces` — a group and a sort over every located activity — was called twice in
+    // adjacent lines. `records` derives every superlative and personal best. The breakdown built
+    // a fresh `RunStatistics` per activity type, and the recap list one per year, inside
+    // `ForEach`. On a thousand activities one evaluation of `body` was doing tens of full passes,
+    // most of them duplicates — and the tab stays mounted, so it re-ran on changes made elsewhere.
 
-    /// What Highlights counts.
-    ///
-    /// Same reasoning as the Timeline: the shared filter reaches here, so "your cities" means
-    /// the cities in what you are currently looking at rather than the cities in everything. A
-    /// records page that ignored the filter would quietly contradict the map beside it.
-    private var scopedRuns: [Run] {
-        guard appModel.filter.isActive else { return typedRuns }
-        let prs = appModel.filter.mode == .prs ? RunStatistics(typedRuns).milestoneRunIDs : []
-        return typedRuns.filter { appModel.filter.matches($0, isPR: prs.contains($0.id)) }
+    private struct Derived {
+        var ready = false
+        var scopedRuns: [Run] = []
+        var travelPlaces: [RunStatistics.TravelPlace] = []
+        var stateCount = 0
+        var countryCount = 0
+        var mostVisitedArea: (label: String, count: Int)?
+        var totalRuns = 0
+        var totalDistance = 0.0
+        var totalElevation = 0.0
+        var totalMovingTime = 0
+        var topSpeed: Double?
+        var records: [RunStatistics.Record] = []
+        var years: [Int] = []
+        var yearTotals: [Int: (runs: Int, distance: Double)] = [:]
+        var breakdown: [(scope: ActivityScope, stats: RunStatistics)] = []
+        var locatedCount = 0
     }
+
+    @State private var derived = Derived()
+
+    private struct DerivedKey: Equatable {
+        var count = 0
+        var newestEdit = 0.0
+        var scope: ActivityScope = .all
+        var filter = RunFilter()
+        var typeMask = 0
+    }
+
+    private var derivedKey: DerivedKey {
+        var newest = 0.0
+        for run in runs { newest = max(newest, run.updatedAt.timeIntervalSinceReferenceDate) }
+        return DerivedKey(count: runs.count, newestEdit: newest, scope: scope,
+                          filter: appModel.filter, typeMask: ActivitySettings.mask)
+    }
+
+    /// Rebuilds the page.
+    ///
+    /// Same reasoning as the Timeline for the filter reaching here: "your cities" means the
+    /// cities in what you are currently looking at rather than the cities in everything. A
+    /// records page that ignored the filter would quietly contradict the map beside it.
+    ///
     /// Reach and the per-discipline breakdown describe everywhere you've been, so they include
-    /// every activity. Records, personal bests, and year sums use only the counting activities.
-    private var reachStats: RunStatistics { RunStatistics(scopedRuns) }
-    private var stats: RunStatistics { RunStatistics(scopedRuns.countingTotals) }
+    /// every activity. Records, personal bests and year sums use only the counting activities.
+    private func rebuildDerived() {
+        let typed = runs.scoped(to: scope)
+        let scoped: [Run]
+        if appModel.filter.isActive {
+            let prs = appModel.filter.mode == .prs ? RunStatistics(typed).milestoneRunIDs : []
+            scoped = typed.filter { appModel.filter.matches($0, isPR: prs.contains($0.id)) }
+        } else {
+            scoped = typed
+        }
+
+        let reach = RunStatistics(scoped)
+        let counting = RunStatistics(scoped.countingTotals)
+
+        var next = Derived()
+        next.ready = true
+        next.scopedRuns = scoped
+        next.travelPlaces = reach.travelPlaces
+        next.stateCount = reach.states.count
+        next.countryCount = reach.countries.count
+        next.mostVisitedArea = reach.mostVisitedArea
+        next.totalRuns = counting.totalRuns
+        next.totalDistance = counting.totalDistanceMeters
+        next.totalElevation = counting.totalElevationMeters
+        next.totalMovingTime = counting.totalMovingTime
+        next.topSpeed = counting.topSpeed
+        next.records = counting.records(usesPace: scope.usesPace)
+        next.years = counting.years
+        for year in next.years {
+            let yearStats = counting.statistics(forYear: year)
+            next.yearTotals[year] = (yearStats.totalRuns, yearStats.totalDistanceMeters)
+        }
+        next.locatedCount = scoped.reduce(0) { $0 + ($1.startLatitude != nil ? 1 : 0) }
+        if scope == .all {
+            next.breakdown = breakdownScopes.compactMap { s in
+                let subset = RunStatistics(runs.scoped(to: s))
+                return subset.totalRuns > 0 ? (s, subset) : nil
+            }
+        }
+
+        derived = next
+    }
+
+    private var scopedRuns: [Run] { derived.scopedRuns }
 
     var body: some View {
         NavRoot(embedded) {
@@ -89,6 +169,8 @@ struct HighlightsView: View {
                     pushedRun = nil
                     withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo("top", anchor: .top) }
                 }
+                // The one place this page's data is built. Everything else reads values.
+                .onChange(of: derivedKey, initial: true) { _, _ in rebuildDerived() }
                 .navigationTitle("Achievements")
                 .navigationDestination(item: $pushedRun) { run in
                     RunDetailView(run: run)
@@ -123,7 +205,7 @@ struct HighlightsView: View {
     /// Keys the reach computation to the scope and the number of located runs, so it re-runs when
     /// the user switches activity or new routes give older runs coordinates.
     private var reachKey: String {
-        "\(scope.rawValue)-\(scopedRuns.reduce(0) { $0 + ($1.startLatitude != nil ? 1 : 0) })"
+        "\(scope.rawValue)-\(derived.locatedCount)"
     }
 
     /// Attributes each located run to a US state and a country by point-in-polygon — off the main
@@ -196,11 +278,11 @@ struct HighlightsView: View {
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 NavigationLink {
-                    CitiesListView(places: reachStats.travelPlaces)
+                    CitiesListView(places: derived.travelPlaces)
                 } label: {
                     // Match the Cities map / list, which cluster by place (travelPlaces), not the
                     // raw distinct-city-name set.
-                    StatTile(value: reachStats.travelPlaces.count.formatted(), label: "Cities", systemName: "building.2", accent: true)
+                    StatTile(value: derived.travelPlaces.count.formatted(), label: "Cities", systemName: "building.2", accent: true)
                 }
                 .buttonStyle(.plain)
                 NavigationLink {
@@ -211,7 +293,7 @@ struct HighlightsView: View {
                 .buttonStyle(.plain)
                 StatTile(value: reachCountryValue, label: "Countries", systemName: "globe")
                 StatTile(
-                    value: Format.distanceValue(stats.totalDistanceMeters).formatted(.number.precision(.fractionLength(0))),
+                    value: Format.distanceValue(derived.totalDistance).formatted(.number.precision(.fractionLength(0))),
                     label: "Total \(UnitSystem.current.distanceSuffix)",
                     systemName: scope.icon,
                     accent: true
@@ -219,7 +301,7 @@ struct HighlightsView: View {
                 // For climbing disciplines (hikes, rides) elevation is a headline metric, not an
                 // afterthought — surface total ascent and the average per outing.
                 if scopeClimbs {
-                    StatTile(value: climbValue(stats.totalElevationMeters), label: "Total climb",
+                    StatTile(value: climbValue(derived.totalElevation), label: "Total climb",
                              systemName: "mountain.2", accent: true)
                     StatTile(value: climbValue(averageClimb), label: "Avg climb",
                              systemName: "arrow.up.forward")
@@ -239,10 +321,10 @@ struct HighlightsView: View {
     /// The States / Countries tile values: the GPS-attributed count once computed, falling back to
     /// the geocoded estimate for the brief moment before the polygon pass finishes.
     private var reachStateValue: String {
-        (reachGeo.ready ? reachGeo.states : reachStats.states.count).formatted()
+        (reachGeo.ready ? reachGeo.states : derived.stateCount).formatted()
     }
     private var reachCountryValue: String {
-        (reachGeo.ready ? reachGeo.countries : reachStats.countries.count).formatted()
+        (reachGeo.ready ? reachGeo.countries : derived.countryCount).formatted()
     }
 
     /// Whether the current scope is a climbing-forward discipline that should lead with elevation.
@@ -250,18 +332,18 @@ struct HighlightsView: View {
 
     /// Mean ascent per activity, for the "Avg climb" tile.
     private var averageClimb: Double {
-        stats.totalRuns > 0 ? stats.totalElevationMeters / Double(stats.totalRuns) : 0
+        derived.totalRuns > 0 ? derived.totalElevation / Double(derived.totalRuns) : 0
     }
 
     /// Distance-weighted average speed in the user's unit (mph / km/h) — the ride headline metric.
     private var averageSpeedValue: String {
-        guard stats.totalMovingTime > 0 else { return "—" }
-        return speedString(stats.totalDistanceMeters / Double(stats.totalMovingTime))
+        guard derived.totalMovingTime > 0 else { return "—" }
+        return speedString(derived.totalDistance / Double(derived.totalMovingTime))
     }
 
     /// The fastest recorded top speed, when a source provided one for any ride in scope.
     private var topSpeedValue: String? {
-        guard let metersPerSecond = stats.topSpeed, metersPerSecond > 0 else { return nil }
+        guard let metersPerSecond = derived.topSpeed, metersPerSecond > 0 else { return nil }
         return speedString(metersPerSecond)
     }
 
@@ -300,12 +382,9 @@ struct HighlightsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            ForEach(breakdownScopes) { s in
-                let subset = RunStatistics(runs.scoped(to: s))
-                if subset.totalRuns > 0 {
-                    Button { setScope(s) } label: { breakdownRow(s, subset) }
-                        .buttonStyle(.plain)
-                }
+            ForEach(derived.breakdown, id: \.scope) { entry in
+                Button { setScope(entry.scope) } label: { breakdownRow(entry.scope, entry.stats) }
+                    .buttonStyle(.plain)
             }
         }
     }
@@ -371,9 +450,9 @@ struct HighlightsView: View {
             // Most Visited stays here rather than joining the list: it is a record about a place
             // rather than about an activity, it opens a different screen, and forcing it into a
             // shape built around "the run that holds it" would have meant inventing one.
-            if let visited = stats.mostVisitedArea {
+            if let visited = derived.mostVisitedArea {
                 NavigationLink {
-                    CitiesListView(places: stats.travelPlaces)
+                    CitiesListView(places: derived.travelPlaces)
                 } label: {
                     SuperlativeRow(icon: "repeat", title: "Most Visited", value: "\(visited.count)×", subtitle: visited.label, showsChevron: true)
                 }
@@ -383,7 +462,7 @@ struct HighlightsView: View {
     }
 
     /// Every record this history holds, from the one definition both this page and search read.
-    private var records: [RunStatistics.Record] { stats.records(usesPace: scope.usesPace) }
+    private var records: [RunStatistics.Record] { derived.records }
 
     @ViewBuilder
     private var personalBestsSection: some View {
@@ -408,16 +487,16 @@ struct HighlightsView: View {
             Text("Year in Review")
                 .font(.etch(.title3, weight: .bold))
 
-            ForEach(stats.years, id: \.self) { year in
+            ForEach(derived.years, id: \.self) { year in
                 NavigationLink {
                     YearInReviewView(year: year)
                 } label: {
-                    let yearStats = stats.statistics(forYear: year)
+                    let yearStats = derived.yearTotals[year] ?? (runs: 0, distance: 0)
                     HStack {
                         Text(String(year))
                             .font(.etch(.title3, weight: .bold))
                         Spacer()
-                        Text("\(yearStats.totalRuns) \(scope.countNoun) · \(Format.distance(yearStats.totalDistanceMeters, decimals: 0))")
+                        Text("\(yearStats.runs) \(scope.countNoun) · \(Format.distance(yearStats.distance, decimals: 0))")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(.tertiary)

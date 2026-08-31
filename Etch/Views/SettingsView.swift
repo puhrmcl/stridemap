@@ -186,6 +186,7 @@ struct SettingsView: View {
         } footer: {
             Text(mapRecoveryFooter)
         }
+        .task { sync.refreshRouteCounts() }
     }
 
     /// "Recover Missing Maps", rebuilt as a control rather than a spinner.

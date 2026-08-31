@@ -161,7 +161,7 @@ struct HomeView: View {
 
     /// Runs limited to the active activity scope (All / Runs / Hikes / Walks) — the base for every
     /// map, total, and overview below.
-    private var scopedRuns: [Run] { allRuns.scoped(to: effectiveScope) }
+    private var scopedRuns: [Run] { derived.scopedRuns }
 
     /// The newest edit timestamp across every activity. A route edit or favorite toggle bumps a
     /// run's `updatedAt` without changing the count, so this is what tells the map to redraw after
@@ -199,33 +199,109 @@ struct HomeView: View {
         var newestEdit: Double
     }
 
-    private var stats: RunStatistics { RunStatistics(scopedRuns) }
+    // MARK: Derived data, computed once per change
+    //
+    // These were computed properties chained onto each other, and none of them cached: reading
+    // `shownStats.totalRuns` and then `shownStats.totalDistanceMeters` — two lines apart in the
+    // totals pill — scoped the library twice, applied the filter twice, ran `countingTotals`
+    // twice and built two `RunStatistics`. `milestoneRunIDs` is worse: it derives the furthest,
+    // fastest and highest-climb activities plus every distance PR, and it was computed once for
+    // the map's gold pins and again inside `visibleRuns`.
+    //
+    // The map tab is never not mounted — it is the first tab and `TabView` keeps all four alive —
+    // so every change to `AppModel` anywhere in the app re-ran all of it here as well. That is
+    // most of why navigation felt heavy on a large library.
+
+    private struct Derived {
+        var ready = false
+        var scopedRuns: [Run] = []
+        var visibleRuns: [Run] = []
+        var shownRuns: [Run] = []
+        var milestoneRunIDs: Set<UUID> = []
+        var overlayPlaces: [RunStatistics.TravelPlace] = []
+        var years: [Int] = []
+        var locatedRunCount = 0
+        var runStartPoints: [RunMapPoint] = []
+        var shownTotalRuns = 0
+        var shownTotalDistance = 0.0
+    }
+
+    @State private var derived = Derived()
+
+    /// Everything that changes what this screen shows. `mapContentInputs` already names the data
+    /// half of it; the overlay state is added because `shownRuns` and the pins depend on it.
+    private struct DerivedKey: Equatable {
+        var content = MapContentInputs(filter: RunFilter(), scope: .all, runCount: 0, newestEdit: 0)
+        var showLocations = false
+        var overlay: LocationOverlay = .cities
+        var typeMask = 0
+    }
+
+    private var derivedKey: DerivedKey {
+        DerivedKey(content: mapContentInputs, showLocations: showLocations,
+                   overlay: locationOverlay, typeMask: ActivitySettings.mask)
+    }
+
+    private func rebuildDerived() {
+        let scoped = allRuns.scoped(to: effectiveScope)
+        let stats = RunStatistics(scoped)
+        let milestones = stats.milestoneRunIDs
+
+        let prs = appModel.filter.mode == .prs ? milestones : []
+        let visible = scoped.filter { appModel.filter.matches($0, isPR: prs.contains($0.id)) }
+        // The overview modes ignore the active filter and show everything (within scope).
+        let shown = showLocations ? scoped : visible
+        let counting = RunStatistics(shown.countingTotals)
+
+        var next = Derived()
+        next.ready = true
+        next.scopedRuns = scoped
+        next.visibleRuns = visible
+        next.shownRuns = shown
+        next.milestoneRunIDs = milestones
+        next.years = stats.years
+        next.shownTotalRuns = counting.totalRuns
+        next.shownTotalDistance = counting.totalDistanceMeters
+
+        var located = 0
+        var points: [RunMapPoint] = []
+        points.reserveCapacity(scoped.count)
+        for run in scoped {
+            if let coordinate = run.startCoordinate {
+                located += 1
+                points.append(RunMapPoint(id: run.id, coordinate: coordinate))
+            }
+        }
+        next.locatedRunCount = located
+        next.runStartPoints = points
+
+        // Place grouping is expensive and only the pin overlays use it, so it is built when one
+        // of them is actually on screen rather than on every rebuild.
+        if showLocations {
+            switch locationOverlay {
+            case .cities:    next.overlayPlaces = stats.travelPlaces
+            case .landmarks: next.overlayPlaces = stats.landmarkPlaces
+            case .states, .countries: break
+            }
+        }
+
+        derived = next
+    }
 
     /// Runs that count as milestones — their map pins get the gold trophy.
-    private var milestoneRunIDs: Set<UUID> { stats.milestoneRunIDs }
+    private var milestoneRunIDs: Set<UUID> { derived.milestoneRunIDs }
 
     /// Runs passing the active filter. The PRs view shows the runs that currently *hold* an
     /// achievement (the milestone set — furthest, fastest, highest climb, and each distance PR),
     /// i.e. the same activities marked with a gold pin, rather than the full distance progression.
-    private var visibleRuns: [Run] {
-        let prs = appModel.filter.mode == .prs ? stats.milestoneRunIDs : []
-        return scopedRuns.filter { appModel.filter.matches($0, isPR: prs.contains($0.id)) }
-    }
-
-    private var visibleStats: RunStatistics { RunStatistics(visibleRuns) }
+    private var visibleRuns: [Run] { derived.visibleRuns }
 
     /// The overview modes ignore the active filter and show everything (within scope).
     private var isOverviewMode: Bool { showLocations }
 
     /// The runs the map is currently showing. Overview modes show everything; the route map
     /// shows the active filter's runs.
-    private var shownRuns: [Run] {
-        isOverviewMode ? scopedRuns : visibleRuns
-    }
-
-    /// Totals for whatever the map is currently showing. Excludes activities the user opted out
-    /// of totals (e.g. a hand-entered race) — they still appear on the map, just not in the count.
-    private var shownStats: RunStatistics { RunStatistics(shownRuns.countingTotals) }
+    private var shownRuns: [Run] { derived.shownRuns }
 
     /// Zoom/recenter the route or history map to the extent of the runs on screen. The cities
     /// and states overviews use their own maps (no camera command) and already frame on entry.
@@ -385,6 +461,8 @@ struct HomeView: View {
         // The route map then rebuilds overlays/clusters only when this changes, never on an
         // unrelated re-render (a sheet drag), which is the whole point of the revision.
         .onChange(of: mapContentInputs) { appModel.bumpMapContent() }
+        // The one place this screen's data is built. Everything else reads arrays.
+        .onChange(of: derivedKey, initial: true) { _, _ in rebuildDerived() }
         .onAppear {
             // Heal a stored scope that's since been hidden in Settings (e.g. viewing Hikes, then
             // turning hikes off) so the selector and totals never point at an unavailable type.
@@ -799,14 +877,14 @@ struct HomeView: View {
         // "1,5…" is a defect; the same number a shade smaller is not.
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             metric(
-                value: shownStats.totalRuns.formatted(),
+                value: derived.shownTotalRuns.formatted(),
                 unit: effectiveScope.countNoun
             )
             Text("·")
                 .font(.etch(.body, weight: .bold))
                 .foregroundStyle(.secondary)
             metric(
-                value: Format.distanceValue(shownStats.totalDistanceMeters)
+                value: Format.distanceValue(derived.shownTotalDistance)
                     .formatted(.number.precision(.fractionLength(0))),
                 unit: UnitSystem.current.distanceSuffix
             )
@@ -966,13 +1044,7 @@ struct HomeView: View {
 
     /// The pins for the active pin-based overlay (cities / landmarks). States and countries are
     /// choropleths, not pins.
-    private var overlayPlaces: [RunStatistics.TravelPlace] {
-        switch locationOverlay {
-        case .cities: return stats.travelPlaces
-        case .landmarks: return stats.landmarkPlaces
-        case .states, .countries: return []
-        }
-    }
+    private var overlayPlaces: [RunStatistics.TravelPlace] { derived.overlayPlaces }
 
     /// Places: a single "jump to" menu that zooms the active place map to a chosen state / country /
     /// city / landmark. Which place *map* is showing is chosen in the Activity View sheet (one tile
@@ -1106,9 +1178,7 @@ struct HomeView: View {
 
     /// Number of runs that have a start coordinate — the input to both overview maps. Drives
     /// recomputation so the maps fill in as routes arrive.
-    private var locatedRunCount: Int {
-        scopedRuns.reduce(0) { $0 + ($1.startLatitude != nil ? 1 : 0) }
-    }
+    private var locatedRunCount: Int { derived.locatedRunCount }
 
     /// Located runs not yet checked for a nearby landmark — drives progressive detection.
     private var uncheckedLandmarkCount: Int {
@@ -1116,11 +1186,7 @@ struct HomeView: View {
     }
 
     /// Every run's start point that has GPS, paired with its identity, for the Cities map.
-    private var runStartPoints: [RunMapPoint] {
-        scopedRuns.compactMap { run in
-            run.startCoordinate.map { RunMapPoint(id: run.id, coordinate: $0) }
-        }
-    }
+    private var runStartPoints: [RunMapPoint] { derived.runStartPoints }
 
     /// CI diagnostics (ETCH_DIAG_MAP=1): logs which map branch the body actually builds.
     static func diagLog(_ message: String) {
@@ -1539,7 +1605,7 @@ struct HomeView: View {
         case .timeline: TimelineView()
         case .highlights: HighlightsView()
         case .studio: StudioHomeView()
-        case .yearInReview: YearInReviewView(year: stats.years.first ?? Calendar.current.component(.year, from: Date()))
+        case .yearInReview: YearInReviewView(year: derived.years.first ?? Calendar.current.component(.year, from: Date()))
         case .search: SearchView()
         case .settings: SettingsView()
         case .profile: ProfileView()

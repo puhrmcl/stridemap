@@ -105,6 +105,13 @@ enum ActivitySettings {
     /// True when every activity type is turned off — the app has nothing to show and prompts setup.
     static var allOff: Bool { !includeRuns && !includeHikes && !includeRides && !includeWalks }
 
+    /// The four toggles as one comparable value, for views that cache work derived from them.
+    /// `UserDefaults` is not observable, so a view holding a cached result needs the settings in
+    /// its cache key or a toggle in Settings leaves a stale page behind it.
+    static var mask: Int {
+        (includeRuns ? 1 : 0) | (includeHikes ? 2 : 0) | (includeRides ? 4 : 0) | (includeWalks ? 8 : 0)
+    }
+
     /// Whether a given scope is currently visible. `all` stays available as long as anything is on.
     static func isVisible(_ scope: ActivityScope) -> Bool {
         switch scope {
