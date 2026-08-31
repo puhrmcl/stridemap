@@ -599,13 +599,21 @@ struct HomeView: View {
         // the middle on the row's centre line, account trailing. Sharing `EtchCenteredRow` rather
         // than repeating its measure-and-pad trick is deliberate: two copies of this layout is
         // exactly how the map's header and the flat ones drifted apart before.
+        //
+        // The glass is around the totals alone now. It used to wrap the whole row, and the row is
+        // mostly air: a mark, two 17pt glyphs and an avatar, with the gaps between them carrying
+        // a pane of material for no reason but to hold them together. Only the numbers actually
+        // need a ground — they are small type over terrain that changes colour under them, and
+        // they are the one thing here that has to stay readable while the map moves.
+        //
+        // Positions do not move. Every element sits exactly where the pill put it, because the
+        // slots and the metrics are unchanged; what has gone is the pane behind them.
         EtchCenteredRow(spacing: 9) {
             HStack(spacing: 9) {
                 wordmark
-                pillDivider
                 typeSelector.frame(height: pillColumnHeight)
-                pillDivider
             }
+            .modifier(FloatingMapChrome(overDarkBase: mapStyle.isDarkBase))
         } center: {
             metricsRow
                 .background(
@@ -613,13 +621,15 @@ struct HomeView: View {
                         Color.clear.preference(key: PillColumnHeightKey.self, value: geo.size.height)
                     }
                 )
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .glassBackground(cornerRadius: 23)
         } trailing: {
             HStack(spacing: 9) {
-                pillDivider
                 viewSelector.frame(height: pillColumnHeight)
-                pillDivider
                 profileButton
             }
+            .modifier(FloatingMapChrome(overDarkBase: mapStyle.isDarkBase))
         }
         // Full width, not content width.
         //
@@ -631,8 +641,6 @@ struct HomeView: View {
         .frame(maxWidth: .infinity)
         .onPreferenceChange(PillColumnHeightKey.self) { if $0 > 0 { pillColumnHeight = $0 } }
         .padding(.horizontal, EtchHeaderMetrics.pillInterior)
-        .padding(.vertical, 9)
-        .glassBackground(cornerRadius: 23)
         .background(
             GeometryReader { geo in
                 Color.clear.preference(key: PillWidthKey.self, value: geo.size.width)
@@ -730,12 +738,14 @@ struct HomeView: View {
     }
 
     /// A hairline separator sized to the pill's row height.
-    private var pillDivider: some View {
-        // A true hairline, not a 1pt bar — at 3x it's still crisp, and the pill reads lighter.
-        Rectangle()
-            .fill(.secondary.opacity(0.3))
-            .frame(width: 0.5, height: pillColumnHeight)
-    }
+    /// Removed with the pill.
+    ///
+    /// A hairline divides parts of one object. With the glass gone the mark, the selectors and
+    /// the avatar are separate things on a row, and a rule floating in the gap between two of
+    /// them would be drawing the edge of a container that is no longer there.
+    ///
+    /// Kept as a note rather than as code: `pillColumnHeight` still exists and still sizes the
+    /// selectors, so the geometry the divider used to share is intact if the pill ever returns.
 
     /// The activity-type selector on the left of the pill — All Types / Runs / Hikes / Rides /
     /// Walks. The small chevron beside the icon signals it's a dropdown; it drops from the icon.

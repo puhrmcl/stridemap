@@ -11,12 +11,12 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b503: search from Achievements answers with records — "furthest", "fastest",
-# "climb", "PR" — and opens on them before anything is typed. tabs@search shows the starter
-# shelf; tabs@achievements confirms the records page still reads the same after being rebuilt
-# from the shared list.
+# Requested for b505: the map header keeps its positions and loses its pane. Only the totals sit
+# on glass now; the mark, the two selectors and the avatar float on the terrain with a halo for
+# legibility. home in both appearances — the light shot is the one that matters, because a white
+# halo under dark chrome is the half of this that is easy to get wrong.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=tabs@search,tabs@achievements
+screens=home
 appearance=both

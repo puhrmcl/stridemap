@@ -140,6 +140,28 @@ extension View {
     }
 }
 
+/// Keeps a control legible when it floats on the map with nothing behind it.
+///
+/// Glass did this job by being there. Take it away and the mark, the two selectors and the avatar
+/// sit directly on terrain — and terrain is not one colour: a route crosses a lake, a city block
+/// and a snowfield inside one screen, and any fixed ink loses against one of them.
+///
+/// The answer is a halo rather than a plate: a soft shadow in the *opposite* tone to the chrome,
+/// which does nothing at all where the contrast is already good and quietly separates the glyph
+/// from the ground where it is not. Two shadows at different radii — one tight for the edge, one
+/// wide for the field — because a single one either reads as a drop shadow or does not read.
+struct FloatingMapChrome: ViewModifier {
+    /// True over a dark base map, where the chrome is light and the halo must be dark.
+    let overDarkBase: Bool
+
+    func body(content: Content) -> some View {
+        let halo: Color = overDarkBase ? .black : .white
+        return content
+            .shadow(color: halo.opacity(overDarkBase ? 0.55 : 0.75), radius: 2, x: 0, y: 0)
+            .shadow(color: halo.opacity(overDarkBase ? 0.35 : 0.55), radius: 7, x: 0, y: 1)
+    }
+}
+
 extension View {
     /// Makes floating map chrome take its appearance from the *map*, not the phone.
     ///
