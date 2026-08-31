@@ -169,6 +169,25 @@ jobs:
             echo "── BEGIN-B64 $NAME"
             base64 -i "small-$FILE"
             echo "── END-B64 $NAME"
+
+            # A shot of a whole phone downscaled to 520px tall renders a 25pt tab icon in about
+            # fifteen pixels, which is not enough to tell a thin outline from a filled shape —
+            # b507's first pass was judged on exactly that and nearly redrew a glyph that was
+            # fine. So the bottom eighth also comes back near native resolution, for the screens
+            # where the chrome *is* the subject.
+            case "$NAME" in
+              tabs*|home*)
+                W=$(sips -g pixelWidth "$FILE" | awk '/pixelWidth/{print $2}')
+                H=$(sips -g pixelHeight "$FILE" | awk '/pixelHeight/{print $2}')
+                STRIP=$(( H / 8 ))
+                sips -c "$STRIP" "$W" --cropOffset $(( H - STRIP )) 0 "$FILE" \
+                  --out "bar-$FILE" >/dev/null 2>&1 || continue
+                sips -Z 760 "bar-$FILE" --out "bar-small-$FILE" >/dev/null
+                echo "── BEGIN-B64 bar-$NAME"
+                base64 -i "bar-small-$FILE"
+                echo "── END-B64 bar-$NAME"
+                ;;
+            esac
           done
 
       - name: Upload screenshots

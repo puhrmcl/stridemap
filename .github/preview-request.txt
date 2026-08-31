@@ -13,21 +13,17 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Re-requested for b507: the first two runs put the Photos permission sheet over both shots —
-# seeding photo references made the very first tile ask for the library, and `simctl privacy
-# grant photos` did not settle it. PhotoLibrary now returns nil outright under ETCH_PREVIEW,
-# so nothing asks. The simulator's library is empty either way.
+# Requested for b508: three fixes on top of b507's two changes.
 #
-# Two things to look at.
+#   tabs@timeline — the drawn glyph set, this time with the bottom eighth of the shot coming
+#   back near native resolution. A 520px-tall thumbnail draws a 25pt icon in fifteen pixels,
+#   which cannot tell an outline from a filled shape.
 #
-#   tabs@timeline — the drawn glyph set. Five icons on one 28pt grid at a 1.7pt stroke,
-#   replacing five SF Symbols that never quite became a family. What to check: that they
-#   render at all (they are vector assets, not symbols), that they tint for selection, and
-#   that they read as one set rather than five pictures.
-#
-#   timeline:gallery — Gallery as the fourth segment beside Years / Months / All. The tiles
-#   are placeholders (the simulator has no photo library), so what is being checked is the
-#   four-up scope control not truncating, the month headers, and the grid.
+#   timeline:gallery — the wall of photographs. Two things changed: it now actually opens at
+#   the foot on the newest month (b507 landed at the top, because the one landing attempt fired
+#   before the query had delivered anything and then blocked its own retry), and the tile
+#   placeholder is the sunken surface rather than near-black, so an unloaded page reads as
+#   waiting rather than as holes.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 

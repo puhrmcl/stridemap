@@ -125,18 +125,40 @@ struct TimelineView: View {
     @MainActor
     private func landOnNewest(_ proxy: ScrollViewProxy) async {
         guard scrollTarget == nil, landedScope != scope else { return }
-        try? await Task.sleep(nanoseconds: 60_000_000)
-        guard !Task.isCancelled, scrollTarget == nil else { return }
+
+        // Wait for there to be something to land on.
+        //
+        // The old version slept 60ms once and then scrolled to whatever `last` was — which on a
+        // scope entered before the query had delivered anything is nil, a silent no-op, and a
+        // `landedScope` set to the scope it never actually landed in. The guard above then
+        // blocked every retry, so the page simply stayed at the top. Gallery caught it: it opens
+        // on hundreds of tiles that take a beat longer to arrive than a handful of year cards.
+        for _ in 0..<20 {
+            if newestID != nil { break }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            guard !Task.isCancelled else { return }
+        }
+        guard let target = newestID, scrollTarget == nil else { return }
         landedScope = scope
+
+        // Twice, deliberately. A lazy grid materialises rows *toward* a named target, so the
+        // first scroll resolves against a content height that is still partly an estimate; the
+        // second corrects it once the real rows exist. On a few hundred tiles that is a
+        // screenful of difference, and on a thousand it is several.
+        proxy.scrollTo(target, anchor: .bottom)
+        try? await Task.sleep(nanoseconds: 220_000_000)
+        guard !Task.isCancelled, scrollTarget == nil else { return }
+        proxy.scrollTo(target, anchor: .bottom)
+    }
+
+    /// The last row on the page — the newest thing in whichever arrangement is showing, and so
+    /// the one the scope opens on. Nil while the scope has nothing in it.
+    private var newestID: AnyHashable? {
         switch scope {
-        case .years:
-            if let year = timelineYears.last { proxy.scrollTo(year, anchor: .bottom) }
-        case .months:
-            if let group = timelineMonths.last { proxy.scrollTo(group.id, anchor: .bottom) }
-        case .all:
-            if let run = timelineRuns.last { proxy.scrollTo(run.id, anchor: .bottom) }
-        case .gallery:
-            if let photo = photos.last { proxy.scrollTo(photo.id, anchor: .bottom) }
+        case .years:   return timelineYears.last.map { AnyHashable($0) }
+        case .months:  return timelineMonths.last.map { AnyHashable($0.id) }
+        case .all:     return timelineRuns.last.map { AnyHashable($0.id) }
+        case .gallery: return photos.last.map { AnyHashable($0.id) }
         }
     }
 

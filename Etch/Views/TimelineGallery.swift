@@ -63,7 +63,11 @@ struct GalleryTile: View {
                 if let image {
                     Image(uiImage: image).resizable().scaledToFill()
                 } else {
-                    Rectangle().fill(Theme.Brand.inkWell)
+                    // Sunken, not ink. A run tile's placeholder is a dark square because one of
+                    // them sits in a row of route drawings; a wall of five-across photographs
+                    // that have not loaded yet is two hundred of them, and in the light
+                    // appearance that is a page of black holes rather than a page waiting.
+                    Rectangle().fill(Theme.Surface.sunken)
                 }
             }
             .clipShape(.rect(cornerRadius: 3))
