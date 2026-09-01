@@ -11,7 +11,7 @@ enum PhotoLibrary {
     // MARK: Authorization
 
     static var status: PHAuthorizationStatus {
-        PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        PHPhotoLibrary.authorizationStatus(for: .read)
     }
 
     static var isAuthorized: Bool {
@@ -19,10 +19,11 @@ enum PhotoLibrary {
     }
 
     /// Requests read access, returning whether we ended up authorized (or limited).
+    /// `.read` not `.readWrite`: the app never writes to Photos, so it must not ask to.
     @discardableResult
     static func requestAuthorization() async -> Bool {
         if status == .notDetermined {
-            let granted = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+            let granted = await PHPhotoLibrary.requestAuthorization(for: .read)
             return granted == .authorized || granted == .limited
         }
         return isAuthorized
