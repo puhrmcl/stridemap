@@ -161,8 +161,11 @@ struct RunMapView: UIViewRepresentable {
         // when the drawn routes/pins could actually differ (import / edit / filter / scope / pins),
         // so a search-sheet drag (or any unrelated parent re-render) does no run-set work here at all.
         // Selection is always applied below (it's cheap and must track taps).
-        if renderChanged || context.coordinator.lastContentRevision != contentRevision {
+        if renderChanged
+            || context.coordinator.lastContentRevision != contentRevision
+            || context.coordinator.lastRunCount != runs.count {
             context.coordinator.lastContentRevision = contentRevision
+            context.coordinator.lastRunCount = runs.count
             context.coordinator.updateOverlays(with: runs, fadeWithAge: fadeWithAge)
             context.coordinator.rebuildClusters(force: true)
         }
@@ -215,6 +218,10 @@ struct RunMapView: UIViewRepresentable {
         /// which re-evaluates the parent's body every frame) skip the overlay/cluster rebuild
         /// entirely when the drawable content hasn't changed — keeping the map buttery during drags.
         var lastContentRevision: Int?
+        /// How many activities the overlays were last built from. A safety net under the
+        /// revision: that is the parent's promise the set changed, this is the map noticing it
+        /// did anyway. Still an O(1) compare, so the reason the revision exists survives.
+        var lastRunCount: Int?
 
         /// run id → overlay, so we can diff efficiently between updates.
         private var overlaysByID: [UUID: RunPolyline] = [:]
