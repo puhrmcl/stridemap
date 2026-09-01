@@ -13,20 +13,16 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b515: does the map draw its routes on first load?
+# Requested for b518: Studio's new front door.
 #
-#   home — the regression report is that lines and pins are missing when the app opens and
-#   appear once you leave the tab and come back. The cause is b513's derived-data cache: the
-#   map redraws when a revision integer advances, that integer was bumped by an `onChange` on
-#   the cache's *inputs*, and `onChange` without `initial:` does not fire on first appearance —
-#   so the map was handed an empty set at revision 0, then the real set at revision 0, and
-#   skipped the rebuild. The bump moved to the rebuild itself.
-#
-#   This preview reproduces the exact sequence: the harness seeds its history in a task, so
-#   HomeView appears against an empty store and the data arrives a moment later, the same way a
-#   cold launch does. Routes on screen means fixed.
+#   studio-picks — opening Studio from an activity no longer asks "What are we making?". The
+#   curator reads the activity and lays out finished pieces (Gallery, Noir, Harbor, Memory when
+#   there are photos, Line), each rendered with the subject's own route, each buyable as shown.
+#   What to check: the cards render (not spinners), the type hierarchy reads as a gallery rather
+#   than a settings list, and tapping into a card is the editor seeded with that piece — though
+#   CI cannot tap, so that last part is code review plus device.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=home
+screens=studio-picks
 appearance=both

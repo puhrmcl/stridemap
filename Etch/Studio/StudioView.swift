@@ -58,7 +58,9 @@ struct StudioView: View {
     /// the new photo straight into that frame.
     @State private var pendingPhotoFrame: Int?
 
-    @State private var chooserThumbs: [PosterFamily: UIImage] = [:]
+    /// The curated pieces the gallery front door offers, and their renders.
+    @State private var picks: [StudioPick] = []
+    @State private var pickThumbs: [String: UIImage] = [:]
 
     /// The navigation spine: the product chooser is the root; picking Map or Gallery pushes the
     /// editor for that product. A saved poster or curated preset skips the chooser — its family
@@ -231,84 +233,108 @@ struct StudioView: View {
         withAnimation(.interpolatingSpring(stiffness: 320, damping: 30)) { detent = target }
     }
 
-    // MARK: Product chooser
+    // MARK: The gallery — finished pieces, not a fork
 
-    /// The fork: Map or Gallery, chosen before any editing — two different objects, two different
-    /// editors. Each card is this activity already rendered as that product.
+    /// Studio's front door: the activity already made into four or five finished pieces, each
+    /// buyable exactly as shown. Choosing one opens the editor *on* it, seeded, so refinement is
+    /// optional rather than required.
+    ///
+    /// This replaced a product fork ("What are we making?" — Map or Gallery), which asked the
+    /// customer to pick an abstraction before showing them anything they might want. Nobody walks
+    /// into a gallery and is asked which medium they intend to buy. The curator reads the
+    /// activity — a race leads with the marathon print, a summit with the contour journals — and
+    /// the two product families are simply present among the picks.
     private var productChooser: some View {
-        VStack(spacing: 22) {
-            Spacer(minLength: 0)
-            Text("What are we making?")
-                .font(.etch(.title2, weight: .bold))
-            HStack(spacing: 16) {
-                productCard(
-                    .map, name: "Map",
-                    line: "Your route over real geography — the signature piece."
-                )
-                productCard(
-                    .gallery, name: "Gallery",
-                    line: "Photos, map, route, and elevation — composed as one."
-                )
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(run.name)
+                        .font(.etch(.title2, weight: .bold))
+                    Text("Made into \(picks.count) pieces. Choose one — every detail stays yours to change.")
+                        .font(.etch(.subheadline))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 24)
+
+                ForEach(picks) { pick in
+                    pickCard(pick)
+                        .padding(.horizontal, 24)
+                }
+
+                Text("Every piece is printed to order on archival paper — from \(PrintProduct.print.entryPrice.replacingOccurrences(of: "From ", with: ""))")
+                    .font(.etch(.caption))
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 2)
+                    .padding(.bottom, 24)
             }
-            .padding(.horizontal, 24)
-            Spacer(minLength: 0)
+            .padding(.top, 14)
         }
         .background(Color(.systemGroupedBackground))
-        .task { await renderChooserThumbnails() }
+        .task { await renderPicks() }
     }
 
-    private func productCard(_ family: PosterFamily, name: String, line: String) -> some View {
+    private func pickCard(_ pick: StudioPick) -> some View {
         Button {
-            config.family = family
-            path.append(family)
+            config = pick.config
+            path.append(pick.config.family)
         } label: {
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12).fill(Theme.Palette.bone)
-                    if let image = chooserThumbs[family] {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(pick.config.groundColor ?? pick.config.edition.ground)
+                    if let image = pickThumbs[pick.id] {
                         Image(uiImage: image)
                             .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .clipShape(.rect(cornerRadius: 12))
+                            .aspectRatio(contentMode: .fit)
                             .transition(.opacity)
                     } else {
-                        Image(systemName: family.icon)
-                            .font(.system(size: 30))
-                            .foregroundStyle(Theme.Palette.ink.opacity(0.3))
+                        ProgressView()
+                            .tint(.secondary)
                     }
                 }
-                .aspectRatio(2.0 / 3.0, contentMode: .fit)
-                .clipShape(.rect(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5))
-                .shadow(color: .black.opacity(0.14), radius: 12, y: 6)
+                .aspectRatio(pickAspect(pick), contentMode: .fit)
+                .clipShape(.rect(cornerRadius: 10))
+                .shadow(color: .black.opacity(0.16), radius: 14, y: 7)
 
-                VStack(spacing: 3) {
-                    Text(name)
-                        .font(.etch(.headline))
-                        .foregroundStyle(.primary)
-                    Text(line)
-                        .font(.etch(.caption))
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(pick.name)
+                            .font(.etch(.headline))
+                            .foregroundStyle(.primary)
+                        Text(pick.line)
+                            .font(.etch(.caption))
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.leading)
+                    }
+                    Spacer(minLength: 10)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.tertiary)
                 }
+                .padding(.horizontal, 2)
             }
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
     }
 
-    /// The two cards are the activity itself as each product — the chooser is a preview, not an
-    /// abstraction. Sequential, cached for the session.
-    private func renderChooserThumbnails() async {
-        for family in PosterFamily.allCases where chooserThumbs[family] == nil {
+    private func pickAspect(_ pick: StudioPick) -> CGFloat {
+        let s = StudioComposition.nominalSize(pick.config.orientation, pick.config.dataPlacement)
+        return s.width / s.height
+    }
+
+    /// One render at a time, top to bottom — the reading order — never a thundering herd of
+    /// simultaneous map snapshots.
+    private func renderPicks() async {
+        if picks.isEmpty { picks = StudioCurator.picks(for: run) }
+        for pick in picks where pickThumbs[pick.id] == nil {
             if Task.isCancelled { return }
-            var recipe = config
-            recipe.family = family
+            var recipe = pick.config
             recipe.outputSize = .poster
-            let image = await StudioRenderer.image(for: recipe.request(for: run), scale: 0.4)
+            let image = await StudioRenderer.image(for: recipe.request(for: run), scale: 0.55)
             if Task.isCancelled { return }
-            withAnimation(.easeIn(duration: 0.2)) { chooserThumbs[family] = image }
+            withAnimation(.easeIn(duration: 0.2)) { pickThumbs[pick.id] = image }
         }
     }
 

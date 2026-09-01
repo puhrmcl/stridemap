@@ -1,0 +1,12 @@
+# What the Build basemap workflow extracts and uploads. Edit and commit to run it.
+#
+# bbox is min_lon,min_lat,max_lon,max_lat. Start with your market, verify a print end to end,
+# then widen. Rough archive sizes at maxzoom 15: a metro ~200 MB, a state 1–3 GB, the western
+# US ~15 GB (near a hosted runner's disk ceiling — widen in steps and watch the run's numbers).
+#
+# The default below is Arizona plus a margin, which covers every activity in the current
+# library and is small enough to build in minutes.
+
+bbox=-115.1,31.2,-108.8,37.2
+maxzoom=15
+key=basemap.pmtiles

@@ -1,0 +1,111 @@
+# Builds Etch's own basemap and puts it in R2 — the step that turns the map editions from
+# "beautiful, display-only" into sellable prints.
+#
+# The whole pipeline around this already exists: EtchCartography styles the map, MapLibre
+# renders it, the fulfilment worker serves tiles out of R2 (fulfilment/src/tiles.ts), and the
+# print path refuses to fall back to Apple. The one missing object is `basemap.pmtiles` in the
+# bucket. This workflow makes it from the public Protomaps daily planet build — an OpenStreetMap
+# extract, ODbL, printable with attribution — without needing a machine bigger than a runner.
+#
+# `pmtiles extract` reads byte ranges over HTTP, so a regional archive is produced without ever
+# downloading the 120 GB planet. Region and zoom come from .github/basemap-request.txt; edit it
+# and commit to run. Start with your own market (a state fits a runner's disk easily), verify a
+# print end to end, then widen. A full-US z15 archive needs more disk than a hosted runner has —
+# when that day comes, run this on a larger runner or extract in regional pieces.
+#
+# Secrets needed (Settings → Secrets and variables → Actions):
+#   R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY — an R2 API token's S3 credentials, created in the
+#     Cloudflare dashboard: R2 → Manage API tokens → Create (Object Read & Write, this bucket).
+#     These are S3-protocol keys; the CLOUDFLARE_API_TOKEN the deploys use cannot upload objects.
+#   CLOUDFLARE_ACCOUNT_ID — already present.
+#
+# After a green run: set "basemapReady": true in fulfilment/config/app.json (bump its version)
+# and commit — the deploy-config workflow serves it, and every install flips to Etch cartography
+# on its next config refresh. No app release. Flip it back the same way if tiles misbehave.
+
+name: Build basemap
+
+on:
+  push:
+    branches: [claude/rebrand-etch]
+    paths:
+      - ".github/basemap-request.txt"
+      - ".github/workflows/build-basemap.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the request
+        id: request
+        run: |
+          set -e
+          FILE=.github/basemap-request.txt
+          BBOX=$(grep -E '^bbox=' "$FILE" | tail -1 | cut -d= -f2- | xargs)
+          MAXZOOM=$(grep -E '^maxzoom=' "$FILE" | tail -1 | cut -d= -f2- | xargs)
+          KEY=$(grep -E '^key=' "$FILE" | tail -1 | cut -d= -f2- | xargs)
+          [ -z "$BBOX" ] && { echo "::error::bbox= missing from $FILE"; exit 1; }
+          [ -z "$MAXZOOM" ] && MAXZOOM=15
+          [ -z "$KEY" ] && KEY=basemap.pmtiles
+          echo "bbox=$BBOX" >> "$GITHUB_OUTPUT"
+          echo "maxzoom=$MAXZOOM" >> "$GITHUB_OUTPUT"
+          echo "key=$KEY" >> "$GITHUB_OUTPUT"
+          echo "extracting bbox=$BBOX maxzoom=$MAXZOOM → r2:$KEY"
+
+      - name: Check the upload credentials exist
+        env:
+          KEY: ${{ secrets.R2_ACCESS_KEY_ID }}
+        run: |
+          [ -n "$KEY" ] || { echo "::error::R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY secrets are missing. Cloudflare dashboard → R2 → Manage API tokens → Create API token (Object Read & Write on etch-production-assets), then add its S3 Access Key ID and Secret Access Key as repo secrets under those names."; exit 1; }
+
+      - name: Install pmtiles CLI
+        run: |
+          set -e
+          curl -sSL -o pmtiles.tar.gz \
+            https://github.com/protomaps/go-pmtiles/releases/download/v1.22.1/go-pmtiles_1.22.1_Linux_x86_64.tar.gz
+          tar -xzf pmtiles.tar.gz pmtiles
+          ./pmtiles version
+
+      - name: Extract the region from the latest Protomaps build
+        run: |
+          set -e
+          # The newest completed daily build, from the public index.
+          BUILD=$(curl -sSL https://build.protomaps.com/builds.json \
+            | python3 -c "
+import json, sys
+raw = json.load(sys.stdin)
+keys = [b.get('key', b) if isinstance(b, dict) else b for b in raw]
+print(sorted(k for k in keys if str(k).endswith('.pmtiles'))[-1])")
+          echo "planet build: $BUILD"
+          ./pmtiles extract "https://build.protomaps.com/$BUILD" basemap.pmtiles \
+            --bbox="${{ steps.request.outputs.bbox }}" \
+            --maxzoom="${{ steps.request.outputs.maxzoom }}"
+          ls -lh basemap.pmtiles
+          ./pmtiles show basemap.pmtiles
+
+      - name: Upload to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -e
+          [ -z "$AWS_ACCESS_KEY_ID" ] && { echo "::error::R2_ACCESS_KEY_ID secret is missing — create an R2 API token (Object Read & Write) in the Cloudflare dashboard and add its S3 credentials as repo secrets."; exit 1; }
+          # Multipart via the AWS CLI against R2's S3 endpoint — wrangler caps single puts far
+          # below a basemap's size.
+          aws s3 cp basemap.pmtiles "s3://etch-production-assets/${{ steps.request.outputs.key }}" \
+            --endpoint-url "https://${ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --checksum-algorithm CRC32 \
+            --no-progress
+          echo "uploaded ${{ steps.request.outputs.key }}"
+
+      - name: Verify the worker serves it
+        run: |
+          set -e
+          curl -sSf https://etch-fulfilment.clintpuhrmann.workers.dev/tiles/tiles.json | head -c 400
+          echo
+          echo "tiles.json OK — set basemapReady:true in fulfilment/config/app.json to go live"

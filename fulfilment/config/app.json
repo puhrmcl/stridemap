@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "ordering": {
     "enabled": true,
     "closedTitle": "Ordering opens soon",
@@ -18,6 +18,7 @@
     "medalFrameCents": 24900,
     "photoWallCents": 19900
   },
+  "basemapReady": false,
   "archive": {
     "gridMinRoutedRuns": 20,
     "ridgelineMinProfiles": 12,

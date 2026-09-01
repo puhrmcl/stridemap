@@ -107,6 +107,36 @@ struct EtchRemoteConfig: Codable, Sendable, Equatable {
         }
     }
 
+    /// Decodes with every field optional, falling back to the compiled defaults per field.
+    ///
+    /// The synthesized decoder required every key, which quietly broke the whole contract this
+    /// file documents: the served document predates `basemapReady`, so decoding it failed, the
+    /// failure was swallowed by `try?`, and the app has been running on compiled defaults while
+    /// the served ones looked live — the prices happened to match, which is the only reason
+    /// nobody noticed. The kill switch and every future price edit were dead wires. Per-field
+    /// fallback makes the documented behaviour ("missing ones fall back") actually true, and
+    /// means the server can add keys without stranding older builds.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = EtchRemoteConfig.defaults
+        version = try c.decodeIfPresent(Int.self, forKey: .version) ?? d.version
+        ordering = try c.decodeIfPresent(Ordering.self, forKey: .ordering) ?? d.ordering
+        prices = try c.decodeIfPresent(Prices.self, forKey: .prices) ?? d.prices
+        basemapReady = try c.decodeIfPresent(Bool.self, forKey: .basemapReady) ?? false
+        archive = try c.decodeIfPresent(ArchiveGates.self, forKey: .archive) ?? d.archive
+        seasonal = try c.decodeIfPresent(Seasonal.self, forKey: .seasonal)
+    }
+
+    init(version: Int, ordering: Ordering, prices: Prices, basemapReady: Bool,
+         archive: ArchiveGates, seasonal: Seasonal?) {
+        self.version = version
+        self.ordering = ordering
+        self.prices = prices
+        self.basemapReady = basemapReady
+        self.archive = archive
+        self.seasonal = seasonal
+    }
+
     /// The configuration compiled into the binary: correct as shipped, and the floor the app
     /// falls back to when the network is unavailable or the document is malformed.
     static let defaults = EtchRemoteConfig(

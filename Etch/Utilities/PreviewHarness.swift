@@ -235,6 +235,9 @@ struct PreviewHarnessView: View {
                     MapPrintView(runs: allRuns, kind: .cities, cityIndex: true,
                                  indexHero: scope == nil ? .none : .map,
                                  indexMapScope: scope ?? .world)
+                // Studio's gallery front door: the subject made into finished pieces.
+                case "studio-picks":
+                    if let subject { StudioView(run: subject) } else { Color(.systemBackground) }
                 case "map-studio":      studio(family: .map)
                 case "gallery-studio":  studio(family: .gallery)
                 case "detail":          detail
