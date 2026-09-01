@@ -2,58 +2,33 @@ import SwiftUI
 import PhotosUI
 import ShopifyCheckoutSheetKit
 
-/// A gallery poster of your run cover photos — a contact-sheet "photo wall" for the runs that have
-/// a picture. Filter by year/state/location, sort or shuffle, tap a photo to swap it out, dial the
-/// count up or down, and share the text-free grid as an image.
 struct PhotoWallView: View {
-    /// The activity-scoped runs to draw from (Studio passes its current scope).
     let runs: [Run]
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var appModel
 
     @State private var filter: Filter = .all
-    /// Whether the wall has already taken its opening filter from the app's.
     @State private var didSeedFromAppFilter = false
     @State private var sort: SortOrder = .newest
-    /// Forty is the wall's default because it fills the 20 × 30" sheet to its corners: five
-    /// across, eight down.
     @State private var count = MultiPhotoFrameCatalog.defaultPhotos
-    /// Photos the user tapped away — the next unused photo fills their slot.
     @State private var excludedIDs: Set<UUID> = []
-    /// A shuffled ordering of run ids, regenerated each time Shuffle is tapped.
     @State private var randomOrder: [UUID] = []
     @State private var images: [UUID: UIImage] = [:]
     @State private var posterImage: UIImage?
-    /// Runs whose cover photo is a screenshot — kept out of the wall so it reads as photography.
     @State private var screenshotRunIDs: Set<UUID> = []
-
-    /// Photographs chosen straight from the library.
-    ///
-    /// The wall was built only from run cover photos, which quietly made it a product for people
-    /// who already photograph their activities — and left everyone else looking at an empty grid
-    /// with no way forward. A wall of forty pictures is worth making out of a holiday, a season,
-    /// or a race weekend somebody else shot, none of which Etch has a `Run` for.
-    ///
-    /// They live beside the run photos rather than replacing them: the filters, the sort and the
-    /// shuffle are all about *activities* and have nothing to say about a picked image, so picked
-    /// photos keep their chosen order and follow the run photos onto the wall.
     @State private var addedPhotos: [AddedPhoto] = []
     @State private var picking: [PhotosPickerItem] = []
     @State private var isImporting = false
 
-    /// A library photograph on the wall, with a stable identity so the grid can animate and the
-    /// user can tap one away like any other.
     struct AddedPhoto: Identifiable, Equatable {
         let id = UUID()
         let image: UIImage
         static func == (a: AddedPhoto, b: AddedPhoto) -> Bool { a.id == b.id }
     }
 
-    /// One tile on the wall: an activity's cover photo, or a picture from the library.
     enum WallCell: Identifiable, Equatable {
         case run(Run)
         case added(AddedPhoto)
-
         var id: UUID {
             switch self {
             case .run(let run):     return run.id
@@ -62,16 +37,11 @@ struct PhotoWallView: View {
         }
     }
 
-    /// Ordering the wall as the framed object it was designed for.
     @State private var orderPhase: PrintOrderService.Phase?
     @State private var orderError: String?
     @State private var checkoutURL: URL?
-    /// In flight, and the confirmation that follows.
     @State private var isAddingToBag = false
     @State private var addedToBag = false
-
-    /// Hard ceiling on one wall: the largest grid any confirmed frame size takes — 6 × 9 on the
-    /// 24 × 36". A wall that reads well on screen is therefore always one that can be made.
     private let maxPhotos = MultiPhotoFrameCatalog.maxPhotos
 
     enum Filter: Hashable {
@@ -89,19 +59,13 @@ struct PhotoWallView: View {
         var id: String { rawValue }
     }
 
-    // MARK: Data
-
-    /// Every scoped run that has a cover photo — excluding screenshots, so the wall stays to real
-    /// photography rather than app captures.
     private var photoRuns: [Run] {
         runs.filter { !$0.photoReferences.isEmpty && !screenshotRunIDs.contains($0.id) }
     }
 
-    /// Photo runs after the active filter.
     private var filtered: [Run] {
         switch filter {
-        case .all:
-            return photoRuns
+        case .all: return photoRuns
         case .year(let y):
             let cal = Calendar.current
             return photoRuns.filter { cal.component(.year, from: $0.startDate) == y }
@@ -117,7 +81,6 @@ struct PhotoWallView: View {
         }
     }
 
-    /// Filtered runs in the chosen order (or the current shuffle).
     private var ordered: [Run] {
         switch sort {
         case .newest: return filtered.sorted { $0.startDate > $1.startDate }
@@ -134,24 +97,14 @@ struct PhotoWallView: View {
         }
     }
 
-    /// The pool available to show — ordered, minus the ones tapped away.
     private var pool: [Run] { ordered.filter { !excludedIDs.contains($0.id) } }
-
-    /// Everything eligible for the wall: activity photos in the chosen order, then the pictures
-    /// added from the library in the order they were picked.
     private var cellPool: [WallCell] {
         pool.map(WallCell.run) + addedPhotos.filter { !excludedIDs.contains($0.id) }.map(WallCell.added)
     }
-
-    /// The tiles actually on the wall.
     private var shownCells: [WallCell] { Array(cellPool.prefix(count)) }
-
-    /// The runs on the wall — still needed by the parts that are about activities.
     private var shown: [Run] {
         shownCells.compactMap { if case .run(let r) = $0 { return r } else { return nil } }
     }
-
-    /// Upper bound for the count stepper.
     private var maxCount: Int { max(1, min(cellPool.count, maxPhotos)) }
 
     private func cityLabel(_ place: RunStatistics.TravelPlace) -> String {
@@ -159,17 +112,6 @@ struct PhotoWallView: View {
         return parts.count >= 2 ? parts.prefix(2).joined(separator: ", ") : place.label
     }
 
-    /// Opens the wall on whatever place the app is currently filtered to.
-    ///
-    /// Studio deliberately ignores the shared filter everywhere else, and the reason is written
-    /// down where `scopedRuns` is defined: someone arrives here to print a specific activity, and
-    /// a filter they set on the map twenty minutes ago silently hiding it reads as Etch having
-    /// lost the run. That note set the condition for ever wiring one up — it needs an escape
-    /// hatch on screen — and the wall is the one product that already has it. Its own filter
-    /// control sits above the grid, names the place, and offers "All Photos" as its first item.
-    ///
-    /// So this is a seed, not a narrowing: it sets the control the user can already see and
-    /// change, once, on the way in. Nothing is hidden that the wall does not say it is hiding.
     private func seedFromAppFilter() {
         guard !didSeedFromAppFilter else { return }
         didSeedFromAppFilter = true
@@ -179,9 +121,6 @@ struct PhotoWallView: View {
                 .first { $0.runs.contains { $0.city == city } }
             if let place { filter = .place(cityLabel(place)) }
         } else if let state = active.state, !state.isEmpty {
-            // Only if there is something behind it. Opening the wall on an empty grid is the
-            // exact failure Studio's no-filter rule exists to prevent, and a control that names
-            // the place does not undo a first impression of "my photographs are gone".
             let hasPhotos = photoRuns.contains {
                 PlaceNames.canonicalState($0.state) == PlaceNames.canonicalState(state)
             }
@@ -198,31 +137,20 @@ struct PhotoWallView: View {
         }
     }
 
-    /// Columns for the current wall.
     private var columnCount: Int {
         let n = max(shownCells.count, 1)
-        // The frame this count would be made in decides the arrangement, so what's on screen is a
-        // preview of the object. Forty is five across and eight down, because the 20 × 30" sheet
-        // is *portrait* — the old rule put it in eight columns, which is a landscape grid bound
-        // for a paper the lab cannot rotate.
         if let size = MultiPhotoFrameCatalog.exactSize(forPhotos: n) { return size.columns }
         return min(6, max(1, Int(ceil(Double(n).squareRoot()))))
     }
 
-    /// Signature that changes whenever the shown set changes — drives image loading + re-render.
     private var renderKey: String {
         "\(shownCells.map { $0.id.uuidString }.joined())-\(columnCount)"
     }
-
-    // MARK: Body
 
     var body: some View {
         NavigationStack {
             Group {
                 if cellPool.isEmpty {
-                    // Not a dead end any more. The wall used to require activity photos, which
-                    // made it a product for people who already photograph their runs and gave
-                    // everyone else a paragraph explaining why they could not have one.
                     ContentUnavailableView {
                         Label("Nothing on the wall yet", systemImage: "photo.on.rectangle.angled")
                     } description: {
@@ -260,7 +188,17 @@ struct PhotoWallView: View {
                     .colorScheme(.automatic)
                     .tintColor(UIColor(Theme.accent))
                     .onCancel { checkoutURL = nil }
-                    .onComplete { _ in checkoutURL = nil; dismiss() }
+                    .onComplete { event in
+                        let size = MultiPhotoFrameCatalog.size(forPhotos: shownCells.count)
+                        CheckoutCompletion.record(
+                            event,
+                            productName: "Photo Wall",
+                            sizeLabel: "\(size.label) · \(shownCells.count) photos",
+                            sku: size.sku
+                        )
+                        checkoutURL = nil
+                        dismiss()
+                    }
                     .onFail { error in
                         checkoutURL = nil
                         orderError = error.localizedDescription
@@ -273,8 +211,6 @@ struct PhotoWallView: View {
                 Button("OK", role: .cancel) {}
             } message: { Text(orderError ?? "") }
             .onChange(of: filter) { excludedIDs = []; clampCount() }
-            // Seeded before the count is clamped, so the stepper is bounded by the filtered pool
-            // rather than by the whole library and then snapped down a moment later.
             .onAppear {
                 seedFromAppFilter()
                 clampCount()
@@ -284,8 +220,6 @@ struct PhotoWallView: View {
             .addedToBagToast($addedToBag)
         }
     }
-
-    // MARK: Preview (interactive — tap a photo to swap it out)
 
     private var preview: some View {
         ScrollView {
@@ -302,9 +236,6 @@ struct PhotoWallView: View {
         }
     }
 
-    /// A strictly square tile: a placeholder rectangle sets the 1:1 shape from the grid-cell width,
-    /// and the photo fills it as an overlay that's clipped to the square — so images can never
-    /// overflow and overlap their neighbours (the source of the "chaos").
     private func cell(_ item: WallCell) -> some View {
         Rectangle()
             .fill(Theme.Palette.stone)
@@ -320,7 +251,6 @@ struct PhotoWallView: View {
             .contentShape(.rect)
     }
 
-    /// The picture for a tile. A picked photo already holds its own; a run's is loaded on demand.
     private func photo(for item: WallCell) -> UIImage? {
         switch item {
         case .run(let run):     return images[run.id]
@@ -342,8 +272,6 @@ struct PhotoWallView: View {
         screenshotRunIDs = Set(coverByRun.filter { shots.contains($0.1) }.map(\.0))
     }
 
-    // MARK: Controls
-
     private var controls: some View {
         VStack(spacing: 12) {
             HStack(spacing: 10) {
@@ -357,8 +285,6 @@ struct PhotoWallView: View {
                     .font(.etch(.subheadline, weight: .medium))
             }
             .frame(maxWidth: 340)
-            // Which frame this count would actually be made in, and whether it fills it. The
-            // count is a choice about an object, so it says what the object would be.
             Text(MultiPhotoFrameCatalog.fitDescription(forPhotos: shownCells.count))
                 .font(.etch(.caption, weight: .medium))
                 .foregroundStyle(Theme.accent)
@@ -375,7 +301,6 @@ struct PhotoWallView: View {
             Text("Tap a photo to swap it out.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-
             orderButton
         }
         .padding(.vertical, 16)
@@ -384,31 +309,14 @@ struct PhotoWallView: View {
         .background(.regularMaterial)
     }
 
-    /// Whether this build can actually take the order: the frame is listed, the storefront
-    /// credentials are present, and the served kill switch is open.
     private var canOrder: Bool {
         MultiPhotoFrameCatalog.isAvailable
             && PrintOrderService.isConfigured
             && EtchConfig.current.ordering.enabled
     }
 
-    /// Order the wall as the multi-photo frame it is composed for.
-    ///
-    /// Until now this screen could only share a picture of the wall, which made the Photo Wall the
-    /// one product on the storefront you could design and not buy — the catalogue, the renderer and
-    /// the frame's real geometry all existed, and nothing connected them to a cart.
-    ///
-    /// The order renders at the frame's own resolution (5905 × 8858 for the 20 × 30″), which is why
-    /// it goes through the banded writer rather than an image: that sheet is a 209 MB bitmap.
     @ViewBuilder private var orderButton: some View {
         if !shownCells.isEmpty, !canOrder {
-            // Say why, rather than vanish.
-            //
-            // This whole block used to be one `if` with four conditions, so a missing storefront
-            // token simply removed the button — and a screen that lets you compose a wall and
-            // then offers only "share" reads as a product you cannot buy rather than a shop that
-            // is briefly shut. `PrintShopView` has always explained itself in this situation;
-            // this screen now does too, in the same words.
             VStack(spacing: 6) {
                 Label(EtchConfig.current.ordering.closedTitle, systemImage: "clock")
                     .font(.etch(.subheadline, weight: .semibold))
@@ -422,7 +330,6 @@ struct PhotoWallView: View {
             .frame(maxWidth: 340)
             .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 14))
         }
-
         if canOrder, !shownCells.isEmpty {
             Button { order(.checkout) } label: {
                 Group {
@@ -444,14 +351,10 @@ struct PhotoWallView: View {
             .buttonStyle(.plain)
             .disabled(orderPhase != nil)
             .frame(maxWidth: 340)
-
-            // A wall is forty photographs and one frame — the piece someone builds *and then*
-            // goes looking for a print of the race that is in it. One shipment, not two.
             AddToBagButton(isWorking: isAddingToBag, isDisabled: orderPhase != nil) {
                 order(.bag)
             }
             .frame(maxWidth: 340)
-
             Text(MultiPhotoFrameCatalog.fitDescription(forPhotos: shownCells.count))
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
@@ -467,8 +370,6 @@ struct PhotoWallView: View {
             defer { isAddingToBag = false }
             do {
                 orderPhase = .rendering
-                // Photographs at the cell's real print size, not the on-screen thumbnails the
-                // grid drew with — a 1181px cell fed a 600px thumbnail would print soft.
                 let cellPixels = size.printPixels.width / CGFloat(size.columns)
                 var prints: [UIImage] = []
                 for item in items {
@@ -480,8 +381,6 @@ struct PhotoWallView: View {
                             targetSize: CGSize(width: cellPixels, height: cellPixels)
                         ) { prints.append(image) }
                     case .added(let photo):
-                        // Already in memory at whatever the library handed over, which is full
-                        // resolution for a picked image — nothing to re-fetch.
                         prints.append(photo.image)
                     }
                 }
@@ -490,10 +389,8 @@ struct PhotoWallView: View {
                     orderError = "Those photos couldn't be loaded at print size."
                     return
                 }
-
                 let fileURL = try await PhotoWallRenderer.printFile(photos: prints, size: size)
                 defer { try? FileManager.default.removeItem(at: fileURL) }
-
                 let creationID = "photowall-\(size.sku)-\(items.count)-\(UUID().uuidString)"
                 let frame = MultiPhotoFrameCatalog.frameColours.first ?? "black"
                 switch destination {
@@ -537,8 +434,6 @@ struct PhotoWallView: View {
     private var filterMenu: some View {
         let stats = RunStatistics(photoRuns)
         let years = stats.years
-        // Canonical, so a library written by two apps does not offer "AZ" and "Arizona" as two
-        // states, each holding half the photographs.
         let grouped = Dictionary(grouping: photoRuns.filter { !($0.state ?? "").isEmpty },
                                  by: { PlaceNames.canonicalState($0.state) ?? "" })
         let states = grouped.map { (name: $0.key, count: $0.value.count) }
@@ -578,7 +473,6 @@ struct PhotoWallView: View {
 
     private var sortMenu: some View {
         Menu {
-            // Shuffle is its own button; the menu covers the ordered choices.
             ForEach([SortOrder.newest, .oldest, .location]) { option in
                 Button(option.rawValue) { sort = option }
             }
@@ -605,13 +499,6 @@ struct PhotoWallView: View {
         .background(Theme.accent.opacity(0.1), in: .capsule)
     }
 
-    // MARK: Actions
-
-    /// Choose pictures from the library.
-    ///
-    /// Capped at what the largest frame can hold, so the picker cannot hand back more photographs
-    /// than any wall could be made from — a limit worth enforcing where the choosing happens
-    /// rather than silently dropping the surplus afterwards.
     private var addPhotosButton: some View {
         PhotosPicker(
             selection: $picking,
@@ -630,10 +517,6 @@ struct PhotoWallView: View {
         }
     }
 
-    /// Loads what was picked, appends it, and grows the wall to include it.
-    ///
-    /// The count moves up by however many arrived. Adding six photographs and having the wall
-    /// still show forty would look like the picker had failed.
     @MainActor
     private func importPicked(_ items: [PhotosPickerItem]) async {
         isImporting = true
@@ -661,8 +544,6 @@ struct PhotoWallView: View {
         if count < 1 { count = 1 }
     }
 
-    // MARK: Poster (text-free grid) + rendering
-
     private let posterWidth: CGFloat = 1000
     private let posterPadding: CGFloat = 28
     private let posterSpacing: CGFloat = 4
@@ -677,7 +558,6 @@ struct PhotoWallView: View {
         return posterPadding * 2 + CGFloat(rows) * posterCell + CGFloat(max(0, rows - 1)) * posterSpacing
     }
 
-    /// The exported wall: just the photos, no title or footer text.
     private var posterContent: some View {
         let cols = columnCount
         let rows = shownCells.chunked(into: cols)
@@ -728,14 +608,12 @@ struct PhotoWallView: View {
     }
 }
 
-/// Wraps the checkout URL so it can drive a `.sheet(item:)`.
 private struct CheckoutTarget: Identifiable {
     let url: URL
     var id: String { url.absoluteString }
 }
 
 private extension Array {
-    /// Splits into consecutive chunks of at most `size`.
     func chunked(into size: Int) -> [[Element]] {
         guard size > 0 else { return [self] }
         return stride(from: 0, to: count, by: size).map { Array(self[$0..<Swift.min($0 + size, count)]) }
