@@ -75,11 +75,7 @@ jobs:
           set -e
           # The newest completed daily build, from the public index.
           BUILD=$(curl -sSL https://build.protomaps.com/builds.json \
-            | python3 -c "
-import json, sys
-raw = json.load(sys.stdin)
-keys = [b.get('key', b) if isinstance(b, dict) else b for b in raw]
-print(sorted(k for k in keys if str(k).endswith('.pmtiles'))[-1])")
+            | python3 -c "import json,sys; raw=json.load(sys.stdin); keys=[b.get('key',b) if isinstance(b,dict) else b for b in raw]; print(sorted(k for k in keys if str(k).endswith('.pmtiles'))[-1])")
           echo "planet build: $BUILD"
           ./pmtiles extract "https://build.protomaps.com/$BUILD" basemap.pmtiles \
             --bbox="${{ steps.request.outputs.bbox }}" \

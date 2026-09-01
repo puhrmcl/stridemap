@@ -114,7 +114,9 @@ enum StudioCurator {
     private static func dataSlots(for run: Run) -> [StatMetric] {
         if run.isRace {
             var slots: [StatMetric] = [.time, .pace]
-            if !run.finishPlace.isEmpty { slots.append(.place) }
+            // `.finish` is the finishing position; `.place` is the location, which the
+            // composition already names above the row.
+            if !run.finishPlace.isEmpty { slots.append(.finish) }
             return slots
         }
         switch run.activityType {
