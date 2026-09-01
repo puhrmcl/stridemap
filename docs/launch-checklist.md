@@ -3,8 +3,20 @@
 Ordered so each step unblocks the next, with what is already done recorded so it does not get
 done twice. Nothing here needs a Mac.
 
-Status was read from the workflow run history on 2026-08-31, not from memory — where a thing is
-marked done, a green run says so.
+Status was re-read from the workflow run history on **2026-09-01**, not from memory — where a
+thing is marked done, a green run says so. Nothing in the deploy history has moved since
+2026-08-31: the last `Deploy app config` is still the 08-31 success, and `Apple Pay certificate`
+is still three failures from 08-27.
+
+The two goals have different critical paths, and only one of them is genuinely blocking:
+
+- **Commerce live** — stages 1 → 2 → 3 → 4, then 9. Stage 1 (building the store) is the long
+  pole; everything else in that chain is minutes of work that cannot start until it exists.
+- **App Store live** — stages 6, 7, 8 and the metadata. Stage 6 is the hard blocker.
+- **Apple Pay** (stage 5) blocks neither. Checkout works with a card without it.
+
+Realistically the store has to be live before you submit, because review will exercise the
+ordering flow — but that is a sequencing fact, not a dependency in the code.
 
 ---
 
@@ -158,6 +170,22 @@ Each fails differently, so stop at the first failure rather than changing two th
 6. **Then and only then**, step 9.
 
 ---
+
+## Device verification backlog (does not block the store, does block shipping with confidence)
+
+Everything below shipped since the checklist was first written and is **green in CI but unseen
+on a real device**, because the preview harness has no Apple Health, no photo library, and
+cannot tap. Worth walking once on the b514 TestFlight build before submission — a first
+release is the worst place to find out one of them regressed.
+
+| Build | What to check |
+|---|---|
+| b506 | **Syncing.** Activities that upload late now import. Settings should read `Health: N new workouts read, N imported`. Anything previously missing should appear. |
+| b507 | The **Gallery** segment on the Timeline, the **filmstrip** in the photo viewer, and the drawn **tab glyphs**. |
+| b510 | **Recover Missing Maps** — should show progress, be stoppable, and the badge should fall. |
+| b511 | **Humphreys Peak files under Hikes**, and the Longest Run record returns to a real run. |
+| b512 | **Tapping a city or state** in Achievements narrows the app; the photo wall opens on that place. |
+| b513–514 | **Speed** — scrolling the Timeline and switching tabs. And the opposite risk: any count or list that now looks *stale* after an edit is a missing `updatedAt`, and a one-line fix. |
 
 ## Decisions still open (none block launch)
 
