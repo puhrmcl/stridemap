@@ -92,9 +92,14 @@ struct BagView: View {
         }
     }
 
-    /// One piece waiting to be ordered.
+    /// One piece waiting to be ordered — shown as the object it will arrive as, not as a receipt
+    /// line. The proof is a small copy of the exact file that was uploaded for print, dressed in
+    /// the product it was added as: the moulding for a framed piece, the bare sheet for fine art,
+    /// the cover for a book. What you see here is what you are paying for.
     private func cartRow(_ item: CartItem) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: 14) {
+            CartProofView(item: item)
+                .frame(width: 76)
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                     .font(.etch(.headline))
@@ -123,7 +128,7 @@ struct BagView: View {
                 .disabled(removing != nil)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
     }
 
     /// Subtotal and the two ways out. The wallet buttons take the whole bag, so one tap pays for
@@ -255,4 +260,78 @@ struct BagView: View {
 private struct BagCheckoutTarget: Identifiable {
     let url: URL
     var id: String { url.absoluteString }
+}
+
+/// A cart line's proof, dressed as its product.
+///
+/// The image is the uploaded print file, downsampled — the lab's input, not a preview that could
+/// drift from it. The dressing comes from the line's product handle: framed pieces wear the
+/// drawn moulding in their chosen finish, the hanger gets its timber strips, everything else is
+/// the sheet itself with a hairline and a shadow. A line without a stored proof (added before
+/// proofs existed, or a generation failure) shows a quiet placeholder rather than pretending.
+private struct CartProofView: View {
+    let item: CartItem
+    @State private var proof: UIImage?
+
+    var body: some View {
+        Group {
+            if let proof {
+                dressed(Image(uiImage: proof).resizable().aspectRatio(contentMode: .fit))
+            } else {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.secondary.opacity(0.10))
+                    .aspectRatio(2.0 / 3.0, contentMode: .fit)
+                    .overlay {
+                        Image(systemName: "photo")
+                            .font(.system(size: 16))
+                            .foregroundStyle(.tertiary)
+                    }
+            }
+        }
+        .task(id: item.assetID) { proof = ProofStore.image(for: item.assetID) }
+    }
+
+    @ViewBuilder
+    private func dressed(_ art: some View) -> some View {
+        switch item.productHandle {
+        case PrintProduct.framed.shopifyHandle,
+             MedalFrameCatalog.shopifyHandle,
+             MultiPhotoFrameCatalog.shopifyHandle:
+            FramedPrintMockup(
+                moulding: mouldingColor,
+                hasGrain: grain,
+                mouldingWidth: 5,
+                showsGlazing: true
+            ) { art }
+        case PrintProduct.hanger.shopifyHandle:
+            VStack(spacing: 0) {
+                Rectangle().fill(mouldingColor).frame(height: 4)
+                art
+                Rectangle().fill(mouldingColor).frame(height: 4)
+            }
+            .compositingGroup()
+            .shadow(color: .black.opacity(0.18), radius: 5, y: 3)
+        default:
+            art
+                .overlay(Rectangle().strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
+                .compositingGroup()
+                .shadow(color: .black.opacity(0.16), radius: 5, y: 3)
+        }
+    }
+
+    private var mouldingColor: Color {
+        let finish = (item.finish ?? "").lowercased()
+        if item.productHandle == MedalFrameCatalog.shopifyHandle {
+            return Color(hex: MedalFrameCatalog.mouldingHex(finish)) ?? .black
+        }
+        if let match = FrameFinish.allCases.first(where: { $0.prodigiAttribute == finish }) {
+            return Color(hex: match.mouldingHex) ?? .black
+        }
+        return Color(hex: FrameFinish.black.mouldingHex) ?? .black
+    }
+
+    private var grain: Bool {
+        let finish = (item.finish ?? "").lowercased()
+        return finish.contains("natural") || finish.contains("brown") || finish.contains("oak")
+    }
 }

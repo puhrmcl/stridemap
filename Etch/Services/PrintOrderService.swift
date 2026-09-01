@@ -147,6 +147,10 @@ enum PrintOrderService {
         let assetID = UUID().uuidString.lowercased()
         try await upload(fileAt: fileURL, assetID: assetID, creationID: creationID,
                          pixels: pixels, contentType: contentType)
+        // The Bag's proof, made from the very file that was just uploaded — what the customer
+        // sees before paying is what the lab receives. Made now, while the file still exists;
+        // the caller deletes it once this returns.
+        await ProofStore.makeProof(from: fileURL, contentType: contentType, assetID: assetID)
 
         onPhase(.addingToBag)
         let variant = try await ShopifyStorefront.variant(
@@ -189,7 +193,8 @@ enum PrintOrderService {
 
         store.adopt(cart: added.cart, item: CartItem(
             lineID: added.lineID, assetID: assetID, title: title, detail: detail,
-            priceCents: priceCents, addedAt: Date()
+            priceCents: priceCents, addedAt: Date(),
+            productHandle: productHandle, finish: finishAttribute
         ))
     }
 

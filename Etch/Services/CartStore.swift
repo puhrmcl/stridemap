@@ -18,6 +18,12 @@ struct CartItem: Codable, Identifiable, Equatable {
     let detail: String
     let priceCents: Int
     let addedAt: Date
+    /// Which shop product this line is, so the Bag can dress its proof as the right object —
+    /// a frame, a hung sheet, a bound book. Optional: lines saved before proofs existed decode
+    /// without them and show the bare sheet.
+    var productHandle: String?
+    /// The frame/hanger finish name, for the mockup's moulding colour. Empty for unframed lines.
+    var finish: String?
 
     var price: String {
         (Double(priceCents) / 100).formatted(.currency(code: "USD").precision(.fractionLength(0)))
@@ -62,6 +68,8 @@ final class CartStore {
             items = decoded
         }
         expireIfStale()
+        // Proofs live and die with the lines they show; a failed add or a crash cannot leak one.
+        ProofStore.sweep(keeping: Set(items.map(\.assetID)))
     }
 
     var count: Int { items.count }
@@ -94,6 +102,9 @@ final class CartStore {
     }
 
     func remove(lineID: String) {
+        if let removed = items.first(where: { $0.lineID == lineID }) {
+            ProofStore.remove(removed.assetID)
+        }
         items.removeAll { $0.lineID == lineID }
         if items.isEmpty { clear() } else { persist() }
     }
@@ -101,6 +112,7 @@ final class CartStore {
     /// Emptied after a completed order — the cart id is spent once its checkout completes, and
     /// reusing it would add the next piece to an order that has already been paid for.
     func clear() {
+        for item in items { ProofStore.remove(item.assetID) }
         cartID = nil
         checkoutURL = nil
         items = []
