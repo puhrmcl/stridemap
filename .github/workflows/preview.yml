@@ -1,0 +1,198 @@
+# Screenshot any screen in a simulator, without a device or a TestFlight build.
+#
+# The app is launched with ETCH_PREVIEW=<screen>, which opens that surface directly on a
+# synthetic 80-run history (see PreviewHarness) — no Apple Health, no onboarding, no splash.
+# Screenshots are embedded in the job log as base64 so the working session can read them
+# straight from the run, and uploaded as artifacts for a closer look.
+#
+# Run it from the Actions tab (Run workflow), or the session triggers it directly. Turnaround
+# is about five minutes, against a build-and-install cycle measured in tens of them.
+
+name: Preview screens
+
+on:
+  # Editing .github/preview-request.txt asks for a preview. GitHub only offers
+  # workflow_dispatch for workflows that live on the default branch, and this work happens
+  # on a feature branch — so the request is a file, which also means anyone can ask for
+  # screenshots from a phone by editing one line.
+  push:
+    branches: [claude/rebrand-etch]
+    paths:
+      - ".github/preview-request.txt"
+      - ".github/workflows/preview.yml"
+  workflow_dispatch:
+    inputs:
+      screens:
+        description: "Comma-separated: studio, home, archive, course, summit, yearbook, prints, wall-art, map-studio, gallery-studio, detail"
+        required: false
+        default: "studio,archive,map-studio"
+      appearance:
+        description: "light, dark, or both"
+        required: false
+        default: "light"
+
+jobs:
+  preview:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select newest Xcode
+        run: |
+          set -e
+          XC=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1 || true)
+          if [ -n "$XC" ]; then sudo xcode-select -s "$XC/Contents/Developer"; fi
+          xcodebuild -version
+
+      - name: Build for simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Etch.xcodeproj \
+            -scheme Etch \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath dd \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee build.log \
+            | grep -E "error:|warning: will never be executed|BUILD (SUCCEEDED|FAILED)" || true
+          # A quiet success is the point of the filter above, but a failure has to be legible:
+          # `| tail -5` used to swallow the compiler diagnostic and leave only "BUILD FAILED",
+          # which cost a whole round trip to the build workflow to read one line.
+          #
+          # And a failure has to actually *fail*. `|| true` keeps the pipeline's exit code from
+          # ending the step, so a build that never produced an app used to carry on to the
+          # install — which reported "Missing bundle ID" from an empty Etch.app and buried the
+          # one compiler diagnostic that mattered two hundred lines up the log. Fail here, on
+          # the real reason.
+          if grep -q "BUILD FAILED" build.log; then
+            echo "::error::Build failed — the compiler diagnostics are printed above."
+            exit 1
+          fi
+          test -d dd/Build/Products
+
+      - name: Read the request
+        id: request
+        env:
+          INPUT_SCREENS: ${{ inputs.screens }}
+          INPUT_APPEARANCE: ${{ inputs.appearance }}
+        run: |
+          set -e
+          # A manual dispatch wins; otherwise take the request from the committed file.
+          SCREENS="$INPUT_SCREENS"
+          APPEARANCE="$INPUT_APPEARANCE"
+          FILE=.github/preview-request.txt
+          if [ -z "$SCREENS" ] && [ -f "$FILE" ]; then
+            SCREENS=$(grep -E '^screens=' "$FILE" | tail -1 | cut -d= -f2- | xargs)
+          fi
+          if [ -z "$APPEARANCE" ] && [ -f "$FILE" ]; then
+            APPEARANCE=$(grep -E '^appearance=' "$FILE" | tail -1 | cut -d= -f2- | xargs)
+          fi
+          [ -z "$SCREENS" ] && SCREENS="studio"
+          [ -z "$APPEARANCE" ] && APPEARANCE="light"
+          echo "screens=$SCREENS" >> "$GITHUB_OUTPUT"
+          echo "appearance=$APPEARANCE" >> "$GITHUB_OUTPUT"
+          echo "requesting: $SCREENS ($APPEARANCE)"
+
+      - name: Capture each screen
+        env:
+          SCREENS: ${{ steps.request.outputs.screens }}
+          APPEARANCE: ${{ steps.request.outputs.appearance }}
+        run: |
+          set -e
+          UDID=$(xcrun simctl list devices available | grep -E "iPhone (1[5-9]|[2-9][0-9])" | grep -v "Plus\|Max\|SE" | head -1 | grep -oE "[0-9A-F-]{36}")
+          echo "Using device $UDID"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          APP=$(find dd/Build/Products -name "Etch.app" -maxdepth 2 | head -1)
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl spawn "$UDID" defaults write com.nwagtech.etch didCompleteOnboarding -bool true
+          xcrun simctl spawn "$UDID" defaults write com.nwagtech.etch didCompleteSetup -bool true
+          xcrun simctl privacy "$UDID" grant location com.nwagtech.etch || true
+          # Photos too, or the first screen that touches the library puts a system permission
+          # sheet over whatever was being photographed. The simulator's library is empty, so
+          # this grants access to nothing — it only keeps the alert off the shot.
+          xcrun simctl privacy "$UDID" grant photos com.nwagtech.etch || true
+
+          MODES="$APPEARANCE"
+          [ "$APPEARANCE" = "both" ] && MODES="light dark"
+
+          for MODE in $MODES; do
+            xcrun simctl ui "$UDID" appearance "$MODE" || true
+            IFS=',' read -ra LIST <<< "$SCREENS"
+            for SCREEN in "${LIST[@]}"; do
+              SCREEN=$(echo "$SCREEN" | xargs)   # trim
+              [ -z "$SCREEN" ] && continue
+              echo "── capturing $SCREEN ($MODE)"
+              # "studio@products" photographs that section of a long page — the screen only
+              # holds one screenful, and reviewing a storefront needs more than its top.
+              TARGET="${SCREEN%%@*}"
+              ANCHOR=""
+              [ "$SCREEN" != "$TARGET" ] && ANCHOR="${SCREEN#*@}"
+              xcrun simctl terminate "$UDID" com.nwagtech.etch 2>/dev/null || true
+              SIMCTL_CHILD_ETCH_PREVIEW="$TARGET" \
+              SIMCTL_CHILD_ETCH_PREVIEW_SCROLL="$ANCHOR" \
+                xcrun simctl launch "$UDID" com.nwagtech.etch >/dev/null
+              # Seeding and the first compositions need a moment; anything backed by an Apple
+              # map snapshot needs considerably longer on a CI runner.
+              case "$SCREEN" in
+                home|map-studio|gallery-studio|detail) sleep 30 ;;
+                # The engine check writes a real 7200 × 10800 sheet — 78 million pixels through
+                # an unoptimised Debug build on a shared runner.
+                print-engine) sleep 90 ;;
+                *) sleep 16 ;;
+              esac
+              # ':' picks a variant and '@' a section; keep both out of the filename.
+              SHOT="$(echo "$SCREEN-$MODE" | tr ':@' '--')"
+              xcrun simctl io "$UDID" screenshot "$SHOT.png" || true
+
+              # A screen that writes a report reports in text too. Screenshots have to travel
+              # back to the session as base64, and four of them is most of a megabyte; a verdict
+              # the runner can print costs nothing and is far easier to act on. Only the
+              # print-engine check writes one today.
+              CONTAINER=$(xcrun simctl get_app_container "$UDID" com.nwagtech.etch data 2>/dev/null || true)
+              REPORT="$CONTAINER/Documents/print-engine-report.txt"
+              if [ -n "$CONTAINER" ] && [ -f "$REPORT" ]; then
+                echo "── REPORT $SCREEN"
+                cat "$REPORT"
+                echo "── END-REPORT"
+                rm -f "$REPORT"
+              fi
+            done
+          done
+
+          echo ""
+          for FILE in *.png; do
+            [ -f "$FILE" ] || continue
+            NAME="${FILE%.png}"
+            sips -Z 520 "$FILE" --out "small-$FILE" >/dev/null
+            echo "── BEGIN-B64 $NAME"
+            base64 -i "small-$FILE"
+            echo "── END-B64 $NAME"
+
+            # A shot of a whole phone downscaled to 520px tall renders a 25pt tab icon in about
+            # fifteen pixels, which is not enough to tell a thin outline from a filled shape —
+            # b507's first pass was judged on exactly that and nearly redrew a glyph that was
+            # fine. So the bottom eighth also comes back near native resolution, for the screens
+            # where the chrome *is* the subject.
+            case "$NAME" in
+              tabs*|home*)
+                W=$(sips -g pixelWidth "$FILE" | awk '/pixelWidth/{print $2}')
+                H=$(sips -g pixelHeight "$FILE" | awk '/pixelHeight/{print $2}')
+                STRIP=$(( H / 8 ))
+                sips -c "$STRIP" "$W" --cropOffset $(( H - STRIP )) 0 "$FILE" \
+                  --out "bar-$FILE" >/dev/null 2>&1 || continue
+                sips -Z 760 "bar-$FILE" --out "bar-small-$FILE" >/dev/null
+                echo "── BEGIN-B64 bar-$NAME"
+                base64 -i "bar-small-$FILE"
+                echo "── END-B64 bar-$NAME"
+                ;;
+            esac
+          done
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: previews
+          path: "*.png"

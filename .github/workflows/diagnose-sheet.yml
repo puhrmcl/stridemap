@@ -1,0 +1,91 @@
+# Reproduces the search-sheet fly-away in a simulator and logs the geometry of
+# every layer, because the operator has no Mac to attach a debugger. The app is
+# launched with ETCH_DIAG=1, which (a) makes the sheet host log sheet/surface/
+# host/field/keyboard geometry twice a second and (b) auto-focuses the search
+# field 4s after launch — the exact tap-to-search repro. The job log carries the
+# numbers; a screenshot is uploaded as an artifact.
+
+name: Diagnose search sheet
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/rebrand-etch]
+    paths:
+      - ".github/workflows/diagnose-sheet.yml"
+
+jobs:
+  diagnose:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select newest Xcode
+        run: |
+          set -e
+          XC=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1 || true)
+          if [ -n "$XC" ]; then sudo xcode-select -s "$XC/Contents/Developer"; fi
+          xcodebuild -version
+
+      - name: Build for simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Etch.xcodeproj \
+            -scheme Etch \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath dd \
+            CODE_SIGNING_ALLOWED=NO | tail -5
+
+      - name: Boot simulator, launch with diagnostics, capture
+        run: |
+          set -e
+          UDID=$(xcrun simctl list devices available | grep -E "iPhone (1[5-9]|[2-9][0-9])" | grep -v "Plus\|Max\|SE" | head -1 | grep -oE "[0-9A-F-]{36}")
+          echo "Using device $UDID"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          APP=$(find dd/Build/Products -name "Etch.app" -maxdepth 2 | head -1)
+          echo "Installing $APP"
+          xcrun simctl install "$UDID" "$APP"
+          # Skip first-run onboarding so the home map (and the search sheet) mounts.
+          xcrun simctl spawn "$UDID" defaults write com.nwagtech.etch didCompleteOnboarding -bool true
+          # NSLog goes to the unified system log, not the launch pty — stream it directly.
+          xcrun simctl spawn "$UDID" log stream --style compact \
+            --predicate 'eventMessage CONTAINS "ETCHDIAG"' > sys.log 2>&1 &
+          STREAM_PID=$!
+          # Plain launch — --console-pty hangs on CI runners and the app never starts.
+          SIMCTL_CHILD_ETCH_DIAG=1 xcrun simctl launch "$UDID" com.nwagtech.etch | tee app.log
+          sleep 7
+          xcrun simctl io "$UDID" screenshot before-focus.png || true
+          sleep 9
+          xcrun simctl io "$UDID" screenshot after-focus.png || true
+          kill $STREAM_PID 2>/dev/null || true
+          echo ""
+          echo "── ETCHDIAG geometry log:"
+          grep "ETCHDIAG" sys.log app.log || echo "(no ETCHDIAG lines captured)"
+          echo ""
+          echo "── app.log head (launch errors, if any):"
+          head -30 app.log || true
+          echo ""
+          # Embed small screenshots in the job log so the working session can view them
+          # without artifact-download access: 300px wide, base64 between markers.
+          for shot in before-focus after-focus; do
+            if [ -f "$shot.png" ]; then
+              sips -Z 480 "$shot.png" --out "$shot-small.png" >/dev/null
+              echo "── BEGIN-B64 $shot"
+              base64 -i "$shot-small.png"
+              echo "── END-B64 $shot"
+            fi
+          done
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sheet-diagnosis
+          path: |
+            before-focus.png
+            after-focus.png
+            app.log

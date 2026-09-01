@@ -1,5 +1,5 @@
 /**
- * StrideMap — Strava OAuth token proxy (Cloudflare Worker)
+ * Etch — Strava OAuth token proxy (Cloudflare Worker)
  *
  * Strava's token exchange requires the app's `client_secret`. Shipping that secret
  * inside the iOS app is insecure, so this Worker holds it server-side and performs the
@@ -10,6 +10,9 @@
  *
  * Endpoints:
  *   GET  /health        → { ok: true }
+ *   GET  /debug         → { hasClientId, clientIdLen, hasSecret, secretLen }
+ *                         reports whether the env vars are visible to the Worker WITHOUT
+ *                         revealing their values — used to diagnose `server_not_configured`.
  *   POST /oauth/token   → body: { grant_type, code? , refresh_token? }
  *                         proxies to Strava and returns Strava's token JSON verbatim.
  */
@@ -39,6 +42,17 @@ export default {
 
     if (request.method === "GET" && url.pathname === "/health") {
       return json({ ok: true });
+    }
+
+    // Reports whether the Strava credentials are visible to this Worker's runtime, without
+    // ever exposing the secret's value. Lengths help catch a blank or space-padded value.
+    if (request.method === "GET" && url.pathname === "/debug") {
+      return json({
+        hasClientId: !!env.STRAVA_CLIENT_ID,
+        clientIdLen: (env.STRAVA_CLIENT_ID ?? "").length,
+        hasSecret: !!env.STRAVA_CLIENT_SECRET,
+        secretLen: (env.STRAVA_CLIENT_SECRET ?? "").length,
+      });
     }
 
     if (url.pathname !== "/oauth/token") {

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Etch's privacy manifest.
+
+	  Apple requires every app that calls a "required reason" API to declare which ones and why;
+	  an upload without this draws ITMS-91053 and can be rejected before it ever reaches
+	  TestFlight. The Etch folder is a synchronized root group, so this file is bundled by being
+	  here — there is no project edit to forget.
+
+	  Each entry below was found by searching the source rather than copied from a template, and
+	  the categories the app does *not* touch are deliberately absent: disk space, system boot
+	  time and active keyboards are all unused, and declaring an API that isn't called is a claim
+	  that has to be defended at review for no benefit.
+	-->
+
+	<!-- No ATT prompt, no advertising SDK, and nothing measures a user across other companies'
+	     apps or sites. -->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<!-- @AppStorage, in fifteen files. Always the standard suite — the app declares no
+			     app group and never constructs UserDefaults(suiteName:) — so the defaults are
+			     reachable by this app alone, which is exactly what CA92.1 describes. -->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+		<dict>
+			<!-- FileManager.attributesOfItem, used by the print engine's self-check to report the
+			     size of a sheet it just wrote. The file is one this app created inside its own
+			     container, which is what C617.1 covers.
+
+			     PHAsset.creationDate is *not* declared here despite reading like a timestamp: it
+			     is a Photos framework property, not a file-system attribute, and it appears on no
+			     required-reason list. -->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

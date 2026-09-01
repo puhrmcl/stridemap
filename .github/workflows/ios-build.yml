@@ -1,0 +1,69 @@
+name: iOS Build
+
+# Compile-checks Etch on a real macOS runner (simulator, no code signing).
+# This is our build verification since the app is authored without a local Xcode.
+on:
+  push:
+    branches: [ "claude/rebrand-etch" ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select newest Xcode
+        run: |
+          set -e
+          echo "Installed Xcodes:"; ls -d /Applications/Xcode*.app || true
+          XC=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1 || true)
+          if [ -n "$XC" ]; then sudo xcode-select -s "$XC/Contents/Developer"; fi
+          xcodebuild -version
+          echo "SDKs:"; xcodebuild -showsdks | grep -i ios || true
+
+      - name: Build (iOS Simulator, no signing)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Etch.xcodeproj \
+            -scheme Etch \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath dd \
+            CODE_SIGNING_ALLOWED=NO
+
+      # Adding an event's course is meant to be a file drop into Etch/Resources/Courses, relying
+      # on the target being a synchronized folder. If that ever stops bundling the files, the
+      # process silently does nothing and every course quietly disappears — so prove it here.
+      - name: Course files reach the app bundle
+        run: |
+          set -e
+          python3 scripts/event-library.py --check
+          APP=$(find dd/Build/Products -name "Etch.app" -maxdepth 3 | head -1)
+          echo "bundle: $APP"
+          find "$APP" -name "*.gpx" -o -name "*.tcx" -o -name "*.fit" | sed "s|$APP/||"
+          COUNT=$(find "$APP" \( -name "*.gpx" -o -name "*.tcx" -o -name "*.fit" \) | wc -l | tr -d ' ')
+          ON_DISK=$(ls Etch/Resources/Courses 2>/dev/null | wc -l | tr -d ' ')
+          echo "$COUNT of $ON_DISK course file(s) reached the bundle"
+          if [ "$COUNT" -lt "$ON_DISK" ]; then
+            echo "::error::Course files did not reach the app bundle — the drop-in path is broken."
+            exit 1
+          fi
+
+      # Xcode Cloud disables automatic SPM resolution and refuses to build unless
+      # Package.resolved is committed. This runner just resolved for real, so print
+      # the exact file between markers for the working session to commit verbatim.
+      - name: Print Package.resolved for Xcode Cloud
+        if: always()
+        run: |
+          RESOLVED="Etch.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          if [ -f "$RESOLVED" ]; then
+            echo "── BEGIN-PACKAGE-RESOLVED"
+            cat "$RESOLVED"
+            echo "── END-PACKAGE-RESOLVED"
+          else
+            echo "No Package.resolved generated at $RESOLVED"
+            find Etch.xcodeproj -name "Package.resolved" -print 2>/dev/null || true
+          fi

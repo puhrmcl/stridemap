@@ -27,12 +27,12 @@ follows the same conventions, and needs no bespoke decisions for the boring part
 
 Pick the archetype, get the stack. Deviate only with a written reason.
 
-### A) Native iOS (e.g. **StrideMap**)
+### A) Native iOS (e.g. **Etch**)
 - **UI:** SwiftUI, deployment target **iOS 18**.
 - **Persistence:** SwiftData (on-device).
 - **Auth/identity:** native (Sign in with Apple / HealthKit / none).
 - **Backend:** none by default. If a secret must not ship in the app (OAuth exchange,
-  API keys), add **one Cloudflare Worker** as a thin proxy — see StrideMap's `worker/`.
+  API keys), add **one Cloudflare Worker** as a thin proxy — see Etch's `worker/`.
 - **CI/CD:** **Xcode Cloud** (native App Store Connect integration, handles signing +
   TestFlight).
 - **Legal/landing pages:** `docs/` → GitHub Pages → mapped to a subdomain.
@@ -60,9 +60,9 @@ Pick the archetype, get the stack. Deviate only with a written reason.
 
 ## 3. Repositories
 
-- **One repo per app**, one clear name (`stridemap`, `nestegg`).
+- **One repo per app**, one clear name (`etch`, `nestegg`).
 - Two **template repos** to bootstrap from ("Use this template"):
-  - `template-ios` — StrideMap's shape (app + `docs/` + optional `worker/`).
+  - `template-ios` — Etch's shape (app + `docs/` + optional `worker/`).
   - `template-web` — NestEgg's shape (Next.js + Clerk + Railway + `docs/`).
 - One **org `.github` repo** — shared issue/PR templates, reusable Actions workflows,
   org profile README, and this handbook.
@@ -97,7 +97,7 @@ Every app ships these, always, so docs are never an afterthought:
 6. **.env.example** — the contract for configuration.
 7. **CLAUDE.md / AGENTS.md** — repo conventions so agent-assisted work stays consistent.
 
-StrideMap already carries 1–3, 6 (and `app-store-metadata.md`); it's effectively the
+Etch already carries 1–3, 6 (and `app-store-metadata.md`); it's effectively the
 seed for `template-ios`.
 
 ---
@@ -110,7 +110,7 @@ seed for `template-ios`.
 - Optional single source of truth as you scale: **Doppler** or **1Password**, synced into
   each host.
 - iOS: public IDs (Client ID, Team ID) may ship in the app; **secrets go in a Worker**,
-  never the bundle (StrideMap's Strava proxy is the pattern).
+  never the bundle (Etch's Strava proxy is the pattern).
 
 ---
 
@@ -121,7 +121,7 @@ it fixes the Apple Privacy/Support URL story permanently:
 
 | App | Site | Privacy | Support |
 |---|---|---|---|
-| StrideMap | `stridemap.nwagtech.com` | `/privacy` | `/` (or `/support`) |
+| Etch | `etch.nwagtech.com` | `/privacy` | `/` (or `/support`) |
 | NestEgg | `nestegg.nwagtech.com` | `/privacy` | `/support` |
 
 GitHub Pages and Vercel both accept custom domains, so switching hosts later never breaks
@@ -156,7 +156,7 @@ a published URL. Until DNS is set up, GitHub Pages defaults to
 - iOS App Privacy labels: default to **"Data Not Collected"** for on-device apps; revisit
   the moment you add analytics, crash reporting, or server sync.
 - HealthKit apps: never use Health data for advertising or share it with third parties;
-  include HealthKit-specific reviewer notes (see StrideMap's `app-store-metadata.md`).
+  include HealthKit-specific reviewer notes (see Etch's `app-store-metadata.md`).
 
 ---
 

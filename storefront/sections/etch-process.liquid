@@ -1,0 +1,75 @@
+{% comment %}
+  Etch process — three quiet steps under serif numerals: the distance from a
+  finished run to a framed piece on the wall, told in one band.
+{% endcomment %}
+
+{{ 'etch.css' | asset_url | stylesheet_tag }}
+
+{%- style -%}
+  .section-{{ section.id }}-padding {
+    padding-top: {{ section.settings.padding_top | times: 0.75 | round: 0 }}px;
+    padding-bottom: {{ section.settings.padding_bottom | times: 0.75 | round: 0 }}px;
+  }
+  @media screen and (min-width: 750px) {
+    .section-{{ section.id }}-padding {
+      padding-top: {{ section.settings.padding_top }}px;
+      padding-bottom: {{ section.settings.padding_bottom }}px;
+    }
+  }
+{%- endstyle -%}
+
+<div class="color-{{ section.settings.color_scheme }} gradient">
+  <div class="page-width section-{{ section.id }}-padding">
+    {%- if section.settings.eyebrow != blank or section.settings.heading != blank -%}
+      <header style="margin-bottom: 5.6rem; max-width: 64rem;">
+        {%- if section.settings.eyebrow != blank -%}
+          <span class="etch-eyebrow">{{ section.settings.eyebrow }}</span>
+        {%- endif -%}
+        {%- if section.settings.heading != blank -%}
+          <h2 class="h1" style="margin: 0;">{{ section.settings.heading }}</h2>
+        {%- endif -%}
+      </header>
+    {%- endif -%}
+    <div class="etch-process">
+      {%- for block in section.blocks -%}
+        <div class="etch-process__step" {{ block.shopify_attributes }}>
+          <span class="etch-process__numeral">{{ forloop.index | prepend: '0' | slice: -2, 2 }}</span>
+          <h3 class="etch-process__title">{{ block.settings.title }}</h3>
+          <p class="etch-process__copy">{{ block.settings.copy }}</p>
+        </div>
+      {%- endfor -%}
+    </div>
+  </div>
+</div>
+
+{% schema %}
+{
+  "name": "Etch process",
+  "tag": "section",
+  "class": "section",
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "How it works" },
+    { "type": "text", "id": "heading", "label": "Heading" },
+    { "type": "color_scheme", "id": "color_scheme", "label": "Color scheme", "default": "scheme-1" },
+    { "type": "range", "id": "padding_top", "min": 0, "max": 160, "step": 4, "unit": "px", "label": "Top padding", "default": 88 },
+    { "type": "range", "id": "padding_bottom", "min": 0, "max": 160, "step": 4, "unit": "px", "label": "Bottom padding", "default": 88 }
+  ],
+  "blocks": [
+    {
+      "type": "step",
+      "name": "Step",
+      "settings": [
+        { "type": "text", "id": "title", "label": "Title", "default": "Run it" },
+        { "type": "textarea", "id": "copy", "label": "Copy", "default": "Every route you record is already a drawing." }
+      ]
+    }
+  ],
+  "max_blocks": 4,
+  "presets": [
+    {
+      "name": "Etch process",
+      "blocks": [{ "type": "step" }, { "type": "step" }, { "type": "step" }]
+    }
+  ]
+}
+{% endschema %}

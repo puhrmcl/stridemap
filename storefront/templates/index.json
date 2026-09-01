@@ -1,0 +1,247 @@
+{
+  "sections": {
+    "etch_hero": {
+      "type": "etch-hero",
+      "settings": {
+        "eyebrow": "Etch Studio",
+        "heading": "Your miles, made permanent.",
+        "text": "<p>Every run you've recorded is already a drawing. Etch composes it — the route, the city, the numbers that mattered — into a piece worth framing, printed on museum-grade paper and made to order.</p>",
+        "button_label": "Shop prints",
+        "button_link": "shopify:\/\/collections\/all",
+        "button_label_2": "Get the app",
+        "button_link_2": "",
+        "color_scheme": "scheme-3",
+        "padding_top": 108,
+        "padding_bottom": 108
+      }
+    },
+    "etch_process": {
+      "type": "etch-process",
+      "blocks": {
+        "step_run": {
+          "type": "step",
+          "settings": {
+            "title": "Run it",
+            "copy": "A marathon, a first 5K, the loop you've done a hundred times. If it's in your running app, it can become a piece."
+          }
+        },
+        "step_compose": {
+          "type": "step",
+          "settings": {
+            "title": "Compose it",
+            "copy": "Open it in Etch Studio and choose a finished look — city streets in pale grey, terrain contours in gold on ink, the classic atlas. Refine the type, the data, the colour."
+          }
+        },
+        "step_hang": {
+          "type": "step",
+          "settings": {
+            "title": "Hang it",
+            "copy": "Printed giclée on archival paper, framed in solid hardwood if you like, and shipped ready to hang. Made to order, one at a time."
+          }
+        }
+      },
+      "block_order": ["step_run", "step_compose", "step_hang"],
+      "settings": {
+        "eyebrow": "How it works",
+        "heading": "From finish line to framed.",
+        "color_scheme": "scheme-1",
+        "padding_top": 96,
+        "padding_bottom": 96
+      }
+    },
+    "featured_products": {
+      "type": "featured-collection",
+      "settings": {
+        "title": "The prints",
+        "heading_size": "h1",
+        "description": "",
+        "show_description": false,
+        "description_style": "body",
+        "collection": "all",
+        "products_to_show": 4,
+        "columns_desktop": 2,
+        "color_scheme": "scheme-1",
+        "full_width": false,
+        "show_view_all": true,
+        "view_all_style": "outline",
+        "enable_desktop_slider": false,
+        "swipe_on_mobile": false,
+        "image_ratio": "portrait",
+        "show_secondary_image": false,
+        "show_vendor": false,
+        "show_rating": false,
+        "columns_mobile": "1",
+        "padding_top": 64,
+        "padding_bottom": 96
+      }
+    },
+    "etch_editions": {
+      "type": "etch-editions",
+      "blocks": {
+        "edition_streets": {
+          "type": "edition",
+          "settings": {
+            "name": "Streets",
+            "line": "Just the streets, in pale grey — the route inked over."
+          }
+        },
+        "edition_noir": {
+          "type": "edition",
+          "settings": {
+            "name": "Streets Noir",
+            "line": "Faint streets on near-black, the route in white."
+          }
+        },
+        "edition_midnight": {
+          "type": "edition",
+          "settings": {
+            "name": "Midnight Atlas",
+            "line": "Gold contour lines across deep ink, the route aglow."
+          }
+        }
+      },
+      "block_order": ["edition_streets", "edition_noir", "edition_midnight"],
+      "settings": {
+        "eyebrow": "The editions",
+        "heading": "Choose a finished look, not a template.",
+        "text": "<p>Each edition is an authored composition — palette, type, and map treatment resolved together. Your route is the only variable.<\/p>",
+        "columns": 3,
+        "color_scheme": "scheme-3",
+        "padding_top": 96,
+        "padding_bottom": 96
+      }
+    },
+    "etch_materials": {
+      "type": "etch-materials",
+      "blocks": {
+        "fact_paper": {
+          "type": "fact",
+          "settings": {
+            "label": "Paper",
+            "text": "200gsm archival fine-art stock, giclée printed at 300 DPI."
+          }
+        },
+        "fact_frame": {
+          "type": "fact",
+          "settings": {
+            "label": "Frame",
+            "text": "Solid hardwood in black or natural, with shatterproof glazing. Full bleed — no mat, no border."
+          }
+        },
+        "fact_made": {
+          "type": "fact",
+          "settings": {
+            "label": "Production",
+            "text": "Made to order, one at a time, and shipped ready to hang. Nothing is warehoused."
+          }
+        },
+        "fact_sizes": {
+          "type": "fact",
+          "settings": {
+            "label": "Sizes",
+            "text": "12 × 18″, 16 × 24″ and 24 × 36″ — one proportion, chosen so the composition is never cropped."
+          }
+        }
+      },
+      "block_order": ["fact_paper", "fact_frame", "fact_made", "fact_sizes"],
+      "settings": {
+        "eyebrow": "The object",
+        "heading": "Museum-grade, made to order.",
+        "text": "",
+        "color_scheme": "scheme-1",
+        "padding_top": 96,
+        "padding_bottom": 96
+      }
+    },
+    "faq": {
+      "type": "collapsible-content",
+      "blocks": {
+        "faq_app": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "Do I need the Etch app?",
+            "icon": "none",
+            "row_content": "<p>Yes — the artwork is composed from your own activity in Etch Studio, inside the free iOS app. You design the piece there; the store handles the printing, framing and shipping.<\/p>"
+          }
+        },
+        "faq_time": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "How long until it arrives?",
+            "icon": "none",
+            "row_content": "<p>Each piece is printed to order. Unframed prints typically produce in 2–3 business days, framed pieces in 3–5, plus standard shipping.<\/p>"
+          }
+        },
+        "faq_apps": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "Which running apps work?",
+            "icon": "none",
+            "row_content": "<p>Etch syncs with Apple Health and Strava, and imports GPX and TCX files from almost anything else — so races and runs from other apps come along too.<\/p>"
+          }
+        },
+        "faq_quality": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "What if it arrives damaged?",
+            "icon": "none",
+            "row_content": "<p>We replace damaged pieces, no questions asked. Get in touch with your order number and a photo and a new one goes into production.<\/p>"
+          }
+        }
+      },
+      "block_order": ["faq_app", "faq_time", "faq_apps", "faq_quality"],
+      "settings": {
+        "caption": "",
+        "heading": "Questions",
+        "heading_size": "h1",
+        "heading_alignment": "left",
+        "layout": "none",
+        "container_color_scheme": "scheme-1",
+        "color_scheme": "scheme-1",
+        "open_first_collapsible_row": false,
+        "image_ratio": "adapt",
+        "desktop_layout": "image_second",
+        "padding_top": 64,
+        "padding_bottom": 96
+      }
+    },
+    "newsletter_band": {
+      "type": "newsletter",
+      "blocks": {
+        "newsletter_heading": {
+          "type": "heading",
+          "settings": {
+            "heading": "First to the wall",
+            "heading_size": "h1"
+          }
+        },
+        "newsletter_text": {
+          "type": "paragraph",
+          "settings": {
+            "paragraph": "<p>New editions, occasional pieces we love, nothing noisy.<\/p>"
+          }
+        },
+        "newsletter_email": {
+          "type": "email_form",
+          "settings": {}
+        }
+      },
+      "block_order": ["newsletter_heading", "newsletter_text", "newsletter_email"],
+      "settings": {
+        "color_scheme": "scheme-3",
+        "full_width": true,
+        "padding_top": 80,
+        "padding_bottom": 88
+      }
+    }
+  },
+  "order": [
+    "etch_hero",
+    "etch_process",
+    "featured_products",
+    "etch_editions",
+    "etch_materials",
+    "faq",
+    "newsletter_band"
+  ]
+}

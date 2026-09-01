@@ -1,0 +1,44 @@
+# Pages the working session's egress proxy blocks. One URL per line; blanks and #comments
+# ignored. Editing this file runs the "Fetch a doc" workflow, which prints each page as text
+# into its job log.
+#
+# Public, read-only pages only.
+
+# Refetched for its links, not its prose: the page says to "submit the request form" for the
+# write_mobile_payments and read_mobile_payments scopes, and the Dev Dashboard now rejects both
+# as invalid — which is that approval, pending. The form's URL is the thing that is needed and
+# the text renderers dropped it.
+https://shopify.dev/docs/storefronts/mobile/create-apple-payment-processing-certificates
+
+# Answered: admin-created custom apps are retired; the client credentials grant replaces them.
+# https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens
+
+# Apple's docs are JavaScript-only, so a plain fetch returns "This page requires JavaScript"
+# and nothing else — but every page offers a Markdown twin for automated tools at the same URL
+# with .md appended. That is the readable form; always ask for it on developer.apple.com.
+#
+# Still open: can the App Store Connect API create a Merchant ID and enable the Apple Pay
+# capability on an App ID? /merchant-ids 404s, so either it is named something else or the API
+# does not cover merchant identifiers at all. The endpoint list settles it.
+https://developer.apple.com/documentation/appstoreconnectapi.md
+https://developer.apple.com/documentation/appstoreconnectapi/bundle-id-capabilities.md
+
+# The planet basemap build sizes — the one number docs/basemap.md estimates rather than states.
+# build.protomaps.com/ returned 404 for the bare root; the listing lives one level in.
+https://build.protomaps.com/builds
+
+# Answered: travel journals are cover-print-only (interior pages are Prodigi's fixed
+# travel-planning pages), 120pp 100gsm, A4/A5, portrait. PUR paperback and spiral softcover
+# ship EU+US (TJ-A5-PB-C-P, TJ-A5-SB-S-C-P, TJ-A4-PB-C-P, TJ-A4-SB-S-C-P); spiral hardback is
+# EU-only. Pricing needs an account quote — the verify-prodigi rig can ask when it matters.
+# https://www.prodigi.com/products/cards-and-stationery/themed-notebooks-and-journals/travel-journals/
+
+# Metal prints and wall stickers, before either is promised in the app. Metal is asked for as a
+# print finish alongside paper/frame; stickers came with a question mark and deserve an answer
+# from the catalog rather than a guess. The category pages print their outbound links even when
+# the exact slug is wrong, so a near-miss still hands us the right path.
+# Answered: metal is two sub-products (aluminium ships US; dibond UK/US/EU), and stickers
+# split six ways with wall stickers shipping UK/US/EU. SKU tables live one level down:
+https://www.prodigi.com/products/wall-art/metal-prints/aluminium-prints/
+https://www.prodigi.com/products/wall-art/metal-prints/dibond/
+https://www.prodigi.com/products/stickers/wall-stickers/

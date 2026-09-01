@@ -1,0 +1,103 @@
+# Reproduces the home-map place views ("State / City / Country / Landmark do nothing")
+# in a simulator, because the operator has no Mac to attach a debugger. The app is
+# launched with ETCH_DIAG_MAP=1, which seeds five runs across three states, switches
+# the map to the States view the way the Activity View sheet does, then selects
+# Arizona the way the jump menu does — logging counts at each stage. Screenshots are
+# captured between stages and embedded in the job log as base64.
+
+name: Diagnose place maps
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/rebrand-etch]
+    paths:
+      - ".github/workflows/diagnose-map.yml"
+      - "Etch/Views/HomeView.swift"
+      - "Etch/Map/StatesMapView.swift"
+      - "Etch/Map/CitiesMapView.swift"
+      - "Etch/Map/CountriesMapView.swift"
+      - "Etch/Map/RunMapView.swift"
+
+jobs:
+  diagnose:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select newest Xcode
+        run: |
+          set -e
+          XC=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1 || true)
+          if [ -n "$XC" ]; then sudo xcode-select -s "$XC/Contents/Developer"; fi
+          xcodebuild -version
+
+      - name: Build for simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Etch.xcodeproj \
+            -scheme Etch \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath dd \
+            CODE_SIGNING_ALLOWED=NO | tail -5
+
+      - name: Boot simulator, run the scripted repro, capture
+        run: |
+          set -e
+          UDID=$(xcrun simctl list devices available | grep -E "iPhone (1[5-9]|[2-9][0-9])" | grep -v "Plus\|Max\|SE" | head -1 | grep -oE "[0-9A-F-]{36}")
+          echo "Using device $UDID"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          APP=$(find dd/Build/Products -name "Etch.app" -maxdepth 2 | head -1)
+          echo "Installing $APP"
+          xcrun simctl install "$UDID" "$APP"
+          # Skip first-run onboarding so the home map mounts.
+          xcrun simctl spawn "$UDID" defaults write com.nwagtech.etch didCompleteOnboarding -bool true
+          # Pre-grant location so the permission alert doesn't cover the screenshots.
+          xcrun simctl privacy "$UDID" grant location com.nwagtech.etch || true
+          # NSLog goes to the unified system log, not the launch pty — stream it directly.
+          xcrun simctl spawn "$UDID" log stream --style compact \
+            --predicate 'eventMessage CONTAINS "ETCHDIAG"' > sys.log 2>&1 &
+          STREAM_PID=$!
+          SIMCTL_CHILD_ETCH_DIAG_MAP=1 xcrun simctl launch "$UDID" com.nwagtech.etch | tee app.log
+          # Diag timeline (from HomeView appear): seed at once; +8s switch to States;
+          # +14s select Arizona. Screenshots bracket each stage.
+          sleep 8
+          xcrun simctl io "$UDID" screenshot 1-route-map.png || true
+          sleep 6
+          xcrun simctl io "$UDID" screenshot 2-states-view.png || true
+          sleep 7
+          xcrun simctl io "$UDID" screenshot 3-arizona-selected.png || true
+          sleep 3
+          kill $STREAM_PID 2>/dev/null || true
+          echo ""
+          echo "── ETCHDIAG log:"
+          grep "ETCHDIAG" sys.log app.log || echo "(no ETCHDIAG lines captured)"
+          echo ""
+          echo "── app.log head (launch errors, if any):"
+          head -30 app.log || true
+          echo ""
+          # Embed small screenshots in the job log so the working session can view them
+          # without artifact-download access: base64 between markers.
+          for shot in 1-route-map 2-states-view 3-arizona-selected; do
+            if [ -f "$shot.png" ]; then
+              sips -Z 480 "$shot.png" --out "$shot-small.png" >/dev/null
+              echo "── BEGIN-B64 $shot"
+              base64 -i "$shot-small.png"
+              echo "── END-B64 $shot"
+            fi
+          done
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: place-map-diagnosis
+          path: |
+            1-route-map.png
+            2-states-view.png
+            3-arizona-selected.png
+            app.log

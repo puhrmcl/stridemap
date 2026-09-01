@@ -1,0 +1,43 @@
+name = "etch-fulfilment"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# The Etch Studio fulfilment spine (see docs/studio-backend-spec.md and the Operating Plan):
+#   Shopify paid-order webhook → this Worker → Prodigi order → status webhooks → app/Shopify.
+# It owns the three things no vendor can: frozen production assets (R2), the
+# order↔creation↔asset ledger (D1), and Etch order numbers (ETCH-10482).
+#
+# Secrets are NOT stored here. Set them once with:
+#   wrangler secret put SHOPIFY_WEBHOOK_SECRET   # from the Shopify webhook config
+#   wrangler secret put PRODIGI_API_KEY          # sandbox key first; live key at launch
+#   wrangler secret put UPLOAD_TOKEN             # bearer the iOS app uses to upload assets
+#
+# Create the bound resources once:
+#   wrangler r2 bucket create etch-production-assets
+#   wrangler d1 create etch-fulfilment            # then paste database_id below
+#   wrangler d1 execute etch-fulfilment --file=schema.sql
+#
+# After `wrangler deploy` the Worker is reachable at:
+#   https://etch-fulfilment.<your-subdomain>.workers.dev
+# Point the Shopify orders/paid webhook and Prodigi callbacks at it, and put the URL
+# in the iOS fulfilment provider when that adapter goes live.
+
+# Nightly sweep of unsold uploads. A print file is uploaded *before* payment, so every
+# abandoned checkout leaves tens of megabytes in R2 that no order will ever reference.
+# One order is nothing; a cart that lets someone build a basket and walk away is a bill
+# that grows quietly and forever. 03:00 UTC, off the traffic peak.
+[triggers]
+crons = ["0 3 * * *"]
+
+[vars]
+# Prodigi API base. Sandbox by default — flip to https://api.prodigi.com when live.
+PRODIGI_BASE = "https://api.sandbox.prodigi.com"
+
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "etch-production-assets"
+
+[[d1_databases]]
+binding = "LEDGER"
+database_name = "etch-fulfilment"
+database_id = "REPLACE_AFTER_wrangler_d1_create"

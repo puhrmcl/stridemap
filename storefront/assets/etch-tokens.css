@@ -1,0 +1,138 @@
+/* ============================================================================
+   Etch — design tokens.
+
+   The web half of the same system the app runs on. `Etch/Design/Theme.swift`
+   and this file define the same names in the same three layers, so a colour
+   decision is made once and holds on both surfaces:
+
+     1. Brand constants — the six from the Etch Brand System, plus the tones
+        derived from them that a two-appearance interface needs. The only
+        literal colours anywhere in the theme.
+     2. Semantic tokens — surface, text, line, accent. Components read these
+        and never the constants.
+     3. Dawn bridge — the theme's own scheme variables, pointed at the tokens
+        so Dawn's own components inherit the brand without being rewritten.
+
+   On light and dark: the app follows the phone, but a storefront does not.
+   Appearance here is a *merchant* choice made per section — Dawn's colour
+   schemes — so the dark token set rides schemes 3 and 4 rather than
+   `prefers-color-scheme`. Honouring the OS instead would put a dark card on
+   a section whose ground the merchant set light, which is a worse outcome
+   than a shop that simply looks the way it was arranged.
+   ========================================================================== */
+
+:root {
+  /* ---- Layer 1: brand constants ---- */
+  --etch-ink: #17212b;            /* logo, headings, dark UI            */
+  --etch-blue: #4a8eae;           /* signature accent, used sparingly   */
+  --etch-canvas: #f3f0e9;         /* primary light background           */
+  --etch-gallery-white: #fbfaf7;  /* cards, surfaces, elevated moments  */
+  --etch-graphite: #4a5055;       /* secondary text, icons              */
+  --etch-mist: #c9cdce;           /* dividers, inactive states, borders */
+
+  /* Derived. Each exists because a semantic token below needs it. */
+  --etch-ink-deep: #10181f;       /* dark ground, so an Ink card can lift off it */
+  --etch-ink-well: #0b1116;       /* wells and insets on a dark ground           */
+  --etch-canvas-sunken: #e9e5db;  /* the same job in light                        */
+  --etch-blue-lift: #6fb2d1;      /* Etch Blue on dark grounds (6.8:1 on Ink)     */
+  --etch-blue-lift-text: #8ac3de; /* blue text on a dark ground                   */
+  --etch-blue-fill: #3d7b99;      /* solid button carrying a label (4.52:1)       */
+  --etch-blue-text: #35708b;      /* blue text on Warm Canvas (4.86:1)            */
+  --etch-graphite-light: #6e7479; /* tertiary type that still clears 4.5:1        */
+  --etch-mist-deep: #b9bec0;      /* a hairline that survives Gallery White       */
+
+  /* ---- Layer 2: semantic tokens (light) ---- */
+  --etch-surface: var(--etch-canvas);
+  --etch-surface-raised: var(--etch-gallery-white);
+  --etch-surface-sunken: var(--etch-canvas-sunken);
+  --etch-surface-inverse: var(--etch-ink);
+
+  --etch-text: var(--etch-ink);
+  --etch-text-secondary: var(--etch-graphite);
+  --etch-text-tertiary: var(--etch-graphite-light);
+  --etch-on-accent: var(--etch-gallery-white);
+  --etch-on-inverse: var(--etch-canvas);
+
+  --etch-line: rgba(201, 205, 206, 0.7);
+  --etch-line-strong: var(--etch-mist-deep);
+
+  --etch-accent: var(--etch-blue);
+  --etch-accent-fill: var(--etch-blue-fill);
+  --etch-accent-text: var(--etch-blue-text);
+
+  /* ---- Type ----
+     Three faces, self-hosted, matching the app exactly:
+
+       · Inter Tight — display and titles. The tighter fit is what gives a
+         headline the density the brand's display type has.
+       · Inter — everything else. Body, labels, buttons, data, UI.
+       · Newsreader — the editorial serif, for the few lines meant to be read
+         rather than scanned.
+
+     These stand in for Neue Haas Grotesk and Tiempos Text, which are licensed
+     faces the project does not own. All three are SIL Open Font License, which
+     covers both embedding in the app and serving here. The @font-face rules
+     live in theme.liquid, because a Shopify asset's real URL is only knowable
+     through `asset_url`. */
+  --etch-font-display: "Inter Tight", "Inter", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --etch-font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --etch-font-serif: "Newsreader", Georgia, "Times New Roman", Times, serif;
+
+  --etch-track-label: 0.1em;      /* the small tracked metadata style */
+  --etch-track-display: -0.01em;  /* display type wants closing up    */
+
+  /* Weights, named for the Neue Haas cut they stand in for. */
+  --etch-weight-light: 300;   /* 45 Light  — large display only        */
+  --etch-weight-roman: 400;   /* 55 Roman  — body, and the default     */
+  --etch-weight-medium: 500;  /* 65 Medium — headings, buttons, labels */
+  --etch-weight-bold: 600;    /* 75 Bold   — used rarely               */
+}
+
+/* ---- Layer 2, dark ----
+   Deepened out of Etch Ink rather than inverted, and the type stays warm:
+   Warm Canvas on ink, never white on black. Dawn's schemes 3 and 4 are the
+   theme's dark world, so the dark token set is defined on them. */
+.color-scheme-3,
+.color-scheme-4 {
+  --etch-surface: var(--etch-ink-deep);
+  --etch-surface-raised: var(--etch-ink);
+  --etch-surface-sunken: var(--etch-ink-well);
+  --etch-surface-inverse: var(--etch-canvas);
+
+  --etch-text: var(--etch-canvas);
+  --etch-text-secondary: var(--etch-mist);
+  --etch-text-tertiary: var(--etch-graphite-light);
+  --etch-on-accent: var(--etch-ink-deep);
+  --etch-on-inverse: var(--etch-ink);
+
+  --etch-line: rgba(74, 80, 85, 0.55);
+  --etch-line-strong: var(--etch-graphite);
+
+  --etch-accent: var(--etch-blue-lift);
+  --etch-accent-fill: var(--etch-blue-lift);
+  --etch-accent-text: var(--etch-blue-lift-text);
+}
+
+/* ---- Layer 3: the Dawn bridge ----
+   Dawn draws from its own custom properties. Pointing them at the tokens is
+   what carries the brand into every component the theme already ships —
+   cards, drawers, facets, pagination — without touching their stylesheets. */
+:root {
+  --font-body-family: var(--etch-font-sans);
+  --font-body-weight: var(--etch-weight-roman);
+  --font-body-weight-bold: var(--etch-weight-medium);
+  --font-heading-family: var(--etch-font-display);
+}
+
+/* Figures that have to line up — prices, totals, distances, dates, counts.
+   A column of numbers that shifts as it counts is the fastest way to make a
+   considered layout look cheap. */
+.price,
+.totals,
+.cart-count-bubble,
+.tabular-nums,
+.etch-figure {
+  font-variant-numeric: tabular-nums;
+}

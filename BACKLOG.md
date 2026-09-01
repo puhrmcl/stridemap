@@ -1,0 +1,122 @@
+# Etch — Backlog
+
+Deferred ideas and follow-ups we've agreed to come back to. Not scheduled; no order implied.
+
+## Video support (pinned)
+Run videos in galleries and video output in Etch Studio for digital sharing.
+
+- **Open decision — gallery media model:** separate `videoReferences: [String]` (simplest; posters/prints stay image-only by construction) **vs** a unified, capture-time-ordered typed media list (nicer gallery, more model/migration work). *Pinned — decide when we pick this up.*
+- **Phase 1 — videos in galleries (low complexity):**
+  - Photo refs are already `PHAsset.localIdentifier` strings, so videos are just assets with `mediaType == .video` — no new storage (we only store references).
+  - Widen `PhotoLibrary.matchingIdentifiers` predicate to `image OR video` (videos carry creationDate + location, so time/location matching is unchanged).
+  - Thumbnails: `PHImageManager.requestImage` already returns a poster frame for videos — show a play badge overlay.
+  - Full-screen viewer (`RunPhotoViews.swift`): branch to `VideoPlayer` backed by `PHImageManager.requestPlayerItem` (handles iCloud download).
+  - Photo picker filter: `.images` → `.any(of: [.images, .videos])`.
+  - Risks: iCloud-only videos need a network fetch (spinner); Live Photos treated as image for v1.
+- **Phase 2 — Studio "Motion / Reel" export (high complexity, digital-only):**
+  - New output type — not the static `ImageRenderer` → PNG path. Composite the run video with an Etch overlay (route trace + title + key stats) burned in, export a vertical 9:16 MP4 for Stories/Reels.
+  - Pipeline: `AVMutableComposition` + `AVMutableVideoComposition` + `CALayer` overlay via `AVVideoCompositionCoreAnimationTool` → `AVAssetExportSession` (with progress UI).
+  - MVP: static burned overlay. V2: animate the route drawing in as the clip plays.
+  - Risks: export time/memory on older devices, portrait/landscape source handling, audio keep/mute, share file size. Prints stay image-only.
+
+## Indoor / treadmill runs (b139 shipped capture + tiles)
+- Effort-trace visual for indoor tiles (pace/HR ribbon) in place of a route glyph.
+- "＋ N indoor runs" acknowledgment in the home-map totals so indoor runs aren't silently absent from the map.
+- Map Strava's "trainer" flag → `isIndoor` (currently HealthKit-only).
+- One-time backfill: flag `isIndoor` on already-stored routeless runs (today only newly synced runs get flagged).
+
+## Race library (shipped flow b154 — course data is the follow-up)
+Add a race you ran but never tracked: pick from a curated catalog + year, enter your finish time and
+date, choose whether it counts toward totals, and Etch creates a real `Run` with the official course.
+Rides the existing rails (encoded polyline route, `isRace`, `ImportMethod.manual`); entry points in
+Add History and Studio. New `Run.excludedFromTotals` governs headline totals + achievements only —
+the activity still shows on map/timeline/Studio.
+
+- **Course geometry is mostly approximate/placeholder** — except **Mesa, now the real verified 2026
+  course** (official mesamarathon.com GPX, 202 pts). Boston/NYC/Chicago are still hand-traced
+  representative lines (right place, rough shape), shared across the three offered years. **Do not
+  sell prints off the unverified ones.** The model keys geometry per year (`courses[year]`), so
+  swapping in accurate, year-specific GPX is a data-only change — Mesa is the template for the rest. Realistic sourcing: trace from OpenStreetMap
+  (ODbL, attribution) or use race-published GPX where terms allow — per-race, hand-curated. No bulk API.
+- **Starter catalog:** Boston, NYC, Chicago, Mesa (local). Grow toward ~15 (World Marathon Majors +
+  popular US races). Add distances beyond the marathon (half, 10K) and a per-event elevation profile.
+- **Iconic hikes pack:** same mechanism, a curated OSM-sourced set (Half Dome, Angels Landing, Rim-to-
+  Rim…) — a highlights pack, never an AllTrails-scale library (their 500k-trail catalog has no public API).
+- **Nice-to-haves:** live course map preview in the add-race form; de-dupe on `sourceExternalID`
+  (`race:<id>:<year>`) so the same race+year isn't added twice; a hike variant of the flow.
+
+## Commerce / accounts (Prodigi drop-shipping phase)
+Do we need user sign-in once prints ship? Separating the three things that get conflated:
+
+- **Backend — required (the real forcing function, not accounts).** Prodigi's API is server-to-server
+  with *our* merchant key, which can never ship in the app. A thin backend holds the key, takes a
+  payment confirmation, and places the order. Can't be done client-side, account or not.
+- **Payment — no account needed. Use Apple Pay, not StoreKit.** Apple Pay returns shipping address +
+  payment in one sheet → frictionless guest checkout. **Physical goods are exempt from IAP** (and the
+  30% cut) — Apple *requires* a real payment method (Apple Pay / card via Stripe) for shipped prints.
+- **Identity — optional but wanted.** Full guest checkout works, but a print is real money + a
+  shipping address + a physical object that can go wrong. Durable order records (receipts, tracking,
+  reprints/refunds, reorders) need an identity, or history dies with the device.
+
+**Recommendation: guest-first, Sign in with Apple as the optional identity.** Keep the *app*
+account-free (local-first stays the pitch); at checkout, Apple Pay covers address + payment; attach
+**Sign in with Apple** (one tap, private-relay email, no passwords) at *first purchase* so orders
+persist server-side and survive a device swap.
+
+- **Privacy copy must change.** Today: "everything stays on device." Still true for *run data* — but
+  an order sends the chosen image + shipping/payment off-device. Say so explicitly on the privacy
+  screen when this lands: run data stays local; only the poster image + order details leave, only on purchase.
+- **Print files** ride on the aspect-adaptive `OutputTarget` work below (exact SKU dims/bleed from the
+  Prodigi catalog).
+
+## Studio output sizes / aspect ratios
+Two separate problems: **pixels/DPI** (trivial — we already scale to ~5400px @ 300 DPI, PNG) and
+**aspect + layout** (the real work — compositions are authored at fixed aspects: Wall Art portrait
+is 2:3, single-state ~5:7, framed/footer variants are taller non-standard ratios).
+
+- **Core capability:** make the composition **aspect-adaptive**, driven by an `OutputTarget`
+  (aspect + pixel target + optional bleed/safe zone/format). Build once; both social and print ride on it.
+- **Social sizes (digital, do first — good forcing function):** an "Output" picker for **1:1**
+  (IG square), **4:5** (IG feed), **9:16** (Story/Reel/TikTok). 9:16 needs a genuine tall layout,
+  not a crop. No bleed/DPI concerns — digital only. De-risks the aspect-adaptive layout for print.
+- **Print / drop-shipping (defer to Prodigi wiring):** files must match each SKU's exact aspect +
+  bleed (3–5mm) + safe zone, 300 DPI at physical size, sRGB, JPEG. Standard frame sizes are mixed
+  aspects (8×10 & 16×20 = 4:5, 18×24 = 3:4, A-series ≈ 1:1.41), so print needs the same aspect
+  flexibility. Exact dims/bleed come from the Prodigi product catalog — build when that lands.
+
+## Multi-activity (hikes, then walks) — Phase 1 shipped (b146)
+The `Run` model already carries `ActivityType` (run/walk/hike/…); we're teaching the importer and
+UI to be type-aware rather than adding a model. Decisions made: **per-type** achievements/superlatives
+(pace/PRs stay run-only; hikes get longest/most-climb/highest); include hikes now, **walks later with
+an opt-out** (Apple Watch auto-logs many short walks, so walks need the toggle before import).
+
+- **Phase 1 (done):** HealthKit query expanded to `.running` + `.hiking`; `activityType` set from the
+  workout type; hike routes hydrate; time-of-day default name is type-aware ("Morning Hike"); sync
+  summary reports the hike count. *Note:* until Phase 2, hikes appear mixed into the runs UI (counted
+  in "N runs", eligible for run superlatives) — that's the confirmation they landed.
+- **Phase 2 (done, b147):** activity selector on the left of the totals pill (All / Runs / Hikes,
+  default All each launch, icons); count relabels ("928 activities" / "886 runs" / "42 hikes");
+  consistent scope across Home map/totals, Timeline, Studio, Achievements; **walks** added with an
+  "Include walks" setting (Settings, default off) that gates import + the selector. Pace superlatives
+  (Fastest, distance PRs) hidden for hikes/walks.
+- **Phase 3 (partial / todo):** *Achievements done (b152)* — the tab now has two faces: **All
+  Activities** shows the bigger story (combined reach + a per-discipline hub you tap to dive into a
+  type's own page), while a **specific activity** shows that discipline's records/PRs/recaps; a
+  scope switcher chip in the tab header both names and changes the scope, mirroring the home pill.
+  **Per-activity visibility** shipped too — Settings toggles for Hikes (default on) and Walks
+  (default off) hide a type everywhere (import, totals, maps, achievements, studio). *Still todo:*
+  hike-appropriate Studio hero (elevation instead of pace) and type-aware Studio metric defaults;
+  scope the remaining secondary surfaces (Profile, Search, States); walk/hike **backfill** on
+  toggle-on (today only forward sync imports them — a full Delete & re-sync backfills older ones).
+- **AllTrails history:** no public API. Realistic paths — (a) Apple Health sync (AllTrails → Health,
+  picked up automatically going forward); (b) GPX import via the existing file pipeline for historical.
+  Nike Run Club is runs-only (not a hike source).
+
+## Maps
+- Countries choropleth: select-to-isolate + run pins, mirroring the state-selection behavior (b134). Optional: higher-res country boundary data if the 110m simplification looks too coarse up close.
+- Home-map cluster rebuild: optional cross-fade / smoother threshold if the zoom re-draw feels flickery.
+
+## Studio / prints
+- Optional: auto-keep exported posters (vs the current explicit bookmark) so every export lands in "Your Etches".
+- Wall Art state filter: full state names ("Arizona") via point-in-polygon vs the stored abbreviations ("AZ").
+- Distance-PR milestones: add 1K / 1-mile if we want finer granularity than 5K+.

@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>StrideMap — Every run you've ever taken, on one map</title>
-<meta name="description" content="StrideMap visualizes your entire running history from Apple Health on a beautiful, interactive map. Private by design.">
+<title>Etch — Every run you've ever taken, on one map</title>
+<meta name="description" content="Etch draws every run, ride, hike and walk from Apple Health on one beautiful map — then turns any of it into a print, made and shipped to you.">
 <style>
   :root {
     --bg: #ffffff; --fg: #1c1c1e; --muted: #6b6b70;
-    --accent: #fc5c44; --card: #f6f6f7; --border: #e6e6e9; --maxw: 760px;
+    --accent: #2d8ae1; --card: #f6f6f7; --border: #e6e6e9; --maxw: 760px;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #0f0f11; --fg: #ececee; --muted: #9a9aa0;
-      --accent: #fc5c44; --card: #1a1a1d; --border: #2a2a2e;
+      --accent: #2d8ae1; --card: #1a1a1d; --border: #2a2a2e;
     }
   }
   * { box-sizing: border-box; }
@@ -47,6 +47,8 @@
   .card h3 { margin: 0 0 4px; font-size: 16px; }
   .card p { margin: 0; color: var(--muted); font-size: 15px; }
   .support { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 22px 24px; }
+  .hero { display: flex; justify-content: center; margin: 34px 0 6px; }
+  .hero svg, .hero img { width: min(74vw, 300px); height: auto; border-radius: 26px; display: block; filter: drop-shadow(0 22px 55px rgba(45,138,225,.22)); }
   hr { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
   footer { color: var(--muted); font-size: 14px; }
   footer a { color: var(--muted); text-decoration: underline; }
@@ -54,12 +56,14 @@
 </head>
 <body>
 <main>
-  <span class="brand"><span class="dot">◵</span> StrideMap</span>
+  <span class="brand"><span class="dot">◵</span> Etch</span>
+  <div class="hero"><img src="brand/etch-hero.png" alt="Etch — every run, ride, hike and walk on one map"></div>
 
-  <h1>Every run you've ever taken,<br>woven into one living map.</h1>
+  <h1>Everywhere you've been,<br>woven into one living map.</h1>
   <p class="lede">
-    StrideMap visualizes your entire running history from Apple Health on a beautiful,
-    interactive map. Not charts — just one calm question: <em>where have I run?</em>
+    Etch draws every run, ride, hike and walk in your Apple Health history on one
+    beautiful map — then lets you turn any of it into a print, made and shipped to your
+    door. Not charts. One calm question: <em>where have I been?</em>
   </p>
 
   <div class="row">
@@ -69,10 +73,11 @@
 
   <h2>What it does</h2>
   <div class="features">
-    <div class="card"><h3>Map-first</h3><p>A full-screen map is the whole app. Recent runs glow; older runs fade.</p></div>
-    <div class="card"><h3>From Apple Health</h3><p>Apple Watch, Nike, Garmin, COROS, Strava — any app that saves runs to Health.</p></div>
-    <div class="card"><h3>Explore &amp; recap</h3><p>Cities, records, a travel map, and an animated Year in Review.</p></div>
-    <div class="card"><h3>Private by design</h3><p>Your runs stay on your device. No accounts, no servers, nothing uploaded.</p></div>
+    <div class="card"><h3>Map-first</h3><p>A full-screen map is the whole app. Runs, rides, hikes and walks, together or one at a time.</p></div>
+    <div class="card"><h3>From Apple Health</h3><p>Apple Watch, Nike, Garmin, COROS, Strava — anything that saves workouts to Health. Or import GPX, TCX and FIT files.</p></div>
+    <div class="card"><h3>Explore &amp; recap</h3><p>Cities, states, parks and records, plus an animated Year in Review.</p></div>
+    <div class="card"><h3>Etch Studio</h3><p>Turn a route, a year, or every city you've reached into a print on museum-grade paper.</p></div>
+    <div class="card"><h3>Private by design</h3><p>Your activities stay on your device. No account, nothing syncs. Order a print and only that artwork and your address are sent, so it can be made and posted.</p></div>
   </div>
 
   <h2>Support</h2>
@@ -87,9 +92,9 @@
   </div>
 
   <h2>Common questions</h2>
-  <p><strong>Why is my map empty?</strong> StrideMap draws runs from Apple Health. Grant the
-  Health permission on first launch, and make sure you have running workouts (with GPS
-  routes) recorded. New runs appear automatically as you record them.</p>
+  <p><strong>Why is my map empty?</strong> Etch draws activities from Apple Health. Grant
+  the Health permission on first launch, and make sure you have workouts recorded with GPS
+  routes. New activities appear automatically as you record them.</p>
   <p><strong>Do I need Strava?</strong> No. Strava is optional and only adds extra details
   (titles, gear, races) to runs already in Apple Health.</p>
   <p><strong>How do I delete my data?</strong> Use <em>Delete Cache</em> in Settings, or

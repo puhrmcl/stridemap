@@ -1,0 +1,258 @@
+/* ============================================================================
+   Etch — brand layer over Dawn.
+
+   Dawn supplies structure, accessibility and commerce mechanics; this sheet
+   supplies the Etch voice: grotesk display type, a serif kept for editorial
+   moments, wide-tracked uppercase eyebrows, hairline rules, unrounded
+   surfaces, and a lot of air.
+
+   Every colour and face here comes from `etch-tokens.css`, which holds the
+   same names the iOS app's `Theme.swift` holds. This sheet declares no
+   palette of its own — it used to carry a second copy of one, and two
+   copies of a palette is one more than a brand survives.
+   ========================================================================== */
+
+:root {
+  --etch-track: 0.18em;
+}
+
+/* ----- Type ---------------------------------------------------------------- */
+
+h1, h2, h3, .h0, .h1, .h2, .h3 {
+  letter-spacing: 0.01em;
+  line-height: 1.08;
+}
+
+.etch-eyebrow {
+  display: block;
+  font-family: var(--font-body-family);
+  font-size: 1.1rem;
+  font-weight: var(--etch-weight-medium);
+  letter-spacing: var(--etch-track);
+  text-transform: uppercase;
+  opacity: 0.65;
+  margin-bottom: 1.8rem;
+}
+
+.etch-display {
+  font-family: var(--etch-font-display);
+  font-weight: var(--etch-weight-medium);
+  letter-spacing: var(--etch-track-display);
+  font-size: clamp(3.6rem, 7vw, 7.2rem);
+  line-height: 1.02;
+  margin: 0;
+}
+
+.etch-lede {
+  font-family: var(--etch-font-serif);
+  font-size: 1.7rem;
+  line-height: 1.65;
+  max-width: 52rem;
+  opacity: 0.82;
+}
+
+/* ----- Buttons: sharp, quiet, confident ------------------------------------ */
+
+.button,
+.shopify-challenge__button,
+.customer button {
+  letter-spacing: 0.01em;
+  font-size: 1.4rem;
+  font-weight: var(--etch-weight-medium);
+}
+
+/* ----- Hairline rules ------------------------------------------------------- */
+
+.etch-rule {
+  border: 0;
+  border-top: 1px solid currentColor;
+  opacity: 0.18;
+  margin: 0;
+}
+
+/* ----- Hero ----------------------------------------------------------------- */
+
+.etch-hero {
+  display: grid;
+  gap: 5rem;
+  align-items: center;
+}
+@media screen and (min-width: 990px) {
+  .etch-hero { grid-template-columns: 1.05fr 0.95fr; gap: 7rem; }
+}
+
+.etch-hero__media {
+  position: relative;
+  margin: 0;
+}
+.etch-hero__media img {
+  display: block;
+  width: 100%;
+  height: auto;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.35);
+}
+.etch-hero__media--placeholder {
+  aspect-ratio: 2 / 3;
+  max-height: 64rem;
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--etch-accent) 16%, transparent), rgba(0, 0, 0, 0) 55%),
+    linear-gradient(20deg, color-mix(in srgb, var(--etch-accent) 8%, transparent), rgba(0, 0, 0, 0) 60%),
+    rgba(255, 255, 255, 0.04);
+  border: 1px solid color-mix(in srgb, var(--etch-canvas) 14%, transparent);
+}
+
+.etch-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.4rem;
+  margin-top: 3.4rem;
+}
+
+/* ----- Process band ---------------------------------------------------------- */
+
+.etch-process {
+  display: grid;
+  gap: 4rem;
+}
+@media screen and (min-width: 750px) {
+  .etch-process { grid-template-columns: repeat(3, 1fr); gap: 5rem; }
+}
+
+.etch-process__step { position: relative; }
+
+.etch-process__numeral {
+  font-family: var(--font-heading-family);
+  font-size: 5.4rem;
+  line-height: 1;
+  opacity: 0.22;
+  display: block;
+  margin-bottom: 1.6rem;
+}
+
+.etch-process__title {
+  font-size: 2.1rem;
+  font-family: var(--font-heading-family);
+  margin: 0 0 0.9rem;
+}
+
+.etch-process__copy {
+  font-size: 1.45rem;
+  line-height: 1.7;
+  opacity: 0.75;
+  margin: 0;
+}
+
+/* ----- Editions gallery ------------------------------------------------------ */
+
+.etch-editions {
+  display: grid;
+  gap: 3rem;
+}
+@media screen and (min-width: 750px) {
+  .etch-editions { grid-template-columns: repeat(2, 1fr); }
+}
+@media screen and (min-width: 990px) {
+  .etch-editions { grid-template-columns: repeat(var(--etch-editions-columns, 3), 1fr); }
+}
+
+.etch-edition { margin: 0; }
+
+.etch-edition__media {
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  background:
+    linear-gradient(165deg, color-mix(in srgb, var(--etch-canvas) 7%, transparent), color-mix(in srgb, var(--etch-canvas) 1.5%, transparent)),
+    rgba(255, 255, 255, 0.02);
+  border: 1px solid color-mix(in srgb, var(--etch-canvas) 12%, transparent);
+}
+.etch-edition__media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 600ms cubic-bezier(0.2, 0.6, 0.2, 1);
+}
+.etch-edition:hover .etch-edition__media img { transform: scale(1.025); }
+
+.etch-edition__name {
+  font-family: var(--font-heading-family);
+  font-size: 2rem;
+  margin: 1.8rem 0 0.3rem;
+}
+
+.etch-edition__line {
+  font-size: 1.35rem;
+  opacity: 0.7;
+  margin: 0;
+}
+
+/* ----- Materials split -------------------------------------------------------- */
+
+.etch-materials {
+  display: grid;
+  gap: 4rem;
+  align-items: center;
+}
+@media screen and (min-width: 990px) {
+  .etch-materials { grid-template-columns: 1fr 1fr; gap: 8rem; }
+}
+
+.etch-materials__facts {
+  list-style: none;
+  padding: 0;
+  margin: 3rem 0 0;
+}
+.etch-materials__facts li {
+  padding: 1.6rem 0;
+  border-top: 1px solid var(--etch-line);
+  font-size: 1.45rem;
+  line-height: 1.6;
+}
+.color-scheme-3 .etch-materials__facts li,
+.color-scheme-4 .etch-materials__facts li {
+  border-top-color: var(--etch-line);
+}
+.etch-materials__facts strong {
+  display: block;
+  font-weight: var(--etch-weight-medium);
+  letter-spacing: var(--etch-track-label);
+  text-transform: uppercase;
+  font-size: 1.15rem;
+  margin-bottom: 0.3rem;
+  opacity: 0.65;
+}
+
+.etch-materials__media {
+  margin: 0;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  background:
+    linear-gradient(200deg, color-mix(in srgb, var(--etch-accent) 10%, transparent), rgba(0, 0, 0, 0) 60%),
+    color-mix(in srgb, var(--etch-ink) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--etch-ink) 10%, transparent);
+}
+.etch-materials__media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ----- Product cards: gallery-label restraint --------------------------------- */
+
+.card__heading {
+  font-family: var(--font-heading-family);
+  font-size: 1.9rem;
+}
+
+.price {
+  letter-spacing: 0.04em;
+}
+
+/* ----- Header / footer polish -------------------------------------------------- */
+
+.header__heading-logo-wrapper { letter-spacing: 0.04em; }
+
+.footer {
+  border-top: 1px solid color-mix(in srgb, var(--etch-canvas) 12%, transparent);
+}

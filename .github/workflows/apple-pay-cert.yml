@@ -1,0 +1,218 @@
+# The Apple Pay payment processing certificate dance, run on a runner because there is no
+# terminal here.
+#
+# Shopify decrypts the PassKit payment data, so Shopify — not Etch — holds the private key and
+# generates the Certificate Signing Request. Apple's portal asks for "a CSR file from your Mac",
+# which is the instruction for merchants who process their own payments and is the wrong path
+# here. The real sequence, from Shopify's own guide:
+#
+#   create  →  POST   /apple_pay_certificates.json            (a certificate resource)
+#              GET    /apple_pay_certificates/{id}.json       (wait for status: "csr")
+#              GET    /apple_pay_certificates/{id}/csr.json   (the CSR, base64 in .csr.key)
+#              ── you upload that CSR to Apple, download apple_pay.cer ──
+#   upload  →  PUT    /apple_pay_certificates/{id}.json       (the signed certificate back)
+#
+# Ask by editing .github/apple-pay-request.txt. Same file trigger as the preview and doc rigs:
+# workflow_dispatch is only offered for workflows on the default branch.
+#
+# Authentication is the client credentials grant, which is what Shopify's docs name for
+# "server-side integrations acting on your own stores". The admin-created custom app that used
+# to hand out a permanent shpat_ token is retired — "You can no longer create these apps" — so
+# there is nothing static to store. The app in the Dev Dashboard has a client id and secret,
+# and a token is minted from them per run and lives 24 hours.
+#
+# Add both at Settings → Secrets and variables → Actions. Neither appears in output; Actions
+# masks them regardless.
+#
+#   SHOPIFY_CLIENT_ID       from the app's API credentials in the Dev Dashboard
+#   SHOPIFY_CLIENT_SECRET   likewise
+#
+# The app needs write_mobile_payments and read_mobile_payments, and both scopes need Shopify's
+# approval before they can be granted. A legacy SHOPIFY_ADMIN_TOKEN is still honoured if it is
+# set, for a store that still maintains one of the old custom apps.
+
+name: Apple Pay certificate
+
+on:
+  push:
+    branches: [claude/rebrand-etch]
+    paths:
+      - ".github/apple-pay-request.txt"
+      - ".github/workflows/apple-pay-cert.yml"
+  workflow_dispatch:
+
+jobs:
+  certificate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the request
+        id: request
+        run: |
+          set -euo pipefail
+          FILE=.github/apple-pay-request.txt
+          value() { grep -E "^$1=" "$FILE" 2>/dev/null | tail -1 | cut -d= -f2- | xargs || true; }
+          ACTION=$(value action); [ -z "$ACTION" ] && ACTION="status"
+          {
+            echo "action=$ACTION"
+            echo "certificate_id=$(value certificate_id)"
+            echo "merchant_id=$(value merchant_id)"
+            SHOP=$(value shop_domain); [ -z "$SHOP" ] && SHOP="https://zn1ddh-it.myshopify.com"
+            echo "shop_domain=$SHOP"
+            VER=$(value api_version); [ -z "$VER" ] && VER="2026-07"
+            echo "api_version=$VER"
+          } >> "$GITHUB_OUTPUT"
+          echo "action: $ACTION"
+
+      - name: Mint an access token
+        id: auth
+        env:
+          CLIENT_ID: ${{ secrets.SHOPIFY_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}
+          LEGACY_TOKEN: ${{ secrets.SHOPIFY_ADMIN_TOKEN }}
+          SHOP: ${{ steps.request.outputs.shop_domain }}
+        run: |
+          set -euo pipefail
+          if [ -n "$LEGACY_TOKEN" ]; then
+            echo "── Using the stored SHOPIFY_ADMIN_TOKEN"
+            echo "::add-mask::$LEGACY_TOKEN"
+            echo "token=$LEGACY_TOKEN" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
+            echo "::error::Set SHOPIFY_CLIENT_ID and SHOPIFY_CLIENT_SECRET."
+            echo "Create the app at dev.shopify.com, then copy its client id and secret into"
+            echo "github.com/puhrmcl/stridemap → Settings → Secrets and variables → Actions."
+            echo ""
+            echo "The app also needs write_mobile_payments and read_mobile_payments, which"
+            echo "require Shopify's approval before they can be granted."
+            exit 1
+          fi
+          # Client credentials: no merchant interaction, because this app acts on its own store.
+          # The token lives 24 hours, which is why it is minted per run rather than stored.
+          echo "── Exchanging client credentials for an access token"
+          # Status and body separately, and jq is never allowed to be the thing that fails the
+          # step — an error page is not JSON, and letting jq die on it hides the message that
+          # would have explained why.
+          CODE=$(curl -sS --request POST "$SHOP/admin/oauth/access_token" \
+            --header "Content-Type: application/json" --max-time 30 \
+            --data "{\"client_id\":\"$CLIENT_ID\",\"client_secret\":\"$CLIENT_SECRET\",\"grant_type\":\"client_credentials\"}" \
+            -o /tmp/token.json -w "%{http_code}" || echo "000")
+          echo "   HTTP $CODE"
+          TOKEN=$(jq -r '.access_token // empty' /tmp/token.json 2>/dev/null || true)
+          if [ -z "$TOKEN" ]; then
+            echo "::error::No access_token came back (HTTP $CODE)."
+            echo "── Response body"
+            # Safe to print: without an access_token in it there is no secret here, and the
+            # message is the whole point.
+            head -c 2000 /tmp/token.json
+            echo ""
+            echo ""
+            echo "Most likely causes, in order:"
+            echo "  * The app is not installed on $SHOP. The client credentials grant acts on"
+            echo "    a store the app is installed on; creating and releasing a version is not"
+            echo "    the same as installing it."
+            echo "  * The client id or secret belongs to a different app or a different"
+            echo "    organisation than this store."
+            exit 1
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "   expires_in: $(echo "$RESPONSE" | jq -r '.expires_in // "?"') seconds"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Talk to the Admin API
+        env:
+          TOKEN: ${{ steps.auth.outputs.token }}
+          ACTION: ${{ steps.request.outputs.action }}
+          CERT_ID: ${{ steps.request.outputs.certificate_id }}
+          MERCHANT_ID: ${{ steps.request.outputs.merchant_id }}
+          SHOP: ${{ steps.request.outputs.shop_domain }}
+          VERSION: ${{ steps.request.outputs.api_version }}
+        run: |
+          set -euo pipefail
+          [ -z "$TOKEN" ] && { echo "::error::No access token."; exit 1; }
+          BASE="$SHOP/admin/api/$VERSION/apple_pay_certificates"
+          AUTH=(--header "X-Shopify-Access-Token: $TOKEN")
+
+          case "$ACTION" in
+            create)
+              echo "── Creating a certificate resource"
+              RESPONSE=$(curl -sS --request POST "$BASE.json" "${AUTH[@]}" \
+                --retry 3 --retry-all-errors --max-time 30)
+              echo "$RESPONSE" | jq . || { echo "$RESPONSE"; exit 1; }
+              ID=$(echo "$RESPONSE" | jq -r '.apple_pay_certificate.id // empty')
+              [ -z "$ID" ] && { echo "::error::No certificate id came back."; exit 1; }
+              echo ""
+              echo "════ CERTIFICATE ID: $ID"
+              echo "     Put this in .github/apple-pay-request.txt as certificate_id="
+              echo ""
+
+              # Shopify mints the key pair asynchronously; status flips to "csr" when ready.
+              echo "── Waiting for the CSR"
+              for attempt in $(seq 1 20); do
+                STATUS=$(curl -sS "$BASE/$ID.json" "${AUTH[@]}" --max-time 30 \
+                  | jq -r '.apple_pay_certificate.status // "unknown"')
+                echo "   attempt $attempt: status=$STATUS"
+                [ "$STATUS" = "csr" ] && break
+                sleep 5
+              done
+              if [ "$STATUS" != "csr" ]; then
+                echo "::error::Certificate $ID never reached status 'csr' (last: $STATUS)."
+                exit 1
+              fi
+
+              echo "── Fetching and decoding the CSR"
+              curl -sS "$BASE/$ID/csr.json" "${AUTH[@]}" --max-time 30 \
+                | tr -d '\n' | jq -r '.csr.key' \
+                | openssl base64 -a -d -out apple_payment_processing.csr
+              echo ""
+              echo "── BEGIN-CSR"
+              cat apple_payment_processing.csr
+              echo "── END-CSR"
+              echo ""
+              echo "Next: download the 'apple-pay-csr' artifact from this run, upload it to"
+              echo "developer.apple.com under Certificates → + → Apple Pay Payment Processing"
+              echo "Certificate (NOT Apple Pay Merchant Identity Certificate, which is web only),"
+              echo "then commit the apple_pay.cer Apple gives you to"
+              echo "fulfilment/apple-pay/apple_pay.cer and set action=upload."
+              ;;
+
+            upload)
+              CER=fulfilment/apple-pay/apple_pay.cer
+              [ -z "$CERT_ID" ] && { echo "::error::certificate_id= is required for upload."; exit 1; }
+              [ -z "$MERCHANT_ID" ] && { echo "::error::merchant_id= is required for upload."; exit 1; }
+              [ -f "$CER" ] || { echo "::error::$CER is not in the repository."; exit 1; }
+
+              echo "── Uploading the signed certificate for $CERT_ID"
+              ENCODED=$(openssl base64 -a -A -e -in "$CER")
+              curl -sS --request PUT "$BASE/$CERT_ID.json" "${AUTH[@]}" \
+                --header "Content-Type: application/json" --max-time 30 \
+                --data "{\"apple_pay_certificate\":{\"id\":\"$CERT_ID\",\"status\":\"completed\",\"merchant_id\":\"$MERCHANT_ID\",\"encoded_signed_certificate\":\"$ENCODED\"}}" \
+                | jq .
+              echo ""
+              echo "If this reports status: completed, Apple Pay can now be processed."
+              echo "Certificates expire every 25 months — make a note now."
+              ;;
+
+            status)
+              echo "── Certificates on this store"
+              curl -sS "$BASE.json" "${AUTH[@]}" --max-time 30 | jq .
+              ;;
+
+            *)
+              echo "::error::Unknown action '$ACTION'. Use create, upload, or status."
+              exit 1
+              ;;
+          esac
+
+      # The CSR has to reach Apple's upload form, and a job log is awkward to turn back into a
+      # file on a phone. The artifact downloads as a zip that Files can open.
+      - name: Upload the CSR
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-pay-csr
+          path: apple_payment_processing.csr
+          if-no-files-found: ignore
