@@ -286,6 +286,18 @@ struct HomeView: View {
         }
 
         derived = next
+        // The map redraws on this integer advancing, so it has to be bumped *here* — after the
+        // runs it draws are in hand.
+        //
+        // It used to be bumped by an `onChange` on `mapContentInputs`, which is derived from the
+        // query rather than from this cache, and `onChange` without `initial:` does not fire on
+        // first appearance. So the very first render handed the map an empty set at revision 0,
+        // this rebuild filled the cache, the body re-ran with a thousand routes — and the map
+        // compared revision 0 against revision 0 and skipped the overlay build. Blank on open,
+        // correct the moment you left the tab and came back, because that tore the representable
+        // down and rebuilt it. Tying the bump to the data instead of to its inputs makes the two
+        // impossible to disagree.
+        appModel.bumpMapContent()
     }
 
     /// Runs that count as milestones — their map pins get the gold trophy.
@@ -460,8 +472,10 @@ struct HomeView: View {
         // (The pins toggle is handled separately inside RunMapView, so it's not included here.)
         // The route map then rebuilds overlays/clusters only when this changes, never on an
         // unrelated re-render (a sheet drag), which is the whole point of the revision.
-        .onChange(of: mapContentInputs) { appModel.bumpMapContent() }
-        // The one place this screen's data is built. Everything else reads arrays.
+        // The one place this screen's data is built, and the one place the map's revision moves.
+        // `derivedKey` contains `mapContentInputs` in full, so every change that used to bump the
+        // revision still does — plus the overlay and activity-type changes that alter what the map
+        // draws and never used to.
         .onChange(of: derivedKey, initial: true) { _, _ in rebuildDerived() }
         .onAppear {
             // Heal a stored scope that's since been hidden in Settings (e.g. viewing Hikes, then

@@ -13,21 +13,20 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b509: the glyph set was confirmed good at native resolution in b508 — five
-# outlines on one grid, tinting for selection in both appearances — so this is about the
-# gallery alone.
+# Requested for b515: does the map draw its routes on first load?
 #
-#   timeline:gallery — it should now open at the FOOT, on the newest month, which is the whole
-#   point of the Timeline's arrangement. Two passes have opened at the top instead. The waiting
-#   diagnosis was wrong: the landing fires with data in hand, and the target was simply
-#   unreachable — a LazyVGrid nested inside a LazyVStack, so `scrollTo` could not resolve a
-#   position four hundred tiles down that the outer container had not built the inner one for.
-#   It is one sectioned grid now, the same shape as the All scope that lands correctly.
+#   home — the regression report is that lines and pins are missing when the app opens and
+#   appear once you leave the tab and come back. The cause is b513's derived-data cache: the
+#   map redraws when a revision integer advances, that integer was bumped by an `onChange` on
+#   the cache's *inputs*, and `onChange` without `initial:` does not fire on first appearance —
+#   so the map was handed an empty set at revision 0, then the real set at revision 0, and
+#   skipped the rebuild. The bump moved to the rebuild itself.
 #
-#   Also check the month headers have room: the grid's row spacing is 2pt, so the 22pt gap the
-#   stack used to give between months had to be rebuilt as padding above each header.
+#   This preview reproduces the exact sequence: the harness seeds its history in a task, so
+#   HomeView appears against an empty store and the data arrives a moment later, the same way a
+#   cold launch does. Routes on screen means fixed.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=timeline:gallery
+screens=home
 appearance=both
