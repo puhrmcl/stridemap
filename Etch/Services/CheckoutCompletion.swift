@@ -6,6 +6,7 @@ import ShopifyCheckoutSheetKit
 /// Every checkout surface calls this *before* any UI cleanup. The bag used to empty
 /// itself the moment Shopify reported paid, so a completed cart vanished from the phone
 /// without an order row — and there is no account system to recover it from.
+@MainActor
 enum CheckoutCompletion {
 
     /// Shopify's order id arrives as a GID (`gid://shopify/OrderIdentity/123`); the worker
