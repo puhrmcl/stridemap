@@ -23,7 +23,7 @@ on:
   workflow_dispatch:
     inputs:
       screens:
-        description: "Comma-separated: studio, home, archive, course, summit, yearbook, prints, wall-art, map-studio, gallery-studio, detail"
+        description: "Comma-separated: studio, home, archive, course, summit, yearbook, prints, wall-art, map-studio, gallery-studio, detail, bag"
         required: false
         default: "studio,archive,map-studio"
       appearance:
@@ -136,7 +136,7 @@ jobs:
               # Seeding and the first compositions need a moment; anything backed by an Apple
               # map snapshot needs considerably longer on a CI runner.
               case "$SCREEN" in
-                home|map-studio|gallery-studio|detail) sleep 30 ;;
+                home|map-studio|gallery-studio|detail|bag) sleep 30 ;;
                 # The engine check writes a real 7200 × 10800 sheet — 78 million pixels through
                 # an unoptimised Debug build on a shared runner.
                 print-engine) sleep 90 ;;

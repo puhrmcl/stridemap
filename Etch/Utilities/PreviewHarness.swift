@@ -214,6 +214,9 @@ struct PreviewHarnessView: View {
                 case "yearbook":        BookStudioView(kind: .year)
                 case "collections":     BookStudioView(kind: .collection)
                 case "prints":          PrintShopView(subjectTitle: subject?.name)
+                // A bag with a Fine-Art line already in it, so CI can photograph the mockup
+                // beside the text rather than an empty basket.
+                case "bag":             BagView()
                 // Not a screen of the app: the print engine's self-check, reported on screen
                 // because CI photographs screens and this project has no test target.
                 case "print-engine":    PrintEngineCheckView()
@@ -245,12 +248,42 @@ struct PreviewHarnessView: View {
         .task {
             PreviewHarness.seed(into: context)
             subject = PreviewHarness.subject(in: context)
+            if screen == "bag" {
+                await seedBagPreview(run: subject)
+            }
             ready = true
         }
     }
 
     private var allRuns: [Run] {
         (try? context.fetch(FetchDescriptor<Run>(sortBy: [SortDescriptor(\Run.startDate, order: .reverse)]))) ?? []
+    }
+
+    /// A Fine-Art line dressed with this history's own poster, so the bag screenshot is a
+    /// mockup of a real piece rather than an empty basket or a stock product image.
+    private func seedBagPreview(run: Run?) async {
+        let assetID = "preview-bag"
+        var artwork: UIImage?
+        if let run {
+            let recipe = PosterConfig.makeDefault(for: run)
+            artwork = await StudioRenderer.image(for: recipe.request(for: run), scale: 0.34)
+        }
+        if let artwork {
+            let mockup = BagPreview.mockup(
+                artwork: artwork,
+                productHandle: PrintProduct.print.shopifyHandle,
+                finishAttribute: "",
+                mountAttribute: "",
+                pixels: CGSize(width: 1600, height: 2400)
+            )
+            BagPreview.store(mockup, for: assetID)
+        }
+        CartStore.shared.replaceItemsForPreview([
+            CartItem(lineID: "preview-line", assetID: assetID,
+                     title: run?.name ?? "Afternoon Run",
+                     detail: "Fine-Art Print · 16 × 24″",
+                     priceCents: 7900, addedAt: Date())
+        ])
     }
 
     @ViewBuilder private func studio(family: PosterFamily) -> some View {

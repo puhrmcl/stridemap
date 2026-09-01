@@ -140,6 +140,54 @@ struct FramedPrintMockup<Art: View>: View {
     }
 }
 
+/// A loose sheet, unframed and unmounted. Two shadows so it reads as paper on a wall rather than
+/// a sticker — the same drawing the print shop uses for Fine-Art.
+struct LooseSheetMockup<Art: View>: View {
+    @ViewBuilder var art: () -> Art
+
+    var body: some View {
+        art()
+            .shadow(color: .black.opacity(0.24), radius: 3, y: 2)
+            .shadow(color: .black.opacity(0.15), radius: 16, y: 11)
+    }
+}
+
+/// A print hung from magnetic wood battens. The strips sit *over* the sheet — the same geometry
+/// the order path reserves — so the mockup cannot promise a bigger image than ships.
+struct HangerPrintMockup<Art: View>: View {
+    var wood: Color
+    /// Strip thickness in the view's coordinate space. Honest to the 15mm cover: on a 36″ sheet
+    /// that is a thin band, not a decorative batten.
+    var stripHeight: CGFloat
+    @ViewBuilder var art: () -> Art
+
+    var body: some View {
+        art()
+            .padding(.vertical, stripHeight)
+            .background(Theme.Palette.bone)
+            .overlay(alignment: .top) { strip }
+            .overlay(alignment: .bottom) { strip }
+            .shadow(color: .black.opacity(0.24), radius: 14, y: 9)
+    }
+
+    /// A solid timber has a lit face and a shaded one, and the edge where it meets the paper
+    /// casts a line — without those it reads as a printed band rather than wood clamped over
+    /// the sheet.
+    private var strip: some View {
+        LinearGradient(
+            stops: [
+                .init(color: wood.mixed(with: .white, amount: 0.16), location: 0),
+                .init(color: wood, location: 0.55),
+                .init(color: wood.mixed(with: .black, amount: 0.18), location: 1)
+            ],
+            startPoint: .top, endPoint: .bottom
+        )
+        .frame(height: stripHeight)
+        .overlay(Rectangle().fill(.black.opacity(0.22)).frame(height: 0.75), alignment: .bottom)
+        .shadow(color: .black.opacity(0.22), radius: 2, y: 1)
+    }
+}
+
 /// The wall a framed print hangs on: a warm neutral with the light falling from the upper left and
 /// the corners drawing down, rather than a flat grey card.
 struct MockupWall: View {

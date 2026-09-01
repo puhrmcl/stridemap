@@ -7,12 +7,16 @@ import Observation
 /// contents live on Shopify and its price is authoritative at checkout — but a bag that had to
 /// fetch before it could draw would be a spinner every time the tab is tapped, and the tab carries
 /// a count that has to be right the instant it appears.
+///
+/// The mockup beside the line is not on this struct. The print file is too large to keep, so
+/// `BagPreview` stores a small JPEG keyed by `assetID` — the same object Studio already drew.
 struct CartItem: Codable, Identifiable, Equatable {
     var id: String { lineID }
     /// Shopify's cart-line id — what a removal needs.
     let lineID: String
     /// The uploaded print file this line is for. The order is unfulfillable without it, which is
-    /// what makes the expiry below a correctness matter rather than a tidiness one.
+    /// what makes the expiry below a correctness matter rather than a tidiness one. Also the
+    /// key for the on-disk bag mockup.
     let assetID: String
     let title: String
     let detail: String
@@ -62,6 +66,7 @@ final class CartStore {
             items = decoded
         }
         expireIfStale()
+        BagPreview.keep(Set(items.map(\.assetID)))
     }
 
     var count: Int { items.count }
@@ -94,7 +99,9 @@ final class CartStore {
     }
 
     func remove(lineID: String) {
+        let gone = items.filter { $0.lineID == lineID }
         items.removeAll { $0.lineID == lineID }
+        for item in gone { BagPreview.remove(assetID: item.assetID) }
         if items.isEmpty { clear() } else { persist() }
     }
 
@@ -104,7 +111,17 @@ final class CartStore {
         cartID = nil
         checkoutURL = nil
         items = []
+        BagPreview.removeAll()
         persist()
+    }
+
+    /// In-memory bag for the CI preview harness. Must not persist — a screenshot session cannot
+    /// leave a fake line sitting in a real bag.
+    func replaceItemsForPreview(_ items: [CartItem]) {
+        guard PreviewHarness.isActive else { return }
+        self.items = items
+        cartID = nil
+        checkoutURL = nil
     }
 
     // MARK: Expiry

@@ -486,18 +486,14 @@ struct PrintShopView: View {
                 // the artwork behind them is inset by what they cover — the same reserve the
                 // uploaded file carries. A mockup that drew the wood outside the paper would
                 // promise a bigger image than ships.
-                sheet
-                    .padding(.vertical, hangerStripHeight)
-                    .background(Theme.Palette.bone)
-                    .overlay(alignment: .top) { hangerStrip }
-                    .overlay(alignment: .bottom) { hangerStrip }
-                    .shadow(color: .black.opacity(0.24), radius: 14, y: 9)
+                HangerPrintMockup(
+                    wood: Color(hex: hangerFinish.woodHex) ?? .brown,
+                    stripHeight: hangerStripHeight
+                ) { sheet }
             case .print:
                 // A loose sheet, unframed and unmounted. Two shadows for the same reason the
                 // frame has two: a single soft one reads as a sticker on the wall.
-                sheet
-                    .shadow(color: .black.opacity(0.24), radius: 3, y: 2)
-                    .shadow(color: .black.opacity(0.15), radius: 16, y: 11)
+                LooseSheetMockup { sheet }
             }
             }
         }
@@ -517,24 +513,6 @@ struct PrintShopView: View {
         let sheetInches = CGFloat(size.height)
         let coverInches = PosterHangerCatalog.hangerCoverMM / 25.4
         return max(3, 250 * (coverInches / max(sheetInches, 1)))
-    }
-
-    /// The magnetic batten. A solid timber has a lit face and a shaded one like any other, and the
-    /// edge where it meets the paper casts a line — without those it reads as a printed band rather
-    /// than a piece of wood clamped over the sheet.
-    private var hangerStrip: some View {
-        let wood = Color(hex: hangerFinish.woodHex) ?? .brown
-        return LinearGradient(
-            stops: [
-                .init(color: wood.mixed(with: .white, amount: 0.16), location: 0),
-                .init(color: wood, location: 0.55),
-                .init(color: wood.mixed(with: .black, amount: 0.18), location: 1)
-            ],
-            startPoint: .top, endPoint: .bottom
-        )
-        .frame(height: hangerStripHeight)
-        .overlay(Rectangle().fill(.black.opacity(0.22)).frame(height: 0.75), alignment: .bottom)
-        .shadow(color: .black.opacity(0.22), radius: 2, y: 1)
     }
 
     /// The product as one flat image for the full-screen viewer: the artwork inside its chosen

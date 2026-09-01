@@ -4,8 +4,20 @@
 # posts the shots into its job log (and as artifacts). GitHub's web editor works
 # fine from a phone.
 #
+# Which screens to photograph, and in which appearance.
+#
+# Edit this file and commit — the Preview screens workflow runs on the change and
+# posts the shots into its job log (and as artifacts). GitHub's web editor works
+# fine from a phone.
+#
 # screens:    studio, home, archive, course, summit, yearbook, prints, wall-art,
-#             map-studio, gallery-studio, detail, components
+#             map-studio, gallery-studio, detail, components, bag
+#             wall-art accepts a style: wall-art:grid, wall-art:ridgeline, wall-art:rings,
+#             wall-art:thread, wall-art:strata
+#             timeline accepts a scope: timeline:years, timeline:months, timeline:all,
+#             timeline:gallery
+#             print-engine runs the print writer's self-check and reports pass/fail
+# appearance: light, dark, or both
 #             wall-art accepts a style: wall-art:grid, wall-art:ridgeline, wall-art:rings,
 #             wall-art:thread, wall-art:strata
 #             timeline accepts a scope: timeline:years, timeline:months, timeline:all,

@@ -94,7 +94,19 @@ struct BagView: View {
 
     /// One piece waiting to be ordered.
     private func cartRow(_ item: CartItem) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .center, spacing: 12) {
+            // Absent when this line was bagged before mockups were stored — hide the slot
+            // rather than invent a blank tile. A placeholder would look like a failed image.
+            if let preview = BagPreview.image(for: item.assetID) {
+                Image(uiImage: preview)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 68, height: 90)
+                    .clipShape(.rect(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
+                    .accessibilityHidden(true)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                     .font(.etch(.headline))

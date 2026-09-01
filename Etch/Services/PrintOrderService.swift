@@ -187,6 +187,20 @@ enum PrintOrderService {
             )
         }
 
+        // Freeze the mockup *before* the line appears: the print file is about to be deleted
+        // by the caller, and a bag that has to re-render from a 24×36 PNG would hitch on open.
+        // Failure here is not an order failure — the line still checks out without a thumbnail.
+        if let preview = BagPreview.make(
+            from: fileURL,
+            productHandle: productHandle,
+            finishAttribute: finishAttribute,
+            mountAttribute: mountAttribute,
+            contentType: contentType,
+            pixels: pixels
+        ) {
+            BagPreview.store(preview, for: assetID)
+        }
+
         store.adopt(cart: added.cart, item: CartItem(
             lineID: added.lineID, assetID: assetID, title: title, detail: detail,
             priceCents: priceCents, addedAt: Date()
