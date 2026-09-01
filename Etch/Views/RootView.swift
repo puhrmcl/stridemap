@@ -88,6 +88,13 @@ struct RootView: View {
         .animation(Theme.gentle, value: isReady)
         .animation(Theme.gentle, value: allActivitiesOff)
         .animation(Theme.gentle, value: didCompleteSetup)
+        // Toggling hikes/walks/rides must rebuild map overlays. HomeView keys overlay revision
+        // off drawable inputs; bumping here keeps that revision in lockstep with the type mask
+        // even when the map tab is already mounted.
+        .onChange(of: includeRuns) { _, _ in appModel.bumpMapContent() }
+        .onChange(of: includeHikes) { _, _ in appModel.bumpMapContent() }
+        .onChange(of: includeRides) { _, _ in appModel.bumpMapContent() }
+        .onChange(of: includeWalks) { _, _ in appModel.bumpMapContent() }
         .task(id: isReady) {
             guard isReady else { return }
             // Import on every launch, then keep observing for new workouts. This used to run
