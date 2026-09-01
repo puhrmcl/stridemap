@@ -20,11 +20,19 @@ struct RootView: View {
     /// New users pick their activities and default view here before entering the app.
     @AppStorage("didCompleteSetup") private var didCompleteSetup = false
     // Observed so the root re-renders when the user toggles activities to/from all-off.
+    // `includeRides` must be here: without it, rides-only would look like "everything off"
+    // and bounce the user back into setup.
     @AppStorage("includeRuns") private var includeRuns = true
     @AppStorage("includeHikes") private var includeHikes = true
+    @AppStorage("includeRides") private var includeRides = true
     @AppStorage("includeWalks") private var includeWalks = false
 
-    private var allActivitiesOff: Bool { !includeRuns && !includeHikes && !includeWalks }
+    private var allActivitiesOff: Bool {
+        // Touch each AppStorage so a Settings toggle re-renders the root; the check itself
+        // is the shared definition so rides cannot be left out of "everything off".
+        _ = (includeRuns, includeHikes, includeRides, includeWalks)
+        return ActivitySettings.allOff
+    }
 
     /// The brand splash covers the app on launch, then fades away.
     @State private var showSplash = true
