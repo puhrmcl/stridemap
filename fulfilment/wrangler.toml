@@ -21,6 +21,8 @@ compatibility_date = "2025-01-01"
 #   https://etch-fulfilment.<your-subdomain>.workers.dev
 # Point the Shopify orders/paid webhook and Prodigi callbacks at it, and put the URL
 # in the iOS fulfilment provider when that adapter goes live.
+#
+# Redeploy 2026-09-01 to sync rotated UPLOAD_TOKEN from GitHub secrets.
 
 # Nightly sweep of unsold uploads. A print file is uploaded *before* payment, so every
 # abandoned checkout leaves tens of megabytes in R2 that no order will ever reference.
