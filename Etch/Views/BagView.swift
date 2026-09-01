@@ -60,9 +60,10 @@ struct BagView: View {
                     .colorScheme(.automatic)
                     .tintColor(UIColor(Theme.accent))
                     .onCancel { checkout = nil }
-                    .onComplete { _ in
-                        // The cart id is spent the moment its order completes; keeping it would
-                        // add the next piece to an order that has already been paid for.
+                    .onComplete { event in
+                        // Record first: emptying the bag without an order row loses the
+                        // purchase — Etch has no account, the phone is the record.
+                        CheckoutCompletion.recordBag(event, items: cart.items)
                         cart.clear()
                         checkout = nil
                         Task { await refresh() }
@@ -145,7 +146,8 @@ struct BagView: View {
                     AcceleratedCheckoutButtons(cartID: id)
                         .wallets([.applePay, .shopPay])
                         .cornerRadius(14)
-                        .onComplete { _ in
+                        .onComplete { event in
+                            CheckoutCompletion.recordBag(event, items: cart.items)
                             cart.clear()
                             Task { await refresh() }
                         }
