@@ -183,10 +183,12 @@ struct RunMapView: UIViewRepresentable {
         // the first time we have runs to show, frame the map to them so it opens centered on
         // the user's runs rather than the default world view. Both only fire on a transition /
         // once, so the user's own panning and zooming is never fought afterwards.
-        if renderChanged && renderStyle == .history {
-            context.coordinator.didInitialFrame = true
-            context.coordinator.frameAll(runs: runs)
-        } else if !context.coordinator.didInitialFrame, runs.contains(where: { $0.hasRoute }) {
+        // Both are gated on there being something to frame. Without that the first update — which
+        // arrives before the query has delivered anything — spent the one-shot on an empty set,
+        // framed nothing, and left the map on the default continental view for the rest of the
+        // session, however many routes turned up afterwards.
+        if runs.contains(where: { $0.hasRoute }),
+           !context.coordinator.didInitialFrame || (renderChanged && renderStyle == .history) {
             context.coordinator.didInitialFrame = true
             context.coordinator.frameAll(runs: runs)
         }
