@@ -47,34 +47,10 @@ struct TimelineView: View {
     /// The photograph the full-screen viewer is opened on, in the Gallery scope.
     @State private var openedPhoto: OpenedGalleryPhoto?
 
-    // MARK: Derived data, computed once per change
-    //
-    // Every list on this page used to be a computed property chained onto another computed
-    // property, recomputed from scratch on each access: `scopedRuns` filtered the whole library,
-    // `monthGroups` regrouped it through `Calendar` (the expensive part), `photoMonths` walked
-    // every photo reference and sorted them, and `timelineRuns` allocated a full reversed copy.
-    // Nothing was cached, so one evaluation of `body` ran ten or more passes over the library —
-    // and `body` runs a great deal more often than the data changes.
-    //
-    // Three things made that expensive rather than merely wasteful. The page reports its visible
-    // date span through a binding, so *scrolling* rewrote the parent's state and re-ran all of
-    // it. All four tabs stay alive in a `TabView`, so any change to `AppModel` re-ran all of it
-    // on tabs nobody was looking at. And a year card's `runs(in:)` filtered the library again per
-    // card. On a thousand-activity library that is the whole "slow and delayed" feeling.
-    //
-    // So the work happens once, when its inputs actually change, and `body` reads arrays.
-
     private struct Derived {
         var ready = false
         var scopedRuns: [Run] = []
-        /// Oldest-first, each month's activities oldest-first inside it — so the newest activity
-        /// in the whole history is the last tile on the page.
-        ///
-        /// Apple Photos' order, and the one thing about it people navigate by without thinking.
-        /// `RunStatistics` hands everything back newest-first because that is what every other
-        /// surface wants; only this view reads bottom-up, so the reversal lives here.
         var months: [RunStatistics.MonthGroup] = []
-        /// Newest-first, as the rest of the app orders them — used for the opening-month lookup.
         var monthGroups: [RunStatistics.MonthGroup] = []
         var years: [Int] = []
         var runsByYear: [Int: [Run]] = [:]
@@ -82,19 +58,11 @@ struct TimelineView: View {
         var photoMonths: [GalleryMonth] = []
         var photos: [GalleryPhoto] = []
         var hasPhotos = false
-        /// Start dates by activity id, so the visible-span readout is a handful of dictionary
-        /// lookups rather than a filter over the library on every scroll update.
         var datesByID: [UUID: Date] = [:]
     }
 
     @State private var derived = Derived()
 
-    /// Everything that changes what this page shows, as one comparable value.
-    ///
-    /// `newestEdit` is what catches an in-place edit — a favourite toggled, a route hydrated, a
-    /// photo attached — which changes no count. It is an O(n) pass over one `Date` per activity,
-    /// which is the cheapest thing in this file and the reason it can stand in for all the work
-    /// it guards.
     private struct DerivedKey: Equatable {
         var count = 0
         var newestEdit = 0.0
@@ -111,13 +79,6 @@ struct TimelineView: View {
                           typeMask: ActivitySettings.mask)
     }
 
-    /// Rebuilds the page's data.
-    ///
-    /// The shared filter reaches here — `appModel.filter` has been app-wide session state all
-    /// along, but only the map ever read it, so setting a filter changed the map and left the
-    /// Timeline showing everything. PR status is a property of the collection rather than of a
-    /// run, so it is computed from the typed set before narrowing — the same order the map uses,
-    /// and the reason "PRs" means the same activities on both.
     private func rebuildDerived() {
         let typed = runs.scoped(to: appModel.activityScope)
         let scoped: [Run]
@@ -145,7 +106,7 @@ struct TimelineView: View {
         next.reversedRuns = scoped.reversed()
         next.photoMonths = GalleryIndex.months(in: scoped)
         next.photos = next.photoMonths.flatMap(\.photos)
-        next.hasPhotos = typed.contains { !$0.photoReferences.isEmpty }
+        next.hasPhotos = scoped.contains { !$0.photoReferences.isEmpty }
 
         var byYear: [Int: [Run]] = [:]
         var dates: [UUID: Date] = [:]
@@ -164,53 +125,22 @@ struct TimelineView: View {
     private var timelineMonths: [RunStatistics.MonthGroup] { derived.months }
     private var timelineYears: [Int] { derived.years }
     private var timelineRuns: [Run] { derived.reversedRuns }
-
-    // MARK: Gallery
-
-    /// Every photograph in the scoped history, in the same months-oldest-first order as the rest
-    /// of the page. Scoped rather than global on purpose: a filter that narrows the Timeline to
-    /// races should narrow the pictures to races too, or the control means two things.
     private var photoMonths: [GalleryMonth] { derived.photoMonths }
     private var photos: [GalleryPhoto] { derived.photos }
-    /// Whether the Gallery scope has anything behind it. A door to an empty room is worse than
-    /// no door, so the segment is simply absent until there is a photograph in the library.
     private var hasPhotos: Bool { derived.hasPhotos }
     private var availableScopes: [Scope] {
         hasPhotos ? Scope.allCases : Scope.allCases.filter { $0 != .gallery }
     }
 
-    /// The scope this view has already placed itself in. Landing is a thing that happens when you
-    /// arrive or change scope — not every time the tab is re-entered, which would throw away the
-    /// place you had scrolled to for the sake of repeating an opening move.
     @State private var landedScope: Scope?
 
-    /// Puts the newest activity on screen, at the foot, when the page opens or the scope changes.
-    ///
-    /// The scroll view only exists once there is something to show — the empty case is a different
-    /// branch entirely — so this runs with content already in hand rather than racing the query.
-    /// The sleep is for layout, not for data: the target has to be a row the scroll view can find.
-    ///
-    /// It stands down when `scrollTarget` is set, because that means a year card was tapped and
-    /// the user asked to land somewhere specific. Two scrolls arguing would be worse than either.
-    ///
-    /// `force` is the re-tap on the Timeline tab: an explicit "take me back to the newest" that
-    /// deliberately ignores both the once-per-scope rule and wherever you had scrolled to.
     @MainActor
     private func landOnNewest(_ proxy: ScrollViewProxy, force: Bool = false) async {
         if force {
-            // An explicit request outranks a pending year-card jump.
             scrollTarget = nil
         } else {
             guard scrollTarget == nil, landedScope != scope else { return }
         }
-
-        // Wait for there to be something to land on.
-        //
-        // The old version slept 60ms once and then scrolled to whatever `last` was — which on a
-        // scope entered before the query had delivered anything is nil, a silent no-op, and a
-        // `landedScope` set to the scope it never actually landed in. The guard above then
-        // blocked every retry, so the page simply stayed at the top. Gallery caught it: it opens
-        // on hundreds of tiles that take a beat longer to arrive than a handful of year cards.
         for _ in 0..<20 {
             if newestID != nil { break }
             try? await Task.sleep(nanoseconds: 50_000_000)
@@ -218,15 +148,6 @@ struct TimelineView: View {
         }
         guard let target = newestID, scrollTarget == nil else { return }
         landedScope = scope
-
-        // Twice, deliberately. A lazy grid materialises rows *toward* a named target, so the
-        // first scroll resolves against a content height that is still partly an estimate; the
-        // second corrects it once the real rows exist. On a few hundred tiles that is a
-        // screenful of difference, and on a thousand it is several.
-        //
-        // Arriving is silent; being taken back is animated. A page that simply *is* at the foot
-        // when it opens needs no motion, but a jump you asked for from wherever you had scrolled
-        // to should show you it happened.
         if force {
             withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(target, anchor: .bottom) }
         } else {
@@ -237,8 +158,6 @@ struct TimelineView: View {
         proxy.scrollTo(target, anchor: .bottom)
     }
 
-    /// The last row on the page — the newest thing in whichever arrangement is showing, and so
-    /// the one the scope opens on. Nil while the scope has nothing in it.
     private var newestID: AnyHashable? {
         switch scope {
         case .years:   return timelineYears.last.map { AnyHashable($0) }
@@ -252,9 +171,6 @@ struct TimelineView: View {
         NavRoot(embedded) {
             Group {
                 if !derived.ready {
-                    // The one frame between the first layout and the first rebuild. Blank rather
-                    // than the empty state, which would flash "Nothing here yet" over a full
-                    // library every time the page appeared.
                     Color.clear
                 } else if scopedRuns.isEmpty {
                     ContentUnavailableView(
@@ -272,60 +188,24 @@ struct TimelineView: View {
                             case .gallery: galleryContent
                             }
                         }
-                        // Opens on the newest activity, which now sits at the foot of the page.
-                        //
-                        // Deliberately *not* `.defaultScrollAnchor(.bottom, …)`, which is what
-                        // this was and what broke it: that anchor resolves against the content
-                        // height the scroll view knows at first layout, and inside a LazyVStack
-                        // that height is an estimate from the handful of rows built so far. On a
-                        // thousand-activity history the estimate was long, so the view opened
-                        // scrolled clean past the end — the last card's bottom edge at the top of
-                        // the screen and an empty page under it.
-                        //
-                        // Naming the last item instead is exact: `scrollTo(_:anchor:.bottom)`
-                        // puts that item's bottom edge on the viewport's bottom edge, and lazy
-                        // content materialises toward a named target rather than being guessed at.
                         .task(id: scope) { await landOnNewest(proxy) }
-                        // Tap the Timeline tab you are already on and you come back to the
-                        // newest activity — the top of the list, which here is the foot of the
-                        // page. Applies in whichever scope is showing: the newest year, the
-                        // newest month, the newest activity, the newest photograph.
                         .task(id: appModel.reselectCount) {
                             guard appModel.reselectCount > 0,
                                   appModel.reselectedTab == .timeline else { return }
-                            // Back out of an open activity first. Re-tapping a tab means "back to
-                            // the start of this tab", and the start is not a detail page.
                             pushedRun = nil
                             await landOnNewest(proxy, force: true)
                         }
-                        // Which tiles are actually on screen, rather than a guess from the scroll
-                        // offset — a lazy grid's offset says nothing reliable about which row you
-                        // are looking at. Only the dated scopes report: Years already prints its
-                        // own year on every card, so a span under the title would say it twice.
-                        //
-                        // Written only when it actually changes. This binding is the parent's
-                        // state, so every write re-renders the whole page — and the callback runs
-                        // continuously while a finger is down, which meant a scroll was rebuilding
-                        // the Timeline dozens of times a second to arrive at the same seven words
-                        // it already had. The span only moves when you cross a day.
                         .onScrollTargetVisibilityChange(idType: UUID.self) { ids in
                             let next = scope == .years ? nil : span(forVisible: Set(ids))
                             if next != visibleSpan.wrappedValue { visibleSpan.wrappedValue = next }
                         }
-                        // Gallery reports no span of its own — its tiles are photographs, not
-                        // activities — so the header would otherwise keep printing the dates of
-                        // whatever the previous scope last saw.
                         .onChange(of: scope) { _, new in
                             if new == .gallery { visibleSpan.wrappedValue = nil }
                         }
-                        // After a year tile switches us to Months, scroll to that year's start.
                         .task(id: scrollTarget) {
                             guard let target = scrollTarget else { return }
                             try? await Task.sleep(nanoseconds: 80_000_000)
                             withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(target, anchor: .top) }
-                            // This counts as having landed. Without it, leaving the tab and
-                            // coming back would run the open-on-newest move and throw away the
-                            // month the year card was tapped to reach.
                             landedScope = scope
                             scrollTarget = nil
                         }
@@ -334,15 +214,10 @@ struct TimelineView: View {
             }
             .navigationTitle("Timeline")
             .navigationBarTitleDisplayMode(.inline)
-            // The one place the page's data is built. Everything else on this view reads arrays.
             .onChange(of: derivedKey, initial: true) { _, _ in rebuildDerived() }
             .navigationDestination(item: $pushedRun) { run in
                 RunDetailView(run: run)
             }
-            // The viewer walks the whole gallery rather than one activity's photos: this is a
-            // gallery, and stopping the swipe at an activity boundary would be the filing cabinet
-            // again. The cover action still resolves per photo, to whichever activity owns the
-            // one on screen.
             .fullScreenCover(item: $openedPhoto) { selection in
                 RunPhotoViewer(
                     identifiers: photos.map(\.photoID),
@@ -352,18 +227,8 @@ struct TimelineView: View {
                     onSetCover: setCover
                 )
             }
-            // Years / Months / All sits at the bottom as a sheet, and at the top inside the tab.
-            //
-            // Apple Photos docks exactly this control in a floating capsule at the foot of the
-            // screen, which is the model this view was built on — but Photos has no tab bar, and
-            // Etch now does. Two floating capsules stacked at the bottom is the app's own
-            // navigation arguing with the page's, so inside the tab the control moves up under
-            // the header, where it is plainly this page's and not the app's.
             .safeAreaInset(edge: .top) {
                 VStack(spacing: 8) {
-                    // The chip goes above the scope picker rather than beside it: one says what
-                    // the whole page is narrowed to, the other is a control for this page. Mixing
-                    // them on a line would read as four buttons.
                     EtchFilterChip(filter: appModel.filter) {
                         appModel.setFilter(RunFilter())
                     }
@@ -377,15 +242,7 @@ struct TimelineView: View {
         }
     }
 
-    // MARK: The visible span
-
-    /// "Aug 23–27, 2021" for whatever is on screen, in Photos' own phrasing.
-    ///
-    /// Collapses as far as the dates allow: one day prints once, a span inside a month shares the
-    /// month, a span inside a year shares the year, and only a span crossing years spells both
-    /// ends out. A header that said "Aug 23, 2021 – Aug 27, 2021" would be accurate and unreadable.
     private func span(forVisible ids: Set<UUID>) -> String? {
-        // A dictionary lookup per visible tile, not a filter over the library per scroll update.
         var first: Date?, last: Date?
         for id in ids {
             guard let date = derived.datesByID[id] else { continue }
@@ -393,7 +250,6 @@ struct TimelineView: View {
             if last == nil || date > last! { last = date }
         }
         guard let first, let last else { return nil }
-
         let calendar = Calendar.current
         if calendar.isDate(first, inSameDayAs: last) {
             return first.formatted(.dateTime.month(.abbreviated).day().year())
@@ -401,7 +257,6 @@ struct TimelineView: View {
         let sameYear = calendar.component(.year, from: first) == calendar.component(.year, from: last)
         let sameMonth = sameYear
             && calendar.component(.month, from: first) == calendar.component(.month, from: last)
-
         if sameMonth {
             let month = first.formatted(.dateTime.month(.abbreviated))
             let d1 = calendar.component(.day, from: first)
@@ -419,11 +274,6 @@ struct TimelineView: View {
         return "\(a) – \(b)"
     }
 
-    // MARK: Scope control
-
-    /// Four equal segments need the width three did not. The inset was 44pt a side, which on a
-    /// 375pt screen leaves 71pt per segment — enough for "Months" and not for "Gallery", and a
-    /// segmented control that runs out of room truncates to an ellipsis rather than shrinking.
     private var scopePicker: some View {
         Picker("View", selection: $scope.animation(.easeInOut(duration: 0.25))) {
             ForEach(availableScopes) { Text($0.rawValue).tag($0) }
@@ -432,15 +282,10 @@ struct TimelineView: View {
         .padding(.horizontal, availableScopes.count > 3 ? 20 : 44)
         .padding(.vertical, 10)
         .background(.ultraThinMaterial)
-        // The last photograph in the library can be deleted from inside the viewer, which takes
-        // the segment away while it is the selected one. Land somewhere real rather than on a
-        // scope the control no longer offers.
         .onChange(of: hasPhotos) { _, has in
             if !has, scope == .gallery { scope = .all }
         }
     }
-
-    // MARK: Years
 
     private var yearsContent: some View {
         LazyVStack(spacing: 16) {
@@ -454,10 +299,6 @@ struct TimelineView: View {
                         year: year,
                         hero: hero(in: yearRuns),
                         count: yearRuns.count,
-                        // The year's own activities name themselves. The selector's word is
-                        // right for the page and wrong for a card: on All Activities a year
-                        // of nothing but hikes was captioned "activities" when it could say
-                        // "hikes", and that is the whole complaint about this vocabulary.
                         countNoun: ActivityScope.noun(for: yearRuns, count: yearRuns.count),
                         distanceMeters: yearRuns.reduce(0) { $0 + $1.distance }
                     )
@@ -468,10 +309,7 @@ struct TimelineView: View {
         .padding(16)
     }
 
-    // MARK: Months
-
     private var monthsContent: some View {
-        // Headers scroll with the content (not pinned) for an Apple Photos-style feel.
         LazyVStack(alignment: .leading, spacing: 28) {
             ForEach(timelineMonths) { group in
                 Section {
@@ -488,8 +326,6 @@ struct TimelineView: View {
         .padding(.top, 4)
     }
 
-    /// A month's runs: a wide hero for the first, then a 3-up grid of the rest. Tiles show the
-    /// run's photo (or a brand-tinted map of the route) with the title + distance captioned.
     @ViewBuilder
     private func monthGrid(_ monthRuns: [Run]) -> some View {
         if let hero = monthRuns.first {
@@ -500,8 +336,6 @@ struct TimelineView: View {
             .buttonStyle(.plain)
             .padding(.bottom, 6)
         }
-        // Months keeps three columns — it is the browsing scope, where a tile has to be big
-        // enough to recognise a route from — but the gutters tighten to match All.
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: 3), spacing: 3) {
             ForEach(monthRuns.dropFirst()) { run in
                 Button { open(run) } label: {
@@ -516,28 +350,9 @@ struct TimelineView: View {
         }
     }
 
-    // MARK: All
-
-    /// All, at Apple Photos' density: five columns, hairline gutters, edge to edge.
-    ///
-    /// Four columns inside an 8pt margin left the grid reading as a panel of thumbnails on a
-    /// page. Photos runs its tiles to the screen edges with 2pt between them, and the effect is
-    /// not that the pictures are smaller — it is that the page stops being a container and starts
-    /// being the pictures. On a history of several hundred activities that is the difference
-    /// between browsing and scrolling.
-    ///
-    /// Corner radius drops with the tile: a 6pt round on a 90pt tile is a detail, and on a 72pt
-    /// tile it is a shape.
     private var allContent: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 5), spacing: 2) {
             ForEach(timelineRuns) { run in
-                // A run with no photograph shows where it happened rather than a bare line.
-                //
-                // The flat route drawing is a shape with no place attached: two loops of similar
-                // size are indistinguishable, which in a grid of hundreds is most of them. On a
-                // map you recognise the neighbourhood before you have read anything. Runs with a
-                // photograph still lead with it, and routeless ones keep their activity glyph —
-                // RunTileImage already cascades photo → map → drawing.
                 photoTile(run, corner: 4, mapFallback: true)
             }
         }
@@ -545,12 +360,6 @@ struct TimelineView: View {
         .padding(.top, 2)
     }
 
-    // MARK: Gallery
-
-    /// Every photograph, at the same density as All — five across, hairline gutters, edge to edge
-    /// — under pinned month headers. Pinned rather than scrolling because a wall of photographs
-    /// has no other way of telling you where you are: a route tile carries its own title, a
-    /// picture of a mountain carries nothing.
     @ViewBuilder
     private var galleryContent: some View {
         if photos.isEmpty {
@@ -563,15 +372,6 @@ struct TimelineView: View {
             )
             .padding(.top, 60)
         } else {
-            // One grid, sectioned — not a stack of grids.
-            //
-            // It was a LazyVStack of per-month LazyVGrids, which reads the same and does not
-            // behave the same: a scroll target four hundred tiles down sits inside a lazy
-            // container nested in another lazy container, and `scrollTo` cannot resolve a
-            // position the outer container has not built the inner one for yet. The page opened
-            // at the top every time while All, which is a single grid, landed correctly. A
-            // LazyVGrid's own section headers span every column, so the arrangement is identical
-            // and the scroll target is reachable.
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 5),
                       spacing: 2, pinnedViews: [.sectionHeaders]) {
                 ForEach(photoMonths) { month in
@@ -603,15 +403,11 @@ struct TimelineView: View {
                 .monospacedDigit()
         }
         .padding(.horizontal, 12)
-        // Asymmetric: the gap belongs *above* a month, separating it from the one before. The
-        // grid's own row spacing is 2pt, so without this the headers sat on the tiles.
         .padding(.top, 18)
         .padding(.bottom, 8)
         .background(.bar)
     }
 
-    /// The activity a photograph belongs to. First match wins on the rare shared picture — the
-    /// cover it would set is that activity's, which is the one the reader tapped through from.
     private func owner(of photoID: String) -> Run? {
         runs.first { $0.photoReferences.contains(photoID) }
     }
@@ -623,8 +419,6 @@ struct TimelineView: View {
         try? context.save()
     }
 
-    /// Makes a photograph its activity's cover, from here as much as from the activity itself —
-    /// the gallery is where you see a picture big enough to decide.
     private func setCover(_ photoID: String) {
         guard let run = owner(of: photoID),
               let index = run.photoReferences.firstIndex(of: photoID), index != 0 else { return }
@@ -636,12 +430,6 @@ struct TimelineView: View {
         try? context.save()
     }
 
-    // MARK: Pieces
-
-    /// A tappable run tile. `height` gives a fixed-height band (the month hero); otherwise the
-    /// tile is a square sized to its column. A clear sizing container defines the frame and the
-    /// image sits in an overlay that's clipped to it — so `scaledToFill` can never overflow the
-    /// layout (which is what made tiles overlap).
     private func photoTile(_ run: Run, corner: CGFloat, height: CGFloat? = nil,
                            mapFallback: Bool = false) -> some View {
         Button { open(run) } label: {
@@ -669,8 +457,6 @@ struct TimelineView: View {
         try? context.save()
     }
 
-    /// An Apple Photos-style month header: a large bold title with the count · distance on a quiet
-    /// second line, left-aligned with no background bar (it scrolls with the grid).
     private func sectionHeader(title: String, detail: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
@@ -685,23 +471,8 @@ struct TimelineView: View {
         .padding(.bottom, 2)
     }
 
-    // MARK: Data helpers
-
-    /// Grouped once in the rebuild rather than filtered per card. Six year cards on a
-    /// thousand-activity library meant six full passes and six thousand `Calendar` calls, every
-    /// time the page re-rendered.
     private func runs(in year: Int) -> [Run] { derived.runsByYear[year] ?? [] }
 
-    /// The month a year card opens on: that year's copy of the month we are in now.
-    ///
-    /// It used to open on January, which is the beginning of the year and almost never what the
-    /// question was. Tapping 2023 in August is nearly always "what was I doing this time in 2023"
-    /// — the comparison a training year invites — and landing on January means scrolling past
-    /// seven months to ask it.
-    ///
-    /// A year rarely has every month, so the nearest one it does have stands in. Ties break toward
-    /// the later month: between June and October in an August gap, October is the one you can
-    /// scroll *back* from without leaving the year.
     private func openingMonthID(ofYear year: Int) -> String? {
         let cal = Calendar.current
         let months = derived.monthGroups.filter { cal.component(.year, from: $0.date) == year }
@@ -713,31 +484,11 @@ struct TimelineView: View {
         }?.id
     }
 
-    /// The most representative run for a year's hero image: the longest one that has a route.
     private func hero(in yearRuns: [Run]) -> Run? {
         yearRuns.filter(\.hasRoute).max { $0.distance < $1.distance } ?? yearRuns.first
     }
 
     private func open(_ run: Run) {
-        // As a tab, push. As a sheet, hand off to the map.
-        //
-        // This used to only do the second thing: select the run and clear `presentedSurface`,
-        // leaving HomeView's sheet router to present the detail. That worked while Timeline *was*
-        // a sheet HomeView had presented — clearing the surface dismissed it and the detail came
-        // up behind. Once Timeline became a tab there was nothing to dismiss and HomeView was on
-        // a different tab, so the tap set a selection that nobody presented and the thumbnail
-        // simply stopped responding.
-        //
-        // Pushing is also the better answer for a tab: you are in the Timeline, you open an
-        // activity, and Back returns you to the row you were looking at — rather than being
-        // thrown to a modal over a map you were not on.
-        // Push only — deliberately *not* `appModel.select(run)`.
-        //
-        // `select` sets `selectedRunID` as well as aiming the map, and HomeView's sheet router
-        // reads `selectedRunID` as "present this run". HomeView is still mounted on the map tab
-        // while you are here, so one tap opened the activity twice: a sheet rising from the
-        // bottom, and the pushed page behind it. The map still gets its camera command, so going
-        // back to the map lands on the activity you just read about.
         if embedded {
             appModel.focus(on: run)
             pushedRun = run
@@ -748,25 +499,16 @@ struct TimelineView: View {
     }
 }
 
-/// The photo a full-screen viewer is opened on. File-local: `RunDetailView` has its own, and one
-/// shared type in the global namespace for two call sites is not an abstraction, it is a name.
 private struct OpenedGalleryPhoto: Identifiable { let id: String }
 
-/// A large hero card for a single year: the year's standout route, with the year and totals
-/// laid over a darkening gradient.
 private struct YearCard: View {
     let year: Int
     let hero: Run?
     let count: Int
-    /// The plural noun for the count — "activities" for the All scope, else "runs" / "hikes" /
-    /// "rides" / "walks" — so a year of mixed activity never reads "398 runs".
     let countNoun: String
     let distanceMeters: Double
 
     var body: some View {
-        // The text is the primary (fixed-height) content; the photo + gradient are a clipped
-        // background sized to match, so the card is always 220 tall and the year/stats overlay
-        // always renders on top — regardless of the photo's aspect ratio.
         VStack(alignment: .leading) {
             Text(String(year))
                 .font(.etch(size: 34, weight: .bold))
@@ -795,8 +537,6 @@ private struct YearCard: View {
             }
         }
         .clipShape(.rect(cornerRadius: 20))
-        // Make the whole card tappable, not just the text glyphs — the photo and empty areas
-        // aren't hit-testable without an explicit content shape.
         .contentShape(.rect)
     }
 }

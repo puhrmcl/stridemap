@@ -54,6 +54,8 @@
 	<string>Etch does not write to Apple Health.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Etch finds photos you took during a run so they can appear with it. Your photos stay on your device.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Etch never saves to your Photos library. iOS requires this note for photo access.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

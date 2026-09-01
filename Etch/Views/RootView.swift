@@ -20,11 +20,19 @@ struct RootView: View {
     /// New users pick their activities and default view here before entering the app.
     @AppStorage("didCompleteSetup") private var didCompleteSetup = false
     // Observed so the root re-renders when the user toggles activities to/from all-off.
+    // `includeRides` must be here: without it, rides-only would look like "everything off"
+    // and bounce the user back into setup.
     @AppStorage("includeRuns") private var includeRuns = true
     @AppStorage("includeHikes") private var includeHikes = true
+    @AppStorage("includeRides") private var includeRides = true
     @AppStorage("includeWalks") private var includeWalks = false
 
-    private var allActivitiesOff: Bool { !includeRuns && !includeHikes && !includeWalks }
+    private var allActivitiesOff: Bool {
+        // Touch each AppStorage so a Settings toggle re-renders the root; the check itself
+        // is the shared definition so rides cannot be left out of "everything off".
+        _ = (includeRuns, includeHikes, includeRides, includeWalks)
+        return ActivitySettings.allOff
+    }
 
     /// The brand splash covers the app on launch, then fades away.
     @State private var showSplash = true
@@ -80,6 +88,13 @@ struct RootView: View {
         .animation(Theme.gentle, value: isReady)
         .animation(Theme.gentle, value: allActivitiesOff)
         .animation(Theme.gentle, value: didCompleteSetup)
+        // Toggling hikes/walks/rides must rebuild map overlays. HomeView keys overlay revision
+        // off drawable inputs; bumping here keeps that revision in lockstep with the type mask
+        // even when the map tab is already mounted.
+        .onChange(of: includeRuns) { _, _ in appModel.bumpMapContent() }
+        .onChange(of: includeHikes) { _, _ in appModel.bumpMapContent() }
+        .onChange(of: includeRides) { _, _ in appModel.bumpMapContent() }
+        .onChange(of: includeWalks) { _, _ in appModel.bumpMapContent() }
         .task(id: isReady) {
             guard isReady else { return }
             // Import on every launch, then keep observing for new workouts. This used to run

@@ -177,6 +177,7 @@ struct EtchTabView: View {
 /// button in this header; it is a tab of its own now, and a page should not carry a second door
 /// to somewhere the bar already goes.
 struct TimelineTab: View {
+    @Environment(AppModel.self) private var appModel
     @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
     /// The date span of whatever Timeline currently has on screen, written by it as you scroll.
     @State private var visibleSpan: String?
@@ -212,14 +213,17 @@ struct TimelineTab: View {
 
     /// What the history amounts to — shown under the title until a scroll reports a date span,
     /// which is the more useful answer while you are moving through it.
+    /// Derived from the scoped library, not the raw `@Query`, so a hikes-off / walks-off
+    /// setting (or a Runs-only selector) cannot caption the page with types that are hidden.
     private var summary: String? {
-        guard !runs.isEmpty else { return nil }
-        let metres = runs.reduce(0.0) { $0 + $1.distance }
+        let scoped = runs.scoped(to: appModel.activityScope)
+        guard !scoped.isEmpty else { return nil }
+        let metres = scoped.reduce(0.0) { $0 + $1.distance }
         // Named from the history rather than fixed at "activities", so the header agrees with
         // the year cards directly beneath it. Found by looking at the render: a history of
         // nothing but runs printed "220 activities" over three cards each captioned "N runs",
         // which reads as two parts of one screen disagreeing about what they are counting.
-        let count = "\(runs.count) \(ActivityScope.noun(for: runs))"
+        let count = "\(scoped.count) \(ActivityScope.noun(for: scoped))"
         return "\(count) · \(Format.distance(metres, decimals: 0))"
     }
 }
@@ -241,4 +245,3 @@ struct AchievementsTab: View {
         }
     }
 }
-

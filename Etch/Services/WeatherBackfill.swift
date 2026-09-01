@@ -46,7 +46,7 @@ enum WeatherBackfill {
     @discardableResult
     static func backfill(_ run: Run) async -> Bool {
         guard let lat = run.startLatitude, let lon = run.startLongitude else {
-            run.weatherBackfilled = true
+            markFilled(run)
             return true
         }
         let location = CLLocation(latitude: lat, longitude: lon)
@@ -58,7 +58,7 @@ enum WeatherBackfill {
             guard let hour = forecast.forecast.first(where: {
                 $0.date <= start && start < $0.date.addingTimeInterval(3600)
             }) ?? forecast.forecast.first else {
-                run.weatherBackfilled = true
+                markFilled(run)
                 return true
             }
             if run.weatherTemperatureC == nil {
@@ -77,11 +77,19 @@ enum WeatherBackfill {
             if run.weatherWindDirectionDeg == nil {
                 run.weatherWindDirectionDeg = hour.wind.direction.converted(to: .degrees).value
             }
-            run.weatherBackfilled = true
+            markFilled(run)
             return true
         } catch {
             return false
         }
+    }
+
+    /// A successful fill (data or a definitive empty hour) must bump `updatedAt` so screens
+    /// that cache on the newest edit — map overlays, Timeline — rebuild instead of showing
+    /// yesterday's weather-less tiles.
+    private static func markFilled(_ run: Run) {
+        run.weatherBackfilled = true
+        run.updatedAt = Date()
     }
 
     /// WeatherKit's taxonomy folded onto the app's small, legible set.

@@ -84,7 +84,16 @@ struct BookStudioView: View {
                     .colorScheme(.automatic)
                     .tintColor(UIColor(Theme.accent))
                     .onCancel { checkoutURL = nil }
-                    .onComplete { _ in checkoutURL = nil; dismiss() }
+                    .onComplete { event in
+                        CheckoutCompletion.record(
+                            event,
+                            productName: plan.subject.productName,
+                            sizeLabel: "\(plan.subject.menuLabel) · \(plan.pageCount) pages",
+                            sku: BookCatalog.prodigiSKU
+                        )
+                        checkoutURL = nil
+                        dismiss()
+                    }
                     .onFail { error in
                         checkoutURL = nil
                         orderError = error.localizedDescription
@@ -111,22 +120,12 @@ struct BookStudioView: View {
         )
     }
 
-    /// The subject dropdown.
-    ///
-    /// This was a segmented control, which is the wrong control for the job twice over: a segment
-    /// gets an equal share of the bar whatever it holds, so five years came out as five columns
-    /// too narrow for four digits and every one of them rendered as "…" — the years genuinely were
-    /// not showing. And a Collection's options are a nested list (Favorites, Races, then states,
-    /// then cities), which a segmented control cannot express at all. A menu sizes to its label,
-    /// nests, and grows with the history.
     private var subjectPicker: some View {
         Menu {
             switch kind {
             case .year:
                 ForEach(subjects) { option in subjectButton(option) }
             case .collection:
-                // The two that need no place data sit at the top level; places nest, because a
-                // long history carries dozens and a flat menu of them is an index, not a choice.
                 ForEach(subjects.filter { !$0.isPlace }) { subjectButton($0) }
                 let states = subjects.filter(\.isState)
                 if !states.isEmpty {
@@ -166,7 +165,6 @@ struct BookStudioView: View {
         }
     }
 
-    /// The book as a swipeable pager — each card is one page at the true A4-landscape aspect.
     private var pager: some View {
         TabView(selection: $currentPage) {
             ForEach(plan.pages.indices, id: \.self) { index in
@@ -199,14 +197,8 @@ struct BookStudioView: View {
                 .font(.etch(.footnote, weight: .semibold))
                 .foregroundStyle(.secondary)
 
-            // The proof is secondary once the book can be bought. Two filled accent capsules
-            // stacked would have given a check step and a commitment the same weight, and the
-            // one that costs $119 should not be the second of two identical buttons.
             orderButton
 
-            // A book is the piece most likely to be bought alongside something else — it is the
-            // object people reach for at the end of a year, next to a print of the race that made
-            // it. Buying it alone was the only thing this screen allowed.
             if canOrder {
                 AddToBagButton(isWorking: isAddingToBag,
                                isDisabled: orderPhase != nil || isExporting) {
@@ -248,7 +240,6 @@ struct BookStudioView: View {
         .padding(.bottom, 6)
     }
 
-    /// Preview pages render sequentially at a light scale; the pager fills in as they land.
     private func renderPreviews() async {
         previews = [:]
         currentPage = 0
@@ -262,8 +253,6 @@ struct BookStudioView: View {
         }
     }
 
-    /// Buying the book. Sits below the proof export, because a proof is a thing you check and an
-    /// order is a thing you commit to, and the page should not invite the second before the first.
     @ViewBuilder private var orderButton: some View {
         if canOrder {
             Button { order(.checkout) } label: {
@@ -295,9 +284,6 @@ struct BookStudioView: View {
         Task {
             defer { isAddingToBag = false }
             do {
-                // The proof and the production file are the same document, so an exported proof
-                // is reused rather than rendered twice — `exportPDF` writes one file per subject
-                // and returns that same path either way.
                 orderPhase = .rendering
                 var fileURL = proofURL
                 if fileURL == nil || !FileManager.default.fileExists(atPath: fileURL!.path) {
@@ -311,9 +297,6 @@ struct BookStudioView: View {
                     return
                 }
 
-                // Stable across reorders on purpose: the creation id is what lets a second copy
-                // of the 2026 book be reproduced rather than re-imagined. The asset id beneath it
-                // is fresh every time, so nothing frozen is ever overwritten.
                 let creationID = "book-\(plan.subject.slug)-\(plan.pageCount)p"
                 switch destination {
                 case .checkout:
@@ -369,15 +352,11 @@ struct BookStudioView: View {
     }
 }
 
-/// The checkout URL as an `Identifiable` sheet item. Deliberately file-local: `PhotoWallView`
-/// has its own, and a shared one would be a type in the global namespace for two call sites.
 private struct BookCheckoutTarget: Identifiable {
     let url: URL
     var id: String { url.absoluteString }
 }
 
-/// The proof button's look. Filled while the book cannot be ordered — it is then the only action
-/// on the page and should carry weight — and tinted once the order button exists above it.
 private struct BookSecondaryButton: ViewModifier {
     let prominent: Bool
 
