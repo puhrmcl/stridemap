@@ -11,19 +11,20 @@ enum PhotoLibrary {
     // MARK: Authorization
 
     static var status: PHAuthorizationStatus {
-        PHPhotoLibrary.authorizationStatus(for: .read)
+        PHPhotoLibrary.authorizationStatus(for: .readWrite)
     }
 
     static var isAuthorized: Bool {
         status == .authorized || status == .limited
     }
 
-    /// Requests read access, returning whether we ended up authorized (or limited).
-    /// `.read` not `.readWrite`: the app never writes to Photos, so it must not ask to.
+    /// Requests library access. Photos only offers `.addOnly` or `.readWrite` — there is
+    /// no read-only level — so we request `.readWrite` and never write. The Add usage
+    /// string in Info.plist is required for that request even though Etch does not save.
     @discardableResult
     static func requestAuthorization() async -> Bool {
         if status == .notDetermined {
-            let granted = await PHPhotoLibrary.requestAuthorization(for: .read)
+            let granted = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
             return granted == .authorized || granted == .limited
         }
         return isAuthorized
