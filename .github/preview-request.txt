@@ -13,16 +13,14 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b518: Studio's new front door.
+# Requested after the basemap went live: the map editor on Etch's own cartography.
 #
-#   studio-picks — opening Studio from an activity no longer asks "What are we making?". The
-#   curator reads the activity and lays out finished pieces (Gallery, Noir, Harbor, Memory when
-#   there are photos, Line), each rendered with the subject's own route, each buyable as shown.
-#   What to check: the cards render (not spinners), the type hierarchy reads as a gallery rather
-#   than a settings list, and tapping into a card is the editor seeded with that piece — though
-#   CI cannot tap, so that last part is code review plus device.
+#   map-studio — the harness forces the basemap on (SIMCTL_CHILD_ETCH_PREVIEW_BASEMAP=1), so the
+#   panel should be Etch's tiles from R2: muted streets in the edition's ink, land the color of
+#   the sheet, no Apple attribution, no labels. A blank or grey panel means tile fetches failed
+#   on the runner; Apple's look (its labels, its colors) means the snapshotter fell back.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=studio-picks
+screens=map-studio
 appearance=both
