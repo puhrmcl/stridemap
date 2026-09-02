@@ -33,7 +33,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    # A continental-US extract is ~1.5 GB at z12 metadata plus the bulk at z14–15 — the extract
+    # and its split parts both live on disk at once, so the work happens on /mnt (the runner's
+    # large scratch volume) and the original is deleted the moment it is split.
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
 
@@ -64,6 +67,8 @@ jobs:
       - name: Extract the region from the latest Protomaps build
         run: |
           set -e
+          sudo mkdir -p /mnt/basemap && sudo chown "$USER" /mnt/basemap
+          df -h / /mnt
           # The newest daily build, found by probing dates rather than trusting an index —
           # builds are named YYYYMMDD.pmtiles, and a one-byte range read proves one exists.
           BUILD=""
@@ -75,11 +80,11 @@ jobs:
           done
           [ -n "$BUILD" ] || { echo "::error::no Protomaps build found in the last 10 days"; exit 1; }
           echo "planet build: $BUILD"
-          ./pmtiles extract "https://build.protomaps.com/$BUILD" basemap.pmtiles \
+          ./pmtiles extract "https://build.protomaps.com/$BUILD" /mnt/basemap/basemap.pmtiles \
             --bbox="${{ steps.request.outputs.bbox }}" \
             --maxzoom="${{ steps.request.outputs.maxzoom }}"
-          ls -lh basemap.pmtiles
-          ./pmtiles show basemap.pmtiles
+          ls -lh /mnt/basemap/basemap.pmtiles
+          ./pmtiles show /mnt/basemap/basemap.pmtiles
 
       - name: Upload through the fulfilment worker
         env:
@@ -91,9 +96,11 @@ jobs:
           KEY="${{ steps.request.outputs.key }}"
           AUTH="Authorization: Bearer $TOKEN"
 
-          # 64 MB parts: inside the Worker request cap and its memory, and few enough that a
-          # state-sized archive is a couple of dozen sequential PUTs.
+          # 64 MB parts: inside the Worker request cap and its memory. The original is deleted
+          # the moment it is split — a nationwide archive and its parts don't both fit twice.
+          cd /mnt/basemap
           split -b 64m basemap.pmtiles part_
+          rm -f basemap.pmtiles
           COUNT=$(ls part_* | wc -l | xargs)
           echo "uploading $COUNT parts to $KEY"
 

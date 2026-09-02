@@ -34,6 +34,10 @@ crons = ["0 3 * * *"]
 [vars]
 # Prodigi API base. Sandbox by default — flip to https://api.prodigi.com when live.
 PRODIGI_BASE = "https://api.sandbox.prodigi.com"
+# Which archive the tile server reads. Rebuilds go to a fresh dated key and move this pointer —
+# the tile cache treats an archive as immutable under its key, so the same key must never hold
+# two different archives. basemap.pmtiles (the Arizona starter) stays in the bucket as rollback.
+BASEMAP_KEY = "basemap-us-20260902.pmtiles"
 
 [[r2_buckets]]
 binding = "ASSETS"

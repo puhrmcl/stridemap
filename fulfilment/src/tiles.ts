@@ -330,8 +330,11 @@ export async function serveTileJSON(env: TileEnv, origin: string): Promise<Respo
     tiles: [`${origin}/tiles/{z}/{x}/{y}.mvt`],
     minzoom: header.minZoom,
     maxzoom: header.maxZoom,
-    // ODbL. This has to reach anywhere the map is published, print included.
-    attribution: "© OpenStreetMap contributors",
+    // No attribution field, deliberately. MapLibre's snapshotter stamps whatever string is
+    // here into the corner of every snapshot image, which put a watermark on sellable panels
+    // AND defeated the app's blank-tile detector (the stamp made an empty map non-uniform).
+    // The ODbL credit is not dropped: the app bakes "© OpenStreetMap contributors" into every
+    // OSM panel itself, deliberately typeset, print included.
   }), {
     headers: {
       "Content-Type": "application/json",

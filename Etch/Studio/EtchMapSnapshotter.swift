@@ -69,7 +69,14 @@ enum EtchMapSnapshotter {
     /// Exact comparison is the conservative direction: it errs toward *trusting* the render, and
     /// the cost of a wrong "blank" is only a fallback to Apple.
     private static func isBlank(_ image: UIImage) -> Bool {
-        guard let cgImage = image.cgImage else { return true }
+        guard let full = image.cgImage else { return true }
+        // Judge the interior, not the corners. The snapshotter stamps its logo and attribution
+        // into the image's corners, and those few pixels made an out-of-coverage panel — a route
+        // outside the archive's bbox, rendered as bare paper — read as "not uniform, must be a
+        // map". A real map has content everywhere; a blank one is blank in the middle too.
+        let w = CGFloat(full.width), h = CGFloat(full.height)
+        let crop = CGRect(x: w * 0.14, y: h * 0.14, width: w * 0.72, height: h * 0.72)
+        guard let cgImage = full.cropping(to: crop) else { return true }
         let side = 96
         var pixels = [UInt8](repeating: 0, count: side * side * 4)
         let drew: Bool = pixels.withUnsafeMutableBytes { raw in
@@ -206,6 +213,10 @@ enum EtchMapSnapshotter {
                                             size: size)
         options.scale = scale
         options.coordinateBounds = frame.bounds
+        // No wordmark on a sellable panel. The OSM credit is baked in by the panel finisher —
+        // deliberately typeset — and the attribution string was removed from tiles.json so the
+        // snapshotter has nothing of its own to stamp.
+        options.showsLogo = false
 
         let snapshotter = MLNMapSnapshotter(options: options)
         let image: UIImage? = await withCheckedContinuation { continuation in
