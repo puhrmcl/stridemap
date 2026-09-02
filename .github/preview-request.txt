@@ -26,7 +26,9 @@
 screens=map-studio:bright
 appearance=light
 
-# Re-shot for b540: the Bright colour world specifically. The device showed Apple's map (its
-# labels, its shields, its watermark) behind Bright — a fallback, not our vivid style. This
-# variant seeds Bright directly so the shot proves whether the vivid OSM palette renders:
-# ours has NO labels, amber highways, green parks; Apple's is unmistakably labelled.
+# Re-shot for b541: the log capture found the killer — "unknown pbf field type exception"
+# from MapLibre decoding the archive's landuse layer, which only the vivid style referenced.
+# Every Bright snapshot died, the breaker tripped, and the session fell to Apple with
+# checkout locked. b541 drops that layer. This shot proves the vivid OSM palette renders:
+# ours has NO labels, amber highways, true-blue water; Apple's is unmistakably labelled.
+# (Parks are deferred until the landuse encoding is understood — no green expected yet.)
