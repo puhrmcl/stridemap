@@ -13,14 +13,15 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b527: the Gallery editor's layout row with the two new wide variants.
+# Requested for b530: the Photo Wall as a product page.
 #
-#   gallery-studio — Duo and Triptych now come in both grains: the original side-by-side
-#   columns, and new Duo Wide / Triptych Wide with the frames stacked as full-width bands.
-#   What to check: the LAYOUT row shows seven cards (Portfolio, Duo, Duo Wide, Triptych,
-#   Triptych Wide, Grid, Feature), and the two Wide thumbnails read as stacked rows.
+#   photo-wall — restructured to the Print Shop's shape: title/config/price/shipping block,
+#   the framed wall hung on the mockup wall, a frame-finish swatch row (eight colours), the
+#   wall's own controls, the order panel, and a Product details disclosure. What to check:
+#   the page reads top-to-bottom as a product page, the frame reads as an object on the wall,
+#   and the swatch row renders. Ordering shows the closed note in CI (no tokens).
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=gallery-studio
+screens=photo-wall,photo-wall@order
 appearance=light

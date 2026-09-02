@@ -370,7 +370,10 @@ private struct CartProofView: View {
 
     private var mouldingColor: Color {
         let finish = (item.finish ?? "").lowercased()
-        if item.productHandle == MedalFrameCatalog.shopifyHandle {
+        // The medal frame and the photo wall name their finishes in the catalog's own strings
+        // ("dark grey", "gold"), which the poster range's FrameFinish never carries.
+        if item.productHandle == MedalFrameCatalog.shopifyHandle
+            || item.productHandle == MultiPhotoFrameCatalog.shopifyHandle {
             return Color(hex: MedalFrameCatalog.mouldingHex(finish)) ?? .black
         }
         if let match = FrameFinish.allCases.first(where: { $0.prodigiAttribute == finish }) {

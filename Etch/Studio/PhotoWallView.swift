@@ -51,8 +51,13 @@ struct PhotoWallView: View {
     @State private var showingProof = false
     private let maxPhotos = MultiPhotoFrameCatalog.maxPhotos
 
-    /// The frame colour the order ships in — one source for the order line and the mockup.
-    private var wallFrame: String { MultiPhotoFrameCatalog.frameColours.first ?? "black" }
+    /// The frame colour the order ships in — chosen on the page, worn by the mockup, carried on
+    /// the order line. The catalog always offered eight finishes; the page used to hardcode the
+    /// first.
+    @State private var wallFrame = MultiPhotoFrameCatalog.frameColours.first ?? "black"
+
+    /// Whether the product-details panel is open. Starts open, like the Print Shop's.
+    @State private var specsExpanded = true
 
     enum Filter: Hashable {
         case all
@@ -169,11 +174,30 @@ struct PhotoWallView: View {
                         addPhotosButton
                     }
                 } else {
-                    VStack(spacing: 0) {
-                        preview
-                        controls
+                    // The product-page shape the Print Shop set: what it is and costs, the
+                    // object on a wall, its options, then the order — not a screenful of
+                    // thumbnails with a price at the bottom.
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            VStack(spacing: 26) {
+                                titleBlock.id("top")
+                                mockup
+                                framePicker.id("frame")
+                                wallControls.id("photos")
+                                orderPanel.id("order")
+                                specs.id("details")
+                            }
+                            .padding(20)
+                        }
+                        .onAppear {
+                            guard let anchor = ProcessInfo.processInfo
+                                .environment["ETCH_PREVIEW_SCROLL"], !anchor.isEmpty else { return }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                                proxy.scrollTo(anchor, anchor: .top)
+                            }
+                        }
                     }
-                    .background(Color(.systemGroupedBackground))
+                    .background(Theme.Palette.bone.opacity(0.35).ignoresSafeArea())
                 }
             }
             .navigationTitle("Photo Wall")
@@ -221,6 +245,9 @@ struct PhotoWallView: View {
                 Button("OK", role: .cancel) {}
             } message: { Text(orderError ?? "") }
             .onChange(of: filter) { excludedIDs = []; clampCount() }
+            // A different frame is a different order line; the photos are unchanged, so the
+            // approved proof stands.
+            .onChange(of: wallFrame) { preparedCart = nil }
             .onAppear {
                 seedFromAppFilter()
                 clampCount()
@@ -234,30 +261,132 @@ struct PhotoWallView: View {
         }
     }
 
-    /// The wall as the object it ships as: the photo grid behind the multi-aperture frame's
-    /// moulding, not a bare grid of thumbnails. The frame is drawn around the whole grid because
-    /// that is what the product is — one framed piece, however many photographs it holds.
-    private var preview: some View {
-        ScrollView {
+    // MARK: The title block — the configured product, named and priced, above the image.
+
+    private var titleBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Photo Wall")
+                .font(.etch(.title2, weight: .bold))
+            Text(configurationLine)
+                .font(.etch(.subheadline))
+                .foregroundStyle(.secondary)
+            Text(MultiPhotoFrameCatalog.price)
+                .font(.etch(.title3, weight: .semibold))
+                .monospacedDigit()
+            DeliveryNote()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(.easeInOut(duration: 0.15), value: shownCells.count)
+    }
+
+    /// "20 × 30″ · 40 photos · Black frame" — every choice the order carries, in one line.
+    private var configurationLine: String {
+        let size = MultiPhotoFrameCatalog.size(forPhotos: shownCells.count)
+        return "\(size.label) · \(shownCells.count) photos · \(wallFrame.capitalized) frame"
+    }
+
+    // MARK: The object
+
+    /// The wall as the piece it ships as: the photo grid behind the multi-aperture frame's
+    /// moulding, mounted, hung on the mockup wall. Cells stay tappable — tap to swap one out.
+    private var mockup: some View {
+        ZStack {
+            MockupWall()
             FramedPrintMockup(
                 moulding: Color(hex: MedalFrameCatalog.mouldingHex(wallFrame)) ?? .black,
                 hasGrain: wallFrame.contains("natural") || wallFrame.contains("brown"),
-                mouldingWidth: 12
+                mouldingWidth: 10
             ) {
                 LazyVGrid(
-                    columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: columnCount),
-                    spacing: 4
+                    columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: columnCount),
+                    spacing: 3
                 ) {
                     ForEach(shownCells) { item in
                         cell(item)
                             .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { remove(item) } }
                     }
                 }
-                .padding(10)
+                .padding(8)
                 .background(Theme.Artwork.mountBoard)
             }
-            .padding(24)
+            .padding(28)
         }
+        .clipShape(.rect(cornerRadius: 18))
+        .animation(.easeInOut(duration: 0.2), value: wallFrame)
+    }
+
+    // MARK: Frame finish
+
+    private var framePicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Text("Frame").font(.etch(.subheadline, weight: .semibold))
+                Text("—").foregroundStyle(.tertiary)
+                Text(wallFrame.capitalized)
+                    .font(.etch(.subheadline))
+                    .foregroundStyle(.secondary)
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(MultiPhotoFrameCatalog.frameColours, id: \.self) { option in
+                        Button { wallFrame = option } label: {
+                            Circle()
+                                .fill(Color(hex: MedalFrameCatalog.mouldingHex(option)) ?? .gray)
+                                .frame(width: 32, height: 32)
+                                .overlay(Circle().strokeBorder(.black.opacity(0.15), lineWidth: 0.5))
+                                .padding(3)
+                                .overlay {
+                                    Circle().strokeBorder(
+                                        wallFrame == option ? Theme.accent : .clear, lineWidth: 2
+                                    )
+                                }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(option)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: Product details
+
+    private var specs: some View {
+        VStack(spacing: 0) {
+            DisclosureGroup(isExpanded: $specsExpanded) {
+                VStack(alignment: .leading, spacing: 14) {
+                    specRow("Overview", "Your photographs, one to an aperture, in a single framed piece. Printed and framed to order.")
+                    specRow("Materials", "Wood frame in eight finishes · white mount · your photos printed to each aperture")
+                    specRow("In the box", "One assembled frame with every photograph mounted — ready to hang.")
+                    specRow("Print", {
+                        let size = MultiPhotoFrameCatalog.size(forPhotos: shownCells.count)
+                        return "\(size.label) · \(size.columns) × \(size.rows) grid · \(Int(size.printPixels.width)) × \(Int(size.printPixels.height)) px at 300 DPI"
+                    }())
+                }
+                .padding(.top, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } label: {
+                Text("Product details")
+                    .font(.etch(.headline))
+            }
+            .tint(.primary)
+        }
+        .padding(16)
+        .background(.regularMaterial, in: .rect(cornerRadius: 18))
+    }
+
+    private func specRow(_ title: String, _ body: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.etch(.subheadline, weight: .semibold))
+            Text(body)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func cell(_ item: WallCell) -> some View {
@@ -296,7 +425,8 @@ struct PhotoWallView: View {
         screenshotRunIDs = Set(coverByRun.filter { shots.contains($0.1) }.map(\.0))
     }
 
-    private var controls: some View {
+    /// Choosing what hangs in the frame: filter, order, count.
+    private var wallControls: some View {
         VStack(spacing: 12) {
             HStack(spacing: 10) {
                 filterMenu
@@ -308,7 +438,6 @@ struct PhotoWallView: View {
                 Stepper("Photos: \(shownCells.count)", value: $count, in: 1...maxCount)
                     .font(.etch(.subheadline, weight: .medium))
             }
-            .frame(maxWidth: 340)
             Text(MultiPhotoFrameCatalog.fitDescription(forPhotos: shownCells.count))
                 .font(.etch(.caption, weight: .medium))
                 .foregroundStyle(Theme.accent)
@@ -322,15 +451,22 @@ struct PhotoWallView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(Theme.accent)
             }
-            Text("Tap a photo to swap it out.")
+            Text("Tap a photo in the frame to swap it out.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity)
+        .background(.regularMaterial, in: .rect(cornerRadius: 18))
+    }
+
+    private var orderPanel: some View {
+        VStack(spacing: 12) {
             orderButton
         }
-        .padding(.vertical, 16)
-        .padding(.horizontal, 24)
+        .padding(16)
         .frame(maxWidth: .infinity)
-        .background(.regularMaterial)
+        .background(.regularMaterial, in: .rect(cornerRadius: 18))
     }
 
     private var canOrder: Bool {
@@ -351,17 +487,15 @@ struct PhotoWallView: View {
                     .multilineTextAlignment(.center)
             }
             .padding(14)
-            .frame(maxWidth: 340)
+            .frame(maxWidth: .infinity)
             .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 14))
         }
         if canOrder, !shownCells.isEmpty {
-            DeliveryNote()
             // The proof first: the wall's own poster render, full screen, approved before
             // either order path unlocks.
             ProofGateButton(approved: proofApproved,
                             action: { showingProof = true },
                             viewAgain: { showingProof = true })
-                .frame(maxWidth: 340)
             if let preparedCart, ApplePayConfig.isConfigured {
                 PreparedWalletPanel(
                     cart: preparedCart,
@@ -377,7 +511,6 @@ struct PhotoWallView: View {
                     onFail: { orderError = $0 },
                     openHosted: { checkoutURL = preparedCart.checkoutURL }
                 )
-                .frame(maxWidth: 340)
             } else {
                 Button { order(.checkout) } label: {
                     Group {
@@ -402,16 +535,16 @@ struct PhotoWallView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(orderPhase != nil || !proofApproved)
-                .frame(maxWidth: 340)
             }
             AddToBagButton(isWorking: isAddingToBag,
                            isDisabled: orderPhase != nil || !proofApproved) {
                 order(.bag)
             }
-            .frame(maxWidth: 340)
-            Text(MultiPhotoFrameCatalog.fitDescription(forPhotos: shownCells.count))
-                .font(.caption2)
+            Text("Secure checkout with Apple Pay or card. Framed to order and shipped to your door.")
+                .font(.caption)
                 .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
         }
     }
 
@@ -474,7 +607,7 @@ struct PhotoWallView: View {
                         productHandle: MultiPhotoFrameCatalog.shopifyHandle,
                         finishAttribute: frame,
                         title: "Photo Wall",
-                        detail: "\(size.label) · \(items.count) photos",
+                        detail: "\(size.label) · \(items.count) photos · \(frame.capitalized) frame",
                         priceCents: MultiPhotoFrameCatalog.priceCents,
                         onPhase: { orderPhase = $0 }
                     )
