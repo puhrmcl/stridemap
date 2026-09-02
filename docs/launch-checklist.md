@@ -173,20 +173,26 @@ Each fails differently, so stop at the first failure rather than changing two th
 
 ## 10 · The basemap — what lets the *map* posters be sold
 
-Not a launch blocker (contour, paper and photo pieces sell without it) but it is the signature
-product. Apple licenses its maps for display, not merchandise, so every map-panel edition
-refuses to print until Etch's own basemap is live. The pipeline exists end to end; one object
-is missing from the bucket.
+**Done, 2026-09-02.** The Arizona basemap (bbox in `.github/basemap-request.txt`, maxzoom 15,
+~520 MB) was extracted from the Protomaps planet build, uploaded through the worker's multipart
+endpoints, and verified with a real tile fetch — all green in `Build basemap`. Config v4 set
+`"basemapReady": true`, and the map-studio preview shots confirm the editor renders Etch's own
+cartography. b522 bakes the ODbL credit ("© OpenStreetMap contributors") into every OSM panel,
+so it travels to the printed sheet by construction.
 
-1. Edit `.github/basemap-request.txt` (the Arizona default is fine to start) and commit — the
-   **Build basemap** workflow extracts the region from the public Protomaps build and uploads it
-   through the fulfilment worker with the `ETCH_UPLOAD_TOKEN` the repo already holds. No
-   credentials to create anywhere.
-2. When green: set `"basemapReady": true` in `fulfilment/config/app.json`, bump its version,
-   commit. Every install flips to Etch cartography on its next config refresh; map editions
-   become printable. Flip it back the same way if tiles ever misbehave.
-3. Before the first live map-print sale, confirm the OpenStreetMap attribution line appears on
-   the printed sheet (ODbL requires it).
+What remains, none of it blocking:
+
+1. **Coverage is Arizona only.** A route outside the bbox renders blank tiles, trips the blank
+   detector, and the piece falls back to Apple — display-only, honestly marked unsellable.
+   Widen by editing `basemap-request.txt` (sizes and the dated-key rebuild rule are documented
+   in the file); a state is 1–3 GB, the western US nears the runner's disk ceiling.
+2. **Satellite stays display-only.** OSM is vector data with no aerial imagery; selling a
+   satellite print is a separate licensing decision, not a pipeline gap.
+3. On the first device build ≥ b522, eyeball the credit line in the map panel's bottom-right
+   corner (CI's downscaled shots can't resolve 7pt type).
+
+If tiles ever misbehave: set `basemapReady` back to `false`, bump the version, commit — every
+install falls back to Apple for display within a config refresh.
 
 Full reasoning and the widen-the-region plan: [`studio-redesign.md`](studio-redesign.md).
 
