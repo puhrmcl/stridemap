@@ -229,6 +229,9 @@ enum EtchMapSnapshotter {
         guard canRender(edition), coordinates.count > 1, size.width > 0, size.height > 0 else {
             return nil
         }
+        #if DEBUG
+        probeOnce()
+        #endif
         guard let styleURL = styleFile(for: edition, ground: ground) else { return nil }
 
         let frame = Frame.fitting(coordinates, aspect: Double(size.width / size.height))
@@ -268,6 +271,38 @@ enum EtchMapSnapshotter {
         trippedAt = nil
         return Snapshot(image: image, frame: frame)
     }
+
+    #if DEBUG
+    /// One-shot wire diagnostics for the CI screenshot rig, keyed off its env var.
+    ///
+    /// Exists because "unknown pbf field type exception" killed every snapshot while the same
+    /// tiles, fetched with curl from another network, decode perfectly. The open question is what
+    /// the *client in the failing environment* receives: a gzip body's first byte (0x1f) read as
+    /// a protobuf key is field 3, wire type 7 — precisely the exception MapLibre throws — so if
+    /// this logs a `1f8b` head, the bytes are arriving still compressed and the fix belongs in
+    /// the worker. A `1a…` head means URLSession is fine and the fault is inside MapLibre.
+    private static var probed = false
+    private static func probeOnce() {
+        guard !probed,
+              ProcessInfo.processInfo.environment["ETCH_PREVIEW_BASEMAP"] == "1" else { return }
+        probed = true
+        Task.detached {
+            for path in ["tiles/tiles.json", "tiles/12/776/1645.mvt"] {
+                let url = CommerceConfig.workerBase.appendingPathComponent(path)
+                do {
+                    let (data, response) = try await URLSession.shared.data(from: url)
+                    let http = response as? HTTPURLResponse
+                    let head = data.prefix(8).map { String(format: "%02x", $0) }.joined()
+                    NSLog("basemap probe %@ → %d, %d bytes, head %@, ce=%@", path,
+                          http?.statusCode ?? -1, data.count, head,
+                          http?.value(forHTTPHeaderField: "Content-Encoding") ?? "none")
+                } catch {
+                    NSLog("basemap probe %@ failed: %@", path, error.localizedDescription)
+                }
+            }
+        }
+    }
+    #endif
 
     // MARK: The style on disk
 

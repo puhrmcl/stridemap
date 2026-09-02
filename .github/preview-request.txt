@@ -26,7 +26,11 @@
 screens=map-studio:bright
 appearance=light
 
-# Re-shot for b541: the log capture found the killer — "unknown pbf field type exception"
+# Re-shot for b542: the harness now logs a wire probe ("basemap probe …") — the first bytes
+# of a tile as URLSession delivers them. head 1f8b = still gzipped (worker-side fix);
+# head 1a… = clean protobuf (MapLibre-side fault). Read it from the basemap log dump.
+#
+# b541's note, kept for context: the log capture found the killer — "unknown pbf field type exception"
 # from MapLibre decoding the archive's landuse layer, which only the vivid style referenced.
 # Every Bright snapshot died, the breaker tripped, and the session fell to Apple with
 # checkout locked. b541 drops that layer. This shot proves the vivid OSM palette renders:
