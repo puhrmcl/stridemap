@@ -236,12 +236,25 @@ struct RunDetailView: View {
                 for: run, size: CGSize(width: 1000, height: 1000))
         }
         var items: [Any] = [run.shareSummary]
-        if let routeShareImage { items.append(routeShareImage) }
         if let url = run.appleMapsURL { items.append(url) }
-        for identifier in photoIDs {
-            if let photo = await PhotoLibrary.fullImage(for: identifier) {
-                items.append(photo)
-            }
+
+        // Images travel as temporary FILES, not `UIImage` objects. The distinction is the whole
+        // bug this replaces: several share targets — Messages first among them — keep the text
+        // and the link but silently drop raw images handed to the share sheet, so the map PNG
+        // and every chosen photo arrived nowhere. A file URL is the currency everything accepts:
+        // it has a name, a thumbnail, and an attachment slot in every target.
+        let shareDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("activity-share-\(run.id.uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: shareDir, withIntermediateDirectories: true)
+        if let routeShareImage, let png = routeShareImage.pngData() {
+            let file = shareDir.appendingPathComponent("Route Map.png")
+            if (try? png.write(to: file)) != nil { items.append(file) }
+        }
+        for (index, identifier) in photoIDs.enumerated() {
+            guard let photo = await PhotoLibrary.fullImage(for: identifier),
+                  let jpeg = photo.jpegData(compressionQuality: 0.9) else { continue }
+            let file = shareDir.appendingPathComponent("Photo \(index + 1).jpg")
+            if (try? jpeg.write(to: file)) != nil { items.append(file) }
         }
         AppShare.present(items)
     }
