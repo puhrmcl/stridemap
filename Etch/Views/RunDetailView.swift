@@ -52,6 +52,8 @@ struct RunDetailView: View {
     /// A rendered PNG of the run's route over a map, prepared in the background so "Share Activity"
     /// can attach it alongside the text summary. Nil until ready (or for a route-less run).
     @State private var routeShareImage: UIImage?
+    /// Chooses which of the activity's photos join the share — only shown when it has any.
+    @State private var showSharePhotoPicker = false
 
     private struct PhotoSelection: Identifiable { let id: String }
 
@@ -152,24 +154,13 @@ struct RunDetailView: View {
                     HStack(spacing: 14) {
                         Menu {
                             Button {
-                                // Share the text summary, a PNG of the map (the route when there is
-                                // one, otherwise the place), and an Apple Maps link the recipient can
-                                // tap to open the location — all in one share.
-                                //
-                                // The PNG is rendered here if the background pass hasn't finished —
-                                // it used to be skipped silently when Share was tapped inside the
-                                // first couple of seconds, so the one attachment the share is really
-                                // about arrived only sometimes.
-                                Task {
-                                    if routeShareImage == nil,
-                                       run.hasMapLocation || run.coordinates.count > 1 {
-                                        routeShareImage = await PosterMap.sharePanel(
-                                            for: run, size: CGSize(width: 1000, height: 1000))
-                                    }
-                                    var items: [Any] = [run.shareSummary]
-                                    if let routeShareImage { items.append(routeShareImage) }
-                                    if let url = run.appleMapsURL { items.append(url) }
-                                    AppShare.present(items)
+                                // An activity with photos first asks which of them come along;
+                                // one without shares straight away. Everything else — details
+                                // text, route map, location — always travels.
+                                if run.photoReferences.isEmpty {
+                                    Task { await shareActivity(photoIDs: []) }
+                                } else {
+                                    showSharePhotoPicker = true
                                 }
                             } label: {
                                 Label("Share Activity", systemImage: "square.and.arrow.up")
@@ -217,6 +208,42 @@ struct RunDetailView: View {
             guard routeShareImage == nil, run.hasMapLocation || run.coordinates.count > 1 else { return }
             routeShareImage = await PosterMap.sharePanel(for: run, size: CGSize(width: 1000, height: 1000))
         }
+        .sheet(isPresented: $showSharePhotoPicker) {
+            SharePhotoPicker(identifiers: run.photoReferences) { picked in
+                Task { await shareActivity(photoIDs: picked) }
+            }
+            .presentationDetents([.medium, .large])
+        }
+    }
+
+    /// Assembles and presents the activity share: the text summary, a PNG of the map (the route
+    /// when there is one, otherwise the place), an Apple Maps link the recipient can tap to open
+    /// the location, and any photos the picker chose — all in one share.
+    ///
+    /// The map PNG is rendered here if the background pass hasn't finished — it used to be
+    /// skipped silently when Share was tapped inside the first couple of seconds, so the one
+    /// attachment the share is really about arrived only sometimes.
+    private func shareActivity(photoIDs: [String]) async {
+        // When the picker sheet just dismissed, presenting immediately would anchor the share
+        // sheet to the view controller that is mid-dismissal and lose it. Give the dismissal
+        // its beat; the photo loads below usually cover it anyway.
+        if !photoIDs.isEmpty {
+            try? await Task.sleep(nanoseconds: 450_000_000)
+        }
+        if routeShareImage == nil,
+           run.hasMapLocation || run.coordinates.count > 1 {
+            routeShareImage = await PosterMap.sharePanel(
+                for: run, size: CGSize(width: 1000, height: 1000))
+        }
+        var items: [Any] = [run.shareSummary]
+        if let routeShareImage { items.append(routeShareImage) }
+        if let url = run.appleMapsURL { items.append(url) }
+        for identifier in photoIDs {
+            if let photo = await PhotoLibrary.fullImage(for: identifier) {
+                items.append(photo)
+            }
+        }
+        AppShare.present(items)
     }
 
     /// Stands in for the map on a route-less run (indoor/treadmill, or a GPS-less import) that

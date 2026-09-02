@@ -246,6 +246,9 @@ struct PreviewHarnessView: View {
                            material: materialVariant(from: name))
                 case "gallery-studio":  studio(family: .gallery)
                 case "detail":          detail
+                // The share-photo chooser, rendered directly rather than raised as a sheet —
+                // CI photographs a screen, not a tap sequence.
+                case "detail:share-photos": sharePhotoPicker
                 default:                StudioHomeView(isHome: true)
                 }
             }
@@ -315,6 +318,14 @@ struct PreviewHarnessView: View {
     @ViewBuilder private var detail: some View {
         if let subject {
             NavigationStack { RunDetailView(run: subject) }
+        } else {
+            Color(.systemBackground)
+        }
+    }
+
+    @ViewBuilder private var sharePhotoPicker: some View {
+        if let run = allRuns.first(where: { $0.photoReferences.count >= 3 }) {
+            SharePhotoPicker(identifiers: run.photoReferences) { _ in }
         } else {
             Color(.systemBackground)
         }

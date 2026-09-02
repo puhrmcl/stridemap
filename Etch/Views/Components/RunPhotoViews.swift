@@ -251,3 +251,82 @@ private struct FullPhoto: View {
         }
     }
 }
+
+/// Chooses which of an activity's photos travel with its share.
+///
+/// Only offered when the activity has photos — a photo-less run shares straight away. Everything
+/// else in the share (the details text, the route map, the Apple Maps location) always goes; this
+/// sheet decides only the photographs, because those are the personal part: a race with thirty
+/// photos does not want all thirty in one message, and which three it does want is not a call
+/// the app can make.
+struct SharePhotoPicker: View {
+    let identifiers: [String]
+    /// Called with the chosen identifiers, in the activity's own photo order.
+    let onShare: ([String]) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    /// Everything starts selected: the common case is "share it all", one tap away, and pruning
+    /// two photos is less work than picking eight.
+    @State private var selected: Set<String>
+
+    init(identifiers: [String], onShare: @escaping ([String]) -> Void) {
+        self.identifiers = identifiers
+        self.onShare = onShare
+        _selected = State(initialValue: Set(identifiers))
+    }
+
+    private var chosen: [String] { identifiers.filter { selected.contains($0) } }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 10)], spacing: 10) {
+                    ForEach(identifiers, id: \.self) { identifier in
+                        Button {
+                            if selected.contains(identifier) {
+                                selected.remove(identifier)
+                            } else {
+                                selected.insert(identifier)
+                            }
+                        } label: {
+                            RunPhotoThumbnail(identifier: identifier, size: 96)
+                                .overlay(alignment: .topTrailing) {
+                                    Image(systemName: selected.contains(identifier)
+                                          ? "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 20))
+                                        .symbolRenderingMode(.palette)
+                                        .foregroundStyle(.white, Theme.accent)
+                                        .shadow(radius: 2)
+                                        .padding(6)
+                                }
+                                .opacity(selected.contains(identifier) ? 1 : 0.5)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 16)
+
+                Text("The share always includes your activity details, the route map, and the location.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+            }
+            .navigationTitle("Include Photos")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(chosen.isEmpty ? "Share" : "Share (\(chosen.count))") {
+                        let picked = chosen
+                        dismiss()
+                        onShare(picked)
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+    }
+}

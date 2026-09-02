@@ -23,8 +23,12 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=map-studio:terrain,map-studio:satellite
+screens=detail:share-photos
 appearance=light
+
+# b545: sharing an activity that has photos now asks which of them come along. The shot
+# should show the "Include Photos" sheet: a grid of the seeded run's stand-in photos, all
+# checked, a footnote that details/map/location always travel, Cancel, and "Share (N)".
 
 # b544: the map stack goes fully owned. map-studio:terrain should show real hillshade
 # relief (Terrarium elevation via the worker) under the muted sage streets; map-studio:
