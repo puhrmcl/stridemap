@@ -245,7 +245,9 @@ enum EtchMapSnapshotter {
         let snapshotter = MLNMapSnapshotter(options: options)
         let image: UIImage? = await withCheckedContinuation { continuation in
             snapshotter.start { snapshot, error in
-                if let error { print("basemap snapshot failed: \(error.localizedDescription)") }
+                // NSLog, not print: the unified log is what CI can read back from a simulator,
+                // and a fallback in a screenshot is only diagnosable with its reason beside it.
+                if let error { NSLog("basemap snapshot failed: %@", error.localizedDescription) }
                 continuation.resume(returning: snapshot?.image)
             }
         }
@@ -258,7 +260,7 @@ enum EtchMapSnapshotter {
         guard !isBlank(image) else {
             noteBlank()
             if blankRuns >= blankLimit {
-                print("basemap: \(blankLimit) blank renders — pausing for \(Int(coolDown))s before retrying")
+                NSLog("basemap: %d blank renders — pausing %ds before retrying", blankLimit, Int(coolDown))
             }
             return nil
         }

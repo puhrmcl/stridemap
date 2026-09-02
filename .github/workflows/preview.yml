@@ -137,7 +137,10 @@ jobs:
               # Seeding and the first compositions need a moment; anything backed by an Apple
               # map snapshot needs considerably longer on a CI runner.
               case "$SCREEN" in
-                home|map-studio|gallery-studio|detail) sleep 30 ;;
+                # Map studio composes the preview plus a strip of layout thumbnails, each a
+                # MapLibre snapshot — 30s caught it mid-composition twice.
+                map-studio*) sleep 75 ;;
+                home|gallery-studio|detail) sleep 30 ;;
                 # The engine check writes a real 7200 × 10800 sheet — 78 million pixels through
                 # an unoptimised Debug build on a shared runner.
                 print-engine) sleep 90 ;;
@@ -146,6 +149,11 @@ jobs:
               # ':' picks a variant and '@' a section; keep both out of the filename.
               SHOT="$(echo "$SCREEN-$MODE" | tr ':@' '--')"
               xcrun simctl io "$UDID" screenshot "$SHOT.png" || true
+
+              # The basemap diagnostics, so a fallback in the shot comes with its reason.
+              xcrun simctl spawn "$UDID" log show --last 3m \
+                --predicate 'eventMessage CONTAINS "basemap"' --style compact 2>/dev/null \
+                | grep -i basemap | head -20 || true
 
               # A screen that writes a report reports in text too. Screenshots have to travel
               # back to the session as base64, and four of them is most of a megabyte; a verdict
