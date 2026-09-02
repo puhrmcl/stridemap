@@ -1,0 +1,121 @@
+# Fetches real tiles from the fulfilment worker and decodes them the way MapLibre would.
+#
+# Exists because "unknown pbf field type exception" killed every basemap snapshot on device
+# and in the preview rig, and nothing in the serving path ever *decoded* a tile: the archive
+# build's verify step checked HTTP 200 and a byte count, which garbage passes. This walks the
+# protobuf wire format byte by byte — the same walk protozero does inside MapLibre — so a tile
+# that would throw there fails here, with the offending byte offset and the layer names of
+# tiles that do parse.
+#
+# The session's egress proxy can't reach workers.dev, so the probe runs here.
+
+name: Diagnose tiles
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/rebrand-etch]
+    paths:
+      - ".github/workflows/diagnose-tiles.yml"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch and decode tiles
+        run: |
+          set -e
+          BASE=https://etch-fulfilment.clintpuhrmann.workers.dev
+
+          echo "── tiles.json"
+          curl -sS "$BASE/tiles/tiles.json"
+          echo; echo
+
+          cat > decode.py <<'PY'
+          import sys, gzip
+
+          def walk(data, depth=0, max_depth=3):
+              """protozero's walk: yields (field, wiretype) or raises like MapLibre would."""
+              i, n = 0, len(data)
+              fields = []
+              while i < n:
+                  start = i
+                  # varint key
+                  key, shift = 0, 0
+                  while True:
+                      if i >= n: raise ValueError(f"truncated varint key at {start}")
+                      b = data[i]; i += 1
+                      key |= (b & 0x7F) << shift; shift += 7
+                      if not (b & 0x80): break
+                  field, wt = key >> 3, key & 7
+                  if wt == 0:      # varint
+                      while i < n and data[i] & 0x80: i += 1
+                      i += 1
+                  elif wt == 1: i += 8
+                  elif wt == 5: i += 4
+                  elif wt == 2:    # length-delimited
+                      ln, shift = 0, 0
+                      while True:
+                          if i >= n: raise ValueError(f"truncated length at {start}")
+                          b = data[i]; i += 1
+                          ln |= (b & 0x7F) << shift; shift += 7
+                          if not (b & 0x80): break
+                      if i + ln > n: raise ValueError(f"field {field} overruns buffer at {start} (len {ln}, have {n-i})")
+                      fields.append((field, data[i:i+ln]))
+                      i += ln
+                      continue
+                  else:
+                      raise ValueError(f"unknown pbf field type {wt} at byte {start} (field {field})")
+                  fields.append((field, None))
+              return fields
+
+          raw = open(sys.argv[1], 'rb').read()
+          label = sys.argv[2]
+          print(f"{label}: {len(raw)} bytes, magic {raw[:2].hex() if raw else '(empty)'}")
+          if not raw:
+              sys.exit(0)
+          if raw[:2] == b'\x1f\x8b':
+              try:
+                  raw = gzip.decompress(raw)
+                  print(f"  gunzipped to {len(raw)} bytes")
+              except Exception as e:
+                  print(f"  GUNZIP FAILED: {e}"); sys.exit(1)
+          try:
+              layers = [v for f, v in walk(raw) if f == 3 and v is not None]
+              names = []
+              for lay in layers:
+                  for f, v in walk(lay):
+                      if f == 1 and v is not None:
+                          names.append(v.decode('utf-8', 'replace'))
+                          break
+              print(f"  DECODES OK — {len(layers)} layers: {', '.join(names)}")
+          except ValueError as e:
+              print(f"  DECODE FAILED — {e}")
+              print(f"  first 32 bytes: {raw[:32].hex()}")
+              sys.exit(1)
+          PY
+
+          # Gilbert, AZ — where the preview harness composes its marathon — at the zooms the
+          # style actually pulls: overview through building-level.
+          FAIL=0
+          for Z in 8 10 12 14 15; do
+            read X Y <<< $(python3 -c "
+          import math
+          lon, lat, z = -111.789, 33.352, $Z
+          n = 2**z
+          x = int((lon+180)/360*n)
+          y = int((1-math.log(math.tan(math.radians(lat))+1/math.cos(math.radians(lat)))/math.pi)/2*n)
+          print(x, y)")
+            URL="$BASE/tiles/$Z/$X/$Y.mvt"
+            echo "── $URL"
+            # Exactly as URLSession asks: gzip accepted, and curl inflates on Content-Encoding.
+            HDRS=$(curl -sS -D - -o tile.bin --compressed -H "Accept-Encoding: gzip" "$URL" | tr -d '\r')
+            echo "$HDRS" | grep -iE "^(HTTP|content-encoding|content-length|content-type|cf-)" || true
+            python3 decode.py tile.bin "z$Z (as URLSession sees it)" || FAIL=1
+            # And the raw bytes, no decoding, to see what is actually stored/served.
+            curl -sS -o raw.bin -H "Accept-Encoding: identity" "$URL"
+            python3 decode.py raw.bin "z$Z (raw, identity)" || FAIL=1
+            echo
+          done
+          exit $FAIL
