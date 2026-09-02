@@ -232,7 +232,7 @@ struct BookStudioView: View {
 
             if let proofURL {
                 ShareLink(item: proofURL) {
-                    Label("Share Proof PDF", systemImage: "square.and.arrow.up")
+                    Label("Download Proof PDF", systemImage: "arrow.down.doc")
                         .modifier(BookSecondaryButton(prominent: !canOrder))
                 }
             } else {
