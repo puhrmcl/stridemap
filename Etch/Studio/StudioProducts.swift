@@ -327,6 +327,11 @@ enum PosterHangerCatalog {
     /// area — identical to `GLOBAL-HGE-24X36` and `GLOBAL-CFP-24X36`.** The hanger is a drop-in
     /// finish for artwork the Studio already composes, on the same EMA 200gsm stock as the
     /// framed line. No new geometry, no new render.
+    /// Probed against the live catalog 2026-09-02: **no landscape hanger exists for the 2:3
+    /// line.** 24X36-LAND, 16X24-LAND and 12X18-LAND all 404 in every batten width tried; the
+    /// only landscape hanger Prodigi makes is the 3:4 `80-24X32-LAND` below. This is why the
+    /// shop refuses the hanger finish for landscape pieces — the wood for them does not exist —
+    /// and offering the 24×32 would mean composing to a new 3:4 aspect and pricing it first.
     static let confirmed = [
         "POSTER-HANGER-20-6X8-PORT":     CGSize(width: 1800, height: 2400),
         "POSTER-HANGER-30-12X12-SQUARE": CGSize(width: 3600, height: 3600),
