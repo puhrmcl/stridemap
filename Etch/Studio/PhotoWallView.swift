@@ -45,6 +45,10 @@ struct PhotoWallView: View {
     /// The rendered-and-uploaded cart behind the wallet buttons; dropped whenever the wall's
     /// contents change, because the uploaded file no longer matches what's on screen.
     @State private var preparedCart: ShopifyStorefront.Cart?
+    /// The customer has inspected the wall's poster full screen and approved it. Ordering stays
+    /// locked until then; any change to the wall's contents revokes it.
+    @State private var proofApproved = false
+    @State private var showingProof = false
     private let maxPhotos = MultiPhotoFrameCatalog.maxPhotos
 
     /// The frame colour the order ships in — one source for the order line and the mockup.
@@ -223,6 +227,9 @@ struct PhotoWallView: View {
             }
             .task { detectScreenshots() }
             .task(id: renderKey) { await loadAndRender() }
+            .fullScreenCover(isPresented: $showingProof) {
+                ProofApprovalView(image: posterImage) { proofApproved = true }
+            }
             .addedToBagToast($addedToBag)
         }
     }
@@ -349,6 +356,12 @@ struct PhotoWallView: View {
         }
         if canOrder, !shownCells.isEmpty {
             DeliveryNote()
+            // The proof first: the wall's own poster render, full screen, approved before
+            // either order path unlocks.
+            ProofGateButton(approved: proofApproved,
+                            action: { showingProof = true },
+                            viewAgain: { showingProof = true })
+                .frame(maxWidth: 340)
             if let preparedCart, ApplePayConfig.isConfigured {
                 PreparedWalletPanel(
                     cart: preparedCart,
@@ -383,14 +396,16 @@ struct PhotoWallView: View {
                     .font(.etch(.subheadline, weight: .semibold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(Theme.accent, in: .rect(cornerRadius: 14))
+                    .background(Theme.accent.opacity(proofApproved ? 1 : 0.35),
+                                in: .rect(cornerRadius: 14))
                     .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
-                .disabled(orderPhase != nil)
+                .disabled(orderPhase != nil || !proofApproved)
                 .frame(maxWidth: 340)
             }
-            AddToBagButton(isWorking: isAddingToBag, isDisabled: orderPhase != nil) {
+            AddToBagButton(isWorking: isAddingToBag,
+                           isDisabled: orderPhase != nil || !proofApproved) {
                 order(.bag)
             }
             .frame(maxWidth: 340)
@@ -401,7 +416,7 @@ struct PhotoWallView: View {
     }
 
     private func order(_ destination: StudioOrderDestination) {
-        guard orderPhase == nil, !isAddingToBag else { return }
+        guard orderPhase == nil, !isAddingToBag, proofApproved else { return }
         let size = MultiPhotoFrameCatalog.size(forPhotos: shownCells.count)
         let items = shownCells
         if destination == .bag { isAddingToBag = true }
@@ -637,8 +652,9 @@ struct PhotoWallView: View {
 
     @MainActor
     private func loadAndRender() async {
-        // The wall changed under any prepared cart — its uploaded file no longer matches.
+        // The wall changed under any prepared cart or approved proof — neither covers it now.
         preparedCart = nil
+        proofApproved = false
         for run in shown {
             guard images[run.id] == nil, let id = run.photoReferences.first else { continue }
             if let img = await PhotoLibrary.image(for: id, targetSize: CGSize(width: 600, height: 600)) {

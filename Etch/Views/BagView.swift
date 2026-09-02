@@ -107,13 +107,21 @@ struct BagView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Inspect the proof")
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
                     .font(.etch(.headline))
                 Text(item.detail)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                // The proof travels with the line — approved before the piece could be added,
+                // and inspectable right up to checkout.
+                Button { inspecting = item } label: {
+                    Label("View proof", systemImage: "doc.text.magnifyingglass")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                }
+                .buttonStyle(.plain)
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 6) {
@@ -274,10 +282,9 @@ private struct BagCheckoutTarget: Identifiable {
     var id: String { url.absoluteString }
 }
 
-/// The proof, full screen: the exact file that was uploaded for print, zoomable, with the
-/// piece's name and a share button so the proof can be saved or sent before paying. This is the
-/// customer's copy of "what you see is what you're buying" — the same file the lab receives,
-/// not a preview that could drift from it.
+/// The proof, full screen: the exact file that was uploaded for print, zoomable, named as the
+/// piece it belongs to. It was approved before the line could be added, and the badge says so —
+/// what the bag shows is what the lab receives, not a preview that could drift from it.
 private struct ProofInspector: View {
     let item: CartItem
 
@@ -292,16 +299,12 @@ private struct ProofInspector: View {
                 Text(item.detail)
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.7))
-                if let url = ProofStore.fileURL(for: item.assetID) {
-                    ShareLink(item: url, preview: SharePreview(item.title)) {
-                        Label("Save or share the proof", systemImage: "square.and.arrow.up")
-                            .font(.etch(.footnote, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 9)
-                            .background(.white.opacity(0.18), in: .capsule)
-                    }
-                }
+                Label("Proof approved — this is what gets printed", systemImage: "checkmark.seal.fill")
+                    .font(.etch(.footnote, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 9)
+                    .background(.white.opacity(0.18), in: .capsule)
             }
             .padding(.bottom, 28)
         }

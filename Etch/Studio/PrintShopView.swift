@@ -59,6 +59,12 @@ struct PrintShopView: View {
     /// Full-screen look at the product — tap the mockup to inspect the piece in its frame.
     @State private var showProductPreview = false
 
+    /// The customer has looked at the proof and said it's right. Order and Add to Bag stay
+    /// locked until this is true, and it drops back to false when the composition changes
+    /// (a different format changes what would be printed).
+    @State private var proofApproved = false
+    @State private var showingProof = false
+
     /// Whether the product-details panel is open. Starts open; see `specs`.
     @State private var specsExpanded = true
 
@@ -142,11 +148,17 @@ struct PrintShopView: View {
                 // Keep the nearest size when switching products rather than resetting to the top.
                 size = new.sizes.min { abs($0.width - size.width) < abs($1.width - size.width) } ?? new.sizes[0]
                 invalidatePreparedCart()
+                // The hanger reserves margin bands and the medal recomposes to its aperture —
+                // a different format is a different sheet, so the approval no longer covers it.
+                proofApproved = false
             }
             .onChange(of: size) { invalidatePreparedCart() }
             .onChange(of: finish) { invalidatePreparedCart() }
             .onChange(of: hangerFinish) { invalidatePreparedCart() }
-            .onChange(of: isMedal) { invalidatePreparedCart() }
+            .onChange(of: isMedal) { invalidatePreparedCart(); proofApproved = false }
+            .fullScreenCover(isPresented: $showingProof) {
+                ProofApprovalView(image: artwork) { proofApproved = true }
+            }
             .onChange(of: medalFrameColour) { invalidatePreparedCart() }
             .onChange(of: medalMountColour) { invalidatePreparedCart() }
             .sheet(item: $checkout) { target in
@@ -205,7 +217,8 @@ struct PrintShopView: View {
     /// Renders, uploads and creates the cart. `openSheet` decides what happens next: the hosted
     /// checkout opens immediately, or the wallet buttons appear over the prepared cart.
     private func beginOrder(openSheet: Bool = true) {
-        guard let renderRequest, orderPhase == nil, renderRequest.edition.printReady else { return }
+        guard let renderRequest, orderPhase == nil, renderRequest.edition.printReady,
+              proofApproved else { return }
         let creation = creationID ?? runID?.uuidString ?? UUID().uuidString
         Task {
             do {
@@ -253,7 +266,8 @@ struct PrintShopView: View {
 
     /// Renders and uploads this configuration, then parks it in the bag instead of checking out.
     private func addToBag() {
-        guard let renderRequest, !isAddingToBag, renderRequest.edition.printReady else { return }
+        guard let renderRequest, !isAddingToBag, renderRequest.edition.printReady,
+              proofApproved else { return }
         let creation = creationID ?? runID?.uuidString ?? UUID().uuidString
         isAddingToBag = true
         Task {
@@ -803,6 +817,14 @@ struct PrintShopView: View {
                     unavailableNote("This style is coming to print",
                                     detail: "Map styles are being remade with our own cartography for print. Contour, paper, and photo styles are ready to order today.")
                 } else if isMedal || size.deviceRenderable {
+                    // The proof comes first: nothing can be ordered or bagged until the customer
+                    // has looked at the sheet full screen and approved it.
+                    if renderRequest != nil {
+                        ProofGateButton(approved: proofApproved,
+                                        action: { showingProof = true },
+                                        viewAgain: { showingProof = true })
+                    }
+
                     // A prepared order pays in one tap. Until one exists the print file has to be
                     // made and frozen first, because a paid order with no artwork behind it is
                     // the one failure this pipeline must never produce — so the wallet buttons
@@ -832,36 +854,21 @@ struct PrintShopView: View {
                             .font(.etch(.headline))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .background(Theme.accent, in: .rect(cornerRadius: 14))
+                            .background(Theme.accent.opacity(proofApproved ? 1 : 0.35),
+                                        in: .rect(cornerRadius: 14))
                             .foregroundStyle(.white)
                         }
                         .buttonStyle(.plain)
-                        .disabled(orderPhase != nil)
+                        .disabled(orderPhase != nil || !proofApproved)
                     }
 
                     // Buying one piece stays one tap; assembling several is the other button.
                     // Both render and upload before anything is charged, so a bagged line and a
                     // bought line are the same thing to fulfilment.
                     if renderRequest != nil {
-                        Button(action: addToBag) {
-                            Group {
-                                if isAddingToBag {
-                                    HStack(spacing: 8) {
-                                        ProgressView().controlSize(.small)
-                                        Text("Adding…")
-                                    }
-                                } else {
-                                    Label("Add to Bag", systemImage: "bag.badge.plus")
-                                }
-                            }
-                            .font(.etch(.subheadline, weight: .semibold))
-                            .foregroundStyle(Theme.accent)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(Theme.accent.opacity(0.12), in: .rect(cornerRadius: 14))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(orderPhase != nil || isAddingToBag)
+                        AddToBagButton(isWorking: isAddingToBag,
+                                       isDisabled: orderPhase != nil || !proofApproved,
+                                       action: addToBag)
                     }
 
                     Text("Secure checkout with Apple Pay or card. Printed to order and shipped to your door.")

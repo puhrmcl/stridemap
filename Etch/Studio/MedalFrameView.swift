@@ -40,6 +40,10 @@ struct MedalFrameView: View {
     /// and dropped whenever the configuration changes — a prepared cart is only valid for the
     /// exact frame it was made for.
     @State private var preparedCart: ShopifyStorefront.Cart?
+    /// The customer has inspected the printed panel and approved it — Order and Add to Bag
+    /// stay locked until then, and a re-render of the panel revokes it.
+    @State private var proofApproved = false
+    @State private var showingProof = false
 
     /// 2397 × 3000 at 300 DPI, stated as inches because that is what `PrintGeometry` takes and
     /// what the trim actually is.
@@ -103,6 +107,9 @@ struct MedalFrameView: View {
             .task(id: recipeKey) { await renderPanel() }
             .onChange(of: frameColour) { preparedCart = nil }
             .onChange(of: mountColour) { preparedCart = nil }
+            .fullScreenCover(isPresented: $showingProof) {
+                ProofApprovalView(image: panel) { proofApproved = true }
+            }
             .addedToBagToast($addedToBag)
             .sheet(isPresented: $customizing, onDismiss: { panel = nil }) {
                 StudioView(run: run, poster: savedRecipe)
@@ -206,6 +213,13 @@ struct MedalFrameView: View {
             DeliveryNote()
 
             if canOrder {
+                // The proof comes first: the printed panel, full screen, approved by the
+                // customer before either order path unlocks. Frame and mount colours don't
+                // revoke it — they change the frame, not the print.
+                ProofGateButton(approved: proofApproved,
+                                action: { showingProof = true },
+                                viewAgain: { showingProof = true })
+
                 if let preparedCart, ApplePayConfig.isConfigured {
                     PreparedWalletPanel(
                         cart: preparedCart,
@@ -231,17 +245,18 @@ struct MedalFrameView: View {
                         .font(.etch(.headline))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(Theme.accent, in: .rect(cornerRadius: 14))
+                        .background(Theme.accent.opacity(proofApproved ? 1 : 0.35),
+                                    in: .rect(cornerRadius: 14))
                         .foregroundStyle(.white)
                     }
                     .buttonStyle(.plain)
-                    .disabled(orderPhase != nil || panel == nil)
+                    .disabled(orderPhase != nil || panel == nil || !proofApproved)
                 }
 
                 // The frame is bought for one race, and the print of that race is the thing most
                 // often bought with it. Two objects, one shipment.
                 AddToBagButton(isWorking: isAddingToBag,
-                               isDisabled: orderPhase != nil || panel == nil) {
+                               isDisabled: orderPhase != nil || panel == nil || !proofApproved) {
                     order(.bag)
                 }
 
@@ -268,7 +283,7 @@ struct MedalFrameView: View {
     }
 
     private func order(_ destination: StudioOrderDestination) {
-        guard orderPhase == nil, !isAddingToBag else { return }
+        guard orderPhase == nil, !isAddingToBag, proofApproved else { return }
         if destination == .bag { isAddingToBag = true }
         Task {
             defer { isAddingToBag = false }
@@ -325,6 +340,8 @@ struct MedalFrameView: View {
     }
 
     private func renderPanel() async {
+        // A new panel is a new proof — whatever was approved no longer exists.
+        proofApproved = false
         var request = panelConfig.request(for: run)
         request.printAspect = geometry.aspect
         panel = await StudioRenderer.image(for: request, scale: 0.4)

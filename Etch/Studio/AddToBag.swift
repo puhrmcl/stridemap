@@ -106,6 +106,92 @@ struct DeliveryNote: View {
     }
 }
 
+/// The proof-approval gate, ahead of every order path.
+///
+/// A print is unreturnable in the way a t-shirt is not — it is the customer's own artwork, made
+/// to order — so the buying flow asks them to look at exactly what will be printed and say so
+/// before Order and Add to Bag unlock. Until approved this is the page's one call to action;
+/// after, it collapses to a quiet confirmation with a way to look again. Every editor drops the
+/// approval the moment the piece changes under it, the same rule as a prepared cart.
+struct ProofGateButton: View {
+    var approved: Bool
+    var title: String = "View & Approve Proof"
+    /// Opens the proof (or, for the book, its acknowledgment dialog).
+    var action: () -> Void
+    /// Re-opens the proof after approval; nil hides the link.
+    var viewAgain: (() -> Void)? = nil
+
+    var body: some View {
+        if approved {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.seal.fill")
+                    .foregroundStyle(.green)
+                Text("Proof approved")
+                    .font(.etch(.subheadline, weight: .semibold))
+                Spacer(minLength: 8)
+                if let viewAgain {
+                    Button("View proof", action: viewAgain)
+                        .font(.etch(.footnote, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                        .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .background(Color.green.opacity(0.10), in: .rect(cornerRadius: 14))
+        } else {
+            Button(action: action) {
+                Label(title, systemImage: "doc.text.magnifyingglass")
+                    .font(.etch(.headline))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Theme.accent, in: .rect(cornerRadius: 14))
+                    .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+/// The proof, full screen, with the one question that matters.
+///
+/// The image is the piece as composed — the same recipe the print file renders from — shown in
+/// the dark inspection room with pinch-zoom, so a name, a date or a route can actually be
+/// checked rather than glanced at. Approving closes the room and unlocks the order; the close
+/// button leaves without approving.
+struct ProofApprovalView: View {
+    let image: UIImage?
+    var onApprove: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            ArtworkPreviewView(image: image)
+
+            VStack(spacing: 10) {
+                Text("Check the names, dates, route and spelling — what you approve is exactly what gets printed.")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.75))
+                    .multilineTextAlignment(.center)
+                Button {
+                    onApprove()
+                    dismiss()
+                } label: {
+                    Label("Approve proof", systemImage: "checkmark.seal")
+                        .font(.etch(.headline))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Theme.accent, in: .rect(cornerRadius: 14))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 24)
+        }
+    }
+}
+
 /// The confirmation that follows a successful add: a capsule that drops in at the top of the
 /// screen and takes itself away.
 ///

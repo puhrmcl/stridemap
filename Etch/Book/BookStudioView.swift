@@ -37,6 +37,10 @@ struct BookStudioView: View {
     /// The rendered-and-uploaded cart behind the wallet buttons; dropped when the subject
     /// changes, because the uploaded book no longer matches the pages on screen.
     @State private var preparedCart: ShopifyStorefront.Cart?
+    /// The customer has paged through the book and approved it. Ordering stays locked until
+    /// then; choosing a different subject revokes it.
+    @State private var proofApproved = false
+    @State private var showApproveDialog = false
     /// Non-nil while a bag add is in flight, and the confirmation that follows it.
     @State private var isAddingToBag = false
     @State private var addedToBag = false
@@ -200,11 +204,28 @@ struct BookStudioView: View {
                 .font(.etch(.footnote, weight: .semibold))
                 .foregroundStyle(.secondary)
 
+            // The pages above are the proof — the gate asks the customer to say they've read
+            // them before either order path unlocks. The dialog makes it an acknowledgment
+            // rather than a tap on the way past.
+            if canOrder {
+                ProofGateButton(approved: proofApproved,
+                                title: "Approve proof",
+                                action: { showApproveDialog = true })
+                    .confirmationDialog("Approve this proof?",
+                                        isPresented: $showApproveDialog,
+                                        titleVisibility: .visible) {
+                        Button("Everything looks right — approve") { proofApproved = true }
+                        Button("Keep checking", role: .cancel) {}
+                    } message: {
+                        Text("Swipe through every page first. What you approve is exactly what gets bound and shipped.")
+                    }
+            }
+
             orderButton
 
             if canOrder {
                 AddToBagButton(isWorking: isAddingToBag,
-                               isDisabled: orderPhase != nil || isExporting) {
+                               isDisabled: orderPhase != nil || isExporting || !proofApproved) {
                     order(.bag)
                 }
             }
@@ -248,6 +269,7 @@ struct BookStudioView: View {
         currentPage = 0
         proofURL = nil
         preparedCart = nil
+        proofApproved = false
         let plan = plan
         for index in plan.pages.indices {
             if Task.isCancelled { return }
@@ -294,16 +316,16 @@ struct BookStudioView: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 48)
-                    .background(Theme.accent, in: .capsule)
+                    .background(Theme.accent.opacity(proofApproved ? 1 : 0.35), in: .capsule)
                 }
                 .buttonStyle(.plain)
-                .disabled(orderPhase != nil || isExporting)
+                .disabled(orderPhase != nil || isExporting || !proofApproved)
             }
         }
     }
 
     private func order(_ destination: StudioOrderDestination) {
-        guard orderPhase == nil, !isAddingToBag else { return }
+        guard orderPhase == nil, !isAddingToBag, proofApproved else { return }
         let plan = plan
         if destination == .bag { isAddingToBag = true }
         Task {

@@ -71,6 +71,10 @@ struct MapPrintView: View {
     /// Pay is configured. This screen has no standing order panel to put the buttons in, so
     /// they arrive as a payment sheet the moment the piece is frozen.
     @State private var preparedOrder: PreparedMapOrder?
+    /// The customer has inspected this composition full screen and approved it. Buy now and
+    /// Add to Bag stay locked until then; any change to the piece revokes it.
+    @State private var proofApproved = false
+    @State private var showingProof = false
 
     private struct PreparedMapOrder: Identifiable {
         let cart: ShopifyStorefront.Cart
@@ -268,14 +272,29 @@ struct MapPrintView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     if canOrder {
                         Menu {
+                            // The proof leads, and the order actions stay locked behind it —
+                            // the same gate every product page has, folded into the menu this
+                            // screen orders from.
+                            if proofApproved {
+                                Label("Proof approved", systemImage: "checkmark.seal.fill")
+                            } else {
+                                Button {
+                                    showingProof = true
+                                } label: {
+                                    Label("View & Approve Proof",
+                                          systemImage: "doc.text.magnifyingglass")
+                                }
+                            }
                             Button {
                                 pendingDestination = .checkout
                                 showSizeDialog = true
                             } label: { Label("Buy now", systemImage: "bag") }
+                                .disabled(!proofApproved)
                             Button {
                                 pendingDestination = .bag
                                 showSizeDialog = true
                             } label: { Label("Add to Bag", systemImage: "bag.badge.plus") }
+                                .disabled(!proofApproved)
                         } label: {
                             Image(systemName: "bag")
                         }
@@ -297,7 +316,14 @@ struct MapPrintView: View {
             .sheet(isPresented: $showPrints) {
                 PrintShopView(subjectTitle: request.title, artwork: rendered[currentKey])
             }
-            .task(id: currentKey) { await renderIfNeeded(currentKey) }
+            .task(id: currentKey) {
+                // A different composition is a different proof.
+                proofApproved = false
+                await renderIfNeeded(currentKey)
+            }
+            .fullScreenCover(isPresented: $showingProof) {
+                ProofApprovalView(image: rendered[currentKey]) { proofApproved = true }
+            }
             .addedToBagToast($addedToBag)
             .confirmationDialog(pendingDestination == .bag ? "Add to bag" : "Order this piece",
                                 isPresented: $showSizeDialog, titleVisibility: .visible) {
@@ -829,7 +855,7 @@ struct MapPrintView: View {
     /// allocation — freezes it into the fulfilment worker, and opens checkout. Same pipeline,
     /// same hidden line attributes, same single shape of order the worker already understands.
     private func order(_ size: PrintSize, _ destination: StudioOrderDestination) {
-        guard orderPhase == nil, !isAddingToBag else { return }
+        guard orderPhase == nil, !isAddingToBag, proofApproved else { return }
         let request = request
         if destination == .bag { isAddingToBag = true }
         Task {
