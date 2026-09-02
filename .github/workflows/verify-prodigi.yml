@@ -59,3 +59,33 @@ jobs:
           echo ""
           ./fulfilment/scripts/discover-product.sh POSTER-HANGER \
             https://www.prodigi.com/products/prints-and-posters/poster-hangers/art-print-with-hanger/
+
+      # Landscape hangers, probed by name. The batten width is part of the SKU, so a landscape
+      # print needs its own code — the page scrape found 80-24X32-LAND, and these are the
+      # candidates matching the 2:3 sizes the shop actually sells. Whatever answers 200 here
+      # is real; whatever doesn't, isn't offered.
+      - name: Probe landscape hanger candidates
+        if: always()
+        env:
+          PRODIGI_API_KEY: ${{ secrets.PRODIGI_API_KEY }}
+        run: |
+          set -uo pipefail
+          BASE="${PRODIGI_BASE:-https://api.prodigi.com}"
+          for SKU in \
+            POSTER-HANGER-90-24X36-LAND \
+            POSTER-HANGER-90-36X24-LAND \
+            POSTER-HANGER-60-16X24-LAND \
+            POSTER-HANGER-60-24X16-LAND \
+            POSTER-HANGER-50-12X18-LAND \
+            POSTER-HANGER-45-12X18-LAND \
+            POSTER-HANGER-50-18X12-LAND \
+            POSTER-HANGER-80-24X32-LAND; do
+            CODE=$(curl -s -o body.json -w "%{http_code}" --max-time 30 \
+              -H "X-API-Key: $PRODIGI_API_KEY" "$BASE/v4.0/products/$SKU" || echo "000")
+            if [ "$CODE" = "200" ]; then
+              echo "── $SKU → FOUND"
+              python3 -c "import json; p=json.load(open('body.json')).get('product',{}); print('   ', p.get('description','')[:100]); print('    printAreas:', json.dumps(p.get('printAreas',{}))[:300]); print('    attributes:', json.dumps(p.get('attributes',{}))[:300])" || head -c 400 body.json
+            else
+              echo "── $SKU → $CODE"
+            fi
+          done

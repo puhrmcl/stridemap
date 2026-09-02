@@ -109,6 +109,22 @@ struct PrintShopView: View {
 
     private var sizes: [PrintSize] { product.sizes }
 
+    /// Whether the piece is landscape. The hanger is the one orientation-bound finish — the
+    /// batten's width is part of its SKU (a 24″-wide portrait takes the 60cm hanger; a 36″-wide
+    /// landscape would need the 90) — and only portrait hangers are verified in the catalog
+    /// today, so a landscape piece must not be offered one that cannot span its top edge.
+    /// Frames and bare sheets rotate; wood of a fixed length does not.
+    private var artworkIsLandscape: Bool {
+        if let renderRequest { return renderRequest.orientation == .landscape }
+        if let artwork { return artwork.size.width > artwork.size.height * 1.02 }
+        return false
+    }
+
+    /// The formats this piece can actually be finished in.
+    private var offeredProducts: [PrintProduct] {
+        PrintProduct.offered.filter { $0 != .hanger || !artworkIsLandscape }
+    }
+
     var body: some View {
         NavigationStack {
             // Anchored the same way Studio home is, and for the same reason: the page is now
@@ -685,7 +701,7 @@ struct PrintShopView: View {
     private var productPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
             sectionLabel("Format", value: isMedal ? "Medal Frame" : product.name)
-            ForEach(PrintProduct.offered) { p in
+            ForEach(offeredProducts) { p in
                 formatCard(name: p.name, tagline: p.tagline, symbol: p.symbol,
                            isSelected: !isMedal && product == p) {
                     isMedal = false
@@ -1068,7 +1084,7 @@ struct PrintShopView: View {
     /// page rather than opening another — it is the same artwork either way, and the mockup
     /// above is the point of the change.
     @ViewBuilder private var alsoLike: some View {
-        let others = PrintProduct.offered.filter { isMedal || $0 != product }
+        let others = offeredProducts.filter { isMedal || $0 != product }
         VStack(alignment: .leading, spacing: 12) {
             Text("The same piece, finished differently")
                 .font(.etch(.headline))
