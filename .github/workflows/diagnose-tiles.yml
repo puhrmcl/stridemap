@@ -119,6 +119,32 @@ jobs:
             echo
           done
 
+      - name: Terrain and imagery routes serve real pixels
+        run: |
+          set -e
+          # The Terrain preview was shot over Gilbert AZ, which is flat — a hillshade of
+          # nothing looks identical to no hillshade at all. So prove the routes at the byte
+          # level: /terrain must return a PNG (Terrarium elevation), /imagery a JPEG (USGS
+          # photography), both through the worker's proxy and cache.
+          BASE=https://etch-fulfilment.clintpuhrmann.workers.dev
+          check() {
+            local url="$1" magic="$2" what="$3"
+            local code head size
+            code=$(curl -s -o t.bin -w "%{http_code}" "$url")
+            size=$(wc -c < t.bin | xargs)
+            head=$(head -c 4 t.bin | xxd -p)
+            echo "── $what → HTTP $code, $size bytes, head $head"
+            [ "$code" = "200" ] || { echo "::error::$what did not return 200"; exit 1; }
+            case "$head" in
+              "$magic"*) : ;;
+              *) echo "::error::$what is not the expected format"; exit 1 ;;
+            esac
+          }
+          # Gilbert (flat) and Mount Baldy above San Gabriel (relief worth shading).
+          check "$BASE/terrain/12/776/1645.png"  "89504e47" "terrain, Gilbert AZ"
+          check "$BASE/terrain/12/699/1633.png"  "89504e47" "terrain, San Gabriel mountains"
+          check "$BASE/imagery/14/2793/6528"     "ffd8"     "imagery, San Diego"
+
       - name: Which User-Agents does the edge admit?
         run: |
           set -e
