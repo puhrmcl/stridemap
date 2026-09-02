@@ -86,7 +86,7 @@ enum EtchCartography {
                 let ground = paper ?? Color(red: 0.965, green: 0.955, blue: 0.93)
                 land = Self.hex(ground)
                 water = "#A5C8E8"
-                park = "#C6E2BC"
+                park = "#C6E2BC"   // held for the day the landuse layer decodes — see layers()
                 majorRoad = "#EFC468"
                 minorRoad = "#DCD6CA"
                 building = "#E9E3D7"
@@ -190,21 +190,14 @@ enum EtchCartography {
             ]
         ]
 
-        // The green world, vivid palette only — under water so lakes sit over parks. A kind
-        // the filter doesn't name simply doesn't draw, which keeps this safe against schema
-        // drift in the tiles.
-        if let park = palette.park {
-            layers.insert([
-                "id": "landuse-green",
-                "type": "fill",
-                "source": "etch",
-                "source-layer": "landuse",
-                "filter": ["in", "kind", "park", "forest", "wood", "grass", "garden",
-                           "cemetery", "golf_course", "nature_reserve", "national_park",
-                           "protected_area", "village_green", "meadow"],
-                "paint": ["fill-color": park]
-            ], at: 1)
-        }
+        // No landuse layer, deliberately — and not for taste. Referencing source-layer
+        // "landuse" made MapLibre decode it, and the decode throws "unknown pbf field type
+        // exception" on the current archive's tiles, which killed the whole snapshot: every
+        // Bright render failed, three failures tripped the breaker, and the session fell back
+        // to Apple with checkout locked. The styles that render (streets/water/buildings/
+        // roads/places) never touch that layer. Parks return when the tile-side encoding is
+        // understood; `palette.park` stays as the seam.
+        _ = palette.park
 
         if labels {
             layers.append([
