@@ -24,6 +24,12 @@ struct PrintShopView: View {
     var creationID: String?
     /// The activity behind the piece, for the on-device order record.
     var runID: UUID?
+    /// Renders an *external* piece — the Anthology, the City Index — as a print file at the
+    /// given geometry. When set, the shop transacts through it instead of the Studio recipe,
+    /// which is what gives those pieces the same mockup, formats, finishes and checkout as
+    /// everything else. The medal frame stays off the menu for external pieces: its panel is
+    /// recomposed to the frame's aperture, which only the Studio renderer knows how to do.
+    var fileProducer: ((PrintGeometry) async throws -> URL)?
 
     @Environment(\.dismiss) private var dismiss
     @State private var product: PrintProduct = .framed
@@ -89,12 +95,14 @@ struct PrintShopView: View {
 
     init(subjectTitle: String?, artwork: UIImage? = nil,
          renderRequest: StudioRenderer.Request? = nil,
-         creationID: String? = nil, runID: UUID? = nil) {
+         creationID: String? = nil, runID: UUID? = nil,
+         fileProducer: ((PrintGeometry) async throws -> URL)? = nil) {
         self.subjectTitle = subjectTitle
         self.artwork = artwork
         self.renderRequest = renderRequest
         self.creationID = creationID
         self.runID = runID
+        self.fileProducer = fileProducer
         // Open on the middle framed size — the one most people buy.
         _size = State(initialValue: PrintProduct.framed.sizes[1])
     }
@@ -203,10 +211,14 @@ struct PrintShopView: View {
 
     // MARK: Ordering
 
+    /// Whether the shop holds something it can actually print — a Studio recipe or an external
+    /// piece's renderer.
+    private var canTransact: Bool { renderRequest != nil || fileProducer != nil }
+
     /// Ordering also honours the served kill switch, so a fulfilment problem can be contained
     /// without an App Store release.
     private var canOrderHere: Bool {
-        renderRequest != nil && PrintOrderService.isConfigured && EtchConfig.current.ordering.enabled
+        canTransact && PrintOrderService.isConfigured && EtchConfig.current.ordering.enabled
     }
 
     /// Whether this build can offer the native wallet buttons at all. When it can't — no
@@ -217,9 +229,39 @@ struct PrintShopView: View {
     /// Renders, uploads and creates the cart. `openSheet` decides what happens next: the hosted
     /// checkout opens immediately, or the wallet buttons appear over the prepared cart.
     private func beginOrder(openSheet: Bool = true) {
-        guard let renderRequest, orderPhase == nil, renderRequest.edition.printReady,
-              proofApproved else { return }
+        guard orderPhase == nil, proofApproved else { return }
         let creation = creationID ?? runID?.uuidString ?? UUID().uuidString
+
+        // External piece: render through its own producer at the chosen size, then the same
+        // file-based checkout every product uses. The hanger needs no reserve here — these
+        // compositions carry their own margins, and the strips land on blank paper.
+        if let fileProducer {
+            Task {
+                do {
+                    orderPhase = .rendering
+                    let fileURL = try await fileProducer(size.geometry)
+                    defer { try? FileManager.default.removeItem(at: fileURL) }
+                    let cart = try await PrintOrderService.checkout(
+                        fileAt: fileURL, pixels: size.geometry.trimPixels,
+                        creationID: creation,
+                        shopifySKU: size.shopifySKU(finish: selectedFinish),
+                        prodigiSKU: size.prodigiSKU,
+                        productHandle: product.shopifyHandle,
+                        finishAttribute: selectedFinish.prodigiAttribute,
+                        onPhase: { orderPhase = $0 }
+                    )
+                    orderPhase = nil
+                    preparedCart = cart
+                    if openSheet { checkout = CheckoutTarget(url: cart.checkoutURL) }
+                } catch {
+                    orderPhase = nil
+                    orderError = error.localizedDescription
+                }
+            }
+            return
+        }
+
+        guard let renderRequest, renderRequest.edition.printReady else { return }
         Task {
             do {
                 let cart: ShopifyStorefront.Cart
@@ -266,9 +308,40 @@ struct PrintShopView: View {
 
     /// Renders and uploads this configuration, then parks it in the bag instead of checking out.
     private func addToBag() {
-        guard let renderRequest, !isAddingToBag, renderRequest.edition.printReady,
-              proofApproved else { return }
+        guard !isAddingToBag, proofApproved else { return }
         let creation = creationID ?? runID?.uuidString ?? UUID().uuidString
+
+        if let fileProducer {
+            isAddingToBag = true
+            Task {
+                defer { isAddingToBag = false }
+                do {
+                    orderPhase = .rendering
+                    let fileURL = try await fileProducer(size.geometry)
+                    defer { try? FileManager.default.removeItem(at: fileURL) }
+                    try await PrintOrderService.addToBag(
+                        fileAt: fileURL, pixels: size.geometry.trimPixels,
+                        creationID: creation,
+                        shopifySKU: size.shopifySKU(finish: selectedFinish),
+                        prodigiSKU: size.prodigiSKU,
+                        productHandle: product.shopifyHandle,
+                        finishAttribute: selectedFinish.prodigiAttribute,
+                        title: subjectTitle ?? product.name,
+                        detail: configurationLine,
+                        priceCents: size.resolvedPriceCents,
+                        onPhase: { orderPhase = $0 }
+                    )
+                    orderPhase = nil
+                    addedToBag = true
+                } catch {
+                    orderPhase = nil
+                    orderError = error.localizedDescription
+                }
+            }
+            return
+        }
+
+        guard let renderRequest, renderRequest.edition.printReady else { return }
         isAddingToBag = true
         Task {
             defer { isAddingToBag = false }
@@ -621,8 +694,9 @@ struct PrintShopView: View {
             }
             // The medal frame sits in the same list as the paper formats — the request this
             // answers was being taken from the medal screen into an editor whose only exit
-            // sold posters. One list, every format, switchable mid-edit.
-            if MedalFrameCatalog.isAvailable {
+            // sold posters. One list, every format, switchable mid-edit. External pieces skip
+            // it: their panel can't be recomposed to the frame's aperture.
+            if MedalFrameCatalog.isAvailable && fileProducer == nil {
                 formatCard(name: "Medal Frame",
                            tagline: "Your medal behind its aperture, this piece printed beside it.",
                            symbol: "medal", isSelected: isMedal) {
@@ -819,7 +893,7 @@ struct PrintShopView: View {
                 } else if isMedal || size.deviceRenderable {
                     // The proof comes first: nothing can be ordered or bagged until the customer
                     // has looked at the sheet full screen and approved it.
-                    if renderRequest != nil {
+                    if canTransact {
                         ProofGateButton(approved: proofApproved,
                                         action: { showingProof = true },
                                         viewAgain: { showingProof = true })
@@ -865,7 +939,7 @@ struct PrintShopView: View {
                     // Buying one piece stays one tap; assembling several is the other button.
                     // Both render and upload before anything is charged, so a bagged line and a
                     // bought line are the same thing to fulfilment.
-                    if renderRequest != nil {
+                    if canTransact {
                         AddToBagButton(isWorking: isAddingToBag,
                                        isDisabled: orderPhase != nil || !proofApproved,
                                        action: addToBag)
@@ -1005,7 +1079,7 @@ struct PrintShopView: View {
                     product = other
                 }
             }
-            if !isMedal && MedalFrameCatalog.isAvailable {
+            if !isMedal && MedalFrameCatalog.isAvailable && fileProducer == nil {
                 shelfCard(name: "Medal Frame",
                           tagline: "Your medal behind its aperture, this piece printed beside it.",
                           symbol: "medal", price: MedalFrameCatalog.price) {

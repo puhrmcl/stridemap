@@ -1,7 +1,6 @@
 import SwiftUI
 import MapKit
 import PhotosUI
-import ShopifyCheckoutSheetKit
 
 /// The aggregate map-print screen: preview a full-history poster, switch between kinds, narrow to
 /// a single state / city / country, choose orientation, and zoom / pan the frame before export.
@@ -57,42 +56,12 @@ struct MapPrintView: View {
     @State private var indexPhoto: UIImage?
     /// Bumped when a new photo lands, so the render cache key changes with it.
     @State private var indexPhotoStamp = 0
-    /// The direct order path, for the compositions made of our own ink.
-    @State private var showSizeDialog = false
-    /// Which way the size dialog is about to send the piece. Chosen before the dialog opens, so
-    /// the sizes stay one list of sizes rather than two lists of size-and-verb.
-    @State private var pendingDestination: StudioOrderDestination = .checkout
-    @State private var isAddingToBag = false
-    @State private var addedToBag = false
-    @State private var orderPhase: PrintOrderService.Phase?
-    @State private var orderError: String?
-    @State private var checkoutURL: URL?
-    /// The rendered-and-uploaded order awaiting payment — drives the wallet sheet when Apple
-    /// Pay is configured. This screen has no standing order panel to put the buttons in, so
-    /// they arrive as a payment sheet the moment the piece is frozen.
-    @State private var preparedOrder: PreparedMapOrder?
-    /// The customer has inspected this composition full screen and approved it. Buy now and
-    /// Add to Bag stay locked until then; any change to the piece revokes it.
-    @State private var proofApproved = false
-    @State private var showingProof = false
-
-    private struct PreparedMapOrder: Identifiable {
-        let cart: ShopifyStorefront.Cart
-        let size: PrintSize
-        let title: String
-        var id: String { cart.id }
-    }
-
     /// Whether the piece on screen can actually be printed and sold: the Anthology styles and
     /// the City Index draw nothing but our own ink on our own ground. The map-based prints
     /// render on Apple snapshots — licensed for screens, not merchandise — so their bag button
-    /// keeps opening the browse-only shop instead of pretending.
+    /// opens the shop in browse-only mode instead of pretending.
     private var printSafe: Bool {
         kind.isArt || (kind == .cities && cityIndexOn && focusName == nil)
-    }
-
-    private var canOrder: Bool {
-        printSafe && PrintOrderService.isConfigured && EtchConfig.current.ordering.enabled
     }
 
     init(runs: [Run], kind: MapPrintKind = .allRuns, artStyle: MapArtStyle = .grid,
@@ -261,133 +230,39 @@ struct MapPrintView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
-                // One bag, two verbs behind it.
-                //
-                // Both need a size, so both open the same size list with the destination already
-                // chosen — putting two verbs on every size row would have doubled a list whose
-                // whole job is to compare sizes. And a second toolbar button would have meant
-                // `bag` beside `bag.badge.plus`, two glyphs a few points apart that are nearly
-                // indistinguishable at that size: a choice the reader has to squint at is worse
-                // than a menu they have to open.
+                // One bag, one destination: the shop. It carries the mockup wall, the format
+                // and finish pickers, the proof gate and both order paths — the same product
+                // page every piece buys through. This screen used to run its own size dialog
+                // and checkout beside it, which was a second, poorer shop.
                 ToolbarItem(placement: .topBarTrailing) {
-                    if canOrder {
-                        Menu {
-                            // The proof leads, and the order actions stay locked behind it —
-                            // the same gate every product page has, folded into the menu this
-                            // screen orders from.
-                            if proofApproved {
-                                Label("Proof approved", systemImage: "checkmark.seal.fill")
-                            } else {
-                                Button {
-                                    showingProof = true
-                                } label: {
-                                    Label("View & Approve Proof",
-                                          systemImage: "doc.text.magnifyingglass")
-                                }
-                            }
-                            Button {
-                                pendingDestination = .checkout
-                                showSizeDialog = true
-                            } label: { Label("Buy now", systemImage: "bag") }
-                                .disabled(!proofApproved)
-                            Button {
-                                pendingDestination = .bag
-                                showSizeDialog = true
-                            } label: { Label("Add to Bag", systemImage: "bag.badge.plus") }
-                                .disabled(!proofApproved)
-                        } label: {
-                            Image(systemName: "bag")
-                        }
-                        .disabled(orderPhase != nil || isAddingToBag)
-                    } else {
-                        // Not printable — the map-based pieces draw on Apple snapshots, which are
-                        // licensed for screens and not for merchandise. The bag still opens the
-                        // shop to browse rather than pretending this piece can be ordered.
-                        Button { showPrints = true } label: { Image(systemName: "bag") }
-                    }
+                    Button { showPrints = true } label: { Image(systemName: "bag") }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showExport = true } label: { Image(systemName: "square.and.arrow.up") }
                 }
             }
             .sheet(isPresented: $showExport) { MapPrintExportSheet(request: request) }
-            // Hand the current render to the shop so the frame mockup shows *this* piece —
-            // without it the mockup fell back to the placeholder sheet.
+            // The shop, seeded with this piece: the render for the mockup and proof, and — when
+            // the composition is our own ink (printSafe) — a producer that renders the real
+            // print file at whatever geometry the chosen format needs. Map-based pieces stay
+            // browse-only: Apple's snapshots are licensed for screens, not merchandise.
             .sheet(isPresented: $showPrints) {
-                PrintShopView(subjectTitle: request.title, artwork: rendered[currentKey])
+                let orderRequest = request
+                let piece = orderRequest.cityIndex ? "cityindex"
+                    : "anthology-\(orderRequest.artStyle.rawValue)"
+                PrintShopView(
+                    subjectTitle: orderRequest.title,
+                    artwork: rendered[currentKey],
+                    creationID: "\(piece)-\(UUID().uuidString)",
+                    fileProducer: printSafe
+                        ? { geometry in
+                            try await MapPrintRenderer.printFile(for: orderRequest,
+                                                                 geometry: geometry)
+                          }
+                        : nil
+                )
             }
-            .task(id: currentKey) {
-                // A different composition is a different proof.
-                proofApproved = false
-                await renderIfNeeded(currentKey)
-            }
-            .fullScreenCover(isPresented: $showingProof) {
-                ProofApprovalView(image: rendered[currentKey]) { proofApproved = true }
-            }
-            .addedToBagToast($addedToBag)
-            .confirmationDialog(pendingDestination == .bag ? "Add to bag" : "Order this piece",
-                                isPresented: $showSizeDialog, titleVisibility: .visible) {
-                ForEach(PrintProduct.print.sizes) { size in
-                    Button("\(size.label) · \(size.price)") { order(size, pendingDestination) }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Fine-art print on \(PrintProduct.print.material).")
-            }
-            .sheet(item: $preparedOrder) { order in
-                VStack(spacing: 14) {
-                    Text(order.title)
-                        .font(.etch(.headline))
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                    Text("\(PrintProduct.print.name) · \(order.size.label) · \(order.size.price)")
-                        .font(.etch(.subheadline))
-                        .foregroundStyle(.secondary)
-                    DeliveryNote()
-                    PreparedWalletPanel(
-                        cart: order.cart,
-                        onComplete: { _ in preparedOrder = nil; dismiss() },
-                        onFail: { message in preparedOrder = nil; orderError = message },
-                        openHosted: {
-                            preparedOrder = nil
-                            checkoutURL = order.cart.checkoutURL
-                        }
-                    )
-                }
-                .padding(24)
-                .presentationDetents([.medium])
-            }
-            .sheet(item: Binding(
-                get: { checkoutURL.map { MapPrintCheckoutTarget(url: $0) } },
-                set: { if $0 == nil { checkoutURL = nil } }
-            )) { target in
-                CheckoutSheet(checkout: target.url)
-                    .title("Checkout")
-                    .colorScheme(.automatic)
-                    .tintColor(UIColor(Theme.accent))
-                    .onCancel { checkoutURL = nil }
-                    .onComplete { _ in checkoutURL = nil; dismiss() }
-                    .onFail { error in
-                        checkoutURL = nil
-                        orderError = error.localizedDescription
-                    }
-                    .interactiveDismissDisabled()
-            }
-            .alert("Couldn't start the order", isPresented: Binding(
-                get: { orderError != nil }, set: { if !$0 { orderError = nil } }
-            )) {
-                Button("OK", role: .cancel) {}
-            } message: { Text(orderError ?? "") }
-            .overlay {
-                if let orderPhase {
-                    VStack(spacing: 10) {
-                        ProgressView()
-                        Text(orderPhase.label).font(.etch(.subheadline))
-                    }
-                    .padding(24)
-                    .background(.regularMaterial, in: .rect(cornerRadius: 16))
-                }
-            }
+            .task(id: currentKey) { await renderIfNeeded(currentKey) }
             .onChange(of: kind) { focusName = nil; stateTitle = ""; artFilter = .all; statesUSAOnly = false; resetFrame() }
             .onChange(of: focusName) { stateTitle = ""; resetFrame() }
             // Each art style has its own default framing (Home Turf zooms to the home city), so
@@ -851,70 +726,5 @@ struct MapPrintView: View {
         }
     }
 
-    /// Renders this composition at print resolution — banded, so a 24 × 36 never exists as one
-    /// allocation — freezes it into the fulfilment worker, and opens checkout. Same pipeline,
-    /// same hidden line attributes, same single shape of order the worker already understands.
-    private func order(_ size: PrintSize, _ destination: StudioOrderDestination) {
-        guard orderPhase == nil, !isAddingToBag, proofApproved else { return }
-        let request = request
-        if destination == .bag { isAddingToBag = true }
-        Task {
-            defer { isAddingToBag = false }
-            do {
-                orderPhase = .rendering
-                let fileURL = try await MapPrintRenderer.printFile(for: request, geometry: size.geometry)
-                defer { try? FileManager.default.removeItem(at: fileURL) }
-
-                let piece = request.cityIndex ? "cityindex" : "anthology-\(request.artStyle.rawValue)"
-                let creationID = "\(piece)-\(size.prodigiSKU)-\(UUID().uuidString)"
-                switch destination {
-                case .checkout:
-                    let cart = try await PrintOrderService.checkout(
-                        fileAt: fileURL,
-                        pixels: size.geometry.trimPixels,
-                        creationID: creationID,
-                        shopifySKU: size.prodigiSKU,
-                        prodigiSKU: size.prodigiSKU,
-                        productHandle: PrintProduct.print.shopifyHandle,
-                        finishAttribute: "",
-                        onPhase: { orderPhase = $0 }
-                    )
-                    orderPhase = nil
-                    // Wallets configured: the payment sheet offers Apple Pay over the prepared
-                    // cart. Otherwise the hosted checkout opens directly, as before.
-                    if ApplePayConfig.isConfigured {
-                        preparedOrder = PreparedMapOrder(cart: cart, size: size,
-                                                         title: request.title)
-                    } else {
-                        checkoutURL = cart.checkoutURL
-                    }
-                case .bag:
-                    try await PrintOrderService.addToBag(
-                        fileAt: fileURL,
-                        pixels: size.geometry.trimPixels,
-                        creationID: creationID,
-                        shopifySKU: size.prodigiSKU,
-                        prodigiSKU: size.prodigiSKU,
-                        productHandle: PrintProduct.print.shopifyHandle,
-                        finishAttribute: "",
-                        title: request.title,
-                        detail: "\(size.label) · \(PrintProduct.print.name)",
-                        priceCents: size.resolvedPriceCents,
-                        onPhase: { orderPhase = $0 }
-                    )
-                    orderPhase = nil
-                    addedToBag = true
-                }
-            } catch {
-                orderPhase = nil
-                orderError = error.localizedDescription
-            }
-        }
-    }
-}
-
-private struct MapPrintCheckoutTarget: Identifiable {
-    let url: URL
-    var id: String { url.absoluteString }
 }
 
