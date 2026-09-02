@@ -198,7 +198,30 @@ jobs:
 
             status)
               echo "── Certificates on this store"
-              curl -sS "$BASE.json" "${AUTH[@]}" --max-time 30 | jq .
+              # An error body must fail the step and say why — the first authenticated run
+              # returned {"errors":"Not Found"} and reported success, which told nobody
+              # anything. 404 here has two distinct causes, told apart by a probe the token
+              # can always answer if REST works at all.
+              CODE=$(curl -sS -o /tmp/certs.json -w "%{http_code}" "$BASE.json" "${AUTH[@]}" --max-time 30)
+              echo "   HTTP $CODE"
+              head -c 1000 /tmp/certs.json; echo ""
+              if [ "$CODE" != "200" ]; then
+                SHOPCODE=$(curl -sS -o /tmp/shop.json -w "%{http_code}" \
+                  "$SHOP/admin/api/$VERSION/shop.json" "${AUTH[@]}" --max-time 30)
+                echo "── shop.json probe: HTTP $SHOPCODE"
+                if [ "$SHOPCODE" = "200" ]; then
+                  echo "::error::The token works (shop.json answers) but apple_pay_certificates is rejected (HTTP $CODE) — the mobile_payments scopes are not granted on the installed app."
+                  echo "In the Dev Dashboard: the app → API access / Configuration → request"
+                  echo "write_mobile_payments and read_mobile_payments (Shopify must approve"
+                  echo "these), release a new version, and update the app's install on the"
+                  echo "store so the new grant takes effect. Then re-run status."
+                else
+                  head -c 500 /tmp/shop.json; echo ""
+                  echo "::error::The REST Admin API rejects this token entirely (shop.json HTTP $SHOPCODE). A Dev Dashboard app created recently may be GraphQL-only; if so, this endpoint needs a legacy-capable app or Shopify support."
+                fi
+                exit 1
+              fi
+              jq . /tmp/certs.json
               ;;
 
             *)
