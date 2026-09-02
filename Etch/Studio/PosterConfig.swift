@@ -95,22 +95,22 @@ enum MapMaterial: String, CaseIterable, Identifiable {
         switch self {
         case .streets:
             switch look {
-            case .dark:  return .streetsNoir
-            case .warm:  return .harbor
-            default:     return .streets
+            case .bright:      return .standard
+            case .dark, .noir: return .streetsNoir
+            case .warm:        return .harbor
+            default:           return .streets
             }
         case .contour:
-            return look == .dark ? .midnight : .contour
+            return look == .dark || look == .noir ? .midnight : .contour
         case .terrain:   return .terrain
         case .satellite: return .satellite
         case .none:      return .none
         }
     }
 
-    /// The material behind a stored style. Atlas and Atlas Dark — Apple's full-colour map — fold in
-    /// with Streets: they are the same city geography, and their full-saturation treatment is the
-    /// one thing in the range that argues with the brand's own rule that geography stays muted.
-    /// They are no longer offered in the picker; a poster saved on one still renders on one.
+    /// The material behind a stored style. Atlas — the vivid full-colour map — folds in with
+    /// Streets: same city geography, and the Bright colour world is how it is reached, so the
+    /// Style row asks one question and Color asks the other.
     static func of(_ style: MapStyle) -> MapMaterial {
         switch style {
         case .streets, .streetsNoir, .harbor, .standard, .dark: return .streets

@@ -108,7 +108,7 @@ struct StudioDesignEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             if config.family == .map {
-                presets
+                layoutRow
                 mapMaterial
             } else {
                 template
@@ -118,27 +118,28 @@ struct StudioDesignEditor: View {
         }
     }
 
-    // MARK: Start here
+    // MARK: Layout
 
-    /// Seven finished posters, first thing. One tap and the piece is done — which is the promise
-    /// the section made and could not keep while it opened on three separate axes that only mean
-    /// something in combination.
-    private var presets: some View {
+    /// The arrangement, first — how the sheet is composed. This row replaced the old
+    /// "Start here" presets, which mixed layout, map and colour into cards whose names
+    /// (Gallery, Terrain) collided with the product and the Style row. Three orthogonal
+    /// questions now, asked in order: Layout, Style, Color.
+    private var layoutRow: some View {
         VStack(alignment: .leading, spacing: 8) {
-            StudioGroupLabel(text: "Start here")
+            StudioGroupLabel(text: "Layout")
             StudioVariantStrip(
                 run: run, config: $config,
-                variants: StudioPreset.all.map { preset in
+                variants: MapLayout.allCases.map { layout in
                     StudioVariant(
-                        id: "preset-\(preset.id)",
-                        name: preset.name,
-                        apply: { preset.applied(to: $0) },
-                        matches: { preset.matches($0) }
+                        id: "layout-\(layout.rawValue)",
+                        name: layout.name,
+                        apply: { var c = $0; c.mapLayout = layout; return c },
+                        matches: { $0.mapLayout == layout }
                     )
                 },
-                // Presets are whole compositions, so their cards do not follow the recipe the way
-                // the axis strips do — only the content changes them.
-                refreshKey: "presets-\(config.orientation.rawValue)",
+                // Layout thumbnails follow the current style and colour, so they re-render
+                // when either moves beneath them.
+                refreshKey: "layout-\(config.mapStyle.rawValue)-\(config.orientation.rawValue)-\(config.groundColor?.hexString ?? "-")-\(config.routeColor?.hexString ?? "-")",
                 cardWidth: 96
             )
         }
@@ -168,13 +169,13 @@ struct StudioDesignEditor: View {
         }
     }
 
-    // MARK: Map
+    // MARK: Style
 
-    /// Five materials, not ten styles. The colour comes from Look, so this row asks one question
-    /// and asks it once.
+    /// What the map is made of — five materials, not ten styles. The colour comes from the
+    /// Color row, so this one asks one question and asks it once.
     private var mapMaterial: some View {
         VStack(alignment: .leading, spacing: 8) {
-            StudioGroupLabel(text: "Map")
+            StudioGroupLabel(text: "Style")
             StudioVariantStrip(
                 run: run, config: $config,
                 variants: MapMaterial.allCases.map { material in
@@ -194,13 +195,15 @@ struct StudioDesignEditor: View {
         }
     }
 
-    // MARK: Look
+    // MARK: Color
 
-    /// The coordinated colour worlds. Custom is shown, not hidden — a user who has hand-tuned a
-    /// colour deserves to see that named rather than to see four presets none of which is lit.
+    /// The coordinated colour worlds — Etch's own scheme, the vivid full-colour map, the dark
+    /// pair (Dark, and true-black Noir), Harbor's navy, and Mono. Custom is shown, not hidden —
+    /// a user who has hand-tuned a colour deserves to see that named rather than to see six
+    /// presets none of which is lit.
     private var look: some View {
         VStack(alignment: .leading, spacing: 8) {
-            StudioGroupLabel(text: "Look")
+            StudioGroupLabel(text: "Color")
             let active = StudioLook.current(for: config)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {

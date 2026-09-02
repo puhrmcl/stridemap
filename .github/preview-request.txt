@@ -13,13 +13,13 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested for b533: the map editor on the nationwide basemap, watermark-free.
+# Requested for b539: the Design tab's new three-axis IA.
 #
-#   map-studio — the continental-US archive is live and tiles.json no longer carries an
-#   attribution string, so the panel should show streets with NO MapLibre wordmark and no
-#   stamped attribution text; the only credit is the app's own baked line, bottom-right of
-#   the panel. A blank panel now honestly falls back to Apple (the detector samples the
-#   interior), so a blank here would mean tiles failed on the runner.
+#   map-studio — the Design tab now asks three orthogonal questions in order: Layout
+#   (Nameplate/Statement/Minimal/Photo/Full Bleed), Style (Streets/Terrain/Contour/
+#   Satellite/No Map), and Color (Etch/Bright/Dark/Noir/Harbor/Mono chips). The old
+#   "Start here" preset row is gone. What to check: the three row labels, the Layout
+#   thumbnails rendering as five arrangements of this piece, and the six Color chips.
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 

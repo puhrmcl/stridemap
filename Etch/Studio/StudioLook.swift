@@ -12,7 +12,10 @@ import SwiftUI
 /// survive it, so trying one is cheap and reversible — which is the whole point of putting it
 /// first.
 enum StudioLook: String, CaseIterable, Identifiable {
-    case light, dark, mono, warm
+    // Case order is picker order: the brand's own world first, then the loud one, then the dark
+    // pair, then the authored navy, then no colour at all. Raw values are stable — light/warm
+    // keep theirs though their names changed to Etch/Harbor.
+    case light, bright, dark, noir, warm, mono
     var id: String { rawValue }
 
     /// Harbor's slate-navy, written once — in `Theme.Artwork`, alongside the edition that also
@@ -20,12 +23,18 @@ enum StudioLook: String, CaseIterable, Identifiable {
     /// literal while testing against a second would simply never light up.
     static let warmGround = Theme.Artwork.harbor
 
+    /// Noir's ground: true black rather than the brand ink, which is what separates it from
+    /// Dark — the same way Apple Maps' dark mode and a blackout poster are different objects.
+    static let noirGround = Color(red: 0.04, green: 0.04, blue: 0.045)
+
     var name: String {
         switch self {
-        case .light: return "Light"
-        case .dark:  return "Dark"
-        case .mono:  return "Mono"
-        case .warm:  return "Warm"
+        case .light:  return "Etch"
+        case .bright: return "Bright"
+        case .dark:   return "Dark"
+        case .noir:   return "Noir"
+        case .mono:   return "Mono"
+        case .warm:   return "Harbor"
         }
     }
 
@@ -33,16 +42,20 @@ enum StudioLook: String, CaseIterable, Identifiable {
     var groundSwatch: Color {
         switch self {
         case .light, .mono: return Theme.Palette.bone
+        case .bright:       return .white
         case .dark:         return Theme.Palette.ink
+        case .noir:         return StudioLook.noirGround
         case .warm:         return StudioLook.warmGround
         }
     }
     var routeSwatch: Color {
         switch self {
-        case .light: return Theme.Palette.blue
-        case .dark:  return Theme.Palette.bone
-        case .mono:  return Theme.Palette.ink
-        case .warm:  return Theme.Palette.brass
+        case .light:  return Theme.Palette.blue
+        case .bright: return Theme.Palette.blue
+        case .dark:   return Theme.Palette.bone
+        case .noir:   return .white
+        case .mono:   return Theme.Palette.ink
+        case .warm:   return Theme.Palette.brass
         }
     }
 
@@ -64,11 +77,22 @@ enum StudioLook: String, CaseIterable, Identifiable {
             c.groundColor = Theme.Palette.bone
             c.textColor = Theme.Palette.ink
             c.routeColor = Theme.Palette.blue
+        case .bright:
+            // The full-colour world: white paper, the vivid map, the route in Etch Blue.
+            c.monochrome = false
+            c.groundColor = .white
+            c.textColor = Theme.Palette.ink
+            c.routeColor = Theme.Palette.blue
         case .dark:
             c.monochrome = false
             c.groundColor = Theme.Palette.ink
             c.textColor = Theme.Palette.bone
             c.routeColor = Theme.Palette.bone
+        case .noir:
+            c.monochrome = false
+            c.groundColor = StudioLook.noirGround
+            c.textColor = .white
+            c.routeColor = .white
         case .mono:
             c.monochrome = true
             c.groundColor = Theme.Palette.bone

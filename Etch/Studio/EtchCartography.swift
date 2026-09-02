@@ -69,12 +69,30 @@ enum EtchCartography {
         let minorRoad: String
         let building: String
         let label: String
+        /// Parks, forests and greens — drawn only by the vivid palette; nil keeps the muted
+        /// styles' silence about landuse.
+        let park: String?
 
         /// - Parameter paper: the sheet the poster is printed on. Land is set to it exactly rather
         ///   than to something close, which is what keeps the panel from having an edge. The ink
         ///   is then chosen from the *paper*, not from the edition's authored darkness — a light
         ///   edition on a dark paper needs light linework or the map disappears into the sheet.
         init(edition: StudioEdition, paper: Color? = nil) {
+            // Atlas is the one deliberate exception to "geography stays muted": a bright,
+            // full-colour daylight map — true-blue water, green parks, amber highways — in
+            // Etch's own tones rather than Apple's, which is what makes it sellable. Land still
+            // follows the chosen paper so the panel never grows an edge.
+            if edition.id == .atlas || edition.id == .atlasDark {
+                let ground = paper ?? Color(red: 0.965, green: 0.955, blue: 0.93)
+                land = Self.hex(ground)
+                water = "#A5C8E8"
+                park = "#C6E2BC"
+                majorRoad = "#EFC468"
+                minorRoad = "#DCD6CA"
+                building = "#E9E3D7"
+                label = "#6E7378"
+                return
+            }
             let ground = paper ?? edition.ground
             let ink = ground.isDarkGround ? Color.white : Theme.Palette.ink
             land = Self.hex(ground)
@@ -87,6 +105,7 @@ enum EtchCartography {
             minorRoad = Self.hex(Self.blend(ground, ink, dark ? 0.20 : 0.14))
             building = Self.hex(Self.blend(ground, ink, dark ? 0.13 : 0.08))
             label = Self.hex(Self.blend(ground, ink, 0.62))
+            park = nil
         }
 
         /// `amount` of `top` over `base`, in sRGB.
@@ -170,6 +189,22 @@ enum EtchCartography {
                 ]
             ]
         ]
+
+        // The green world, vivid palette only — under water so lakes sit over parks. A kind
+        // the filter doesn't name simply doesn't draw, which keeps this safe against schema
+        // drift in the tiles.
+        if let park = palette.park {
+            layers.insert([
+                "id": "landuse-green",
+                "type": "fill",
+                "source": "etch",
+                "source-layer": "landuse",
+                "filter": ["in", "kind", "park", "forest", "wood", "grass", "garden",
+                           "cemetery", "golf_course", "nature_reserve", "national_park",
+                           "protected_area", "village_green", "meadow"],
+                "paint": ["fill-color": park]
+            ], at: 1)
+        }
 
         if labels {
             layers.append([

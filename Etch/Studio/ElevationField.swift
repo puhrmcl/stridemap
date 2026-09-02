@@ -53,7 +53,10 @@ enum ElevationService {
         }
 
         var values = [Double](repeating: 0, count: coords.count)
-        let maxConcurrent = 5
+        // Three at a time, not five: sixteen batches in bursts of five was tripping the API's
+        // rate limit on weak connections, and one nulled batch blanks the whole contour panel —
+        // which is how the Contour style rendered as bare paper on device.
+        let maxConcurrent = 3
         var waveStart = 0
         while waveStart < batches.count {
             let wave = Array(batches[waveStart..<min(waveStart + maxConcurrent, batches.count)])
@@ -175,8 +178,9 @@ enum ElevationService {
         if let data = try? JSONEncoder().encode(values) { try? data.write(to: url) }
     }
 
-    /// One request of ≤100 coordinates, with a single retry to ride out a transient hiccup.
-    /// nil once both attempts fail.
+    /// One request of ≤100 coordinates, retried with a growing pause — a contour field is
+    /// sixteen of these and a single dead batch blanks the whole panel, so each one gets a
+    /// real chance to ride out a rate-limit blip or a weak-signal timeout before giving up.
     private static func fetchBatch(_ coords: [(lat: Double, lon: Double)]) async -> [Double]? {
         let lats = coords.map { String(format: "%.5f", $0.lat) }.joined(separator: ",")
         let lons = coords.map { String(format: "%.5f", $0.lon) }.joined(separator: ",")
@@ -187,18 +191,19 @@ enum ElevationService {
         ]
         guard let url = components?.url else { return nil }
 
-        for attempt in 0..<2 {
+        let pauses: [UInt64] = [400_000_000, 1_200_000_000, 2_500_000_000]
+        for attempt in 0...pauses.count {
             do {
                 let (data, response) = try await URLSession.shared.data(from: url)
                 guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-                    if attempt == 0 { try? await Task.sleep(nanoseconds: 400_000_000); continue }
+                    if attempt < pauses.count { try? await Task.sleep(nanoseconds: pauses[attempt]); continue }
                     return nil
                 }
                 let decoded = try JSONDecoder().decode(Response.self, from: data)
                 guard decoded.elevation.count == coords.count else { return nil }
                 return decoded.elevation.map { $0 ?? 0 }   // null (void/water) → sea level
             } catch {
-                if attempt == 0 { try? await Task.sleep(nanoseconds: 400_000_000); continue }
+                if attempt < pauses.count { try? await Task.sleep(nanoseconds: pauses[attempt]); continue }
                 return nil
             }
         }
