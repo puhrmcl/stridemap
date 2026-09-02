@@ -26,9 +26,12 @@
 screens=map-studio:bright
 appearance=light
 
-# Re-shot for b542: the harness now logs a wire probe ("basemap probe …") — the first bytes
-# of a tile as URLSession delivers them. head 1f8b = still gzipped (worker-side fix);
-# head 1a… = clean protobuf (MapLibre-side fault). Read it from the basemap log dump.
+# Re-shot for b543: the b542 wire probe closed the case — URLSession handed MapLibre the
+# tile STILL GZIPPED (head 1f8b, ce=gzip passthrough), whose first byte is protobuf wire
+# type 7: the exact "unknown pbf field type exception". The worker now serves tiles
+# decompressed, and the parks layer is restored (the archive decodes clean end to end).
+# Expect: vivid OSM — NO Apple labels/watermark, amber highways, true-blue water, green
+# parks — and zero pbf errors in the log dump.
 #
 # b541's note, kept for context: the log capture found the killer — "unknown pbf field type exception"
 # from MapLibre decoding the archive's landuse layer, which only the vivid style referenced.

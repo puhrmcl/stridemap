@@ -14,9 +14,10 @@
  * less than one framed print.
  *
  * This module turns that archive into the `/tiles/{z}/{x}/{y}.mvt` endpoint MapLibre expects,
- * plus the `/tiles/tiles.json` TileJSON that describes it. Nothing here decodes a tile: the bytes
- * that come out of the archive are exactly the bytes that go to the client. That is what keeps
- * this cheap enough to sit in front of a print render.
+ * plus the `/tiles/tiles.json` TileJSON that describes it. Nothing here *parses* a tile — but
+ * each one is gunzipped on the way out, because serving the archive's stored gzip with a
+ * `Content-Encoding` header put compressed bytes into MapLibre's protobuf parser on iOS (see
+ * serveTile). A tile's worth of inflate per request is well inside a Worker's CPU budget.
  *
  * OpenStreetMap is ODbL. Attribution travels in the TileJSON and belongs on anything published.
  */
@@ -304,15 +305,24 @@ export async function serveTile(
       continue;
     }
 
-    const body = await readRange(env, header.tileDataOffset + entry.offset, entry.length);
+    const stored = await readRange(env, header.tileDataOffset + entry.offset, entry.length);
+    // Serve the tile DECOMPRESSED, not as stored-gzip with `Content-Encoding: gzip`.
+    //
+    // The passthrough looked free and was a field defect: iOS's URLSession delivered those
+    // bodies to MapLibre still compressed — a gzip body's first byte read as a protobuf key
+    // is wire type 7, which is exactly the "unknown pbf field type exception" that killed
+    // every snapshot, tripped the blank breaker, and locked checkout behind the Apple
+    // fallback. (The same client transparently decodes what Cloudflare's own negotiation
+    // compresses — tiles.json arrives as brotli and parses fine — so identity out of the
+    // worker is the shape that provably works: the edge re-compresses per client, and the
+    // client actually inflates it.) The archive keeps its gzip; only serving inflates.
+    const body = await decompress(stored, header.tileCompression);
     return new Response(body, {
       headers: {
         "Content-Type": "application/vnd.mapbox-vector-tile",
         // Tiles are immutable for the life of an archive: a new planet build is a new object,
         // never an edit of this one. A year is safe and keeps the edge doing the work.
         "Cache-Control": "public, max-age=31536000, immutable",
-        // Protomaps archives store gzipped tiles; saying so lets the client inflate them.
-        ...(header.tileCompression === 2 ? { "Content-Encoding": "gzip" } : {}),
         "Access-Control-Allow-Origin": "*",
       },
     });
