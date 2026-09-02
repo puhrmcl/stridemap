@@ -188,6 +188,12 @@ struct TimelineView: View {
                             case .gallery: galleryContent
                             }
                         }
+                        // The page opens at its foot — the most recent activity — in every
+                        // scope. The anchor does the initial placement natively (robust against
+                        // lazy content that hasn't measured yet, which made a scrollTo land
+                        // short on large libraries); `landOnNewest` remains for scope switches
+                        // and the tab re-tap.
+                        .defaultScrollAnchor(.bottom)
                         .task(id: scope) { await landOnNewest(proxy) }
                         .task(id: appModel.reselectCount) {
                             guard appModel.reselectCount > 0,
