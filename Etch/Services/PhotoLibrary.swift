@@ -101,7 +101,9 @@ enum PhotoLibrary {
     /// Of the given asset identifiers, which are screenshots (UI captures) — so a photo wall or
     /// print can skip them and stay to real photography. One batched metadata fetch.
     static func screenshotIdentifiers(among identifiers: [String]) -> Set<String> {
-        guard !identifiers.isEmpty else { return [] }
+        // Unguarded, this was the one PHAsset fetch left that could put the permission sheet
+        // over a CI screenshot — the Photo Wall calls it on appear.
+        guard !identifiers.isEmpty, !isPreview else { return [] }
         let assets = PHAsset.fetchAssets(withLocalIdentifiers: identifiers, options: nil)
         var out: Set<String> = []
         assets.enumerateObjects { asset, _, _ in
@@ -151,10 +153,40 @@ enum PhotoLibrary {
         ProcessInfo.processInfo.environment["ETCH_PREVIEW"]?.isEmpty == false
     }
 
+    /// The photograph CI sees: a muted tone with a soft highlight, derived from the identifier
+    /// so every seeded reference keeps its own stable "photo" across runs.
+    private static func previewStandIn(for identifier: String, size: CGSize) -> UIImage {
+        var hash: UInt64 = 1_469_598_103_934_665_603
+        for byte in identifier.utf8 { hash = (hash ^ UInt64(byte)) &* 1_099_511_628_211 }
+        let hue = CGFloat(hash % 360) / 360
+        let side = CGSize(width: max(size.width, 60), height: max(size.height, 60))
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        return UIGraphicsImageRenderer(size: side, format: format).image { context in
+            UIColor(hue: hue, saturation: 0.22, brightness: 0.74, alpha: 1).setFill()
+            context.fill(CGRect(origin: .zero, size: side))
+            UIColor(hue: hue, saturation: 0.30, brightness: 0.88, alpha: 1).setFill()
+            UIBezierPath(ovalIn: CGRect(x: side.width * 0.58, y: side.height * 0.10,
+                                        width: side.width * 0.26, height: side.width * 0.26)).fill()
+            UIColor(hue: hue, saturation: 0.34, brightness: 0.52, alpha: 1).setFill()
+            let ridge = UIBezierPath()
+            ridge.move(to: CGPoint(x: 0, y: side.height))
+            ridge.addLine(to: CGPoint(x: side.width * 0.38, y: side.height * 0.55))
+            ridge.addLine(to: CGPoint(x: side.width * 0.62, y: side.height * 0.78))
+            ridge.addLine(to: CGPoint(x: side.width, y: side.height * 0.45))
+            ridge.addLine(to: CGPoint(x: side.width, y: side.height))
+            ridge.close()
+            ridge.fill()
+        }
+    }
+
     /// Loads an image for an asset identifier at (roughly) the target size. Returns nil if the
     /// asset no longer exists (e.g. deleted from the library).
     static func image(for identifier: String, targetSize: CGSize) async -> UIImage? {
-        guard !isPreview else { return nil }
+        // A stand-in rather than nil: the screens being photographed lay out photography, and a
+        // grid of spinners can't be judged. Deterministic per identifier, so shots are stable.
+        guard !isPreview else { return previewStandIn(for: identifier, size: targetSize) }
         guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject
         else { return nil }
 

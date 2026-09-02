@@ -24,3 +24,7 @@
 
 screens=photo-wall
 appearance=light
+
+# Re-run for b524: the b523 shot was covered by the Photos permission sheet — the wall's
+# screenshot-detection fetch was the one PHAsset call left outside the preview guard. Photos
+# now render as deterministic stand-ins in CI, so the framed grid is actually judgeable.
