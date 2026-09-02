@@ -124,14 +124,7 @@ jobs:
           echo
           # A real tile from the middle of the requested region, through the worker's range
           # reads — tiles.json alone proves the header, not the archive.
-          TILE=$(python3 -c "
-import math
-bbox='${{ steps.request.outputs.bbox }}'.split(',')
-lon=(float(bbox[0])+float(bbox[2]))/2; lat=(float(bbox[1])+float(bbox[3]))/2
-z=10; n=2**z
-x=int((lon+180)/360*n)
-y=int((1-math.log(math.tan(math.radians(lat))+1/math.cos(math.radians(lat)))/math.pi)/2*n)
-print(f'{z}/{x}/{y}')")
+          TILE=$(python3 -c "import math; b='${{ steps.request.outputs.bbox }}'.split(','); lon=(float(b[0])+float(b[2]))/2; lat=(float(b[1])+float(b[3]))/2; z=10; n=2**z; x=int((lon+180)/360*n); y=int((1-math.log(math.tan(math.radians(lat))+1/math.cos(math.radians(lat)))/math.pi)/2*n); print(f'{z}/{x}/{y}')")
           CODE=$(curl -s -o tile.mvt -w "%{http_code}" "$BASE/tiles/$TILE.mvt")
           SIZE=$(wc -c < tile.mvt | xargs)
           echo "tile $TILE → HTTP $CODE, $SIZE bytes"
