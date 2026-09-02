@@ -78,6 +78,9 @@ struct HomeView: View {
     /// True while the map is zoomed close enough for 3D content to be worth offering — gates the
     /// floating 3D button. Written by the map only when the threshold is crossed.
     @State private var mapZoomedIn = false
+    /// The activity the map is isolated to (long-press on a route or pin); nil = everything.
+    /// The map writes it, the floating chip names it, and either side can clear it.
+    @State private var isolatedRunID: UUID?
     /// Measured map height, for sizing the sheet's detents.
     @State private var screenHeight: CGFloat = 800
 
@@ -373,7 +376,8 @@ struct HomeView: View {
                 is3D: is3D,
                 centerBox: centerBox,
                 zoomedInFor3D: $mapZoomedIn,
-                contentRevision: appModel.mapContentRevision
+                contentRevision: appModel.mapContentRevision,
+                isolatedRun: $isolatedRunID
             )
             .opacity(showLocations ? 0 : 1)
             .allowsHitTesting(!showLocations)
@@ -416,6 +420,36 @@ struct HomeView: View {
             }
         }
         .ignoresSafeArea()
+        // The isolation chip: names the one activity the map is showing, and is the explicit
+        // way out (a tap anywhere off the route is the implicit one).
+        .overlay(alignment: .top) {
+            if let id = isolatedRunID, !showLocations {
+                HStack(spacing: 8) {
+                    Image(systemName: "scope")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                    Text(visibleRuns.first { $0.id == id }?.name ?? "One activity")
+                        .font(.etch(.footnote, weight: .semibold))
+                        .lineLimit(1)
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { isolatedRunID = nil }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Show all activities")
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(.regularMaterial, in: .capsule)
+                .shadow(color: .black.opacity(0.15), radius: 8, y: 3)
+                .padding(.top, 8)
+                .frame(maxWidth: 320)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(duration: 0.3), value: isolatedRunID)
         // Tap anywhere on the map to dismiss the open mode dropdown (it sits above this layer).
         .overlay {
             if showModeMenu || showTypeMenu {

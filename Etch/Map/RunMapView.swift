@@ -55,6 +55,10 @@ struct RunMapView: UIViewRepresentable {
     /// drag (or any unrelated parent re-render) never iterates the run set here. The parent bumps
     /// it when the drawn routes/pins could actually differ (import / edit / filter / scope / pins).
     var contentRevision: Int = 0
+    /// The one activity the map is isolated to, when a route or pin has been long-pressed —
+    /// every other route and pin disappears until the isolation is dismissed (a tap anywhere
+    /// off the route, or the floating chip's ✕). Written by the map, cleared by either side.
+    var isolatedRun: Binding<UUID?>? = nil
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -100,6 +104,15 @@ struct RunMapView: UIViewRepresentable {
         tap.delaysTouchesBegan = false
         tap.delaysTouchesEnded = false
         map.addGestureRecognizer(tap)
+
+        // Long-press a route (or a single-run pin) to isolate that one activity — the way to
+        // study one race in a heavily-run neighbourhood, in 2D or tilted into 3D. A tap
+        // anywhere off the isolated route brings everything back.
+        let press = UILongPressGestureRecognizer(target: context.coordinator,
+                                                 action: #selector(Coordinator.handleLongPress(_:)))
+        press.minimumPressDuration = 0.45
+        press.delegate = context.coordinator
+        map.addGestureRecognizer(press)
 
         context.coordinator.map = map
 
@@ -179,6 +192,12 @@ struct RunMapView: UIViewRepresentable {
 
         context.coordinator.updateSelection(selectedRunID)
 
+        // The chip's ✕ (or anything external) cleared the isolation — apply it map-side.
+        if let binding = isolatedRun,
+           context.coordinator.isolatedID != binding.wrappedValue {
+            context.coordinator.setIsolation(binding.wrappedValue)
+        }
+
         // On entering history, frame everything so the whole footprint is in view. Otherwise,
         // the first time we have runs to show, frame the map to them so it opens centered on
         // the user's runs rather than the default world view. Both only fire on a transition /
@@ -225,6 +244,11 @@ struct RunMapView: UIViewRepresentable {
         /// did anyway. Still an O(1) compare, so the reason the revision exists survives.
         var lastRunCount: Int?
 
+        /// The activity the map is isolated to (long-press), or nil for the full picture.
+        /// Held here — not as SwiftUI state — because applying it is a renderer restyle plus a
+        /// pin rebuild, and neither should wait on (or trigger) a parent body pass.
+        var isolatedID: UUID?
+
         /// run id → overlay, so we can diff efficiently between updates.
         private var overlaysByID: [UUID: RunPolyline] = [:]
         /// run id → the `updatedAt` its overlay was built from, so a run whose route (or other
@@ -265,13 +289,34 @@ struct RunMapView: UIViewRepresentable {
         /// render style flips, since geometry and styling both differ between modes.
         func resetOverlays() {
             guard let map else { return }
+            // A render-style flip is a different way of looking at everything; isolation is a
+            // way of looking at one thing. They don't compose.
+            setIsolation(nil)
             map.removeOverlays(Array(overlaysByID.values))
             overlaysByID.removeAll()
             overlayRevisionByID.removeAll()
         }
 
+        /// Applies (or clears) the single-activity isolation: restyles every route — the others
+        /// to invisible — rebuilds the pins down to the one activity, and mirrors the state to
+        /// the parent so the floating chip can name it.
+        func setIsolation(_ id: UUID?) {
+            guard isolatedID != id else { return }
+            isolatedID = id
+            restyleRoutes()
+            rebuildClusters(force: true)
+            if let binding = parent.isolatedRun, binding.wrappedValue != id {
+                DispatchQueue.main.async { binding.wrappedValue = id }
+            }
+        }
+
         func updateOverlays(with runs: [Run], fadeWithAge: Bool) {
             guard let map else { return }
+            // An isolated activity that has left the visible set (a filter or scope change)
+            // releases the isolation rather than leaving an empty map.
+            if let iso = isolatedID, !runs.contains(where: { $0.id == iso }) {
+                setIsolation(nil)
+            }
             let routed = runs.filter { $0.hasRoute }
 
             // History renders as a heatmap, not per-run polylines. Decimate each route into
@@ -431,6 +476,15 @@ struct RunMapView: UIViewRepresentable {
                 return RouteStyle(color: routeBlue, width: 1.6, alpha: 0.30)
             }
 
+            // Isolation: the chosen route at selected weight, everything else invisible. The
+            // overlays stay on the map — this is a restyle, not a membership change — so
+            // dismissing is another restyle and the diffing machinery never notices.
+            if let isolatedID {
+                return overlay.runID == isolatedID
+                    ? RouteStyle(color: routeBlue, width: 6, alpha: 1)
+                    : RouteStyle(color: routeBlue, width: 3, alpha: 0)
+            }
+
             if overlay.isSelected {
                 return RouteStyle(color: routeBlue, width: 6, alpha: 1)
             }
@@ -460,7 +514,11 @@ struct RunMapView: UIViewRepresentable {
         /// zoom changes the cell size or the run set changes; panning doesn't churn (the grid is
         /// anchored in map space). History mode shows none.
         func rebuildClusters(force: Bool) {
-            guard let map, parent.renderStyle == .routes, parent.showPins, !runPoints.isEmpty else {
+            // Under isolation only the chosen activity keeps its pin — the pins are most of
+            // the visual noise the isolation exists to clear.
+            let points = isolatedID == nil ? runPoints
+                : runPoints.filter { $0.id == isolatedID }
+            guard let map, parent.renderStyle == .routes, parent.showPins, !points.isEmpty else {
                 removeAllClusters()
                 return
             }
@@ -470,10 +528,10 @@ struct RunMapView: UIViewRepresentable {
             let cell = max(1, (map.visibleMapRect.width / width) * 68)
             let cellChanged = clusterCellSize <= 0 || abs(cell - clusterCellSize) / max(clusterCellSize, 1) > 0.25
             let represented = clusterAnnotations.reduce(0) { $0 + $1.runIDs.count }
-            guard force || cellChanged || represented != runPoints.count else { return }
+            guard force || cellChanged || represented != points.count else { return }
 
             var buckets: [String: (ids: [UUID], sumX: Double, sumY: Double, kind: RunPinKind, type: ActivityType)] = [:]
-            for point in runPoints {
+            for point in points {
                 let mp = MKMapPoint(point.coordinate)
                 let gx = Int(floor(mp.x / cell)), gy = Int(floor(mp.y / cell))
                 let key = "\(gx),\(gy)"
@@ -574,7 +632,25 @@ struct RunMapView: UIViewRepresentable {
 
         // MARK: Route tapping
 
+        /// Screen-space distance from a point to a route, sampled to stay cheap.
+        private func distance(from point: CGPoint, to overlay: RunPolyline, in map: MKMapView) -> CGFloat {
+            let count = overlay.pointCount
+            guard count > 1 else { return .greatestFiniteMagnitude }
+            let points = overlay.points()
+            let step = max(1, count / 160)
+            var best = CGFloat.greatestFiniteMagnitude
+            var i = 0
+            while i < count {
+                let screen = map.convert(points[i].coordinate, toPointTo: map)
+                best = min(best, hypot(screen.x - point.x, screen.y - point.y))
+                i += step
+            }
+            return best
+        }
+
         /// Opens the run whose route line is closest to the tap, if any is within a small radius.
+        /// Under isolation the tap has one extra meaning: on the isolated route it opens the
+        /// detail as usual; anywhere else it dismisses the isolation and brings everything back.
         @objc func handleRouteTap(_ gesture: UITapGestureRecognizer) {
             guard gesture.state == .ended, let map, parent.renderStyle == .routes else { return }
             let tapPoint = gesture.location(in: map)
@@ -587,20 +663,22 @@ struct RunMapView: UIViewRepresentable {
             }
 
             let threshold: CGFloat = 22
+
+            if let isolatedID {
+                if let overlay = overlaysByID[isolatedID],
+                   distance(from: tapPoint, to: overlay, in: map) <= threshold {
+                    parent.selectedRunID = isolatedID
+                } else {
+                    setIsolation(nil)
+                }
+                return
+            }
+
             var best: (id: UUID, distance: CGFloat)?
             for (id, overlay) in overlaysByID {
-                let count = overlay.pointCount
-                guard count > 1 else { continue }
-                let points = overlay.points()
-                let step = max(1, count / 160)   // sample to keep the tap cheap
-                var i = 0
-                while i < count {
-                    let screen = map.convert(points[i].coordinate, toPointTo: map)
-                    let distance = hypot(screen.x - tapPoint.x, screen.y - tapPoint.y)
-                    if distance <= threshold, best == nil || distance < best!.distance {
-                        best = (id, distance)
-                    }
-                    i += step
+                let d = distance(from: tapPoint, to: overlay, in: map)
+                if d <= threshold, best == nil || d < best!.distance {
+                    best = (id, d)
                 }
             }
 
@@ -614,6 +692,44 @@ struct RunMapView: UIViewRepresentable {
                     animated: true
                 )
             }
+        }
+
+        /// Long-press: isolate one activity. On a single-run pin, that run; otherwise the
+        /// nearest route within reach. Nothing happens on a count bubble — "which of these
+        /// eight" is what tapping the bubble already answers.
+        @objc func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+            guard gesture.state == .began, let map, parent.renderStyle == .routes else { return }
+            let point = gesture.location(in: map)
+
+            var view: UIView? = map.hitTest(point, with: nil)
+            while let current = view {
+                if let annotationView = current as? MKAnnotationView {
+                    if let cluster = annotationView.annotation as? RunClusterAnnotation,
+                       cluster.runIDs.count == 1 {
+                        isolate(cluster.runIDs[0])
+                    }
+                    return
+                }
+                view = current.superview
+            }
+
+            let threshold: CGFloat = 26
+            var best: (id: UUID, distance: CGFloat)?
+            for (id, overlay) in overlaysByID {
+                // Invisible (non-isolated) routes are not press targets.
+                if let isolatedID, id != isolatedID { continue }
+                let d = distance(from: point, to: overlay, in: map)
+                if d <= threshold, best == nil || d < best!.distance {
+                    best = (id, d)
+                }
+            }
+            if let best { isolate(best.id) }
+        }
+
+        private func isolate(_ id: UUID) {
+            guard isolatedID != id else { return }
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            setIsolation(id)
         }
 
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
