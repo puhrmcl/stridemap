@@ -15,3 +15,5 @@
 bbox=-115.1,31.2,-108.8,37.2
 maxzoom=15
 key=basemap.pmtiles
+
+# Re-run 2026-09-02: verify tiles after the header-offset fix in tiles.ts.

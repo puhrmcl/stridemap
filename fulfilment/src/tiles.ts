@@ -36,7 +36,9 @@ const HEADER_BYTES = 127;
 interface Header {
   rootDirectoryOffset: number;
   rootDirectoryLength: number;
-  /** Where tile bodies begin; entry offsets are relative to this. */
+  /** Where leaf directories begin; a leaf entry's offset is relative to this. */
+  leafDirectoriesOffset: number;
+  /** Where tile bodies begin; a tile entry's offset is relative to this. */
   tileDataOffset: number;
   /** Directory + metadata compression, and tile compression. 1 = none, 2 = gzip. */
   internalCompression: number;
@@ -115,7 +117,12 @@ async function archive(env: TileEnv): Promise<ArchiveCache> {
   const header: Header = {
     rootDirectoryOffset: readUint64(view, 8),
     rootDirectoryLength: readUint64(view, 16),
-    tileDataOffset: readUint64(view, 40),
+    // v3 layout: 24/32 are the JSON metadata section, 40/48 the leaf directories, 56/64 the
+    // tile data. The first cut read byte 40 as tile data and derived leaves from the root's
+    // end — which lands in the metadata — so every leaf descent 500'd and every root-served
+    // tile carried leaf bytes. The verify step's real-tile fetch is what caught it.
+    leafDirectoriesOffset: readUint64(view, 40),
+    tileDataOffset: readUint64(view, 56),
     internalCompression: view.getUint8(97),
     tileCompression: view.getUint8(98),
     minZoom: view.getUint8(100),
@@ -288,10 +295,10 @@ export async function serveTile(
     if (!entry) return new Response(null, { status: 204 });
 
     if (entry.runLength === 0) {
-      // A leaf directory: its offset is relative to the root directory's own region.
+      // A leaf directory: its offset is relative to the leaf directories section.
       entries = await leafDirectory(
         env, archived,
-        header.rootDirectoryOffset + header.rootDirectoryLength + entry.offset,
+        header.leafDirectoriesOffset + entry.offset,
         entry.length
       );
       continue;
