@@ -35,3 +35,7 @@ action=status
 
 certificate_id=
 merchant_id=
+
+# Re-run 2026-09-02: SHOPIFY_CLIENT_ID and SHOPIFY_CLIENT_SECRET are now set — first
+# authenticated run. status proves the token mints and shows whether the mobile_payments
+# scopes are approved; create follows the moment this is green.
