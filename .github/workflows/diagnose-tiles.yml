@@ -119,6 +119,37 @@ jobs:
             echo
           done
 
+      - name: Which User-Agents does the edge admit?
+        run: |
+          set -e
+          # The sweep's 857 requests ALL came back 403 while curl, minutes earlier from the
+          # same runner, was served. The worker has no auth on /tiles — so Cloudflare's edge
+          # is deciding by request identity, and the prime suspect is the User-Agent: the
+          # sweep announced Python-urllib, the app announces "Etch/1.0 MapLibre/…", neither
+          # looks like a browser. A 403 HTML page's first byte read as a protobuf key is wire
+          # type 4 — the same "unknown pbf field type exception" the snapshotter logs. One
+          # request per UA, body printed so Cloudflare's own error code names the feature.
+          BASE=https://etch-fulfilment.clintpuhrmann.workers.dev
+          URL="$BASE/tiles/12/776/1645.mvt"
+          probe() {
+            local label="$1"; shift
+            local code
+            code=$(curl -s -o body.bin -w "%{http_code}" "$@" "$URL")
+            local size head
+            size=$(wc -c < body.bin | xargs)
+            head=$(head -c 2 body.bin | xxd -p)
+            echo "── $label → HTTP $code, $size bytes, head $head"
+            if [ "$code" != "200" ]; then
+              echo "   body: $(head -c 300 body.bin | tr '\n' ' ')"
+            fi
+            sleep 2
+          }
+          probe "curl default UA"
+          probe "no UA at all" -H "User-Agent:"
+          probe "Python-urllib" -A "Python-urllib/3.12"
+          probe "the app (Etch/MapLibre)" -A "Etch/1.0 MapLibre/6.29.0 Darwin/23.0.0"
+          probe "Mobile Safari" -A "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+
       - name: Sweep for corrupt regions
         run: |
           set -e
@@ -196,7 +227,14 @@ jobs:
               label, z, x, y = job
               url = f"{BASE}/tiles/{z}/{x}/{y}.mvt"
               try:
-                  req = urllib.request.Request(url, headers={"Accept-Encoding": "identity"})
+                  # A browser UA, or the edge 403s the whole sweep and answers a different
+                  # question than the archive-integrity one this step asks.
+                  req = urllib.request.Request(url, headers={
+                      "Accept-Encoding": "identity",
+                      "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) "
+                                    "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 "
+                                    "Mobile/15E148 Safari/604.1",
+                  })
                   with urllib.request.urlopen(req, timeout=30) as r:
                       body = r.read()
                       code = r.status
@@ -211,7 +249,7 @@ jobs:
               return (job, problem)
 
           bad = 0
-          with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
+          with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
               for job, problem in pool.map(check, jobs):
                   if problem:
                       bad += 1
