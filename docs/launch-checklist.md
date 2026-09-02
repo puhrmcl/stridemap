@@ -180,16 +180,23 @@ endpoints, and verified with a real tile fetch — all green in `Build basemap`.
 cartography. b522 bakes the ODbL credit ("© OpenStreetMap contributors") into every OSM panel,
 so it travels to the printed sheet by construction.
 
+**Updated 2026-09-02, same day:** the first device session found routes outside Arizona (Iowa,
+California) rendering on bare paper — the starter bbox never covered the library. The
+**continental US** archive (`basemap-us-20260902.pmtiles`, ~17.5 GB, maxzoom 15, 20.7M tiles)
+is now uploaded and verified; `BASEMAP_KEY` in `fulfilment/wrangler.toml` points at it, and the
+Arizona archive stays in the bucket as rollback. b533 also fixed what that session exposed: the
+blank-map detector now samples the panel's interior (the snapshotter's corner watermark had
+been defeating it), and the MapLibre wordmark/stamped attribution are gone from panels — the
+app's own baked OSM credit is the single line on the sheet.
+
 What remains, none of it blocking:
 
-1. **Coverage is Arizona only.** A route outside the bbox renders blank tiles, trips the blank
-   detector, and the piece falls back to Apple — display-only, honestly marked unsellable.
-   Widen by editing `basemap-request.txt` (sizes and the dated-key rebuild rule are documented
-   in the file); a state is 1–3 GB, the western US nears the runner's disk ceiling.
+1. **Coverage is the continental US.** Alaska, Hawaii and everywhere abroad fall back to Apple
+   (display-only, honestly unsellable). Widening is the same request-file edit.
 2. **Satellite stays display-only.** OSM is vector data with no aerial imagery; selling a
    satellite print is a separate licensing decision, not a pipeline gap.
-3. On the first device build ≥ b522, eyeball the credit line in the map panel's bottom-right
-   corner (CI's downscaled shots can't resolve 7pt type).
+3. On the first device build ≥ b533, open a non-Arizona activity's map edition: streets should
+   draw, no MapLibre wordmark, and the OSM credit sits bottom-right of the panel.
 
 If tiles ever misbehave: set `basemapReady` back to `false`, bump the version, commit — every
 install falls back to Apple for display within a config refresh.
