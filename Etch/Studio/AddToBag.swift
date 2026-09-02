@@ -1,4 +1,6 @@
 import SwiftUI
+import ShopifyCheckoutSheetKit
+import ShopifyAcceleratedCheckouts
 
 /// Where a finished composition goes when the reader commits to it.
 ///
@@ -42,6 +44,65 @@ struct AddToBagButton: View {
         }
         .buttonStyle(.plain)
         .disabled(isDisabled || isWorking)
+    }
+}
+
+/// The payment step, once a prepared cart exists: Apple Pay and Shop Pay natively, with the
+/// hosted checkout behind "Other ways to pay".
+///
+/// The Print Shop grew this first and the other editors kept opening the hosted sheet directly,
+/// which meant Apple Pay existed on one product page out of five. The two-step order it encodes
+/// is deliberate: the artwork is rendered and frozen into the fulfilment worker *before* money
+/// can move, so a paid order with no file behind it cannot exist — the wallet buttons appear
+/// after preparation, never instead of it.
+struct PreparedWalletPanel: View {
+    let cart: ShopifyStorefront.Cart
+    var onComplete: (CheckoutCompletedEvent) -> Void
+    var onFail: (String) -> Void
+    /// Opens the hosted checkout for the same cart — card, PayPal, whatever Shopify offers.
+    var openHosted: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            AcceleratedCheckoutButtons(cartID: cart.id)
+                .wallets([.applePay, .shopPay])
+                .cornerRadius(14)
+                .onComplete { event in onComplete(event) }
+                .onFail { error in onFail(error.localizedDescription) }
+                .environmentObject(ShopifyAcceleratedCheckouts.Configuration(
+                    storefrontDomain: CommerceConfig.shopDomain,
+                    storefrontAccessToken: CommerceConfig.storefrontToken
+                ))
+                .environmentObject(ShopifyAcceleratedCheckouts.ApplePayConfiguration(
+                    merchantIdentifier: ApplePayConfig.merchantIdentifier,
+                    contactFields: ApplePayConfig.requiresPhone ? [.email, .phone] : [.email],
+                    supportedShippingCountries: ApplePayConfig.supportedShippingCountries
+                ))
+            Button(action: openHosted) {
+                Text("Other ways to pay")
+                    .font(.etch(.subheadline, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .foregroundStyle(Theme.accent)
+                    .background(Theme.accent.opacity(0.10), in: .rect(cornerRadius: 14))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+/// The served shipping line — "Free standard shipping" — wherever an order can start.
+///
+/// Served rather than compiled because it is a promise about money: if the store's shipping
+/// zones change, the note has to change the same day, not the next release. Renders nothing
+/// while the config carries no line.
+struct DeliveryNote: View {
+    var body: some View {
+        if let delivery = EtchConfig.current.ordering.delivery, !delivery.isEmpty {
+            Label(delivery, systemImage: "shippingbox")
+                .font(.etch(.footnote, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+        }
     }
 }
 

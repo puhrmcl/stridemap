@@ -67,6 +67,17 @@ struct MapPrintView: View {
     @State private var orderPhase: PrintOrderService.Phase?
     @State private var orderError: String?
     @State private var checkoutURL: URL?
+    /// The rendered-and-uploaded order awaiting payment — drives the wallet sheet when Apple
+    /// Pay is configured. This screen has no standing order panel to put the buttons in, so
+    /// they arrive as a payment sheet the moment the piece is frozen.
+    @State private var preparedOrder: PreparedMapOrder?
+
+    private struct PreparedMapOrder: Identifiable {
+        let cart: ShopifyStorefront.Cart
+        let size: PrintSize
+        let title: String
+        var id: String { cart.id }
+    }
 
     /// Whether the piece on screen can actually be printed and sold: the Anthology styles and
     /// the City Index draw nothing but our own ink on our own ground. The map-based prints
@@ -296,6 +307,29 @@ struct MapPrintView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("Fine-art print on \(PrintProduct.print.material).")
+            }
+            .sheet(item: $preparedOrder) { order in
+                VStack(spacing: 14) {
+                    Text(order.title)
+                        .font(.etch(.headline))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                    Text("\(PrintProduct.print.name) · \(order.size.label) · \(order.size.price)")
+                        .font(.etch(.subheadline))
+                        .foregroundStyle(.secondary)
+                    DeliveryNote()
+                    PreparedWalletPanel(
+                        cart: order.cart,
+                        onComplete: { _ in preparedOrder = nil; dismiss() },
+                        onFail: { message in preparedOrder = nil; orderError = message },
+                        openHosted: {
+                            preparedOrder = nil
+                            checkoutURL = order.cart.checkoutURL
+                        }
+                    )
+                }
+                .padding(24)
+                .presentationDetents([.medium])
             }
             .sheet(item: Binding(
                 get: { checkoutURL.map { MapPrintCheckoutTarget(url: $0) } },
@@ -820,7 +854,14 @@ struct MapPrintView: View {
                         onPhase: { orderPhase = $0 }
                     )
                     orderPhase = nil
-                    checkoutURL = cart.checkoutURL
+                    // Wallets configured: the payment sheet offers Apple Pay over the prepared
+                    // cart. Otherwise the hosted checkout opens directly, as before.
+                    if ApplePayConfig.isConfigured {
+                        preparedOrder = PreparedMapOrder(cart: cart, size: size,
+                                                         title: request.title)
+                    } else {
+                        checkoutURL = cart.checkoutURL
+                    }
                 case .bag:
                     try await PrintOrderService.addToBag(
                         fileAt: fileURL,

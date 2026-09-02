@@ -36,6 +36,10 @@ struct MedalFrameView: View {
     @State private var orderPhase: PrintOrderService.Phase?
     @State private var orderError: String?
     @State private var checkoutURL: URL?
+    /// The rendered-and-uploaded cart behind the wallet buttons. Nil until an order is prepared,
+    /// and dropped whenever the configuration changes — a prepared cart is only valid for the
+    /// exact frame it was made for.
+    @State private var preparedCart: ShopifyStorefront.Cart?
 
     /// 2397 × 3000 at 300 DPI, stated as inches because that is what `PrintGeometry` takes and
     /// what the trim actually is.
@@ -97,6 +101,8 @@ struct MedalFrameView: View {
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
             }
             .task(id: recipeKey) { await renderPanel() }
+            .onChange(of: frameColour) { preparedCart = nil }
+            .onChange(of: mountColour) { preparedCart = nil }
             .addedToBagToast($addedToBag)
             .sheet(isPresented: $customizing, onDismiss: { panel = nil }) {
                 StudioView(run: run, poster: savedRecipe)
@@ -197,26 +203,40 @@ struct MedalFrameView: View {
                 Spacer()
             }
 
+            DeliveryNote()
+
             if canOrder {
-                Button { order(.checkout) } label: {
-                    Group {
-                        if let orderPhase {
-                            HStack(spacing: 10) {
-                                ProgressView().tint(.white)
-                                Text(orderPhase.label)
+                if let preparedCart, ApplePayConfig.isConfigured {
+                    PreparedWalletPanel(
+                        cart: preparedCart,
+                        onComplete: { _ in dismiss() },
+                        onFail: { orderError = $0 },
+                        openHosted: { checkoutURL = preparedCart.checkoutURL }
+                    )
+                } else {
+                    Button { order(.checkout) } label: {
+                        Group {
+                            if let orderPhase {
+                                HStack(spacing: 10) {
+                                    ProgressView().tint(.white)
+                                    Text(orderPhase.label)
+                                }
+                            } else {
+                                Label(ApplePayConfig.isConfigured
+                                        ? "Continue · \(MedalFrameCatalog.price)"
+                                        : "Order · \(MedalFrameCatalog.price)",
+                                      systemImage: "bag")
                             }
-                        } else {
-                            Label("Order · \(MedalFrameCatalog.price)", systemImage: "bag")
                         }
+                        .font(.etch(.headline))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Theme.accent, in: .rect(cornerRadius: 14))
+                        .foregroundStyle(.white)
                     }
-                    .font(.etch(.headline))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Theme.accent, in: .rect(cornerRadius: 14))
-                    .foregroundStyle(.white)
+                    .buttonStyle(.plain)
+                    .disabled(orderPhase != nil || panel == nil)
                 }
-                .buttonStyle(.plain)
-                .disabled(orderPhase != nil || panel == nil)
 
                 // The frame is bought for one race, and the print of that race is the thing most
                 // often bought with it. Two objects, one shipment.
@@ -275,7 +295,10 @@ struct MedalFrameView: View {
                         onPhase: { orderPhase = $0 }
                     )
                     orderPhase = nil
-                    checkoutURL = cart.checkoutURL
+                    // With wallets available, the prepared cart surfaces the Apple Pay buttons;
+                    // without them, the hosted checkout opens directly as it always has.
+                    preparedCart = cart
+                    if !ApplePayConfig.isConfigured { checkoutURL = cart.checkoutURL }
                 case .bag:
                     try await PrintOrderService.addToBag(
                         fileAt: fileURL,

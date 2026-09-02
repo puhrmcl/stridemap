@@ -42,7 +42,13 @@ struct PhotoWallView: View {
     @State private var checkoutURL: URL?
     @State private var isAddingToBag = false
     @State private var addedToBag = false
+    /// The rendered-and-uploaded cart behind the wallet buttons; dropped whenever the wall's
+    /// contents change, because the uploaded file no longer matches what's on screen.
+    @State private var preparedCart: ShopifyStorefront.Cart?
     private let maxPhotos = MultiPhotoFrameCatalog.maxPhotos
+
+    /// The frame colour the order ships in — one source for the order line and the mockup.
+    private var wallFrame: String { MultiPhotoFrameCatalog.frameColours.first ?? "black" }
 
     enum Filter: Hashable {
         case all
@@ -221,18 +227,29 @@ struct PhotoWallView: View {
         }
     }
 
+    /// The wall as the object it ships as: the photo grid behind the multi-aperture frame's
+    /// moulding, not a bare grid of thumbnails. The frame is drawn around the whole grid because
+    /// that is what the product is — one framed piece, however many photographs it holds.
     private var preview: some View {
         ScrollView {
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: columnCount),
-                spacing: 4
+            FramedPrintMockup(
+                moulding: Color(hex: MedalFrameCatalog.mouldingHex(wallFrame)) ?? .black,
+                hasGrain: wallFrame.contains("natural") || wallFrame.contains("brown"),
+                mouldingWidth: 12
             ) {
-                ForEach(shownCells) { item in
-                    cell(item)
-                        .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { remove(item) } }
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: columnCount),
+                    spacing: 4
+                ) {
+                    ForEach(shownCells) { item in
+                        cell(item)
+                            .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { remove(item) } }
+                    }
                 }
+                .padding(10)
+                .background(Theme.Artwork.mountBoard)
             }
-            .padding(16)
+            .padding(24)
         }
     }
 
@@ -331,26 +348,48 @@ struct PhotoWallView: View {
             .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 14))
         }
         if canOrder, !shownCells.isEmpty {
-            Button { order(.checkout) } label: {
-                Group {
-                    if let orderPhase {
-                        HStack(spacing: 10) {
-                            ProgressView().tint(.white)
-                            Text(orderPhase.label)
+            DeliveryNote()
+            if let preparedCart, ApplePayConfig.isConfigured {
+                PreparedWalletPanel(
+                    cart: preparedCart,
+                    onComplete: { event in
+                        let size = MultiPhotoFrameCatalog.size(forPhotos: shownCells.count)
+                        CheckoutCompletion.record(
+                            event, productName: "Photo Wall",
+                            sizeLabel: "\(size.label) · \(shownCells.count) photos",
+                            sku: size.sku
+                        )
+                        dismiss()
+                    },
+                    onFail: { orderError = $0 },
+                    openHosted: { checkoutURL = preparedCart.checkoutURL }
+                )
+                .frame(maxWidth: 340)
+            } else {
+                Button { order(.checkout) } label: {
+                    Group {
+                        if let orderPhase {
+                            HStack(spacing: 10) {
+                                ProgressView().tint(.white)
+                                Text(orderPhase.label)
+                            }
+                        } else {
+                            Label(ApplePayConfig.isConfigured
+                                    ? "Continue · \(MultiPhotoFrameCatalog.price)"
+                                    : "Order framed · \(MultiPhotoFrameCatalog.price)",
+                                  systemImage: "bag")
                         }
-                    } else {
-                        Label("Order framed · \(MultiPhotoFrameCatalog.price)", systemImage: "bag")
                     }
+                    .font(.etch(.subheadline, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Theme.accent, in: .rect(cornerRadius: 14))
+                    .foregroundStyle(.white)
                 }
-                .font(.etch(.subheadline, weight: .semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(Theme.accent, in: .rect(cornerRadius: 14))
-                .foregroundStyle(.white)
+                .buttonStyle(.plain)
+                .disabled(orderPhase != nil)
+                .frame(maxWidth: 340)
             }
-            .buttonStyle(.plain)
-            .disabled(orderPhase != nil)
-            .frame(maxWidth: 340)
             AddToBagButton(isWorking: isAddingToBag, isDisabled: orderPhase != nil) {
                 order(.bag)
             }
@@ -392,7 +431,7 @@ struct PhotoWallView: View {
                 let fileURL = try await PhotoWallRenderer.printFile(photos: prints, size: size)
                 defer { try? FileManager.default.removeItem(at: fileURL) }
                 let creationID = "photowall-\(size.sku)-\(items.count)-\(UUID().uuidString)"
-                let frame = MultiPhotoFrameCatalog.frameColours.first ?? "black"
+                let frame = wallFrame
                 switch destination {
                 case .checkout:
                     let cart = try await PrintOrderService.checkout(
@@ -406,7 +445,10 @@ struct PhotoWallView: View {
                         onPhase: { orderPhase = $0 }
                     )
                     orderPhase = nil
-                    checkoutURL = cart.checkoutURL
+                    // Wallets configured: the prepared cart surfaces Apple Pay in place of the
+                    // order button. Otherwise the hosted checkout opens directly, as before.
+                    preparedCart = cart
+                    if !ApplePayConfig.isConfigured { checkoutURL = cart.checkoutURL }
                 case .bag:
                     try await PrintOrderService.addToBag(
                         fileAt: fileURL,
@@ -595,6 +637,8 @@ struct PhotoWallView: View {
 
     @MainActor
     private func loadAndRender() async {
+        // The wall changed under any prepared cart — its uploaded file no longer matches.
+        preparedCart = nil
         for run in shown {
             guard images[run.id] == nil, let id = run.photoReferences.first else { continue }
             if let img = await PhotoLibrary.image(for: id, targetSize: CGSize(width: 600, height: 600)) {

@@ -34,6 +34,9 @@ struct BookStudioView: View {
     @State private var orderPhase: PrintOrderService.Phase?
     @State private var orderError: String?
     @State private var checkoutURL: URL?
+    /// The rendered-and-uploaded cart behind the wallet buttons; dropped when the subject
+    /// changes, because the uploaded book no longer matches the pages on screen.
+    @State private var preparedCart: ShopifyStorefront.Cart?
     /// Non-nil while a bag add is in flight, and the confirmation that follows it.
     @State private var isAddingToBag = false
     @State private var addedToBag = false
@@ -244,6 +247,7 @@ struct BookStudioView: View {
         previews = [:]
         currentPage = 0
         proofURL = nil
+        preparedCart = nil
         let plan = plan
         for index in plan.pages.indices {
             if Task.isCancelled { return }
@@ -255,25 +259,46 @@ struct BookStudioView: View {
 
     @ViewBuilder private var orderButton: some View {
         if canOrder {
-            Button { order(.checkout) } label: {
-                Group {
-                    if let orderPhase {
-                        HStack(spacing: 10) {
-                            ProgressView().tint(.white)
-                            Text(orderPhase.label)
+            DeliveryNote()
+            if let preparedCart, ApplePayConfig.isConfigured {
+                PreparedWalletPanel(
+                    cart: preparedCart,
+                    onComplete: { event in
+                        CheckoutCompletion.record(
+                            event,
+                            productName: plan.subject.productName,
+                            sizeLabel: "\(plan.subject.menuLabel) · \(plan.pageCount) pages",
+                            sku: BookCatalog.prodigiSKU
+                        )
+                        dismiss()
+                    },
+                    onFail: { orderError = $0 },
+                    openHosted: { checkoutURL = preparedCart.checkoutURL }
+                )
+            } else {
+                Button { order(.checkout) } label: {
+                    Group {
+                        if let orderPhase {
+                            HStack(spacing: 10) {
+                                ProgressView().tint(.white)
+                                Text(orderPhase.label)
+                            }
+                        } else {
+                            Label(ApplePayConfig.isConfigured
+                                    ? "Continue · \(BookCatalog.price)"
+                                    : "Order the book · \(BookCatalog.price)",
+                                  systemImage: "bag")
                         }
-                    } else {
-                        Label("Order the book · \(BookCatalog.price)", systemImage: "bag")
                     }
+                    .font(.etch(.subheadline, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(Theme.accent, in: .capsule)
                 }
-                .font(.etch(.subheadline, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 48)
-                .background(Theme.accent, in: .capsule)
+                .buttonStyle(.plain)
+                .disabled(orderPhase != nil || isExporting)
             }
-            .buttonStyle(.plain)
-            .disabled(orderPhase != nil || isExporting)
         }
     }
 
@@ -312,7 +337,10 @@ struct BookStudioView: View {
                         onPhase: { orderPhase = $0 }
                     )
                     orderPhase = nil
-                    checkoutURL = cart.checkoutURL
+                    // Wallets configured: the prepared cart surfaces Apple Pay in place of the
+                    // order button. Otherwise the hosted checkout opens directly, as before.
+                    preparedCart = cart
+                    if !ApplePayConfig.isConfigured { checkoutURL = cart.checkoutURL }
                 case .bag:
                     try await PrintOrderService.addToBag(
                         fileAt: fileURL,

@@ -211,6 +211,7 @@ struct PreviewHarnessView: View {
                 case "archive":         CollectionBrowserView(collection: .archive, runs: allRuns)
                 case "course":          CollectionBrowserView(collection: .course, runs: allRuns)
                 case "summit":          CollectionBrowserView(collection: .summit, runs: allRuns)
+                case "photo-wall":      PhotoWallView(runs: allRuns)
                 case "yearbook":        BookStudioView(kind: .year)
                 case "collections":     BookStudioView(kind: .collection)
                 case "prints":          PrintShopView(subjectTitle: subject?.name)

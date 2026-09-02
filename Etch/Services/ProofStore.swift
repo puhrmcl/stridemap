@@ -25,6 +25,13 @@ enum ProofStore {
         directory?.appendingPathComponent("\(assetID).jpg")
     }
 
+    /// The proof file itself, for saving or sharing — nil when no proof was stored.
+    static func fileURL(for assetID: String) -> URL? {
+        guard let url = url(for: assetID),
+              FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return url
+    }
+
     static func image(for assetID: String) -> UIImage? {
         guard let url = url(for: assetID) else { return nil }
         return UIImage(contentsOfFile: url.path)

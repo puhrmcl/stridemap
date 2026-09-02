@@ -808,16 +808,12 @@ struct PrintShopView: View {
                     // the one failure this pipeline must never produce — so the wallet buttons
                     // appear after preparation rather than instead of it.
                     if let preparedCart, offersWallets {
-                        walletButtons(cart: preparedCart)
-                        Button { checkout = CheckoutTarget(url: preparedCart.checkoutURL) } label: {
-                            Text("Other ways to pay")
-                                .font(.etch(.subheadline, weight: .semibold))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                                .foregroundStyle(Theme.accent)
-                                .background(Theme.accent.opacity(0.10), in: .rect(cornerRadius: 14))
-                        }
-                        .buttonStyle(.plain)
+                        PreparedWalletPanel(
+                            cart: preparedCart,
+                            onComplete: { event in recordOrder(event) },
+                            onFail: { orderError = $0 },
+                            openHosted: { checkout = CheckoutTarget(url: preparedCart.checkoutURL) }
+                        )
                     } else {
                         Button(action: { beginOrder(openSheet: !offersWallets) }) {
                             Group {
@@ -889,29 +885,6 @@ struct PrintShopView: View {
         }
         .padding(16)
         .background(.regularMaterial, in: .rect(cornerRadius: 18))
-    }
-
-    /// Apple Pay and Shop Pay over the prepared cart.
-    ///
-    /// These are native buttons, not a web checkout: the buyer confirms with Face ID against the
-    /// card and address Apple already holds, and no form is ever shown. The order is the same
-    /// cart the sheet would have opened, carrying the same hidden line attributes, so fulfilment
-    /// cannot tell the two apart. Apple Pay leads because it is the one most buyers have.
-    private func walletButtons(cart: ShopifyStorefront.Cart) -> some View {
-        AcceleratedCheckoutButtons(cartID: cart.id)
-            .wallets([.applePay, .shopPay])
-            .cornerRadius(14)
-            .onComplete { event in recordOrder(event) }
-            .onFail { error in orderError = error.localizedDescription }
-            .environmentObject(ShopifyAcceleratedCheckouts.Configuration(
-                storefrontDomain: CommerceConfig.shopDomain,
-                storefrontAccessToken: CommerceConfig.storefrontToken
-            ))
-            .environmentObject(ShopifyAcceleratedCheckouts.ApplePayConfiguration(
-                merchantIdentifier: ApplePayConfig.merchantIdentifier,
-                contactFields: ApplePayConfig.requiresPhone ? [.email, .phone] : [.email],
-                supportedShippingCountries: ApplePayConfig.supportedShippingCountries
-            ))
     }
 
     private func unavailableNote(_ title: String, detail: String) -> some View {

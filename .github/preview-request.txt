@@ -13,14 +13,14 @@
 #             print-engine runs the print writer's self-check and reports pass/fail
 # appearance: light, dark, or both
 #
-# Requested after the basemap went live: the map editor on Etch's own cartography.
+# Requested for b523: the Photo Wall in its frame.
 #
-#   map-studio — the harness forces the basemap on (SIMCTL_CHILD_ETCH_PREVIEW_BASEMAP=1), so the
-#   panel should be Etch's tiles from R2: muted streets in the edition's ink, land the color of
-#   the sheet, no Apple attribution, no labels. A blank or grey panel means tile fetches failed
-#   on the runner; Apple's look (its labels, its colors) means the snapshotter fell back.
+#   photo-wall — the wall's grid now sits behind the multi-aperture frame's drawn moulding on
+#   the mount board, instead of floating as a bare grid of thumbnails. What to check: the frame
+#   reads as an object (moulding depth, mount border), the photos render inside it, and the
+#   controls below are unchanged. Wallet buttons will not appear in CI (no storefront tokens).
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=map-studio
-appearance=both
+screens=photo-wall
+appearance=light

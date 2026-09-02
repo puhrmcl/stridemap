@@ -1,9 +1,10 @@
 {
-  "version": 4,
+  "version": 5,
   "ordering": {
     "enabled": true,
     "closedTitle": "Ordering opens soon",
-    "closedDetail": "Printed to order on archival paper and shipped to your door. Secure checkout with Apple Pay."
+    "closedDetail": "Printed to order on archival paper and shipped to your door. Secure checkout with Apple Pay.",
+    "delivery": "Free standard shipping"
   },
   "prices": {
     "bySKU": {

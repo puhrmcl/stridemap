@@ -24,6 +24,8 @@ struct BagView: View {
     @State private var cart = CartStore.shared
     @State private var checkout: URL?
     @State private var removing: String?
+    /// The line whose proof is open full screen.
+    @State private var inspecting: CartItem?
 
     var body: some View {
         NavigationStack {
@@ -71,6 +73,7 @@ struct BagView: View {
                     .onFail { _ in checkout = nil }
                     .interactiveDismissDisabled()
             }
+            .fullScreenCover(item: $inspecting) { item in ProofInspector(item: item) }
             .alert("Your bag expired", isPresented: Binding(
                 get: { cart.expiredRecently }, set: { if !$0 { cart.acknowledgeExpiry() } }
             )) {
@@ -98,8 +101,12 @@ struct BagView: View {
     /// the cover for a book. What you see here is what you are paying for.
     private func cartRow(_ item: CartItem) -> some View {
         HStack(alignment: .top, spacing: 14) {
-            CartProofView(item: item)
-                .frame(width: 76)
+            Button { inspecting = item } label: {
+                CartProofView(item: item)
+                    .frame(width: 76)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Inspect the proof")
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                     .font(.etch(.headline))
@@ -178,7 +185,12 @@ struct BagView: View {
                 .buttonStyle(.plain)
             }
 
-            Text("Shipping and any duties are calculated at checkout. Every piece is printed to order.")
+            DeliveryNote()
+                .frame(maxWidth: .infinity)
+
+            Text(EtchConfig.current.ordering.delivery?.isEmpty == false
+                 ? "Any duties are calculated at checkout. Every piece is printed to order."
+                 : "Shipping and any duties are calculated at checkout. Every piece is printed to order.")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
@@ -260,6 +272,40 @@ struct BagView: View {
 private struct BagCheckoutTarget: Identifiable {
     let url: URL
     var id: String { url.absoluteString }
+}
+
+/// The proof, full screen: the exact file that was uploaded for print, zoomable, with the
+/// piece's name and a share button so the proof can be saved or sent before paying. This is the
+/// customer's copy of "what you see is what you're buying" — the same file the lab receives,
+/// not a preview that could drift from it.
+private struct ProofInspector: View {
+    let item: CartItem
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            ArtworkPreviewView(image: ProofStore.image(for: item.assetID))
+
+            VStack(spacing: 8) {
+                Text(item.title)
+                    .font(.etch(.subheadline, weight: .semibold))
+                    .foregroundStyle(.white)
+                Text(item.detail)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.7))
+                if let url = ProofStore.fileURL(for: item.assetID) {
+                    ShareLink(item: url, preview: SharePreview(item.title)) {
+                        Label("Save or share the proof", systemImage: "square.and.arrow.up")
+                            .font(.etch(.footnote, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 9)
+                            .background(.white.opacity(0.18), in: .capsule)
+                    }
+                }
+            }
+            .padding(.bottom, 28)
+        }
+    }
 }
 
 /// A cart line's proof, dressed as its product.
