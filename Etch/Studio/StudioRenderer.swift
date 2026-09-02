@@ -48,6 +48,8 @@ enum StudioRenderer {
         var monochrome: Bool = false
         /// The curated Title typeface.
         var titleFont: PosterFont = .editorial
+        /// The typeface the data (stat values, labels, headline figures) is set in.
+        var dataFont: PosterFont = .modern
         /// Whether the title line is drawn.
         var showTitle: Bool = true
         /// Whether the location line is drawn.
@@ -253,6 +255,7 @@ enum StudioRenderer {
             groundOverride: request.groundColor,
             monochrome: request.monochrome,
             titleFont: request.titleFont,
+            dataFont: request.dataFont,
             showTitle: request.showTitle,
             showLocation: request.showLocation,
             showDate: request.showDate,

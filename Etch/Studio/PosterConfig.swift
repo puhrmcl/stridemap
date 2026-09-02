@@ -306,6 +306,9 @@ struct PosterConfig {
     var orientation: StudioOrientation = .portrait
     var dataPlacement: StudioDataPlacement = .right
     var font: PosterFont = .editorial
+    /// The face the data wears — stat values, labels, headline figures. Modern is the authored
+    /// default (what every piece drew in before the choice existed).
+    var dataFont: PosterFont = .modern
     var showTitle: Bool = true
     /// Title override; empty falls back to the run's name.
     var title: String = ""
@@ -378,6 +381,7 @@ struct PosterConfig {
         )
         r.monochrome = monochrome
         r.titleFont = font
+        r.dataFont = dataFont
         r.showTitle = showTitle
         r.showLocation = showLocation
         r.showDate = showDate
@@ -421,6 +425,7 @@ struct PosterConfig {
         p.dataPlacementRaw = dataPlacement.rawValue
         p.photoLayoutRaw = photoLayout.rawValue
         p.fontRaw = font.rawValue
+        p.dataFontRaw = dataFont.rawValue
         p.showTitle = showTitle
         p.customTitle = title
         p.showLocation = showLocation
@@ -503,6 +508,7 @@ struct PosterConfig {
         dataPlacement = StudioDataPlacement.from(raw: p.dataPlacementRaw)
         photoLayout = StudioPhotoLayout(rawValue: p.photoLayoutRaw) ?? .single
         font = PosterFont(rawValue: p.fontRaw) ?? .editorial
+        dataFont = PosterFont(rawValue: p.dataFontRaw) ?? .modern
         showTitle = p.showTitle
         title = p.customTitle
         showLocation = p.showLocation

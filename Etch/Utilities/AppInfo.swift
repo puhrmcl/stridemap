@@ -7,7 +7,7 @@ enum AppInfo {
 
     /// Hand-bumped on each meaningful change so we can confirm which fixes a build contains.
     /// If the number on the device is lower than expected, it's an older build.
-    static let changeTag = "b528"
+    static let changeTag = "b529"
 
     static var build: String {
         Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"

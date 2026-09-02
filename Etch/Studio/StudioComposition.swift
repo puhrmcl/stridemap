@@ -188,6 +188,10 @@ struct StudioComposition: View {
     var monochrome: Bool = false
     /// The curated Title typeface.
     var titleFont: PosterFont = .editorial
+    /// The face the numbers wear — every stat value, label and headline figure. Modern (Inter)
+    /// is the authored default; the value exists so a serif or poster-grotesk piece can carry
+    /// its voice into the data.
+    var dataFont: PosterFont = .modern
     /// Whether the title line is drawn.
     var showTitle: Bool = true
     /// Whether the location line is drawn.
@@ -806,13 +810,13 @@ struct StudioComposition: View {
                     if heroMetric != .none {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(heroValue)
-                                .font(.etch(size: ts(56 * heroScale), weight: .bold))
+                                .font(.etch(size: ts(56 * heroScale), weight: .bold, face: dataFont.face))
                                 .foregroundStyle(inkColor)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.5)
                             if showStatLabels && !heroCaption.isEmpty {
                                 Text(heroCaption)
-                                    .font(.etch(size: ts(16 * heroScale), weight: .semibold))
+                                    .font(.etch(size: ts(16 * heroScale), weight: .semibold, face: dataFont.face))
                                     .tracking(4)
                                     .foregroundStyle(subtleColor)
                             }
@@ -824,13 +828,13 @@ struct StudioComposition: View {
                             if item.metric != .none {
                                 VStack(alignment: .trailing, spacing: 2) {
                                     Text(item.value)
-                                        .font(.etch(size: ts(26 * statScale), weight: .bold))
+                                        .font(.etch(size: ts(26 * statScale), weight: .bold, face: dataFont.face))
                                         .foregroundStyle(inkColor)
                                         .lineLimit(1)
                                         .minimumScaleFactor(0.6)
                                     if showStatLabels {
                                         Text(item.metric.label)
-                                            .font(.etch(size: ts(12 * statScale), weight: .semibold))
+                                            .font(.etch(size: ts(12 * statScale), weight: .semibold, face: dataFont.face))
                                             .tracking(2)
                                             .foregroundStyle(subtleColor)
                                     }
@@ -931,9 +935,13 @@ struct StudioComposition: View {
         } else {
             VStack(spacing: 6) {
                 Image(systemName: metric.icon).font(.system(size: ts(15 * statScale), weight: .semibold))
-                Text(value).font(.etch(size: ts(26 * statScale), weight: .bold)).minimumScaleFactor(0.5).lineLimit(1)
+                Text(value)
+                    .font(.etch(size: ts(26 * statScale), weight: .bold, face: dataFont.face))
+                    .minimumScaleFactor(0.5).lineLimit(1)
                 if showStatLabels {
-                    Text(metric.label).font(.etch(size: ts(12 * statScale), weight: .semibold)).tracking(1.5)
+                    Text(metric.label)
+                        .font(.etch(size: ts(12 * statScale), weight: .semibold, face: dataFont.face))
+                        .tracking(1.5)
                 }
             }
             .foregroundStyle(.white)
@@ -1499,14 +1507,14 @@ struct StudioComposition: View {
         if heroMetric != .none {
             VStack(alignment: justH(leading ? .leading : .center), spacing: 6) {
                 Text(heroValue)
-                    .font(.etch(size: ts(150 * heroScale), weight: .bold))
+                    .font(.etch(size: ts(150 * heroScale), weight: .bold, face: dataFont.face))
                     .tracking(-2)
                     .foregroundStyle(inkColor)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                 if showStatLabels && !heroCaption.isEmpty {
                     Text(heroCaption)
-                        .font(.etch(size: ts(24 * heroScale), weight: .semibold))
+                        .font(.etch(size: ts(24 * heroScale), weight: .semibold, face: dataFont.face))
                         .tracking(8)
                         .foregroundStyle(accentColor)
                 }
@@ -1557,13 +1565,13 @@ struct StudioComposition: View {
         } else {
             VStack(spacing: 8) {
                 Text(value)
-                    .font(.etch(size: ts(32 * statScale), weight: .bold))
+                    .font(.etch(size: ts(32 * statScale), weight: .bold, face: dataFont.face))
                     .foregroundStyle(inkColor)
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
                 if showStatLabels {
                     Text(metric.label)
-                        .font(.etch(size: ts(15 * statScale), weight: .semibold))
+                        .font(.etch(size: ts(15 * statScale), weight: .semibold, face: dataFont.face))
                         .tracking(2)
                         .foregroundStyle(subtleColor)
                 }

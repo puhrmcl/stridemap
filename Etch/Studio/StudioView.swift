@@ -582,7 +582,7 @@ struct StudioView: View {
          "\(config.monochrome)", config.orientation.rawValue, config.dataPlacement.rawValue,
          // Text fields use their *debounced* mirrors. Typing a title used to re-render the whole
          // composition — and start a fresh map snapshot — on every keystroke.
-         config.font.rawValue, "\(config.showTitle)", debouncedText,
+         config.font.rawValue, config.dataFont.rawValue, "\(config.showTitle)", debouncedText,
          "\(config.showLocation)", "\(config.showDate)",
          config.heroMetric.rawValue,
          config.dataSlots.map(\.rawValue).joined(separator: ","),

@@ -293,6 +293,24 @@ struct StudioCustomizeEditor: View {
                             .buttonStyle(.plain)
                         }
                     }
+                    // The numbers' own face, separate from the title's — a serif masthead over
+                    // grotesk figures is the classic mix, and now a deliberate one.
+                    StudioGroupLabel(text: "Data typeface")
+                    HStack(spacing: 8) {
+                        ForEach(PosterFont.allCases) { face in
+                            Button { config.dataFont = face } label: {
+                                Text(face.name)
+                                    .font(.etch(size: 11, weight: .semibold, face: face.face))
+                                    .foregroundStyle(config.dataFont == face ? .white : Color.primary)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 7)
+                                    .background(config.dataFont == face ? Theme.accent
+                                                                        : Color.secondary.opacity(0.12),
+                                                in: .rect(cornerRadius: 8))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                     // The three text lines keep the wider six-step range they have always had —
                     // a date can go genuinely small or a title genuinely huge without
                     // unbalancing the piece, which is not true of the headline or the data rows.
