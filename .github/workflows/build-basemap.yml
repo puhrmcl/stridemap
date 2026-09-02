@@ -110,12 +110,15 @@ jobs:
           PARTS="["
           N=1
           for F in part_*; do
-            for ATTEMPT in 1 2 3; do
+            # A nationwide upload is hundreds of sequential PUTs, and the edge will 503 a few
+            # of them — the first US run died at part 92 of ~350 after three retries spanning
+            # 34 seconds. Eight attempts with a growing pause ride out a multi-minute blip.
+            for ATTEMPT in 1 2 3 4 5 6 7 8; do
               ETAG=$(curl -sSf -X PUT -H "$AUTH" --data-binary @"$F" \
                 "$BASE/admin/basemap/part?key=$KEY&uploadId=$UPLOAD_ID&part=$N" \
                 | python3 -c "import json,sys; print(json.load(sys.stdin)['etag'])") && break
-              echo "part $N attempt $ATTEMPT failed; retrying"; sleep $((ATTEMPT * 5))
-              [ "$ATTEMPT" = 3 ] && exit 1
+              echo "part $N attempt $ATTEMPT failed; retrying"; sleep $((ATTEMPT * 20))
+              [ "$ATTEMPT" = 8 ] && { echo "::error::part $N failed after 8 attempts"; exit 1; }
             done
             [ "$N" -gt 1 ] && PARTS="$PARTS,"
             PARTS="$PARTS{\"partNumber\":$N,\"etag\":\"$ETAG\"}"
