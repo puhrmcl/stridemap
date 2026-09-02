@@ -23,14 +23,14 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=photo-wall:races
+screens=gallery-studio:triptych
 appearance=light
 
-# b546: the Photo Wall's source filter grows races. The shot should open the wall already
-# scoped to All Races: the filter chip reads "All Races", the grid holds only race photos
-# (fewer than the full wall), and the mockup/order line reflect that count. The menu also
-# gained a "Race" submenu of specific events (recurrences grouped by name), which a static
-# shot can't open — the chip and the reduced grid are the proof the path works.
+# b548: the three-frame gallery design ("triptych") is no longer three skinny columns — on
+# a portrait sheet those came out ~1:3.3 and no photo survived that. It is now a collage
+# grid: a wide hero frame over a pair of near-square cells, picker name "Trio". The shot
+# should show exactly that arrangement — hero photo on top, two frames beneath — with the
+# masthead and stats below.
 
 # b544: the map stack goes fully owned. map-studio:terrain should show real hillshade
 # relief (Terrarium elevation via the worker) under the muted sage streets; map-studio:

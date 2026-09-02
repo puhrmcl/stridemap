@@ -246,7 +246,8 @@ struct PreviewHarnessView: View {
                 case let name where name.hasPrefix("map-studio"):
                     studio(family: .map, look: lookVariant(from: name),
                            material: materialVariant(from: name))
-                case "gallery-studio":  studio(family: .gallery)
+                case let name where name.hasPrefix("gallery-studio"):
+                    studio(family: .gallery, design: designVariant(from: name))
                 case "detail":          detail
                 // The share-photo chooser, rendered directly rather than raised as a sheet —
                 // CI photographs a screen, not a tap sequence.
@@ -267,13 +268,23 @@ struct PreviewHarnessView: View {
     }
 
     @ViewBuilder private func studio(family: PosterFamily, look: StudioLook? = nil,
-                                     material: MapMaterial? = nil) -> some View {
+                                     material: MapMaterial? = nil,
+                                     design: GalleryDesign? = nil) -> some View {
         if let subject {
             StudioView(run: subject,
-                       preset: preset(family, for: subject, look: look, material: material))
+                       preset: preset(family, for: subject, look: look, material: material,
+                                      design: design))
         } else {
             Color(.systemBackground)
         }
+    }
+
+    /// The gallery arrangement named after the colon in `gallery-studio:<design>` (raw values,
+    /// e.g. `gallery-studio:triptych`), or nil for the default.
+    private func designVariant(from name: String) -> GalleryDesign? {
+        let parts = name.split(separator: ":", maxSplits: 1)
+        guard parts.count == 2 else { return nil }
+        return GalleryDesign(rawValue: String(parts[1]))
     }
 
     /// The colour world named after the colon in `map-studio:<look>`, or nil for the default.
@@ -309,11 +320,13 @@ struct PreviewHarnessView: View {
 
     /// Opens the editor straight on the requested product, past the Map/Gallery chooser.
     private func preset(_ family: PosterFamily, for run: Run,
-                        look: StudioLook? = nil, material: MapMaterial? = nil) -> PosterConfig {
+                        look: StudioLook? = nil, material: MapMaterial? = nil,
+                        design: GalleryDesign? = nil) -> PosterConfig {
         var config = PosterConfig.makeDefault(for: run)
         config.family = family
         if let look { config = look.applied(to: config) }
         if let material { config.mapStyle = material.style(for: look) }
+        if let design { config.galleryDesign = design }
         return config
     }
 

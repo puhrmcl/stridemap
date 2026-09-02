@@ -200,9 +200,13 @@ enum PosterFont: String, CaseIterable, Identifiable {
 /// elevation) beneath a masthead. The frame count is fixed per design; the user picks what media
 /// each frame shows.
 enum GalleryDesign: String, CaseIterable, Identifiable {
-    // Duo and Triptych each come in both grains: columns (tall frames, side by side) and rows
-    // (wide frames, stacked). Same frame counts, different photo shapes — a wide landscape
-    // photograph was unusable in a tall column.
+    // Duo comes in both grains: columns (tall frames, side by side) and rows (wide frames,
+    // stacked) — a wide landscape photograph was unusable in a tall column. The three-frame
+    // design used to have a columns grain too; it doesn't any more, and the raw value
+    // "triptych" now names a hero-over-pair collage. Three full-height columns on a portrait
+    // sheet made every frame a sliver around 1:3.3, which no photograph survives — the one
+    // arrangement that never looked right, however the frames were filled. Saved posters keep
+    // their raw value and simply come back in the shape that works.
     case portfolio, duo, duoWide, triptych, triptychWide, grid, feature
     var id: String { rawValue }
     var name: String {
@@ -210,8 +214,8 @@ enum GalleryDesign: String, CaseIterable, Identifiable {
         case .portfolio:    return "Portfolio"
         case .duo:          return "Duo"
         case .duoWide:      return "Duo Wide"
-        case .triptych:     return "Triptych"
-        case .triptychWide: return "Triptych Wide"
+        case .triptych:     return "Trio"
+        case .triptychWide: return "Trio Bands"
         case .grid:         return "Grid"
         case .feature:      return "Feature"
         }
@@ -222,7 +226,7 @@ enum GalleryDesign: String, CaseIterable, Identifiable {
         case .portfolio:    return "rectangle.portrait"
         case .duo:          return "rectangle.split.2x1"
         case .duoWide:      return "square.split.1x2"
-        case .triptych:     return "rectangle.split.3x1"
+        case .triptych:     return "rectangle.grid.2x2"
         case .triptychWide: return "line.3.horizontal"
         case .grid:         return "square.grid.2x2"
         case .feature:      return "rectangle.grid.1x2"

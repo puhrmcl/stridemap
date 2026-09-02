@@ -516,7 +516,16 @@ struct StudioComposition: View {
         case .duoWide:
             VStack(spacing: g) { galleryFrame(0, tiles); galleryFrame(1, tiles) }
         case .triptych:
-            HStack(spacing: g) { galleryFrame(0, tiles); galleryFrame(1, tiles); galleryFrame(2, tiles) }
+            // Three frames as a collage grid — a hero over a pair — NOT three columns. The
+            // column form was authored first and never looked right: on a portrait sheet each
+            // column came out around 1:3.3, and no photograph reads as a sliver that thin. The
+            // hero runs wide, the pair beneath land near square; three frames, all of them
+            // shapes a photo can actually live in.
+            VStack(spacing: g) {
+                galleryFrame(0, tiles).frame(maxHeight: .infinity)
+                HStack(spacing: g) { galleryFrame(1, tiles); galleryFrame(2, tiles) }
+                    .frame(height: galleryArtHeight * 0.42)
+            }
         case .triptychWide:
             VStack(spacing: g) { galleryFrame(0, tiles); galleryFrame(1, tiles); galleryFrame(2, tiles) }
         case .grid:
