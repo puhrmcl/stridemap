@@ -212,6 +212,8 @@ struct StudioComposition: View {
     var dateScale: CGFloat = 1
     var heroScale: CGFloat = 1
     var statScale: CGFloat = 1
+    /// How the text block sits on the sheet ("automatic" = the layout's authored alignment).
+    var textJustificationRaw: String = TextJustification.automatic.rawValue
     /// Uniform shrink applied to the fixed (non-art) content — type, spacings, band heights — when
     /// its natural height would crowd the art below its floor or run off the sheet. Computed by the
     /// renderer from a measurement pass; 1 means the content fits at its designed size. The outer
@@ -529,15 +531,19 @@ struct StudioComposition: View {
 
     /// Title + location beneath the frames, in the chosen face.
     @ViewBuilder private var galleryMasthead: some View {
-        VStack(spacing: sp(14)) {
+        let tracking: CGFloat = titleFont == .editorial ? 1 : 0
+        VStack(alignment: justH(.center), spacing: sp(14)) {
             if showTitle {
                 Text(titleText)
-                    .font(.etch(size: ts(44 * titleScale), weight: titleFont.titleWeight, face: titleFont.face))
-                    .tracking(titleFont == .editorial ? 1 : 0)
+                    .font(.etch(size: filledTitleSize(base: ts(44 * titleScale),
+                                                      tracking: tracking,
+                                                      width: galleryCanvas.width - 160),
+                                weight: titleFont.titleWeight, face: titleFont.face))
+                    .tracking(tracking)
                     .foregroundStyle(inkColor)
-                    .lineLimit(2)
+                    .lineLimit(justification == .filled ? 1 : 2)
                     .minimumScaleFactor(0.5)
-                    .multilineTextAlignment(.center)
+                    .multilineTextAlignment(justText(.center))
             }
             if !placeLine.isEmpty {
                 Text(placeLine.uppercased())
@@ -546,7 +552,7 @@ struct StudioComposition: View {
                     .foregroundStyle(subtleColor)
             }
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: just(.center))
     }
 
     /// A compact centred row of the chosen data slots, under the masthead.
@@ -659,28 +665,33 @@ struct StudioComposition: View {
         .frame(width: canvas.width, height: measuring ? nil : canvas.height)
     }
 
-    /// The masthead: the name, big and flush left, with the date beneath it.
+    /// The masthead: the name, big and flush left, with the date beneath it — unless the piece
+    /// sets its own justification.
     private var nameplateHead: some View {
-        VStack(alignment: .leading, spacing: sp(10)) {
+        let tracking: CGFloat = titleFont == .editorial ? 1 : 0
+        let columnWidth = Self.canvasSize(orientation, dataPlacement, printAspect).width - 140
+        let titleSize = filledTitleSize(base: ts(62 * titleScale), tracking: tracking,
+                                        width: columnWidth)
+        return VStack(alignment: justH(.leading), spacing: sp(10)) {
             if showTitle && !titleText.isEmpty {
                 Text(titleText)
-                    .font(.etch(size: ts(62 * titleScale),
-                                weight: .bold, face: titleFont.face))
+                    .font(.etch(size: titleSize, weight: .bold, face: titleFont.face))
                     // Tight. A headline this size wants its letters close; the wide tracking the
                     // other layouts use is for small caps, and at 62pt it reads as a gap.
-                    .tracking(titleFont == .editorial ? 1 : 0)
+                    .tracking(tracking)
                     .foregroundStyle(inkColor)
-                    .lineLimit(2)
+                    .lineLimit(justification == .filled ? 1 : 2)
                     .minimumScaleFactor(0.4)
+                    .multilineTextAlignment(justText(.leading))
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: just(.leading))
             }
             if !dateLine.isEmpty {
                 Text(dateLine.uppercased())
                     .font(.etch(size: ts(20 * dateScale), weight: .semibold))
                     .tracking(3)
                     .foregroundStyle(subtleColor)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: just(.leading))
             }
         }
         .padding(.horizontal, 70)
@@ -699,7 +710,7 @@ struct StudioComposition: View {
                     .foregroundStyle(inkColor)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .frame(maxWidth: .infinity, alignment: just(.trailing))
             }
             // No rule. Neither reference print draws a line anywhere on the sheet — space does
             // the separating, and a 2pt bar across the foot was doing work a wider margin does
@@ -767,14 +778,18 @@ struct StudioComposition: View {
 
             VStack(spacing: 0) {
                 if showTitle {
+                    let tracking: CGFloat = titleFont == .editorial ? 1 : 0
                     Text(titleText)
-                        .font(.etch(size: ts(54 * titleScale), weight: titleFont.titleWeight,
-                                    face: titleFont.face))
-                        .tracking(titleFont == .editorial ? 1 : 0)
+                        .font(.etch(size: filledTitleSize(base: ts(54 * titleScale),
+                                                          tracking: tracking,
+                                                          width: canvas.width - 184),
+                                    weight: titleFont.titleWeight, face: titleFont.face))
+                        .tracking(tracking)
                         .foregroundStyle(inkColor)
-                        .lineLimit(2)
+                        .lineLimit(justification == .filled ? 1 : 2)
                         .minimumScaleFactor(0.5)
-                        .multilineTextAlignment(.center)
+                        .multilineTextAlignment(justText(.center))
+                        .frame(maxWidth: .infinity, alignment: just(.center))
                 }
                 if !dateLine.isEmpty {
                     Text(dateLine.uppercased())
@@ -782,6 +797,7 @@ struct StudioComposition: View {
                         .tracking(4)
                         .foregroundStyle(subtleColor)
                         .padding(.top, 12)
+                        .frame(maxWidth: .infinity, alignment: just(.center))
                 }
 
                 Spacer(minLength: 0)
@@ -868,20 +884,22 @@ struct StudioComposition: View {
                 }
                 .foregroundStyle(.white.opacity(0.9))
 
-                HStack {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(titleText)
-                            .font(.etch(size: ts(60 * titleScale), weight: .heavy))
-                            .foregroundStyle(.white)
-                            .lineLimit(2).minimumScaleFactor(0.5)
-                        if !placeLine.isEmpty {
-                            Text(placeLine.uppercased())
-                                .font(.etch(size: ts(16 * locationScale), weight: .semibold)).tracking(4)
-                                .foregroundStyle(.white.opacity(0.85))
-                        }
+                VStack(alignment: justH(.leading), spacing: 8) {
+                    Text(titleText)
+                        .font(.etch(size: filledTitleSize(base: ts(60 * titleScale), tracking: 0,
+                                                          width: Self.width - 128),
+                                    weight: .heavy))
+                        .foregroundStyle(.white)
+                        .lineLimit(justification == .filled ? 1 : 2)
+                        .minimumScaleFactor(0.5)
+                        .multilineTextAlignment(justText(.leading))
+                    if !placeLine.isEmpty {
+                        Text(placeLine.uppercased())
+                            .font(.etch(size: ts(16 * locationScale), weight: .semibold)).tracking(4)
+                            .foregroundStyle(.white.opacity(0.85))
                     }
-                    Spacer(minLength: 0)
                 }
+                .frame(maxWidth: .infinity, alignment: just(.leading))
                 .padding(.top, 28)
 
                 Spacer(minLength: 0)
@@ -1394,6 +1412,55 @@ struct StudioComposition: View {
         }
     }
 
+    // MARK: Text justification
+
+    private var justification: TextJustification {
+        TextJustification(rawValue: textJustificationRaw) ?? .automatic
+    }
+
+    /// The alignment a text line actually gets: the layout's authored default unless the piece
+    /// sets an explicit justification. Filled centres — its title spans the column, and the
+    /// lines around it read centred beneath.
+    private func just(_ d: Alignment) -> Alignment {
+        switch justification {
+        case .automatic:       return d
+        case .leading:         return .leading
+        case .center, .filled: return .center
+        case .trailing:        return .trailing
+        }
+    }
+    private func justH(_ d: HorizontalAlignment) -> HorizontalAlignment {
+        switch justification {
+        case .automatic:       return d
+        case .leading:         return .leading
+        case .center, .filled: return .center
+        case .trailing:        return .trailing
+        }
+    }
+    private func justText(_ d: TextAlignment) -> TextAlignment {
+        switch justification {
+        case .automatic:       return d
+        case .leading:         return .leading
+        case .center, .filled: return .center
+        case .trailing:        return .trailing
+        }
+    }
+
+    /// Filled: the point size at which the title spans exactly `width`, measured against the
+    /// real glyphs (tracking is fixed-point in SwiftUI, so it joins the equation linearly).
+    /// Any other justification returns `base` untouched. Clamped so a one-word title cannot
+    /// become a wall of ink, nor a long one shrink into a caption.
+    private func filledTitleSize(base: CGFloat, tracking: CGFloat, width: CGFloat) -> CGFloat {
+        guard justification == .filled, !titleText.isEmpty, width > 10 else { return base }
+        let probe: CGFloat = 100
+        let font = EtchType.uiFont(titleFont.face, size: probe, weight: titleFont.titleWeight)
+        let glyphs = (titleText as NSString).size(withAttributes: [.font: font]).width
+        guard glyphs > 1 else { return base }
+        let tracked = tracking * CGFloat(max(titleText.count - 1, 0))
+        let size = (width - tracked) * probe / glyphs
+        return min(max(size, base * 0.6), base * 4)
+    }
+
     // MARK: Footer pieces
 
     /// The title/date shown, honouring user overrides (empty falls back to the run's values).
@@ -1411,14 +1478,17 @@ struct StudioComposition: View {
 
     @ViewBuilder
     private func title(leading: Bool) -> some View {
+        // The classic layouts' small-caps title. Justification overrides the layout's authored
+        // side; Filled centres it rather than resizing — the classic sheets' headline is the
+        // hero number, and two competing full-width lines would fight.
         if showTitle {
             Text(titleText.uppercased())
                 .font(.etch(size: ts(26 * titleScale), weight: titleFont.titleWeight, face: titleFont.face))
                 .tracking(4 + titleFont.extraTracking)
                 .foregroundStyle(subtleColor)
                 .lineLimit(2)
-                .multilineTextAlignment(leading ? .leading : .center)
-                .frame(maxWidth: .infinity, alignment: leading ? .leading : .center)
+                .multilineTextAlignment(justText(leading ? .leading : .center))
+                .frame(maxWidth: .infinity, alignment: just(leading ? .leading : .center))
         }
     }
 
@@ -1427,7 +1497,7 @@ struct StudioComposition: View {
     @ViewBuilder
     private func heroBlock(leading: Bool) -> some View {
         if heroMetric != .none {
-            VStack(alignment: leading ? .leading : .center, spacing: 6) {
+            VStack(alignment: justH(leading ? .leading : .center), spacing: 6) {
                 Text(heroValue)
                     .font(.etch(size: ts(150 * heroScale), weight: .bold))
                     .tracking(-2)

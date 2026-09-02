@@ -101,6 +101,23 @@ enum EtchType {
         return name
     }
 
+    /// The UIKit twin of `font(_:size:weight:)`, for code that must *measure* the branded face —
+    /// the Filled masthead sizes its title from the glyphs' real widths.
+    static func uiFont(_ face: Face, size: CGFloat, weight: Font.Weight = .regular) -> UIFont {
+        if let name = resolved(face, weight), let font = UIFont(name: name, size: size) {
+            return font
+        }
+        let uiWeight: UIFont.Weight = {
+            switch weight {
+            case .semibold, .bold, .heavy, .black: return .semibold
+            case .medium:                          return .medium
+            case .light, .thin, .ultraLight:       return .light
+            default:                               return .regular
+            }
+        }()
+        return .systemFont(ofSize: size, weight: uiWeight)
+    }
+
     /// A branded font at a fixed size.
     static func font(_ face: Face, size: CGFloat, weight: Font.Weight = .regular) -> Font {
         guard let name = resolved(face, weight) else {

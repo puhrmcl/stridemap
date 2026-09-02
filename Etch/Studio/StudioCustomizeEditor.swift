@@ -246,6 +246,33 @@ struct StudioCustomizeEditor: View {
 
             scaleRow("Overall scale", $config.textScale)
 
+            // Where the text sits on the sheet. Auto keeps each layout's authored alignment;
+            // Filled sets the title at the exact size that spans the column.
+            StudioGroupLabel(text: "Justification")
+            HStack(spacing: 8) {
+                ForEach(TextJustification.allCases) { option in
+                    let on = config.textJustification == option
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            config.textJustification = option
+                        }
+                    } label: {
+                        VStack(spacing: 3) {
+                            Image(systemName: option.icon)
+                                .font(.system(size: 14, weight: .semibold))
+                            Text(option.name).font(.etch(size: 9, weight: .semibold))
+                        }
+                        .foregroundStyle(on ? .white : Color.primary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(on ? Theme.accent : Color.secondary.opacity(0.12),
+                                    in: .rect(cornerRadius: 10))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(option.name) justification")
+                }
+            }
+
             DisclosureGroup(isExpanded: $typeAdvanced) {
                 VStack(alignment: .leading, spacing: 10) {
                     // The face on its own, for someone who wants a system's rhythm with another

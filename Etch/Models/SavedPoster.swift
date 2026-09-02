@@ -77,6 +77,8 @@ final class SavedPoster {
     var dateScale: Double = 1
     var heroScale: Double = 1
     var statScale: Double = 1
+    /// How the text block sits on the sheet ("automatic" = the layout's authored alignment).
+    var textJustificationRaw: String = "automatic"
 
     /// A bare poster for a run; `PosterConfig.write(into:run:)` fills in the recipe.
     convenience init(runID: UUID, runName: String) {

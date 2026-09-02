@@ -575,6 +575,7 @@ struct StudioView: View {
          config.mapLayout.rawValue, "\(config.mapPhotoCount)", "\(run.photoReferences.count)",
          "\(config.textScale)",
          "\(config.titleScale)|\(config.locationScale)|\(config.dateScale)|\(config.heroScale)|\(config.statScale)",
+         config.textJustification.rawValue,
          config.galleryDesign.rawValue,
          config.resolvedFrames.map(\.rawValue).joined(separator: ","),
          config.resolvedPhotoPicks.map(String.init).joined(separator: ","),

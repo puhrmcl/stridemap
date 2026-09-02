@@ -239,6 +239,35 @@ enum GalleryDesign: String, CaseIterable, Identifiable {
     }
 }
 
+/// How the sheet's text is set on the page.
+///
+/// `automatic` keeps each layout's authored alignment (the Nameplate is flush left, the Gallery
+/// masthead centred), so existing pieces look exactly as designed until someone chooses.
+/// `filled` is the poster treatment: the title set at the exact size that spans the text column,
+/// with the lines around it centred beneath.
+enum TextJustification: String, CaseIterable, Identifiable {
+    case automatic, leading, center, trailing, filled
+    var id: String { rawValue }
+    var name: String {
+        switch self {
+        case .automatic: return "Auto"
+        case .leading:   return "Left"
+        case .center:    return "Center"
+        case .trailing:  return "Right"
+        case .filled:    return "Filled"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .automatic: return "textformat"
+        case .leading:   return "text.alignleft"
+        case .center:    return "text.aligncenter"
+        case .trailing:  return "text.alignright"
+        case .filled:    return "text.justify"
+        }
+    }
+}
+
 /// The full editable recipe for a poster — the single source of truth the editor binds to, the
 /// renderer reads from, and a `SavedPoster` persists. Value type so the editor can diff it for
 /// re-renders and copy it in and out of storage cleanly.
@@ -265,6 +294,8 @@ struct PosterConfig {
     var dateScale: CGFloat = 1
     var heroScale: CGFloat = 1
     var statScale: CGFloat = 1
+    /// How the text block sits on the sheet; automatic = the layout's authored alignment.
+    var textJustification: TextJustification = .automatic
     var galleryDesign: GalleryDesign = .portfolio
     /// Media shown in each Gallery frame, in order. Trimmed/padded to the design's frame count.
     var galleryFrames: [GalleryTileKind] = [.photo, .map, .route, .elevation]
@@ -362,6 +393,7 @@ struct PosterConfig {
         r.dateScale = dateScale
         r.heroScale = heroScale
         r.statScale = statScale
+        r.textJustificationRaw = textJustification.rawValue
         return r
     }
 
@@ -380,6 +412,7 @@ struct PosterConfig {
         p.dateScale = Double(dateScale)
         p.heroScale = Double(heroScale)
         p.statScale = Double(statScale)
+        p.textJustificationRaw = textJustification.rawValue
         p.galleryDesignRaw = galleryDesign.rawValue
         p.galleryFramesRaw = galleryFrames.map(\.rawValue)
         p.galleryPhotoPicks = galleryPhotoPicks
@@ -460,6 +493,7 @@ struct PosterConfig {
         dateScale = p.dateScale > 0 ? CGFloat(p.dateScale) : 1
         heroScale = p.heroScale > 0 ? CGFloat(p.heroScale) : 1
         statScale = p.statScale > 0 ? CGFloat(p.statScale) : 1
+        textJustification = TextJustification(rawValue: p.textJustificationRaw) ?? .automatic
         galleryDesign = GalleryDesign(rawValue: p.galleryDesignRaw) ?? .portfolio
         galleryFrames = p.galleryFramesRaw.compactMap { GalleryTileKind(rawValue: $0) }
         if galleryFrames.isEmpty { galleryFrames = [.photo, .map, .route, .elevation] }

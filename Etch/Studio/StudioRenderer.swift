@@ -70,6 +70,8 @@ enum StudioRenderer {
         var dateScale: CGFloat = 1
         var heroScale: CGFloat = 1
         var statScale: CGFloat = 1
+        /// How the text block sits on the sheet ("automatic" = the layout's authored alignment).
+        var textJustificationRaw: String = TextJustification.automatic.rawValue
         /// The print shape the artwork is composed into (2:3 primary, 4:5 secondary).
         var printAspect: PrintAspect = .twoThree
     }
@@ -264,6 +266,7 @@ enum StudioRenderer {
             dateScale: request.dateScale,
             heroScale: request.heroScale,
             statScale: request.statScale,
+            textJustificationRaw: request.textJustificationRaw,
             fitScale: fitScale,
             measuring: measuring,
             galleryPhotoPicks: picks,
