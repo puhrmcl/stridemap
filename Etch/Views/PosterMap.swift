@@ -120,12 +120,12 @@ enum PosterMap {
                                                        scale: 2, edition: edition, ground: paper) {
             let base = edition.panelSaturation.map { desaturated(own.image, saturation: $0) }
                 ?? own.image
-            let finished = overlay(
+            let finished = credited(overlay(
                 groundMatched(washed(base, edition: edition), to: paper),
                 coordinates: coordinates, size: size, scale: 2,
                 edition: edition, route: routeOverride, isRace: run.isRace,
                 project: { own.frame.point(for: $0, in: size) }
-            )
+            ), paper: paper)
             if !requireOwnCartography { panelCache.setObject(finished, forKey: key) }
             return finished
         }
@@ -188,6 +188,33 @@ enum PosterMap {
     }
 
     // MARK: Finishing the panel onto the paper
+
+    /// The OpenStreetMap credit, set into the panel's bottom-right corner. ODbL requires the line
+    /// wherever the data is published — a printed sheet included — so it is baked into the panel
+    /// itself and travels to every surface that shows one: editor, gallery card, print file.
+    /// Only OSM panels pass through here; Apple's display-only fallback never prints.
+    private static func credited(_ image: UIImage, paper: Color) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = image.scale
+        format.opaque = true
+        let size = image.size
+        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
+            let ink = UIColor(paper.isDarkGround ? Theme.Palette.bone : Theme.Palette.ink)
+            let line = NSAttributedString(
+                string: EtchCartography.attribution,
+                attributes: [
+                    .font: UIFont.systemFont(ofSize: max(6, size.width * 0.011), weight: .medium),
+                    .foregroundColor: ink.withAlphaComponent(0.5),
+                    .kern: 0.4
+                ]
+            )
+            let text = line.size()
+            let inset = size.width * 0.014
+            line.draw(at: CGPoint(x: size.width - text.width - inset,
+                                  y: size.height - text.height - inset))
+        }
+    }
 
     /// Washes the map toward the edition's material.
     ///
