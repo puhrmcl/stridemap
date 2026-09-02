@@ -418,7 +418,9 @@ struct RunDetailView: View {
                 metric("Date", Format.date(run.startDate), "calendar")
                 metric("Type", cleanSportType, "figure.run")
             }
-            // Physiological metrics (Energy, Avg HR, Cadence), two per row, as available.
+            // Physiological metrics (Calories, Avg HR, Cadence), two per row, as available.
+            // An odd last tile spans the whole row — a lone card beside an empty hole read as
+            // something missing, and a workout without heart rate is not missing anything.
             ForEach(Array(stride(from: 0, to: physioMetrics.count, by: 2)), id: \.self) { i in
                 HStack(spacing: 12) {
                     let a = physioMetrics[i]
@@ -426,8 +428,6 @@ struct RunDetailView: View {
                     if i + 1 < physioMetrics.count {
                         let b = physioMetrics[i + 1]
                         metric(b.label, b.value, b.icon)
-                    } else {
-                        Color.clear.frame(maxWidth: .infinity)
                     }
                 }
             }
@@ -440,8 +440,6 @@ struct RunDetailView: View {
                     if i + 1 < weatherMetrics.count {
                         let b = weatherMetrics[i + 1]
                         metric(b.label, b.value, b.icon)
-                    } else {
-                        Color.clear.frame(maxWidth: .infinity)
                     }
                 }
             }
@@ -475,8 +473,9 @@ struct RunDetailView: View {
     /// The available physiological metrics, ordered so heart rate sits next to energy.
     private var physioMetrics: [(label: String, value: String, icon: String)] {
         var items: [(label: String, value: String, icon: String)] = []
+        // "Calories", not "Energy" — the word people actually use, and the number is kcal anyway.
         if let energy = run.activeEnergy, energy > 0 {
-            items.append((label: "Energy", value: "\(Int(energy)) kcal", icon: "flame"))
+            items.append((label: "Calories", value: "\(Int(energy)) kcal", icon: "flame"))
         }
         if let hr = run.averageHeartRate, hr > 0 {
             items.append((label: "Avg HR", value: "\(Int(hr)) bpm", icon: "heart"))
