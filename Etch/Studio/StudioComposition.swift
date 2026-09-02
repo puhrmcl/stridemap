@@ -497,8 +497,8 @@ struct StudioComposition: View {
         galleryTileView(i < tiles.count ? tiles[i] : .map)
     }
 
-    /// The five curated arrangements — one hero, two side-by-side, three across, a 2×2 grid, or a
-    /// feature frame over a strip of three.
+    /// The curated arrangements — one hero; two or three frames in either grain (side-by-side
+    /// columns, or wide bands stacked); a 2×2 grid; or a feature frame over a strip of three.
     @ViewBuilder private var galleryFramesView: some View {
         let tiles = galleryTiles
         let g: CGFloat = 16
@@ -507,8 +507,12 @@ struct StudioComposition: View {
             galleryFrame(0, tiles)
         case .duo:
             HStack(spacing: g) { galleryFrame(0, tiles); galleryFrame(1, tiles) }
+        case .duoWide:
+            VStack(spacing: g) { galleryFrame(0, tiles); galleryFrame(1, tiles) }
         case .triptych:
             HStack(spacing: g) { galleryFrame(0, tiles); galleryFrame(1, tiles); galleryFrame(2, tiles) }
+        case .triptychWide:
+            VStack(spacing: g) { galleryFrame(0, tiles); galleryFrame(1, tiles); galleryFrame(2, tiles) }
         case .grid:
             VStack(spacing: g) {
                 HStack(spacing: g) { galleryFrame(0, tiles); galleryFrame(1, tiles) }

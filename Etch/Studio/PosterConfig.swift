@@ -200,35 +200,41 @@ enum PosterFont: String, CaseIterable, Identifiable {
 /// elevation) beneath a masthead. The frame count is fixed per design; the user picks what media
 /// each frame shows.
 enum GalleryDesign: String, CaseIterable, Identifiable {
-    case portfolio, duo, triptych, grid, feature
+    // Duo and Triptych each come in both grains: columns (tall frames, side by side) and rows
+    // (wide frames, stacked). Same frame counts, different photo shapes — a wide landscape
+    // photograph was unusable in a tall column.
+    case portfolio, duo, duoWide, triptych, triptychWide, grid, feature
     var id: String { rawValue }
     var name: String {
         switch self {
-        case .portfolio: return "Portfolio"
-        case .duo:       return "Duo"
-        case .triptych:  return "Triptych"
-        case .grid:      return "Grid"
-        case .feature:   return "Feature"
+        case .portfolio:    return "Portfolio"
+        case .duo:          return "Duo"
+        case .duoWide:      return "Duo Wide"
+        case .triptych:     return "Triptych"
+        case .triptychWide: return "Triptych Wide"
+        case .grid:         return "Grid"
+        case .feature:      return "Feature"
         }
     }
     /// A small glyph that evokes the arrangement in the picker.
     var icon: String {
         switch self {
-        case .portfolio: return "rectangle.portrait"
-        case .duo:       return "rectangle.split.2x1"
-        case .triptych:  return "rectangle.split.3x1"
-        case .grid:      return "square.grid.2x2"
-        case .feature:   return "rectangle.grid.1x2"
+        case .portfolio:    return "rectangle.portrait"
+        case .duo:          return "rectangle.split.2x1"
+        case .duoWide:      return "square.split.1x2"
+        case .triptych:     return "rectangle.split.3x1"
+        case .triptychWide: return "line.3.horizontal"
+        case .grid:         return "square.grid.2x2"
+        case .feature:      return "rectangle.grid.1x2"
         }
     }
     /// How many media frames this design lays out.
     var frameCount: Int {
         switch self {
-        case .portfolio: return 1
-        case .duo:       return 2
-        case .triptych:  return 3
-        case .grid:      return 4
-        case .feature:   return 4
+        case .portfolio:               return 1
+        case .duo, .duoWide:           return 2
+        case .triptych, .triptychWide: return 3
+        case .grid, .feature:          return 4
         }
     }
 }
