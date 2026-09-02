@@ -59,6 +59,30 @@ struct PhotoWallView: View {
     /// Whether the product-details panel is open. Starts open, like the Print Shop's.
     @State private var specsExpanded = true
 
+    /// Landscape hangs the same frame on its side — the print is one continuous sheet, so the
+    /// grid transposes and every photograph compose-rotates; the SKU never changes.
+    @State private var wallLandscape = false
+
+    /// Whether the current size even has a landscape (the 12 × 12 is square).
+    private var hasOrientations: Bool {
+        let size = MultiPhotoFrameCatalog.size(forPhotos: max(shownCells.count, 1))
+        return size.columns != size.rows
+    }
+    private var isLandscape: Bool { wallLandscape && hasOrientations }
+
+    /// The frame's size label in the chosen orientation.
+    private var sizeLabel: String {
+        let size = MultiPhotoFrameCatalog.size(forPhotos: max(shownCells.count, 1))
+        return isLandscape ? size.landscapeLabel : size.label
+    }
+
+    /// "Fills the 30 × 20″ frame — 8 × 5." in the chosen orientation.
+    private var fitLine: String {
+        let size = MultiPhotoFrameCatalog.size(forPhotos: max(shownCells.count, 1))
+        let grid = isLandscape ? "\(size.rows) × \(size.columns)" : "\(size.columns) × \(size.rows)"
+        return "Fills the \(sizeLabel) frame — \(grid)."
+    }
+
     enum Filter: Hashable {
         case all
         case year(Int)
@@ -154,12 +178,14 @@ struct PhotoWallView: View {
 
     private var columnCount: Int {
         let n = max(shownCells.count, 1)
-        if let size = MultiPhotoFrameCatalog.exactSize(forPhotos: n) { return size.columns }
+        if let size = MultiPhotoFrameCatalog.exactSize(forPhotos: n) {
+            return isLandscape ? size.rows : size.columns
+        }
         return min(6, max(1, Int(ceil(Double(n).squareRoot()))))
     }
 
     private var renderKey: String {
-        "\(shownCells.map { $0.id.uuidString }.joined())-\(columnCount)"
+        "\(shownCells.map { $0.id.uuidString }.joined())-\(columnCount)-\(isLandscape)"
     }
 
     var body: some View {
@@ -183,6 +209,7 @@ struct PhotoWallView: View {
                                 titleBlock.id("top")
                                 mockup
                                 framePicker.id("frame")
+                                if hasOrientations { orientationPicker }
                                 wallControls.id("photos")
                                 orderPanel.id("order")
                                 specs.id("details")
@@ -255,7 +282,9 @@ struct PhotoWallView: View {
             .task { detectScreenshots() }
             .task(id: renderKey) { await loadAndRender() }
             .fullScreenCover(isPresented: $showingProof) {
-                ProofApprovalView(image: posterImage) { proofApproved = true }
+                // Rendered at the moment the proof opens, from the photos that are actually
+                // loaded — the cached posterImage can predate them.
+                ProofApprovalView(image: renderPoster() ?? posterImage) { proofApproved = true }
             }
             .addedToBagToast($addedToBag)
         }
@@ -281,8 +310,7 @@ struct PhotoWallView: View {
 
     /// "20 × 30″ · 40 photos · Black frame" — every choice the order carries, in one line.
     private var configurationLine: String {
-        let size = MultiPhotoFrameCatalog.size(forPhotos: shownCells.count)
-        return "\(size.label) · \(shownCells.count) photos · \(wallFrame.capitalized) frame"
+        "\(sizeLabel) · \(shownCells.count) photos · \(wallFrame.capitalized) frame"
     }
 
     // MARK: The object
@@ -351,6 +379,26 @@ struct PhotoWallView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    // MARK: Orientation
+
+    private var orientationPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Text("Orientation").font(.etch(.subheadline, weight: .semibold))
+                Text("—").foregroundStyle(.tertiary)
+                Text(isLandscape ? "Landscape" : "Portrait")
+                    .font(.etch(.subheadline))
+                    .foregroundStyle(.secondary)
+            }
+            Picker("Orientation", selection: $wallLandscape.animation(.easeInOut(duration: 0.25))) {
+                Text("Portrait").tag(false)
+                Text("Landscape").tag(true)
+            }
+            .pickerStyle(.segmented)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     // MARK: Product details
 
     private var specs: some View {
@@ -362,7 +410,8 @@ struct PhotoWallView: View {
                     specRow("In the box", "One assembled frame with every photograph mounted — ready to hang.")
                     specRow("Print", {
                         let size = MultiPhotoFrameCatalog.size(forPhotos: shownCells.count)
-                        return "\(size.label) · \(size.columns) × \(size.rows) grid · \(Int(size.printPixels.width)) × \(Int(size.printPixels.height)) px at 300 DPI"
+                        let grid = isLandscape ? "\(size.rows) × \(size.columns)" : "\(size.columns) × \(size.rows)"
+                        return "\(sizeLabel) · \(grid) grid · \(Int(size.printPixels.width)) × \(Int(size.printPixels.height)) px at 300 DPI"
                     }())
                 }
                 .padding(.top, 12)
@@ -438,7 +487,7 @@ struct PhotoWallView: View {
                 Stepper("Photos: \(shownCells.count)", value: $count, in: 1...maxCount)
                     .font(.etch(.subheadline, weight: .medium))
             }
-            Text(MultiPhotoFrameCatalog.fitDescription(forPhotos: shownCells.count))
+            Text(fitLine)
                 .font(.etch(.caption, weight: .medium))
                 .foregroundStyle(Theme.accent)
             if !excludedIDs.isEmpty {
@@ -552,6 +601,8 @@ struct PhotoWallView: View {
         guard orderPhase == nil, !isAddingToBag, proofApproved else { return }
         let size = MultiPhotoFrameCatalog.size(forPhotos: shownCells.count)
         let items = shownCells
+        let landscape = isLandscape
+        let orderLabel = sizeLabel
         if destination == .bag { isAddingToBag = true }
         Task {
             defer { isAddingToBag = false }
@@ -576,9 +627,11 @@ struct PhotoWallView: View {
                     orderError = "Those photos couldn't be loaded at print size."
                     return
                 }
-                let fileURL = try await PhotoWallRenderer.printFile(photos: prints, size: size)
+                let fileURL = try await PhotoWallRenderer.printFile(photos: prints, size: size,
+                                                                    landscape: landscape)
                 defer { try? FileManager.default.removeItem(at: fileURL) }
-                let creationID = "photowall-\(size.sku)-\(items.count)-\(UUID().uuidString)"
+                let orientation = landscape ? "land" : "port"
+                let creationID = "photowall-\(size.sku)-\(orientation)-\(items.count)-\(UUID().uuidString)"
                 let frame = wallFrame
                 switch destination {
                 case .checkout:
@@ -607,7 +660,7 @@ struct PhotoWallView: View {
                         productHandle: MultiPhotoFrameCatalog.shopifyHandle,
                         finishAttribute: frame,
                         title: "Photo Wall",
-                        detail: "\(size.label) · \(items.count) photos · \(frame.capitalized) frame",
+                        detail: "\(orderLabel) · \(items.count) photos · \(frame.capitalized) frame",
                         priceCents: MultiPhotoFrameCatalog.priceCents,
                         onPhase: { orderPhase = $0 }
                     )
@@ -738,49 +791,65 @@ struct PhotoWallView: View {
     private let posterPadding: CGFloat = 28
     private let posterSpacing: CGFloat = 4
 
-    private var posterCell: CGFloat {
-        let cols = CGFloat(columnCount)
-        return (posterWidth - posterPadding * 2 - posterSpacing * (cols - 1)) / cols
-    }
+    /// The poster the share and the proof both come from, built from *plain values* passed in —
+    /// never from `@State` read inside the view tree. `ImageRenderer` renders the hierarchy
+    /// outside the live view graph, where state reads come back with their initial values: the
+    /// old version referenced the photos dictionary through state, so the proof rendered every
+    /// cell as its empty placeholder even while the on-screen grid was full of photographs.
+    private func posterContent(cells: [WallCell], photos: [UUID: UIImage],
+                               columns: Int) -> some View {
+        let cols = CGFloat(columns)
+        let cellSide = (posterWidth - posterPadding * 2 - posterSpacing * (cols - 1)) / cols
+        let rowCount = Int(ceil(Double(cells.count) / Double(columns)))
+        let height = posterPadding * 2 + CGFloat(rowCount) * cellSide
+            + CGFloat(max(0, rowCount - 1)) * posterSpacing
+        let rows = cells.chunked(into: columns)
 
-    private var posterHeight: CGFloat {
-        let rows = Int(ceil(Double(shownCells.count) / Double(columnCount)))
-        return posterPadding * 2 + CGFloat(rows) * posterCell + CGFloat(max(0, rows - 1)) * posterSpacing
-    }
+        func image(for item: WallCell) -> UIImage? {
+            switch item {
+            case .run(let run):      return photos[run.id]
+            case .added(let added):  return added.image
+            }
+        }
 
-    private var posterContent: some View {
-        let cols = columnCount
-        let rows = shownCells.chunked(into: cols)
         return VStack(spacing: posterSpacing) {
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 HStack(spacing: posterSpacing) {
                     ForEach(row) { item in
-                        exportCell(item)
+                        Group {
+                            if let image = image(for: item) {
+                                Image(uiImage: image).resizable().scaledToFill()
+                            } else {
+                                Rectangle().fill(Theme.Palette.stone)
+                            }
+                        }
+                        .frame(width: cellSide, height: cellSide)
+                        .clipped()
+                        .clipShape(.rect(cornerRadius: 3))
                     }
-                    if row.count < cols {
-                        ForEach(0..<(cols - row.count), id: \.self) { _ in
-                            Color.clear.frame(width: posterCell, height: posterCell)
+                    if row.count < columns {
+                        ForEach(0..<(columns - row.count), id: \.self) { _ in
+                            Color.clear.frame(width: cellSide, height: cellSide)
                         }
                     }
                 }
             }
         }
         .padding(posterPadding)
-        .frame(width: posterWidth, height: posterHeight)
+        .frame(width: posterWidth, height: height)
         .background(Theme.Palette.bone)
     }
 
-    private func exportCell(_ item: WallCell) -> some View {
-        Group {
-            if let image = photo(for: item) {
-                Image(uiImage: image).resizable().scaledToFill()
-            } else {
-                Rectangle().fill(Theme.Palette.stone)
-            }
-        }
-        .frame(width: posterCell, height: posterCell)
-        .clipped()
-        .clipShape(.rect(cornerRadius: 3))
+    /// The wall as one image, from the current photos — rendered fresh so it can never be
+    /// stale against what's on screen.
+    @MainActor
+    private func renderPoster() -> UIImage? {
+        guard !shownCells.isEmpty else { return nil }
+        let renderer = ImageRenderer(content: posterContent(cells: shownCells,
+                                                            photos: images,
+                                                            columns: columnCount))
+        renderer.scale = 3
+        return renderer.uiImage
     }
 
     @MainActor
@@ -795,9 +864,7 @@ struct PhotoWallView: View {
             }
         }
         guard !shownCells.isEmpty else { posterImage = nil; return }
-        let renderer = ImageRenderer(content: posterContent)
-        renderer.scale = 3
-        posterImage = renderer.uiImage
+        posterImage = renderPoster()
     }
 }
 

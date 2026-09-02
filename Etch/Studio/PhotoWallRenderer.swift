@@ -128,13 +128,31 @@ enum PhotoWallRenderer {
     /// No moulding here: the frame is a physical object Prodigi supplies, and the file is only
     /// what goes behind the glass. Drawing a frame into the artwork would print a picture of a
     /// frame inside a frame.
+    /// - Parameter landscape: composes the wall to hang on its side. The file keeps the
+    ///   catalog's verified portrait pixels — the print is one continuous sheet, so landscape
+    ///   is each photograph rotated 90° in its cell with the reading order remapped, and the
+    ///   frame is simply hung rotated. Same SKU, same object, no unverified variant invented.
     static func printFile(photos: [UIImage],
                           size: MultiPhotoFrameCatalog.Size,
-                          ground: Color = Theme.Palette.bone) async throws -> URL {
+                          ground: Color = Theme.Palette.bone,
+                          landscape: Bool = false) async throws -> URL {
         let width = Int(size.printPixels.width)
         let height = Int(size.printPixels.height)
         let sheet = CGRect(x: 0, y: 0, width: size.printPixels.width, height: size.printPixels.height)
         let cells = cells(for: size, in: sheet)
+
+        // Landscape reading order: the viewer's left-to-right, top-to-bottom on the rotated
+        // frame, mapped back to the portrait file's cells. With the file rotated 90°
+        // counter-clockwise to hang, portrait cell (col, row) shows landscape cell
+        // (col: row, row: columns-1-col) — so each portrait cell draws the photo at
+        // (rows-1-col) * landscapeColumns + row, rotated 90° clockwise in place.
+        func photoIndex(forPortraitCell index: Int) -> Int {
+            guard landscape else { return index }
+            let pCol = index % size.columns
+            let pRow = index / size.columns
+            let landscapeColumns = size.rows
+            return (size.columns - 1 - pCol) * landscapeColumns + pRow
+        }
 
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("etch-wall-\(UUID().uuidString).png")
@@ -158,11 +176,21 @@ enum PhotoWallRenderer {
                 // photographs that reach into it.
                 cg.translateBy(x: 0, y: CGFloat(-top))
                 let visible = CGRect(x: 0, y: CGFloat(top), width: CGFloat(width), height: CGFloat(rows))
-                for (index, cell) in cells.enumerated() where index < photos.count {
-                    guard cell.intersects(visible) else { continue }
+                for (index, cell) in cells.enumerated() {
+                    let photoAt = photoIndex(forPortraitCell: index)
+                    guard photoAt < photos.count, cell.intersects(visible) else { continue }
                     cg.saveGState()
                     cg.clip(to: cell)
-                    draw(photos[index], filling: cell)
+                    if landscape {
+                        cg.translateBy(x: cell.midX, y: cell.midY)
+                        cg.rotate(by: .pi / 2)
+                        draw(photos[photoAt], filling: CGRect(
+                            x: -cell.height / 2, y: -cell.width / 2,
+                            width: cell.height, height: cell.width
+                        ))
+                    } else {
+                        draw(photos[photoAt], filling: cell)
+                    }
                     cg.restoreGState()
                 }
             }

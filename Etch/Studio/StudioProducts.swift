@@ -226,6 +226,16 @@ enum MultiPhotoFrameCatalog {
                .replacingOccurrences(of: "X", with: " × ") + "″"
         }
 
+        /// The same frame hung on its side — `30 × 20″`. The print is one continuous sheet
+        /// (no mount, no cut apertures), so landscape is a composition choice, not a
+        /// different product.
+        var landscapeLabel: String {
+            let parts = sku.replacingOccurrences(of: "GLOBAL-MPF-", with: "")
+                .split(separator: "X")
+            guard parts.count == 2 else { return label }
+            return "\(parts[1]) × \(parts[0])″"
+        }
+
         /// How square each photograph comes out. Cells are near-square by construction, never
         /// exactly so on every size: five columns and eight rows on a 2:3 sheet gives a cell of
         /// 1.07:1, which no eye reads as a rectangle.
