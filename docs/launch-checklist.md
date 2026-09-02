@@ -87,18 +87,23 @@ build will not pick them up.
 The theme is sitting in Shopify as an unpublished theme named **Etch**. Online Store → Themes →
 preview it → **Publish**. Deliberately manual: the deploy has never touched your live storefront.
 
-## 5 · Apple Pay — currently failing
+## 5 · Apple Pay — one scope grant away
 
-`Apple Pay certificate` has failed three times, all at the same step: **Mint an access token**.
-`SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` are missing or the app lacks its scopes.
+**Re-diagnosed 2026-09-02 with the secrets in place.** The credentials work: the token mints
+(HTTP 200) and `shop.json` answers, so the app is installed and REST is available. But
+`apple_pay_certificates` returns 404 — **the `write_mobile_payments` / `read_mobile_payments`
+scopes are not granted on the installed app.** That is the one remaining blocker, and it is a
+dashboard action:
 
-1. Shopify **Dev Dashboard** → your app → API credentials. Copy the client id and secret.
-2. Add both as repository secrets under those names.
-3. The app needs `write_mobile_payments` and `read_mobile_payments` — Shopify grants these on
-   request, so if minting still fails after the secrets are set, that approval is the reason.
-4. Edit `.github/apple-pay-request.txt` with `create`, commit. The run produces a CSR artifact.
-5. Upload that CSR to Apple's developer portal, download `apple_pay.cer`.
-6. Edit the request file with `upload` and the certificate, commit.
+1. dev.shopify.com → the app → **Configuration / API access** → request
+   `write_mobile_payments` and `read_mobile_payments` (Shopify approves these on request).
+2. Release a new app version and **update the install on the store** — a scope added to the
+   config does nothing until the installed version carries it.
+3. Re-run `status` (edit `.github/apple-pay-request.txt`); when it lists certificates cleanly,
+   run `create` — the CSR is printed in the log and attached as an artifact.
+4. Upload that CSR to Apple's portal (Certificates → **Apple Pay Payment Processing
+   Certificate**), download `apple_pay.cer`, commit it to `fulfilment/apple-pay/`, set
+   `action=upload` with the certificate id and the Apple merchant identifier.
 
 Apple Pay is optional for launch — checkout still works with a card — so this can trail the rest.
 
