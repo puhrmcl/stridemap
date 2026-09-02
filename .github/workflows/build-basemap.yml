@@ -13,11 +13,8 @@
 # print end to end, then widen. A full-US z15 archive needs more disk than a hosted runner has —
 # when that day comes, run this on a larger runner or extract in regional pieces.
 #
-# Secrets needed (Settings → Secrets and variables → Actions):
-#   R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY — an R2 API token's S3 credentials, created in the
-#     Cloudflare dashboard: R2 → Manage API tokens → Create (Object Read & Write, this bucket).
-#     These are S3-protocol keys; the CLOUDFLARE_API_TOKEN the deploys use cannot upload objects.
-#   CLOUDFLARE_ACCOUNT_ID — already present.
+# Upload goes through the fulfilment worker's own multipart endpoints, authenticated with the
+# ETCH_UPLOAD_TOKEN the repo already holds — no storage credentials to create anywhere.
 #
 # After a green run: set "basemapReady": true in fulfilment/config/app.json (bump its version)
 # and commit — the deploy-config workflow serves it, and every install flips to Etch cartography
@@ -56,12 +53,6 @@ jobs:
           echo "key=$KEY" >> "$GITHUB_OUTPUT"
           echo "extracting bbox=$BBOX maxzoom=$MAXZOOM → r2:$KEY"
 
-      - name: Check the upload credentials exist
-        env:
-          KEY: ${{ secrets.R2_ACCESS_KEY_ID }}
-        run: |
-          [ -n "$KEY" ] || { echo "::error::R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY secrets are missing. Cloudflare dashboard → R2 → Manage API tokens → Create API token (Object Read & Write on etch-production-assets), then add its S3 Access Key ID and Secret Access Key as repo secrets under those names."; exit 1; }
-
       - name: Install pmtiles CLI
         run: |
           set -e
@@ -83,25 +74,66 @@ jobs:
           ls -lh basemap.pmtiles
           ./pmtiles show basemap.pmtiles
 
-      - name: Upload to R2
+      - name: Upload through the fulfilment worker
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TOKEN: ${{ secrets.ETCH_UPLOAD_TOKEN }}
         run: |
           set -e
-          [ -z "$AWS_ACCESS_KEY_ID" ] && { echo "::error::R2_ACCESS_KEY_ID secret is missing — create an R2 API token (Object Read & Write) in the Cloudflare dashboard and add its S3 credentials as repo secrets."; exit 1; }
-          # Multipart via the AWS CLI against R2's S3 endpoint — wrangler caps single puts far
-          # below a basemap's size.
-          aws s3 cp basemap.pmtiles "s3://etch-production-assets/${{ steps.request.outputs.key }}" \
-            --endpoint-url "https://${ACCOUNT_ID}.r2.cloudflarestorage.com" \
-            --checksum-algorithm CRC32 \
-            --no-progress
-          echo "uploaded ${{ steps.request.outputs.key }}"
+          [ -n "$TOKEN" ] || { echo "::error::ETCH_UPLOAD_TOKEN secret is missing"; exit 1; }
+          BASE=https://etch-fulfilment.clintpuhrmann.workers.dev
+          KEY="${{ steps.request.outputs.key }}"
+          AUTH="Authorization: Bearer $TOKEN"
+
+          # 64 MB parts: inside the Worker request cap and its memory, and few enough that a
+          # state-sized archive is a couple of dozen sequential PUTs.
+          split -b 64m basemap.pmtiles part_
+          COUNT=$(ls part_* | wc -l | xargs)
+          echo "uploading $COUNT parts to $KEY"
+
+          UPLOAD_ID=$(curl -sSf -X POST -H "$AUTH" "$BASE/admin/basemap/create?key=$KEY" \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)['uploadId'])")
+
+          PARTS="["
+          N=1
+          for F in part_*; do
+            for ATTEMPT in 1 2 3; do
+              ETAG=$(curl -sSf -X PUT -H "$AUTH" --data-binary @"$F" \
+                "$BASE/admin/basemap/part?key=$KEY&uploadId=$UPLOAD_ID&part=$N" \
+                | python3 -c "import json,sys; print(json.load(sys.stdin)['etag'])") && break
+              echo "part $N attempt $ATTEMPT failed; retrying"; sleep $((ATTEMPT * 5))
+              [ "$ATTEMPT" = 3 ] && exit 1
+            done
+            [ "$N" -gt 1 ] && PARTS="$PARTS,"
+            PARTS="$PARTS{\"partNumber\":$N,\"etag\":\"$ETAG\"}"
+            echo "  part $N/$COUNT ok"
+            N=$((N + 1))
+          done
+          PARTS="$PARTS]"
+
+          curl -sSf -X POST -H "$AUTH" -H "Content-Type: application/json" \
+            -d "{\"parts\":$PARTS}" \
+            "$BASE/admin/basemap/complete?key=$KEY&uploadId=$UPLOAD_ID"
+          echo
+          echo "uploaded $KEY"
 
       - name: Verify the worker serves it
         run: |
           set -e
-          curl -sSf https://etch-fulfilment.clintpuhrmann.workers.dev/tiles/tiles.json | head -c 400
+          BASE=https://etch-fulfilment.clintpuhrmann.workers.dev
+          curl -sSf "$BASE/tiles/tiles.json" | head -c 400
           echo
-          echo "tiles.json OK — set basemapReady:true in fulfilment/config/app.json to go live"
+          # A real tile from the middle of the requested region, through the worker's range
+          # reads — tiles.json alone proves the header, not the archive.
+          TILE=$(python3 -c "
+import math
+bbox='${{ steps.request.outputs.bbox }}'.split(',')
+lon=(float(bbox[0])+float(bbox[2]))/2; lat=(float(bbox[1])+float(bbox[3]))/2
+z=10; n=2**z
+x=int((lon+180)/360*n)
+y=int((1-math.log(math.tan(math.radians(lat))+1/math.cos(math.radians(lat)))/math.pi)/2*n)
+print(f'{z}/{x}/{y}')")
+          CODE=$(curl -s -o tile.mvt -w "%{http_code}" "$BASE/tiles/$TILE.mvt")
+          SIZE=$(wc -c < tile.mvt | xargs)
+          echo "tile $TILE → HTTP $CODE, $SIZE bytes"
+          [ "$CODE" = "200" ] && [ "$SIZE" -gt 100 ] || { echo "::error::tile fetch failed"; exit 1; }
+          echo "basemap serving — set basemapReady:true in fulfilment/config/app.json to go live"

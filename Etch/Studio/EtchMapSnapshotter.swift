@@ -25,7 +25,13 @@ enum EtchMapSnapshotter {
     /// is worse than waiting: a style pointed at a missing archive renders a blank coloured
     /// rectangle, and a poster that silently loses its city is a defect a customer finds, not one
     /// we do.
-    static var isAvailable: Bool { EtchConfig.current.basemapReady }
+    static var isAvailable: Bool {
+        EtchConfig.current.basemapReady
+            // CI's screenshot harness forces the basemap on so the previews photograph Etch's
+            // own cartography deterministically, instead of racing the config fetch. A missing
+            // or broken archive still falls back — the blank-detection below owns that.
+            || ProcessInfo.processInfo.environment["ETCH_PREVIEW_BASEMAP"] == "1"
+    }
 
     /// Whether this edition's panel can come from our own cartography.
     static func canRender(_ edition: StudioEdition) -> Bool {

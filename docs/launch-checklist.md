@@ -178,15 +178,14 @@ product. Apple licenses its maps for display, not merchandise, so every map-pane
 refuses to print until Etch's own basemap is live. The pipeline exists end to end; one object
 is missing from the bucket.
 
-1. Cloudflare dashboard → R2 → Manage API tokens → create a token (Object Read & Write on
-   `etch-production-assets`) → add its S3 credentials as repo secrets `R2_ACCESS_KEY_ID` and
-   `R2_SECRET_ACCESS_KEY`.
-2. Edit `.github/basemap-request.txt` (the Arizona default is fine to start) and commit — the
-   **Build basemap** workflow extracts the region from the public Protomaps build and uploads it.
-3. When green: set `"basemapReady": true` in `fulfilment/config/app.json`, bump its version,
+1. Edit `.github/basemap-request.txt` (the Arizona default is fine to start) and commit — the
+   **Build basemap** workflow extracts the region from the public Protomaps build and uploads it
+   through the fulfilment worker with the `ETCH_UPLOAD_TOKEN` the repo already holds. No
+   credentials to create anywhere.
+2. When green: set `"basemapReady": true` in `fulfilment/config/app.json`, bump its version,
    commit. Every install flips to Etch cartography on its next config refresh; map editions
    become printable. Flip it back the same way if tiles ever misbehave.
-4. Before the first live map-print sale, confirm the OpenStreetMap attribution line appears on
+3. Before the first live map-print sale, confirm the OpenStreetMap attribution line appears on
    the printed sheet (ODbL requires it).
 
 Full reasoning and the widen-the-region plan: [`studio-redesign.md`](studio-redesign.md).

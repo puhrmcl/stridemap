@@ -80,6 +80,7 @@ export default {
       }
       if (request.method === "GET" && path === "/config") return await serveConfig(env);
       if (request.method === "PUT" && path === "/admin/config") { requireBearer(request, env); return await putConfig(request, env); }
+      if (path.startsWith("/admin/basemap/")) { requireBearer(request, env); return await basemapAdmin(request, env, path, url); }
       if (request.method === "PUT" && path.startsWith("/assets/")) return await uploadAsset(request, env, path.slice("/assets/".length));
       if (request.method === "GET" && path.startsWith("/assets/")) return await serveAsset(request, env, path.slice("/assets/".length), url);
       if (request.method === "POST" && path === "/webhooks/shopify") return await shopifyWebhook(request, env);
@@ -160,6 +161,58 @@ function requireBearer(request: Request, env: Env): void {
   if (auth !== `Bearer ${env.UPLOAD_TOKEN}`) throw new HttpError(401, "unauthorized");
 }
 function now(): string { return new Date().toISOString(); }
+
+/**
+ * Multipart upload of the basemap archive, so CI can ship a multi-gigabyte PMTiles file through
+ * this Worker with the bearer it already holds — no separate storage credentials to mint. Parts
+ * stay under the request-size cap and R2 assembles them. The key is locked to basemap archives,
+ * so this path can never touch an order's frozen assets.
+ *
+ * The tile cache treats an archive as immutable under its key, so REBUILDS go to a fresh dated
+ * key (key=basemap-YYYYMMDD.pmtiles) and BASEMAP_KEY moves in wrangler.toml. The first upload of
+ * a key has no cache to go stale.
+ */
+const BASEMAP_KEY_PATTERN = /^basemap[A-Za-z0-9._-]{0,64}\.pmtiles$/;
+
+async function basemapAdmin(request: Request, env: Env, path: string, url: URL): Promise<Response> {
+  const action = path.slice("/admin/basemap/".length);
+  const key = url.searchParams.get("key") ?? "basemap.pmtiles";
+  if (!BASEMAP_KEY_PATTERN.test(key)) throw new HttpError(400, "bad_key");
+
+  if (action === "create" && request.method === "POST") {
+    const mpu = await env.ASSETS.createMultipartUpload(key);
+    return json({ ok: true, key, uploadId: mpu.uploadId });
+  }
+
+  const uploadId = url.searchParams.get("uploadId") ?? "";
+  if (!uploadId) throw new HttpError(400, "missing_upload_id");
+  const mpu = env.ASSETS.resumeMultipartUpload(key, uploadId);
+
+  if (action === "part" && request.method === "PUT") {
+    const partNumber = Number(url.searchParams.get("part") ?? "0");
+    if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > 10000) throw new HttpError(400, "bad_part");
+    // Buffered rather than streamed: uploadPart wants a known length, and a part is sized well
+    // inside the isolate's memory. The workflow splits accordingly.
+    const bytes = await request.arrayBuffer();
+    if (bytes.byteLength === 0) throw new HttpError(400, "empty_body");
+    const uploaded = await mpu.uploadPart(partNumber, bytes);
+    return json({ ok: true, partNumber: uploaded.partNumber, etag: uploaded.etag });
+  }
+
+  if (action === "complete" && request.method === "POST") {
+    const body = (await request.json()) as { parts?: { partNumber: number; etag: string }[] };
+    if (!body.parts || body.parts.length === 0) throw new HttpError(400, "missing_parts");
+    const object = await mpu.complete(body.parts);
+    return json({ ok: true, key, size: object.size });
+  }
+
+  if (action === "abort" && request.method === "POST") {
+    await mpu.abort();
+    return json({ ok: true });
+  }
+
+  throw new HttpError(404, "not_found");
+}
 
 async function uploadAsset(request: Request, env: Env, id: string): Promise<Response> {
   requireBearer(request, env);

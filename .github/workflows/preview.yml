@@ -132,6 +132,7 @@ jobs:
               xcrun simctl terminate "$UDID" com.nwagtech.etch 2>/dev/null || true
               SIMCTL_CHILD_ETCH_PREVIEW="$TARGET" \
               SIMCTL_CHILD_ETCH_PREVIEW_SCROLL="$ANCHOR" \
+              SIMCTL_CHILD_ETCH_PREVIEW_BASEMAP="1" \
                 xcrun simctl launch "$UDID" com.nwagtech.etch >/dev/null
               # Seeding and the first compositions need a moment; anything backed by an Apple
               # map snapshot needs considerably longer on a CI runner.
