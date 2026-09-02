@@ -30,6 +30,19 @@ enum EtchCartography {
         CommerceConfig.workerBase.appendingPathComponent("tiles/tiles.json")
     }
 
+    /// Terrarium-encoded elevation tiles (NASA/USGS, proxied by the worker) — the raster-dem
+    /// source MapLibre shades into real relief under the Terrain edition.
+    static var terrainTileTemplate: String {
+        CommerceConfig.workerBase.absoluteString + "/terrain/{z}/{x}/{y}.png"
+    }
+
+    /// USGS aerial photography (public domain, proxied by the worker). This is the imagery that
+    /// finally makes Satellite *sellable* — US-government photography carries no merchandising
+    /// restriction, where Apple's, Google's and Mapbox's all do.
+    static var imageryTileTemplate: String {
+        CommerceConfig.workerBase.absoluteString + "/imagery/{z}/{x}/{y}"
+    }
+
     /// A complete MapLibre style document for an edition, as JSON data.
     ///
     /// - Parameter edition: supplies the palette. Only the map surfaces call this.
@@ -41,16 +54,83 @@ enum EtchCartography {
     ///   font nobody chose is the fastest way to make a print look like a screenshot.
     static func styleJSON(for edition: StudioEdition, ground: Color? = nil,
                           labels: Bool = false) -> Data? {
+        // Satellite is a different kind of map: photography, not linework. Its style is a
+        // raster source and nothing else — the route, wash and type all happen in the app's
+        // compositor, same as every other edition.
+        if edition.id == .satellite { return satelliteStyleJSON(ground: ground) }
+
         let palette = Palette(edition: edition, paper: ground)
+        var sources: [String: Any] = [
+            "etch": ["type": "vector", "url": tileJSONURL.absoluteString]
+        ]
+        var drawn = layers(palette: palette, labels: labels)
+
+        // The Terrain edition gets what its name promises: hillshade from real elevation,
+        // inserted above the ground and parks but under water and roads, so relief reads as
+        // the land's texture rather than a filter over the whole sheet.
+        if edition.id == .terrain {
+            sources["relief"] = [
+                "type": "raster-dem",
+                "encoding": "terrarium",
+                "tiles": [terrainTileTemplate],
+                "tileSize": 256,
+                "maxzoom": 15
+            ]
+            let below = drawn.firstIndex { ($0["id"] as? String) == "water" } ?? 1
+            drawn.insert([
+                "id": "hillshade",
+                "type": "hillshade",
+                "source": "relief",
+                "paint": [
+                    "hillshade-exaggeration": 0.55,
+                    "hillshade-shadow-color": "#5D6558",
+                    "hillshade-highlight-color": "#FFFFFF",
+                    "hillshade-accent-color": "#8A9180"
+                ]
+            ], at: below)
+        }
+
         let style: [String: Any] = [
             "version": 8,
             "name": "Etch — \(edition.name)",
-            "sources": [
-                "etch": ["type": "vector", "url": tileJSONURL.absoluteString]
-            ],
-            "layers": layers(palette: palette, labels: labels)
+            "sources": sources,
+            "layers": drawn
         ]
         return try? JSONSerialization.data(withJSONObject: style)
+    }
+
+    /// The Satellite style: USGS photography under a background the colour of the paper, so
+    /// out-of-coverage margins come back as sheet rather than as void.
+    private static func satelliteStyleJSON(ground: Color?) -> Data? {
+        let paper = Palette(edition: .satellite, paper: ground).land
+        let style: [String: Any] = [
+            "version": 8,
+            "name": "Etch — Satellite",
+            "sources": [
+                "imagery": [
+                    "type": "raster",
+                    "tiles": [imageryTileTemplate],
+                    "tileSize": 256,
+                    "maxzoom": 16
+                ]
+            ],
+            "layers": [
+                ["id": "ground", "type": "background",
+                 "paint": ["background-color": paper]],
+                ["id": "photo", "type": "raster", "source": "imagery"]
+            ]
+        ]
+        return try? JSONSerialization.data(withJSONObject: style)
+    }
+
+    /// The credit a printed panel must carry, per edition — ODbL for OpenStreetMap linework,
+    /// the agencies for elevation and photography. Baked into the panel by the finisher.
+    static func printAttribution(for edition: StudioEdition) -> String {
+        switch edition.id {
+        case .satellite: return "Imagery: USGS · USDA NAIP"
+        case .terrain:   return "\(attribution) · Elevation: USGS, NASA"
+        default:         return attribution
+        }
     }
 
     // MARK: The palette a map is drawn in

@@ -23,8 +23,14 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=map-studio:bright
+screens=map-studio:terrain,map-studio:satellite
 appearance=light
+
+# b544: the map stack goes fully owned. map-studio:terrain should show real hillshade
+# relief (Terrarium elevation via the worker) under the muted sage streets; map-studio:
+# satellite should show USGS aerial photography, desaturated to 0.42, with the route over
+# it and the "Imagery: USGS · USDA NAIP" credit in the corner — NOT Apple's imagery, and
+# NOT a bare paper panel. Zero "basemap snapshot failed" lines expected in the log dump.
 
 # Re-shot for b543: the b542 wire probe closed the case — URLSession handed MapLibre the
 # tile STILL GZIPPED (head 1f8b, ce=gzip passthrough), whose first byte is protobuf wire

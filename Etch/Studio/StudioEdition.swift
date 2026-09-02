@@ -75,9 +75,10 @@ struct StudioEdition: Identifiable, Equatable {
     /// looks. `EtchMapSnapshotter.canRender` answers both halves of that: whether the basemap
     /// archive is live, and whether this edition has an OpenStreetMap equivalent at all.
     ///
-    /// Satellite is the one that does not. OpenStreetMap is vector data and carries no aerial
-    /// imagery, so replacing it means licensing photography from someone — a separate purchase
-    /// and a separate decision. Until then it stays display-only, and says so honestly.
+    /// Satellite qualifies through a different door: its panel is USGS aerial photography —
+    /// public domain as US-government work — served through Etch's own worker, so there is no
+    /// licensor to ask. Outside US coverage the render comes back bare, the snapshotter's blank
+    /// check catches it, and the piece falls back to Apple display-only, honestly marked.
     @MainActor
     var printReady: Bool { mapKind == nil || EtchMapSnapshotter.canRender(self) }
     var isPhoto: Bool { surface == .photo }

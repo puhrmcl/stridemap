@@ -242,7 +242,8 @@ struct PreviewHarnessView: View {
                 // "map-studio:bright" (or any Color raw value) opens the editor with that
                 // colour world applied — the only way CI can photograph a look it cannot tap.
                 case let name where name.hasPrefix("map-studio"):
-                    studio(family: .map, look: lookVariant(from: name))
+                    studio(family: .map, look: lookVariant(from: name),
+                           material: materialVariant(from: name))
                 case "gallery-studio":  studio(family: .gallery)
                 case "detail":          detail
                 default:                StudioHomeView(isHome: true)
@@ -260,9 +261,11 @@ struct PreviewHarnessView: View {
         (try? context.fetch(FetchDescriptor<Run>(sortBy: [SortDescriptor(\Run.startDate, order: .reverse)]))) ?? []
     }
 
-    @ViewBuilder private func studio(family: PosterFamily, look: StudioLook? = nil) -> some View {
+    @ViewBuilder private func studio(family: PosterFamily, look: StudioLook? = nil,
+                                     material: MapMaterial? = nil) -> some View {
         if let subject {
-            StudioView(run: subject, preset: preset(family, for: subject, look: look))
+            StudioView(run: subject,
+                       preset: preset(family, for: subject, look: look, material: material))
         } else {
             Color(.systemBackground)
         }
@@ -273,6 +276,15 @@ struct PreviewHarnessView: View {
         let parts = name.split(separator: ":", maxSplits: 1)
         guard parts.count == 2 else { return nil }
         return StudioLook(rawValue: String(parts[1]))
+    }
+
+    /// The material named there instead — `map-studio:terrain`, `map-studio:satellite` — for
+    /// the Style-row variants CI needs to photograph. One namespace, and the raw values don't
+    /// collide: looks and materials are disjoint sets.
+    private func materialVariant(from name: String) -> MapMaterial? {
+        let parts = name.split(separator: ":", maxSplits: 1)
+        guard parts.count == 2 else { return nil }
+        return MapMaterial(rawValue: String(parts[1]))
     }
 
     /// The style named after the colon in `wall-art:<style>`, defaulting to Grid.
@@ -292,10 +304,11 @@ struct PreviewHarnessView: View {
 
     /// Opens the editor straight on the requested product, past the Map/Gallery chooser.
     private func preset(_ family: PosterFamily, for run: Run,
-                        look: StudioLook? = nil) -> PosterConfig {
+                        look: StudioLook? = nil, material: MapMaterial? = nil) -> PosterConfig {
         var config = PosterConfig.makeDefault(for: run)
         config.family = family
         if let look { config = look.applied(to: config) }
+        if let material { config.mapStyle = material.style(for: look) }
         return config
     }
 

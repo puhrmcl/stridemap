@@ -118,14 +118,17 @@ enum PosterMap {
         if EtchMapSnapshotter.canRender(edition),
            let own = await EtchMapSnapshotter.snapshot(for: coordinates, size: size,
                                                        scale: 2, edition: edition, ground: paper) {
-            let base = edition.panelSaturation.map { desaturated(own.image, saturation: $0) }
-                ?? own.image
+            // Satellite's authored look is muted photography — same 0.42 the Apple path uses,
+            // so switching imagery sources never switches the edition's character.
+            let saturation = edition.panelSaturation
+                ?? (edition.id == .satellite ? 0.42 : nil)
+            let base = saturation.map { desaturated(own.image, saturation: $0) } ?? own.image
             let finished = credited(overlay(
                 groundMatched(washed(base, edition: edition), to: paper),
                 coordinates: coordinates, size: size, scale: 2,
                 edition: edition, route: routeOverride, isRace: run.isRace,
                 project: { own.frame.point(for: $0, in: size) }
-            ), paper: paper)
+            ), paper: paper, line: EtchCartography.printAttribution(for: edition))
             if !requireOwnCartography { panelCache.setObject(finished, forKey: key) }
             return finished
         }
@@ -189,11 +192,13 @@ enum PosterMap {
 
     // MARK: Finishing the panel onto the paper
 
-    /// The OpenStreetMap credit, set into the panel's bottom-right corner. ODbL requires the line
-    /// wherever the data is published — a printed sheet included — so it is baked into the panel
-    /// itself and travels to every surface that shows one: editor, gallery card, print file.
-    /// Only OSM panels pass through here; Apple's display-only fallback never prints.
-    private static func credited(_ image: UIImage, paper: Color) -> UIImage {
+    /// The data credit, set into the panel's bottom-right corner. ODbL requires the line
+    /// wherever OpenStreetMap is published — a printed sheet included — and the terrain and
+    /// imagery editions owe their line to the agencies instead, so the text comes from
+    /// `EtchCartography.printAttribution(for:)`. Baked into the panel itself so it travels to
+    /// every surface that shows one: editor, gallery card, print file. Only our own panels pass
+    /// through here; Apple's display-only fallback never prints.
+    private static func credited(_ image: UIImage, paper: Color, line: String) -> UIImage {
         let format = UIGraphicsImageRendererFormat()
         format.scale = image.scale
         format.opaque = true
@@ -201,18 +206,18 @@ enum PosterMap {
         return UIGraphicsImageRenderer(size: size, format: format).image { _ in
             image.draw(in: CGRect(origin: .zero, size: size))
             let ink = UIColor(paper.isDarkGround ? Theme.Palette.bone : Theme.Palette.ink)
-            let line = NSAttributedString(
-                string: EtchCartography.attribution,
+            let credit = NSAttributedString(
+                string: line,
                 attributes: [
                     .font: UIFont.systemFont(ofSize: max(6, size.width * 0.011), weight: .medium),
                     .foregroundColor: ink.withAlphaComponent(0.5),
                     .kern: 0.4
                 ]
             )
-            let text = line.size()
+            let text = credit.size()
             let inset = size.width * 0.014
-            line.draw(at: CGPoint(x: size.width - text.width - inset,
-                                  y: size.height - text.height - inset))
+            credit.draw(at: CGPoint(x: size.width - text.width - inset,
+                                    y: size.height - text.height - inset))
         }
     }
 

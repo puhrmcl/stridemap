@@ -42,9 +42,15 @@
  *                                      R2. This is what replaces Apple Maps as the source of
  *                                      printable cartography — see src/tiles.ts.
  *   GET  /tiles/tiles.json             TileJSON for the above.
+ *   GET  /terrain/{z}/{x}/{y}.png      Terrarium elevation tiles (NASA/USGS via AWS Open
+ *                                      Data), edge-cached — hillshade under the Terrain
+ *                                      edition. See src/overlays.ts.
+ *   GET  /imagery/{z}/{x}/{y}          USGS aerial photography (public domain), edge-cached —
+ *                                      what makes the Satellite edition sellable.
  */
 
 import { serveTile, serveTileJSON, parseTilePath } from "./tiles";
+import { serveTerrain, serveImagery, parseTerrainPath, parseImageryPath } from "./overlays";
 
 export interface Env {
   ASSETS: R2Bucket;
@@ -77,6 +83,14 @@ export default {
       if (request.method === "GET" && path.startsWith("/tiles/")) {
         const tile = parseTilePath(path);
         if (tile) return await serveTile(env, tile.z, tile.x, tile.y);
+      }
+      if (request.method === "GET" && path.startsWith("/terrain/")) {
+        const tile = parseTerrainPath(path);
+        if (tile) return await serveTerrain(tile.z, tile.x, tile.y);
+      }
+      if (request.method === "GET" && path.startsWith("/imagery/")) {
+        const tile = parseImageryPath(path);
+        if (tile) return await serveImagery(tile.z, tile.x, tile.y);
       }
       if (request.method === "GET" && path === "/config") return await serveConfig(env);
       if (request.method === "PUT" && path === "/admin/config") { requireBearer(request, env); return await putConfig(request, env); }

@@ -9,11 +9,10 @@ import MapLibre
 /// shape of image — a `UIImage` at a size, framed on a route — from OpenStreetMap data served by
 /// the fulfilment worker and styled by `EtchCartography`, which Etch may print.
 ///
-/// One honest limit, stated here because it decides what the catalogue can offer: **the Satellite
-/// edition cannot be replaced this way.** OpenStreetMap is vector data — roads, water, buildings —
-/// and carries no aerial imagery. Replacing Satellite means licensing imagery from someone, which
-/// is a separate purchase and a separate decision. The four street and standard kinds are covered;
-/// Satellite stays display-only until that decision is made.
+/// Satellite is covered too, by a different source: USGS aerial photography (dominated by USDA
+/// NAIP), public domain as US-government work and proxied by the same worker. OpenStreetMap
+/// supplies the linework, the government supplies the photography and the elevation — and all
+/// three may be printed and sold, which no commercial map vendor's imagery allows.
 @MainActor
 enum EtchMapSnapshotter {
 
@@ -34,9 +33,14 @@ enum EtchMapSnapshotter {
     }
 
     /// Whether this edition's panel can come from our own cartography.
+    ///
+    /// Satellite included, since the imagery went public-domain-first: the style draws USGS
+    /// photography through the worker, not Apple's licensed imagery. Outside US coverage those
+    /// tiles come back empty, the blank check below catches the bare panel, and the edition
+    /// falls back to Apple display-only — the same honest degrade as a basemap outage.
     static func canRender(_ edition: StudioEdition) -> Bool {
-        guard isAvailable, !isTripped, let kind = edition.mapKind else { return false }
-        return kind != .satellite
+        guard isAvailable, !isTripped, edition.mapKind != nil else { return false }
+        return true
     }
 
     // MARK: The blank-map circuit breaker
