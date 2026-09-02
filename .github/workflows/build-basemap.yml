@@ -64,9 +64,16 @@ jobs:
       - name: Extract the region from the latest Protomaps build
         run: |
           set -e
-          # The newest completed daily build, from the public index.
-          BUILD=$(curl -sSL https://build.protomaps.com/builds.json \
-            | python3 -c "import json,sys; raw=json.load(sys.stdin); keys=[b.get('key',b) if isinstance(b,dict) else b for b in raw]; print(sorted(k for k in keys if str(k).endswith('.pmtiles'))[-1])")
+          # The newest daily build, found by probing dates rather than trusting an index —
+          # builds are named YYYYMMDD.pmtiles, and a one-byte range read proves one exists.
+          BUILD=""
+          for D in $(seq 1 10); do
+            CAND=$(date -u -d "-$D days" +%Y%m%d).pmtiles
+            if curl -sf -r 0-0 -o /dev/null "https://build.protomaps.com/$CAND"; then
+              BUILD=$CAND; break
+            fi
+          done
+          [ -n "$BUILD" ] || { echo "::error::no Protomaps build found in the last 10 days"; exit 1; }
           echo "planet build: $BUILD"
           ./pmtiles extract "https://build.protomaps.com/$BUILD" basemap.pmtiles \
             --bbox="${{ steps.request.outputs.bbox }}" \
