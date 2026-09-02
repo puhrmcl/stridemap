@@ -23,5 +23,10 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=map-studio
+screens=map-studio:bright
 appearance=light
+
+# Re-shot for b540: the Bright colour world specifically. The device showed Apple's map (its
+# labels, its shields, its watermark) behind Bright — a fallback, not our vivid style. This
+# variant seeds Bright directly so the shot proves whether the vivid OSM palette renders:
+# ours has NO labels, amber highways, green parks; Apple's is unmistakably labelled.

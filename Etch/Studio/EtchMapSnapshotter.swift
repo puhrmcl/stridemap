@@ -43,17 +43,41 @@ enum EtchMapSnapshotter {
 
     /// Consecutive renders that came back with nothing on them.
     private static var blankRuns = 0
+    /// When the breaker last tripped — the clock the cool-down runs on.
+    private static var trippedAt: Date?
 
-    /// After this many, stop trying for the rest of the session.
+    /// After this many, pause the attempts.
     ///
     /// One blank render is ambiguous — a route across open water or featureless desert genuinely
     /// has no features to draw, and falling back to Apple for that single poster is the right
-    /// answer anyway. Three different routes coming back blank is not terrain, it is the archive:
-    /// missing, mis-keyed, or a worker that is down. At that point every further attempt is a
-    /// MapLibre snapshot that will time out before failing, and the editor would crawl.
+    /// answer anyway. Three coming back blank is the network or the worker having a moment.
     private static let blankLimit = 3
 
-    private static var isTripped: Bool { blankRuns >= blankLimit }
+    /// How long a trip pauses attempts before one probe is let through.
+    ///
+    /// The breaker used to hold for the whole session, and that was a commerce bug wearing a
+    /// performance fix's clothes: a few tile fetches failing on one bar of signal tripped it,
+    /// and from then on every map edition rendered Apple and refused checkout — even after the
+    /// train left the tunnel. Half-open instead: after the cool-down the next render is a real
+    /// attempt; success resets everything, another blank re-arms the pause.
+    private static let coolDown: TimeInterval = 45
+
+    private static var isTripped: Bool {
+        guard blankRuns >= blankLimit else { return false }
+        guard let at = trippedAt else { return false }
+        if Date().timeIntervalSince(at) >= coolDown {
+            blankRuns = blankLimit - 1
+            trippedAt = nil
+            return false
+        }
+        return true
+    }
+
+    /// A render came back with nothing on it (or failed outright).
+    private static func noteBlank() {
+        blankRuns += 1
+        if blankRuns >= blankLimit { trippedAt = Date() }
+    }
 
     /// Whether a snapshot has nothing on it but its own background.
     ///
@@ -226,19 +250,20 @@ enum EtchMapSnapshotter {
             }
         }
         guard let image else {
-            blankRuns += 1
+            noteBlank()
             return nil
         }
         // A returned image is not yet a map. Prove something drew on it before handing back a
         // panel this poster could be *sold* on the strength of.
         guard !isBlank(image) else {
-            blankRuns += 1
-            if isTripped {
-                print("basemap: \(blankLimit) blank renders — falling back to Apple for this session")
+            noteBlank()
+            if blankRuns >= blankLimit {
+                print("basemap: \(blankLimit) blank renders — pausing for \(Int(coolDown))s before retrying")
             }
             return nil
         }
         blankRuns = 0
+        trippedAt = nil
         return Snapshot(image: image, frame: frame)
     }
 
