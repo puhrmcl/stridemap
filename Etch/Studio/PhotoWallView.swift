@@ -9,6 +9,15 @@ struct PhotoWallView: View {
 
     @State private var filter: Filter = .all
     @State private var didSeedFromAppFilter = false
+
+    /// - Parameter initialFilter: opens the wall already scoped — e.g. straight to a race's
+    ///   photos. A non-default filter also suppresses the app-filter seeding, which would
+    ///   otherwise overwrite the very scope the caller asked for.
+    init(runs: [Run], initialFilter: Filter = .all) {
+        self.runs = runs
+        _filter = State(initialValue: initialFilter)
+        _didSeedFromAppFilter = State(initialValue: initialFilter != .all)
+    }
     @State private var sort: SortOrder = .newest
     @State private var count = MultiPhotoFrameCatalog.defaultPhotos
     @State private var excludedIDs: Set<UUID> = []
@@ -85,6 +94,11 @@ struct PhotoWallView: View {
 
     enum Filter: Hashable {
         case all
+        /// Every race with photos — the wall as a career of start lines.
+        case races
+        /// One event by name, across every running of it — "Chicago Marathon" gathers 2023,
+        /// 2024 and 2025 onto one wall, which is exactly what a recurring race's wall wants.
+        case race(String)
         case year(Int)
         case state(String)
         case place(String)
@@ -105,6 +119,9 @@ struct PhotoWallView: View {
     private var filtered: [Run] {
         switch filter {
         case .all: return photoRuns
+        case .races: return photoRuns.filter(\.isRace)
+        case .race(let name):
+            return photoRuns.filter { $0.isRace && $0.name == name }
         case .year(let y):
             let cal = Calendar.current
             return photoRuns.filter { cal.component(.year, from: $0.startDate) == y }
@@ -170,6 +187,8 @@ struct PhotoWallView: View {
     private var filterLabel: String {
         switch filter {
         case .all:             return "All Photos"
+        case .races:           return "All Races"
+        case .race(let name):  return name
         case .year(let y):     return String(y)
         case .state(let s):    return s
         case .place(let name): return name
@@ -682,9 +701,27 @@ struct PhotoWallView: View {
         let states = grouped.map { (name: $0.key, count: $0.value.count) }
             .sorted { $0.count != $1.count ? $0.count > $1.count : $0.name < $1.name }
         let places = stats.travelPlaces
+        // Events grouped by name, so a recurring race is one entry however many years it has;
+        // ordered by most recent running, which is the one the wall is usually being made for.
+        let races = Dictionary(grouping: photoRuns.filter(\.isRace), by: \.name)
+            .map { (name: $0.key, count: $0.value.count,
+                    latest: $0.value.map(\.startDate).max() ?? .distantPast) }
+            .sorted { $0.latest > $1.latest }
         return Menu {
             Button { filter = .all } label: {
                 Label("All Photos", systemImage: filter == .all ? "checkmark" : "square.grid.2x2")
+            }
+            if !races.isEmpty {
+                Button { filter = .races } label: {
+                    Label("All Races", systemImage: filter == .races ? "checkmark" : "medal")
+                }
+                Menu("Race") {
+                    ForEach(races, id: \.name) { race in
+                        Button(race.count > 1 ? "\(race.name)  ·  \(race.count)" : race.name) {
+                            filter = .race(race.name)
+                        }
+                    }
+                }
             }
             if !years.isEmpty {
                 Menu("Year") {

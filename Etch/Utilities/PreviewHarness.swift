@@ -212,6 +212,8 @@ struct PreviewHarnessView: View {
                 case "course":          CollectionBrowserView(collection: .course, runs: allRuns)
                 case "summit":          CollectionBrowserView(collection: .summit, runs: allRuns)
                 case "photo-wall":      PhotoWallView(runs: allRuns)
+                // The wall scoped to races, proving the source filter path end to end.
+                case "photo-wall:races": PhotoWallView(runs: allRuns, initialFilter: .races)
                 case "yearbook":        BookStudioView(kind: .year)
                 case "collections":     BookStudioView(kind: .collection)
                 case "prints":          PrintShopView(subjectTitle: subject?.name)
