@@ -68,16 +68,9 @@ struct BookPageView: View {
             Group {
                 if let hero = plan.runs.filter({ $0.coordinates.count > 1 })
                     .max(by: { $0.distance < $1.distance }) {
-                    ZStack {
-                        RouteShape(coordinates: hero.coordinates)
-                            .stroke(ground.opacity(0.92),
-                                    style: StrokeStyle(lineWidth: 6.5, lineCap: .round, lineJoin: .round))
-                        RouteEndpointMarkers(
-                            coordinates: hero.coordinates,
-                            start: accent, finish: ground, ground: ink,
-                            isRace: hero.isRace, routeWidth: 6.5
-                        )
-                    }
+                    RouteShape(coordinates: hero.coordinates)
+                        .stroke(ground.opacity(0.92),
+                                style: StrokeStyle(lineWidth: 6.5, lineCap: .round, lineJoin: .round))
                 } else {
                     Color.clear
                 }

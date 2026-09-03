@@ -289,6 +289,10 @@ struct PosterConfig {
     /// Map Photo layout: how many photos to show (1–3).
     var mapPhotoCount: Int = 3
     var mapInset: Bool = false
+    /// The athlete line: whose miles these are, and the pinned number they wore.
+    var showAthlete: Bool = false
+    var athleteName: String = ""
+    var showBib: Bool = false
     /// Poster text size multiplier (0.85 = Small … 1.3 = XL). 1 = the designed size. Applies to
     /// every text element, multiplied by the per-element scales below.
     var textScale: CGFloat = 1
@@ -396,6 +400,9 @@ struct PosterConfig {
         r.mapLayoutRaw = mapLayout.rawValue
         r.mapPhotoCount = mapPhotoCount
         r.mapInset = mapInset
+        r.showAthlete = showAthlete
+        r.athleteName = athleteName
+        r.showBib = showBib
         r.showPaceProfile = showPace
         r.textScale = textScale
         r.titleScale = titleScale
@@ -417,6 +424,9 @@ struct PosterConfig {
         p.mapLayoutRaw = mapLayout.rawValue
         p.mapPhotoCount = mapPhotoCount
         p.mapInset = mapInset
+        p.showAthlete = showAthlete
+        p.athleteName = athleteName
+        p.showBib = showBib
         p.textScale = Double(textScale)
         p.titleScale = Double(titleScale)
         p.locationScale = Double(locationScale)
@@ -500,6 +510,9 @@ struct PosterConfig {
         mapLayout = MapLayout(rawValue: p.mapLayoutRaw) ?? .statement
         mapPhotoCount = max(1, min(3, p.mapPhotoCount))
         mapInset = p.mapInset
+        showAthlete = p.showAthlete
+        athleteName = p.athleteName
+        showBib = p.showBib
         textScale = p.textScale > 0 ? CGFloat(p.textScale) : 1
         titleScale = p.titleScale > 0 ? CGFloat(p.titleScale) : 1
         locationScale = p.locationScale > 0 ? CGFloat(p.locationScale) : 1

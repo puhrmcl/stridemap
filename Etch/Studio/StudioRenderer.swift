@@ -65,6 +65,9 @@ enum StudioRenderer {
         /// Map Photo layout: how many photos to show (1–3).
         var mapPhotoCount: Int = 3
         var mapInset: Bool = false
+        var showAthlete: Bool = false
+        var athleteName = ""
+        var showBib: Bool = false
         /// Multiplies every text point size on the poster (user-adjustable). 1 = designed size.
         var textScale: CGFloat = 1
         /// Per-element size multipliers layered on `textScale`.
@@ -265,6 +268,9 @@ enum StudioRenderer {
             mapLayoutRaw: request.mapLayoutRaw,
             mapPhotoCount: request.mapPhotoCount,
             mapInset: request.mapInset,
+            showAthlete: request.showAthlete,
+            athleteName: request.athleteName,
+            showBib: request.showBib,
             textScale: request.textScale,
             titleScale: request.titleScale,
             locationScale: request.locationScale,

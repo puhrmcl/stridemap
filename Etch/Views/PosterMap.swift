@@ -400,17 +400,8 @@ enum PosterMap {
             route.setStroke()
             path.lineWidth = edition.routeWidth
             path.stroke()
-
-            if let first = coordinates.first {
-                dot(cg, at: project(first), fill: UIColor(edition.accent), radius: edition.routeWidth)
-            }
-            if let last = coordinates.last {
-                if isRace {
-                    chequer(cg, at: project(last), fill: route, radius: edition.routeWidth * 1.35)
-                } else {
-                    dot(cg, at: project(last), fill: route, radius: edition.routeWidth)
-                }
-            }
+            // No endpoint marks on printed panels, by request: on the sheet they read as
+            // apparatus, and the line is stronger as a pure line.
         }
     }
 

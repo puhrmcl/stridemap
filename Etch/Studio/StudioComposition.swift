@@ -209,6 +209,9 @@ struct StudioComposition: View {
     /// Classic map family: true frames the map inside the sheet's own margin — the
     /// bone border wraps all the way around — instead of running it to the edges.
     var mapInset: Bool = false
+    var showAthlete: Bool = false
+    var athleteName: String = ""
+    var showBib: Bool = false
     /// Multiplies every text (and glyph) point size on the poster, so the user can dial the type
     /// larger or smaller. 1 = the designed size.
     var textScale: CGFloat = 1
@@ -567,6 +570,11 @@ struct StudioComposition: View {
                     .tracking(5)
                     .foregroundStyle(subtleColor)
             }
+            if !athleteLine.isEmpty {
+                Text(athleteLine)
+                    .font(.etch(size: ts(13), weight: .semibold)).tracking(3)
+                    .foregroundStyle(subtleColor)
+            }
         }
         .frame(maxWidth: .infinity, alignment: just(.center))
     }
@@ -857,6 +865,12 @@ struct StudioComposition: View {
                             Text(placeLine.uppercased())
                                 .font(.etch(size: ts(16 * locationScale), weight: .semibold))
                                 .tracking(3)
+                                .foregroundStyle(subtleColor)
+                        }
+                        if !athleteLine.isEmpty {
+                            Text(athleteLine)
+                                .font(.etch(size: ts(13), weight: .semibold))
+                                .tracking(2.5)
                                 .foregroundStyle(subtleColor)
                         }
                     }
@@ -1188,9 +1202,9 @@ struct StudioComposition: View {
 
     private var routeArt: some View { routeGraphic(width: edition.routeWidth) }
 
-    /// The route as vector art (optional casing under the coloured line), at a given stroke width,
-    /// with its start and finish marked — the map panels have always marked theirs, and a Minimal
-    /// sheet that showed the same run as an unmarked squiggle was the odd one out.
+    /// The route as vector art (optional casing under the coloured line), at a given stroke
+    /// width. Unmarked ends, by request: on a print the pips and rings read as apparatus, and
+    /// the line is stronger as a pure line.
     private func routeGraphic(width: CGFloat) -> some View {
         ZStack {
             if let casing = casingColor {
@@ -1199,11 +1213,6 @@ struct StudioComposition: View {
             }
             RouteShape(coordinates: run.coordinates)
                 .stroke(routeColor, style: stroke(width))
-            RouteEndpointMarkers(
-                coordinates: run.coordinates,
-                start: accentColor, finish: routeColor, ground: groundColor,
-                isRace: run.isRace, routeWidth: width
-            )
         }
     }
 
@@ -1240,6 +1249,7 @@ struct StudioComposition: View {
                     }
                 }
             }
+            athleteRow(leading: layout == .editorial)
             if footerElevation { elevationProfileContent }
             if footerPace { paceProfileContent }
         }
@@ -1674,6 +1684,26 @@ struct StudioComposition: View {
     /// its own size multiplier, so a combined "place · date" line honours independent location and
     /// date sizes — the segments concatenate into one flowing Text. With every part hidden the
     /// line emits nothing at all, so no blank line-height gap is left behind.
+    /// "CLINT PUHRMANN · BIB 2417" — whose miles these are, set one register quieter than the
+    /// place and date. Name and bib each optional; with neither, nothing is emitted.
+    private var athleteLine: String {
+        guard showAthlete else { return "" }
+        var parts: [String] = []
+        let name = athleteName.trimmingCharacters(in: .whitespaces)
+        if !name.isEmpty { parts.append(name.uppercased()) }
+        if showBib, !run.bibNumber.isEmpty { parts.append("BIB \(run.bibNumber)") }
+        return parts.joined(separator: "  ·  ")
+    }
+
+    @ViewBuilder private func athleteRow(leading: Bool) -> some View {
+        if !athleteLine.isEmpty {
+            Text(athleteLine)
+                .font(.etch(size: ts(14), weight: .semibold)).tracking(2.5)
+                .foregroundStyle(subtleColor)
+                .frame(maxWidth: .infinity, alignment: leading ? .leading : .center)
+        }
+    }
+
     @ViewBuilder
     private func metaLine(_ parts: [(text: String, scale: CGFloat)], leading: Bool) -> some View {
         if let combined = metaLineText(parts) {

@@ -32,13 +32,14 @@ struct StudioContentEditor: View {
     @State private var isReordering = false
 
     enum TextLine: String, Identifiable {
-        case title, location, date
+        case title, location, date, athlete
         var id: String { rawValue }
         var name: String {
             switch self {
             case .title:    return "Title"
             case .location: return "Location"
             case .date:     return "Date"
+            case .athlete:  return "Name"
             }
         }
         var icon: String {
@@ -46,6 +47,7 @@ struct StudioContentEditor: View {
             case .title:    return "textformat"
             case .location: return "mappin.and.ellipse"
             case .date:     return "calendar"
+            case .athlete:  return "person"
             }
         }
     }
@@ -85,6 +87,15 @@ struct StudioContentEditor: View {
             if config.family == .map {
                 textRow(.date, show: $config.showDate, text: $config.date,
                         placeholder: Format.date(run.startDate))
+            }
+
+            // Whose miles these are. A line, not a signature block: name (and the pinned number,
+            // when the race carries one) set a register under the place and date.
+            textRow(.athlete, show: $config.showAthlete, text: $config.athleteName,
+                    placeholder: "Your name")
+            if config.showAthlete && !run.bibNumber.isEmpty {
+                Toggle("Show bib \(run.bibNumber)", isOn: $config.showBib)
+                    .font(.etch(.subheadline))
             }
 
             // The headline metric is a text line as far as the reader is concerned: it is the

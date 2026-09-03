@@ -721,58 +721,48 @@ struct HomeView: View {
     /// puts an account. Hairlines divide them, so the pill reads as one object with parts rather
     /// than as buttons in a tray.
     private var homePill: some View {
-        // The same three slots as every other tab's header, through the same view — mark leading,
-        // the middle on the row's centre line, account trailing. Sharing `EtchCenteredRow` rather
-        // than repeating its measure-and-pad trick is deliberate: two copies of this layout is
-        // exactly how the map's header and the flat ones drifted apart before.
-        //
-        // The glass is around the totals alone now. It used to wrap the whole row, and the row is
-        // mostly air: a mark, two 17pt glyphs and an avatar, with the gaps between them carrying
-        // a pane of material for no reason but to hold them together. Only the numbers actually
-        // need a ground — they are small type over terrain that changes colour under them, and
-        // they are the one thing here that has to stay readable while the map moves.
-        //
-        // Positions do not move. Every element sits exactly where the pill put it, because the
-        // slots and the metrics are unchanged; what has gone is the pane behind them.
-        EtchCenteredRow(spacing: 9) {
-            HStack(spacing: 9) {
-                wordmark
-                typeSelector.frame(height: pillColumnHeight)
-            }
-            .modifier(FloatingMapChrome(overDarkBase: mapStyle.isDarkBase))
-        } center: {
+        // One pane, five parts: mark · activity · totals · view · avatar. The earlier design
+        // spent the glass on the totals alone and left the rest floating on halos; five
+        // separate objects on one line read as widgets sharing a row, not as a header. One
+        // continuous pane spends the material once, hairlines divide it where meaning changes
+        // (identity | subject, controls | account), and everything inside keeps exactly the
+        // action it had — this is the same set of controls, on one piece of glass.
+        HStack(spacing: 0) {
+            wordmark
+                .padding(.leading, 16)
+
+            barDivider
+                .padding(.leading, 12)
+
+            typeSelector
+                .padding(.horizontal, 10)
+
+            // The totals yield first on narrow phones: they are the quietest information here,
+            // and a number a shade smaller beats a control a shade too small to hit.
             metricsRow
-                .background(
-                    GeometryReader { geo in
-                        Color.clear.preference(key: PillColumnHeightKey.self, value: geo.size.height)
-                    }
-                )
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .glassBackground(cornerRadius: 23)
-        } trailing: {
-            HStack(spacing: 9) {
-                viewSelector.frame(height: pillColumnHeight)
-                profileButton
-            }
-            .modifier(FloatingMapChrome(overDarkBase: mapStyle.isDarkBase))
+                .frame(maxWidth: .infinity)
+                .layoutPriority(-1)
+                .padding(.horizontal, 4)
+
+            viewSelector
+                .padding(.horizontal, 10)
+
+            barDivider
+
+            profileButton
+                .padding(.horizontal, 11)
         }
-        // Full width, not content width.
-        //
-        // A centred, content-sized pill puts its left edge wherever centring happens to put it,
-        // so its padding only ever set a maximum — the mark sat about 40pt further in than the
-        // flat headers'. Measured off the render rather than argued about: 62pt on the map
-        // against 22pt on Studio. Spanning the row is what pins the mark's leading edge and the
-        // avatar's trailing edge to the padding, which is the point of the shared metrics.
+        .frame(height: 58)
+        .glassBackground(cornerRadius: 29)
         .frame(maxWidth: .infinity)
-        .onPreferenceChange(PillColumnHeightKey.self) { if $0 > 0 { pillColumnHeight = $0 } }
-        .padding(.horizontal, EtchHeaderMetrics.pillInterior)
-        .background(
-            GeometryReader { geo in
-                Color.clear.preference(key: PillWidthKey.self, value: geo.size.width)
-            }
-        )
-        .onPreferenceChange(PillWidthKey.self) { if $0 > 0 { pillWidth = $0 } }
+        .padding(.horizontal, 18)
+    }
+
+    /// A hairline where the bar's meaning changes — sized to the content, not the pane.
+    private var barDivider: some View {
+        Rectangle()
+            .fill(.primary.opacity(0.12))
+            .frame(width: 1, height: 20)
     }
 
     /// The Etch mark, leading the pill.
@@ -881,27 +871,42 @@ struct HomeView: View {
     /// control — true, and beside the point: the icon is also the pill's statement of *what you
     /// are looking at*, and removing it left the mark stranded against the totals with a hole
     /// where the subject should be. What it loses is its affordance, not its meaning.
+    /// The scope, named — "All Activities", "Runs" — because an icon alone asked the reader to
+    /// know the glyph vocabulary before knowing what the map was showing.
+    private var scopeTitle: String {
+        effectiveScope == .all ? "All Activities" : effectiveScope.label
+    }
+
     @ViewBuilder private var typeSelector: some View {
         if isSingleActivity {
-            Image(systemName: effectiveScope.icon)
-                .font(.system(size: 17, weight: .semibold))
-                .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
-                .foregroundStyle(.primary)
-                .frame(maxHeight: .infinity)
-                // Not a button, so it says what it is rather than inviting a tap that does
-                // nothing. Enabling a second activity type in Settings brings the chevron back.
-                .accessibilityLabel("Showing \(currentScopeName)")
+            HStack(spacing: 6) {
+                Image(systemName: effectiveScope.icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
+                Text(scopeTitle)
+                    .font(.etch(.subheadline, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(.primary)
+            .frame(maxHeight: .infinity)
+            // Not a button, so it says what it is rather than inviting a tap that does
+            // nothing. Enabling a second activity type in Settings brings the chevron back.
+            .accessibilityLabel("Showing \(currentScopeName)")
         } else {
             Button {
                 withAnimation(Theme.spring) { showTypeMenu.toggle(); showModeMenu = false }
             } label: {
-                HStack(spacing: 3) {
+                HStack(spacing: 6) {
                     Image(systemName: effectiveScope.icon)
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(.system(size: 15, weight: .semibold))
                         .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
+                    Text(scopeTitle)
+                        .font(.etch(.subheadline, weight: .semibold))
+                        .lineLimit(1)
                     Image(systemName: "chevron.down")
                         .font(.system(size: 9, weight: .bold))
                         .rotationEffect(.degrees(showTypeMenu ? 180 : 0))
+                        .foregroundStyle(.secondary)
                 }
                 .foregroundStyle(.primary)
                 .frame(maxHeight: .infinity)
@@ -916,29 +921,30 @@ struct HomeView: View {
     /// The totals — activity count then distance, separated by a dot. Count has no leading icon
     /// (it would just duplicate the activity-type icon on the pill's left).
     private var metricsRow: some View {
-        // Align the two numbers on one baseline; each unit label stacks beneath its own number.
-        //
-        // The row is allowed to shrink rather than truncate. It is the one flexible part of a
-        // pill that now also carries the mark and the avatar, and on the narrowest phone — with
-        // every activity type enabled, so the type selector is showing too — the widest
-        // configuration lands within a few points of the available width. A number that reads
-        // "1,5…" is a defect; the same number a shade smaller is not.
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            metric(
-                value: derived.shownTotalRuns.formatted(),
-                unit: effectiveScope.countNoun
-            )
-            Text("·")
-                .font(.etch(.body, weight: .bold))
+        // One quiet line — "1,119 activities · 3,382 mi" — reading from the same live derived
+        // totals as before. The stacked value-over-unit treatment gave the numbers a billboard
+        // the header no longer needs; secondary information gets a secondary voice. It shrinks
+        // rather than truncates: a number that reads "1,5…" is a defect, the same number a
+        // shade smaller is not.
+        HStack(spacing: 4) {
+            Text(derived.shownTotalRuns.formatted())
+                .fontWeight(.semibold)
+                .foregroundStyle(.primary)
+            Text(effectiveScope.countNoun)
                 .foregroundStyle(.secondary)
-            metric(
-                value: Format.distanceValue(derived.shownTotalDistance)
-                    .formatted(.number.precision(.fractionLength(0))),
-                unit: UnitSystem.current.distanceSuffix
-            )
+            Text("·")
+                .foregroundStyle(.secondary)
+            Text(Format.distanceValue(derived.shownTotalDistance)
+                .formatted(.number.precision(.fractionLength(0))))
+                .fontWeight(.semibold)
+                .foregroundStyle(.primary)
+            Text(UnitSystem.current.distanceSuffix)
+                .foregroundStyle(.secondary)
         }
+        .font(.etch(.footnote))
         .lineLimit(1)
-        .minimumScaleFactor(0.8)
+        .minimumScaleFactor(0.6)
+        .accessibilityElement(children: .combine)
     }
 
     /// The Activity Type bottom sheet — tiles for All / Runs / Hikes / Rides / Walks (only the
