@@ -22,6 +22,9 @@ struct BookStudioView: View {
 
     /// Nil until the reader picks one; `resolvedSubject` supplies the default until they do.
     @State private var subject: BookSubject?
+    /// Which sport the book sees. Falls back to everything when the chosen subject can't
+    /// support the chosen lens (a year with no rides offers no Rides book).
+    @State private var lens: BookLens = .everything
     /// Rendered page previews, by page index, for the current plan.
     @State private var previews: [Int: UIImage] = [:]
     @State private var currentPage = 0
@@ -60,7 +63,22 @@ struct BookStudioView: View {
         subject ?? subjects.first ?? .year(Calendar.current.component(.year, from: .now))
     }
 
-    private var plan: BookPlan { BookPlan.make(subject: resolvedSubject, runs: allRuns) }
+    /// The lenses this subject's history supports; only years narrow by sport.
+    private var offeredLenses: [BookLens] {
+        guard kind == .year else { return [.everything] }
+        return BookLens.offered(in: allRuns.filter(resolvedSubject.matches))
+    }
+
+    private var resolvedLens: BookLens {
+        offeredLenses.contains(lens) ? lens : .everything
+    }
+
+    private var plan: BookPlan {
+        BookPlan.make(subject: resolvedSubject, lens: resolvedLens, runs: allRuns)
+    }
+
+    /// What the pager re-renders on: the subject AND the lens are both the book's identity.
+    private var planKey: String { resolvedSubject.slug + resolvedLens.slugSuffix }
 
     private var title: String { kind == .year ? "Year in Review" : "Collections" }
 
@@ -70,7 +88,10 @@ struct BookStudioView: View {
                 if subjects.isEmpty {
                     emptyState
                 } else {
-                    subjectPicker
+                    HStack(spacing: 10) {
+                        subjectPicker
+                        if offeredLenses.count > 1 { lensPicker }
+                    }
                     pager
                     footer
                 }
@@ -95,7 +116,7 @@ struct BookStudioView: View {
                         CheckoutCompletion.record(
                             event,
                             productName: plan.subject.productName,
-                            sizeLabel: "\(plan.subject.menuLabel) · \(plan.pageCount) pages",
+                            sizeLabel: "\(bookLabel(plan)) · \(plan.pageCount) pages",
                             sku: BookCatalog.prodigiSKU
                         )
                         checkoutURL = nil
@@ -112,7 +133,7 @@ struct BookStudioView: View {
             )) {
                 Button("OK", role: .cancel) {}
             } message: { Text(orderError ?? "") }
-            .task(id: resolvedSubject) { await renderPreviews() }
+            .task(id: planKey) { await renderPreviews() }
             .addedToBagToast($addedToBag)
         }
     }
@@ -170,6 +191,45 @@ struct BookStudioView: View {
                 Text(option.menuLabel)
             }
         }
+    }
+
+    /// Everything / Runs / Rides / Hikes — the same year through a different lens. Only offered
+    /// when the history actually gives a choice.
+    private var lensPicker: some View {
+        Menu {
+            ForEach(offeredLenses) { option in
+                Button {
+                    lens = option
+                } label: {
+                    if option == resolvedLens {
+                        Label(option.menuLabel, systemImage: "checkmark")
+                    } else {
+                        Text(option.menuLabel)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Text(resolvedLens.menuLabel)
+                    .font(.etch(.headline))
+                    .lineLimit(1)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .foregroundStyle(Theme.accent)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+            .background(Theme.accent.opacity(0.12), in: .capsule)
+        }
+        .disabled(isExporting || orderPhase != nil)
+        .accessibilityLabel("Choose which activities the book includes")
+    }
+
+    /// The book as a receipt names it: the subject, and the lens when it narrows.
+    private func bookLabel(_ plan: BookPlan) -> String {
+        plan.lens == .everything
+            ? plan.subject.menuLabel
+            : "\(plan.subject.menuLabel) · \(plan.lens.menuLabel)"
     }
 
     private var pager: some View {
@@ -317,7 +377,7 @@ struct BookStudioView: View {
                         CheckoutCompletion.record(
                             event,
                             productName: plan.subject.productName,
-                            sizeLabel: "\(plan.subject.menuLabel) · \(plan.pageCount) pages",
+                            sizeLabel: "\(bookLabel(plan)) · \(plan.pageCount) pages",
                             sku: BookCatalog.prodigiSKU
                         )
                         dismiss()
@@ -372,7 +432,7 @@ struct BookStudioView: View {
                     return
                 }
 
-                let creationID = "book-\(plan.subject.slug)-\(plan.pageCount)p"
+                let creationID = "book-\(plan.slug)-\(plan.pageCount)p"
                 switch destination {
                 case .checkout:
                     let cart = try await PrintOrderService.checkout(
@@ -402,7 +462,7 @@ struct BookStudioView: View {
                         finishAttribute: "",
                         contentType: BookCatalog.contentType,
                         title: plan.subject.productName,
-                        detail: "\(plan.subject.menuLabel) · \(plan.pageCount) pages",
+                        detail: "\(bookLabel(plan)) · \(plan.pageCount) pages",
                         priceCents: BookCatalog.priceCents,
                         onPhase: { orderPhase = $0 }
                     )

@@ -30,7 +30,7 @@ enum BookRenderer {
     /// thirty A4 pages at 300 DPI never coexist in memory.
     static func exportPDF(plan: BookPlan, onProgress: @escaping (Int, Int) -> Void) async -> URL? {
         let workDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("book-\(plan.subject.slug)-\(UUID().uuidString.prefix(6))")
+            .appendingPathComponent("book-\(plan.slug)-\(UUID().uuidString.prefix(6))")
         try? FileManager.default.createDirectory(at: workDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: workDirectory) }
 
@@ -48,7 +48,7 @@ enum BookRenderer {
         }
 
         let output = FileManager.default.temporaryDirectory
-            .appendingPathComponent("Etch-Book-\(plan.subject.slug).pdf")
+            .appendingPathComponent("Etch-Book-\(plan.slug).pdf")
         let format = UIGraphicsPDFRendererFormat()
         let pdf = UIGraphicsPDFRenderer(bounds: BookCatalog.pdfPageRect, format: format)
         do {

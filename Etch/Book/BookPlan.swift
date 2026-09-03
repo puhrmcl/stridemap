@@ -43,7 +43,9 @@ struct BookPlan {
     }
 
     let subject: BookSubject
-    /// The subject's activities, ascending by date.
+    /// Which sport the book sees — everything, or one discipline.
+    let lens: BookLens
+    /// The subject's activities through the lens, ascending by date.
     let runs: [Run]
     let pages: [BookPageSpec]
     let chapterSpan: ChapterSpan
@@ -52,6 +54,15 @@ struct BookPlan {
     let story: BookStory
 
     var pageCount: Int { pages.count }
+
+    /// The production identity: subject + lens. "2026" and "2026, just the rides" are two
+    /// different books and must reproduce as such.
+    var slug: String { subject.slug + lens.slugSuffix }
+
+    /// The cover's eyebrow: the lens speaks for a year it narrows; otherwise the subject does.
+    var coverEyebrow: String {
+        (subject.kind == .year ? lens.yearEyebrow : nil) ?? subject.eyebrow
+    }
 
     /// How many activities one index page lists (3 columns × 14 rows).
     static let indexEntriesPerPage = 42
@@ -79,9 +90,11 @@ struct BookPlan {
     /// cover → title → stats → the marks → chapters (races as set pieces) → review →
     /// the complete index → closing → back cover. The closing stays the last words, after the
     /// emotional summary and the record, which is where a final statement belongs.
-    static func make(subject: BookSubject, runs: [Run]) -> BookPlan {
+    static func make(subject: BookSubject, lens: BookLens = .everything,
+                     runs: [Run]) -> BookPlan {
         let calendar = Calendar.current
-        let selected = runs.filter(subject.matches).sorted { $0.startDate < $1.startDate }
+        let selected = runs.filter { subject.matches($0) && lens.matches($0) }
+            .sorted { $0.startDate < $1.startDate }
         let story = StoryEngine.story(selected: selected, history: runs)
 
         let months = Set(selected.map { ChapterSpan.month.start(of: $0.startDate, calendar) })
@@ -131,8 +144,8 @@ struct BookPlan {
         }
         pages.append(.backCover)
 
-        return BookPlan(subject: subject, runs: selected, pages: pages, chapterSpan: span,
-                        story: story)
+        return BookPlan(subject: subject, lens: lens, runs: selected, pages: pages,
+                        chapterSpan: span, story: story)
     }
 
     /// The run a race page shows.

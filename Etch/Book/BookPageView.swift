@@ -44,53 +44,74 @@ struct BookPageView: View {
         .environment(\.colorScheme, .light)
     }
 
-    // MARK: Cover
+    // MARK: Cover — the statement piece
 
-    /// The route sits in its own band between the eyebrow and the year block rather than behind
-    /// them: stacked, not layered, so the line can never cross the type — the same rule the
+    /// Bone type on the cover's own ink. The bone-paper cover read as an interior page promoted
+    /// to the front; a coffee-table object needs a cover that is unmistakably a *cover*. So:
+    /// the deep ink ground, the person's own line drawn in bone light across its middle, the
+    /// year set enormous in the serif, and one measured line of what the year held. The route
+    /// still keeps its own band — stacked, never layered over the type — the same rule the
     /// poster fit engine enforces.
     private var coverPage: some View {
         VStack(spacing: 0) {
-            Text(subject.eyebrow)
-                .font(.etch(size: 22, weight: .semibold))
-                .tracking(10)
-                .foregroundStyle(subtle)
-                .padding(.top, margin + 8)
+            VStack(spacing: 16) {
+                Rectangle().fill(accent.opacity(0.85)).frame(width: 54, height: 2)
+                Text(plan.coverEyebrow)
+                    .font(.etch(size: 21, weight: .semibold))
+                    .tracking(11)
+                    .foregroundStyle(accent)
+            }
+            .padding(.top, margin + 12)
 
-            // The year's longest mapped route as the cover art — the person's own line.
+            // The year's longest mapped route, drawn in bone — a single line of light on the
+            // ink, with the endpoint marks in the cover's own colours.
             Group {
                 if let hero = plan.runs.filter({ $0.coordinates.count > 1 })
                     .max(by: { $0.distance < $1.distance }) {
-                    RouteShape(coordinates: hero.coordinates)
-                        .stroke(accent, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
+                    ZStack {
+                        RouteShape(coordinates: hero.coordinates)
+                            .stroke(ground.opacity(0.92),
+                                    style: StrokeStyle(lineWidth: 6.5, lineCap: .round, lineJoin: .round))
+                        RouteEndpointMarkers(
+                            coordinates: hero.coordinates,
+                            start: accent, finish: ground, ground: ink,
+                            isRace: hero.isRace, routeWidth: 6.5
+                        )
+                    }
                 } else {
                     Color.clear
                 }
             }
-            .padding(.horizontal, 150)
-            .padding(.vertical, 34)
+            .padding(.horizontal, 170)
+            .padding(.vertical, 30)
             .frame(maxHeight: .infinity)
 
-            VStack(spacing: 6) {
+            VStack(spacing: 14) {
                 // A year is four digits and always fits; a place name is not. The size is chosen
-                // by length and the scale factor catches anything longer still, so "SAN
-                // FRANCISCO" sets on one line rather than running off the sheet.
+                // by length and the scale factor catches anything longer still.
                 Text(subject.title.uppercased())
-                    .font(.etchSerif(size: subject.coverTitleSize, weight: .regular))
-                    .tracking(6)
-                    .foregroundStyle(ink)
+                    .font(.etchSerif(size: subject.coverTitleSize * 1.12, weight: .regular))
+                    .tracking(8)
+                    .foregroundStyle(ground)
                     .lineLimit(1)
                     .minimumScaleFactor(0.4)
+                Rectangle().fill(ground.opacity(0.35)).frame(width: 54, height: 1.5)
                 Text(totalDistanceLine.uppercased())
-                    .font(.etch(size: 18, weight: .semibold))
-                    .tracking(6)
-                    .foregroundStyle(subtle)
+                    .font(.etch(size: 16, weight: .semibold))
+                    .tracking(7)
+                    .foregroundStyle(ground.opacity(0.65))
             }
             .fixedSize(horizontal: false, vertical: true)
-            .padding(.bottom, margin + 8)
+
+            Text("ETCH")
+                .font(.etch(size: 12, weight: .semibold))
+                .tracking(9)
+                .foregroundStyle(accent.opacity(0.9))
+                .padding(.top, 34)
+                .padding(.bottom, margin - 10)
         }
         .frame(maxWidth: .infinity)
-        .background(ground)
+        .background(ink)
     }
 
     // MARK: Title
@@ -141,7 +162,7 @@ struct BookPageView: View {
                        subtitle: subject.title.uppercased())
             Spacer(minLength: 0)
             HStack(spacing: 0) {
-                bigStat(stats.totalRuns.formatted(), "ACTIVITIES")
+                bigStat(stats.totalRuns.formatted(), plan.lens.countLabel ?? "ACTIVITIES")
                 statDivider
                 bigStat(Format.distanceValue(stats.totalDistanceMeters)
                     .formatted(.number.precision(.fractionLength(0))), UnitSystem.current.label.uppercased())
@@ -411,12 +432,18 @@ struct BookPageView: View {
         .padding(margin)
     }
 
+    /// The back matches the front's ink, so the closed object reads as one piece on the table.
     private var backCoverPage: some View {
         ZStack {
-            ground
-            Text(subject.title.uppercased())
-                .font(.etchSerif(size: 20, weight: .regular)).tracking(8)
-                .foregroundStyle(subtle)
+            ink
+            VStack(spacing: 18) {
+                Text(subject.title.uppercased())
+                    .font(.etchSerif(size: 22, weight: .regular)).tracking(9)
+                    .foregroundStyle(ground.opacity(0.8))
+                Text("MADE WITH ETCH")
+                    .font(.etch(size: 10.5, weight: .semibold)).tracking(5)
+                    .foregroundStyle(accent.opacity(0.75))
+            }
         }
     }
 
@@ -458,7 +485,8 @@ struct BookPageView: View {
         let stats = RunStatistics(plan.runs)
         let miles = Format.distanceValue(stats.totalDistanceMeters)
             .formatted(.number.precision(.fractionLength(0)))
-        return "\(stats.totalRuns) activities · \(miles) \(UnitSystem.current.label)"
+        let noun = plan.lens.countLabel?.lowercased() ?? "activities"
+        return "\(stats.totalRuns) \(noun) · \(miles) \(UnitSystem.current.label)"
     }
 
     private func raceMetaLine(_ run: Run) -> String {

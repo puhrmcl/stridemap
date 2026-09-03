@@ -23,8 +23,16 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=map-studio:photo,map-studio:bordered
+screens=yearbook,yearbook@closing
 appearance=light
+
+# b554 — the statement cover. The first shot lands on the cover: deep ink ground, blue
+# accent rule + eyebrow, the hero route drawn in bone with the new endpoint marks, the
+# year enormous in bone serif, a hairline, the year's line of numbers, and a small ETCH
+# mark — a coffee-table object, not an interior page promoted to the front. @closing
+# verifies the interior still sits on bone (the ink is the covers' alone). The lens
+# picker (All Activity / Runs / Rides / Hikes) only appears for multi-sport histories,
+# which the seeded data isn't — verified by build here, by hand on device.
 
 # b553 — the Photo template grows up. :photo should show THREE frames under the map (the
 # seeded subject has no photos, so all three are the new placeholder tiles: hairline

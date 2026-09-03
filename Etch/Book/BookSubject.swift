@@ -111,6 +111,87 @@ enum BookSubject: Hashable, Identifiable {
     }
 }
 
+// MARK: - The lens — which sport the book sees
+
+/// The second axis of a book: not *when* (the subject) but *what kind of motion*. A year of
+/// everything is one book; the same year seen as only the rides is another. The lens filters,
+/// renames the cover's eyebrow, and changes what the count complication counts — nothing else,
+/// which is the point: one architecture, every sport.
+enum BookLens: Hashable, Identifiable {
+    case everything
+    case sport(ActivityType)
+
+    var id: String {
+        if case .sport(let type) = self { return type.rawValue }
+        return "everything"
+    }
+
+    /// Appended to the subject's slug so "2026" and "2026, just the rides" are two different
+    /// production files that each reproduce exactly on a reorder.
+    var slugSuffix: String {
+        if case .sport(let type) = self { return "-\(type.rawValue)" }
+        return ""
+    }
+
+    var menuLabel: String {
+        switch self {
+        case .everything: return "All Activity"
+        case .sport(let type):
+            switch type {
+            case .run:  return "Runs"
+            case .ride: return "Rides"
+            case .hike: return "Hikes"
+            case .walk: return "Walks"
+            case .ski:  return "Ski Days"
+            case .swim: return "Swims"
+            case .row:  return "Rows"
+            case .other: return "Other"
+            }
+        }
+    }
+
+    /// The year cover's eyebrow through this lens. Nil keeps the subject's own line.
+    var yearEyebrow: String? {
+        guard case .sport(let type) = self else { return nil }
+        switch type {
+        case .run:  return "A YEAR OF RUNNING"
+        case .ride: return "A YEAR ON THE BIKE"
+        case .hike: return "A YEAR ON THE TRAIL"
+        case .walk: return "A YEAR ON FOOT"
+        case .ski:  return "A YEAR ON SNOW"
+        case .swim: return "A YEAR IN THE WATER"
+        case .row:  return "A YEAR ON THE WATER"
+        case .other: return nil
+        }
+    }
+
+    /// What the count complication counts — "142 RUNS" reads better than "142 ACTIVITIES" when
+    /// the whole book is runs. Nil for the everything lens, which really is activities.
+    var countLabel: String? {
+        guard case .sport = self else { return nil }
+        return menuLabel.uppercased()
+    }
+
+    func matches(_ run: Run) -> Bool {
+        guard case .sport(let type) = self else { return true }
+        return run.activityType == type
+    }
+
+    /// The lenses this history supports: everything, plus each sport with enough activity to
+    /// bind on its own — busiest first. A single-sport history offers no choice at all, which
+    /// is why the picker only appears when there is one to make.
+    static func offered(in runs: [Run]) -> [BookLens] {
+        let bySport = Dictionary(grouping: runs, by: \.activityType)
+        let sports = bySport
+            .filter { $0.key != .other && $0.value.count >= BookSubject.minimumActivities }
+            .sorted { $0.value.count > $1.value.count }
+            .map { BookLens.sport($0.key) }
+        // One qualifying sport that IS the whole history offers no real choice either.
+        if sports.count == 1, bySport.count == 1 { return [.everything] }
+        return sports.isEmpty ? [.everything] : [.everything] + sports
+    }
+}
+
 // MARK: - What this history can actually be bound as
 
 extension BookSubject {
