@@ -729,13 +729,13 @@ struct HomeView: View {
         // action it had — this is the same set of controls, on one piece of glass.
         HStack(spacing: 0) {
             wordmark
-                .padding(.leading, 16)
+                .padding(.leading, 15)
 
             barDivider
-                .padding(.leading, 12)
+                .padding(.leading, 11)
 
             typeSelector
-                .padding(.horizontal, 10)
+                .padding(.horizontal, 9)
 
             // The totals yield first on narrow phones: they are the quietest information here,
             // and a number a shade smaller beats a control a shade too small to hit.
@@ -745,12 +745,12 @@ struct HomeView: View {
                 .padding(.horizontal, 4)
 
             viewSelector
-                .padding(.horizontal, 10)
+                .padding(.horizontal, 9)
 
             barDivider
 
             profileButton
-                .padding(.horizontal, 11)
+                .padding(.horizontal, 10)
         }
         .frame(height: 58)
         .glassBackground(cornerRadius: 29)
@@ -936,27 +936,23 @@ struct HomeView: View {
         .accessibilityLabel("\(derived.shownTotalRuns.formatted()) \(effectiveScope.countNoun), \(Format.distanceValue(derived.shownTotalDistance).formatted(.number.precision(.fractionLength(0)))) \(UnitSystem.current.distanceSuffix)")
     }
 
+    /// One concatenated Text, not an HStack of five: when the line has to shrink, the whole
+    /// sentence scales as one voice instead of each word truncating on its own.
     private func metricsText(withNoun: Bool) -> some View {
-        HStack(spacing: 4) {
-            Text(derived.shownTotalRuns.formatted())
-                .fontWeight(.semibold)
-                .foregroundStyle(.primary)
-            if withNoun {
-                Text(effectiveScope.countNoun)
-                    .foregroundStyle(.secondary)
-            }
-            Text("·")
-                .foregroundStyle(.secondary)
-            Text(Format.distanceValue(derived.shownTotalDistance)
-                .formatted(.number.precision(.fractionLength(0))))
-                .fontWeight(.semibold)
-                .foregroundStyle(.primary)
-            Text(UnitSystem.current.distanceSuffix)
-                .foregroundStyle(.secondary)
-        }
-        .font(.etch(.footnote))
-        .lineLimit(1)
-        .minimumScaleFactor(0.85)
+        let count = Text(derived.shownTotalRuns.formatted())
+            .fontWeight(.semibold).foregroundStyle(.primary)
+        let noun = Text(" " + effectiveScope.countNoun).foregroundStyle(.secondary)
+        let dot = Text(" · ").foregroundStyle(.secondary)
+        let miles = Text(Format.distanceValue(derived.shownTotalDistance)
+            .formatted(.number.precision(.fractionLength(0))))
+            .fontWeight(.semibold).foregroundStyle(.primary)
+        let unit = Text(" " + UnitSystem.current.distanceSuffix).foregroundStyle(.secondary)
+        let line = withNoun ? count + noun + dot + miles + unit
+                            : count + dot + miles + unit
+        return line
+            .font(.etch(.footnote))
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
     }
 
     /// The Activity Type bottom sheet — tiles for All / Runs / Hikes / Rides / Walks (only the
