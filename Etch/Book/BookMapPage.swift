@@ -127,11 +127,18 @@ extension BookPageView {
 
         return VStack(alignment: .leading, spacing: 30) {
             if stateMiles.count > 1 {
+                // Every state named when they fit on the line; a count that says four and a
+                // list that shows three reads as an error, not a summary. Only a genuinely
+                // long list falls back to the leaders plus an honest remainder.
+                let ordered = stateMiles.keys.sorted {
+                    (stateMiles[$0] ?? 0) > (stateMiles[$1] ?? 0)
+                }
+                let listed = ordered.count <= 4
+                    ? ordered.joined(separator: " · ")
+                    : ordered.prefix(3).joined(separator: " · ") + " · +\(ordered.count - 3) MORE"
                 calloutRow("THE GROUND",
                            value: "\(stateMiles.count) STATES",
-                           detail: stateMiles.keys.sorted {
-                               (stateMiles[$0] ?? 0) > (stateMiles[$1] ?? 0)
-                           }.prefix(3).joined(separator: " · "))
+                           detail: listed)
             }
             if let mostState {
                 calloutRow("MOST MILES",

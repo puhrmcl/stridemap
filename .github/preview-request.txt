@@ -23,17 +23,15 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=collections
+screens=yearbook@map
 appearance=light
 
-# b565 — the Collections picker grows structure and the curation grows judgement. The
-# subject menu now offers four parallel dropdowns — Races (the whole shelf + each event
-# with 6+ runnings), Favorites, State, City. A new Pages sheet (toolbar list button)
-# lists every page by name with visibility toggles, hidden ones included, so a single
-# page can come back. The photo sheet detects near-duplicate photos (perceptual hash)
-# and offers "Keep one of each". Export now refuses any plan outside Prodigi's verified
-# layflat envelope (18–122 pages, even counts). The shot verifies collections still
-# opens; the menus and sheets are tap-driven — verified by build here, by hand on device.
+# b566 — the map page's ground names every state. The device proof said "4 STATES" and
+# listed three: the detail line's prefix(3) was dropping the fourth. Up to four states
+# are now all named; five or more fall back to the leaders "+N MORE" — the count and the
+# list can no longer disagree. Also: the Races and Favorites shelves now qualify at six
+# activities (they were gated at the general twelve, which is why a history with a
+# handful of favorites never saw the Favorites dropdown at all).
 
 # b562 — trim safety and hidden pages. The device shot of the Grid cover showed the type
 # pressed against the edges: the LazyVGrid demanded more height than the page has, the

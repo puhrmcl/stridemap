@@ -209,8 +209,13 @@ extension BookSubject {
     /// keeps a subject out of the picker rather than letting someone buy a nearly empty book.
     static let minimumActivities = 12
 
-    /// A recurring race earns its book at a lower bar: six runnings of one event is six race
-    /// set pieces plus their spreads — a real object, where six scattered activities are not.
+    /// The shelf books earn their place at a lower bar than a general collection: six races
+    /// is six set pieces plus their spreads, and six favorites is six *chosen* activities —
+    /// deliberate content, where six scattered runs are not. The blank-leaf padding carries
+    /// a slimmer book to the binder's minimum.
+    static let minimumShelfActivities = 6
+
+    /// A recurring race earns its book at the same bar: six runnings of one event.
     static let minimumRaceRunnings = 6
 
     /// The years with enough activity to bind, most recent first.
@@ -267,8 +272,8 @@ extension BookSubject {
     /// the history happened there.
     static func collections(in runs: [Run]) -> [BookSubject] {
         var out: [BookSubject] = []
-        if runs.filter(\.isFavorite).count >= minimumActivities { out.append(.favorites) }
-        if runs.filter(\.isRace).count >= minimumActivities { out.append(.races) }
+        if runs.filter(\.isFavorite).count >= minimumShelfActivities { out.append(.favorites) }
+        if runs.filter(\.isRace).count >= minimumShelfActivities { out.append(.races) }
         out.append(contentsOf: raceEvents(in: runs))
         out.append(contentsOf: states(in: runs))
         out.append(contentsOf: cities(in: runs))
