@@ -342,11 +342,22 @@ struct GiftCardView: View {
 
 /// Wraps `PKAddPassesViewController` — the system "Add to Apple Wallet" sheet.
 private struct AddPassSheet: UIViewControllerRepresentable {
+    typealias UIViewControllerType = UIViewController
     let pass: PKPass
-    func makeUIViewController(context: Context) -> UIViewController {
-        PKAddPassesViewController(pass: pass) ?? UIViewController()
+
+    func makeUIViewController(
+        context: UIViewControllerRepresentableContext<AddPassSheet>
+    ) -> UIViewController {
+        // Typed as optional so this compiles whichever way the SDK marks the initializer —
+        // it has been failable and non-failable across SDK versions.
+        let controller: PKAddPassesViewController? = PKAddPassesViewController(pass: pass)
+        return controller ?? UIViewController()
     }
-    func updateUIViewController(_ controller: UIViewController, context: Context) {}
+
+    func updateUIViewController(
+        _ controller: UIViewController,
+        context: UIViewControllerRepresentableContext<AddPassSheet>
+    ) {}
 }
 
 private struct IdentifiablePass: Identifiable {
