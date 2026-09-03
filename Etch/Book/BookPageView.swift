@@ -9,6 +9,9 @@ struct BookPageView: View {
     let spec: BookPageSpec
     /// A race page's cover photo, loaded by the renderer; nil composes the page photo-free.
     var photo: UIImage? = nil
+    /// The photographs a picture page shows (chapter spreads, the gallery), loaded by the
+    /// renderer with their captions already phrased.
+    var photos: [BookPagePhoto] = []
 
     // Internal, not private: the page families live across files now (BookStoryPages holds the
     // marks/review/index/quiet pages) and all of them speak this one vocabulary.
@@ -32,7 +35,10 @@ struct BookPageView: View {
             case .marks:                    marksPage
             case .map:                      mapPage
             case .chapter(let start):       chapterPage(start)
+            case .chapterPhotos(let start): chapterPhotosPage(start, photos: photos)
             case .race(let index):          racePage(index)
+            case .gallery:                  galleryPage
+            case .numbers:                  numbersPage
             case .review:                   reviewPage
             case .index(let offset):        indexPage(offset: offset)
             case .closing:                  closingPage
@@ -494,7 +500,8 @@ struct BookPageView: View {
 
     /// A chapter's heading. Inside one year "MARCH" is unambiguous; a collection spanning several
     /// needs the year, and a collection long enough to be chaptered by year is only the year.
-    private func chapterName(_ date: Date) -> String {
+    /// Internal: the chapter's pictures page (BookPhotoPages) names the month the same way.
+    func chapterName(_ date: Date) -> String {
         let formatter = DateFormatter()
         switch plan.chapterSpan {
         case .year:  formatter.dateFormat = "yyyy"

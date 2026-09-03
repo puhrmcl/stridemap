@@ -17,7 +17,14 @@ enum BookPageSpec {
     case map
     /// A month, or a whole year when the subject spans too many months to give each one a page.
     case chapter(start: Date)
+    /// The pictures side of a chapter's two-page spread — the same month's photographs,
+    /// facing its routes and numbers. Exists only when the chapter's activities carry photos.
+    case chapterPhotos(start: Date)
     case race(runIndex: Int)
+    /// The span-wide photo gallery — "IN PICTURES", near the back with the review.
+    case gallery
+    /// THE NUMBERS — the derived-insight ledger (time in motion, active days, biggest week…).
+    case numbers
     /// "YOUR YEAR, ETCHED." — the emotional summary near the back.
     case review
     /// One page of the complete activity index; `offset` is the first entry it lists. This is
@@ -119,7 +126,13 @@ struct BookPlan {
         var racesUsed = 0
         for start in byChapter.keys.sorted() {
             pages.append(.chapter(start: start))
-            let chapterRaces = (byChapter[start] ?? []).filter(\.isRace)
+            let chapterRuns = byChapter[start] ?? []
+            // A chapter whose activities carry photographs becomes a two-page spread: the
+            // routes and numbers on one page, the pictures facing them on the next.
+            if chapterRuns.contains(where: { !$0.photoReferences.isEmpty }) {
+                pages.append(.chapterPhotos(start: start))
+            }
+            let chapterRaces = chapterRuns.filter(\.isRace)
             for race in chapterRaces where racesUsed < raceBudget {
                 if let index = selected.firstIndex(where: { $0.id == race.id }) {
                     pages.append(.race(runIndex: index))
@@ -128,6 +141,13 @@ struct BookPlan {
             }
         }
 
+        // The span in pictures — one editorial gallery when there's enough material for one.
+        if selected.reduce(0, { $0 + $1.photoReferences.count }) >= 3 {
+            pages.append(.gallery)
+        }
+
+        // The ledger of derived insight, then the emotional summary it sets up.
+        pages.append(.numbers)
         pages.append(.review)
 
         // The complete record: every activity, honestly, however many pages that takes. This is

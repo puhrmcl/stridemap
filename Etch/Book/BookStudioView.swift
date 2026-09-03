@@ -358,7 +358,8 @@ struct BookStudioView: View {
             switch (anchor, spec) {
             case ("marks", .marks), ("map", .map), ("review", .review), ("closing", .closing),
                  ("stats", .stats), ("race", .race(_)), ("index", .index(_)),
-                 ("month", .chapter(_)):
+                 ("month", .chapter(_)), ("photos", .chapterPhotos(_)),
+                 ("gallery", .gallery), ("numbers", .numbers):
                 return true
             case ("quiet", .chapter(let start)):
                 return BookStory.chapterProfile(for: plan.chapterRuns(start)) == .quiet
