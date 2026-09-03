@@ -23,13 +23,14 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=home
+screens=photo-wall:races
 appearance=light
 
-# b557 — the type selector goes icon-only. On the phone with a real library the name
-# beside the icon ("All Activities" / "Runs") crowded the totals off-centre. home should
-# show: etch. | ‹type icon› ⌄ | "82 activities · 568 mi" centred with the noun intact |
-# view icon ⌄ | avatar — the two selectors now mirror each other, both icon + chevron.
+# b558 — the race wall gathers every photograph. A wall cell is now a *photo*, not a run:
+# under the race scopes (All Races / one event) each race contributes all of its
+# photoReferences, so the seeded races with 2 and 4 photos should put MORE tiles in the
+# frame than there are races (each an empty placeholder — CI's library has no images).
+# Other scopes stay one-per-activity. Tap-to-remove now removes a single photo.
 
 # b555 — the Anthology nameplate. Both shots seed the plate at the bottom: the rings /
 # ridgeline art redrawn INSIDE the upper field (never overlapping), and beneath it the

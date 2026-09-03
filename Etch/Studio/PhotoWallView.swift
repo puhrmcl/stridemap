@@ -20,9 +20,9 @@ struct PhotoWallView: View {
     }
     @State private var sort: SortOrder = .newest
     @State private var count = MultiPhotoFrameCatalog.defaultPhotos
-    @State private var excludedIDs: Set<UUID> = []
+    @State private var excludedIDs: Set<String> = []
     @State private var randomOrder: [UUID] = []
-    @State private var images: [UUID: UIImage] = [:]
+    @State private var images: [String: UIImage] = [:]
     @State private var posterImage: UIImage?
     @State private var screenshotRunIDs: Set<UUID> = []
     @State private var addedPhotos: [AddedPhoto] = []
@@ -35,13 +35,22 @@ struct PhotoWallView: View {
         static func == (a: AddedPhoto, b: AddedPhoto) -> Bool { a.id == b.id }
     }
 
+    /// One photograph from one activity. The wall used to model a cell as a *run*, which
+    /// quietly meant "a run's featured photo" — a race with eight photographs contributed
+    /// one. Cells are the photographs themselves now, so a scope can bring a whole race in.
+    struct RunPhoto: Equatable {
+        let run: Run
+        let reference: String
+        var id: String { "\(run.id.uuidString)#\(reference)" }
+    }
+
     enum WallCell: Identifiable, Equatable {
-        case run(Run)
+        case photo(RunPhoto)
         case added(AddedPhoto)
-        var id: UUID {
+        var id: String {
             switch self {
-            case .run(let run):     return run.id
-            case .added(let photo): return photo.id
+            case .photo(let photo): return photo.id
+            case .added(let photo): return photo.id.uuidString
             }
         }
     }
@@ -153,14 +162,26 @@ struct PhotoWallView: View {
         }
     }
 
-    private var pool: [Run] { ordered.filter { !excludedIDs.contains($0.id) } }
+    /// Whether the scope brings in every photograph an activity carries, or just its featured
+    /// one. Race scopes expand: the wall of a race day is all the photos that were taken, not
+    /// one per start line. The broader scopes stay one-per-activity so "All Photos" remains a
+    /// career at a glance rather than one prolific weekend crowding out the years around it.
+    private var expandsAllPhotos: Bool {
+        switch filter {
+        case .races, .race: return true
+        default:            return false
+        }
+    }
+
     private var cellPool: [WallCell] {
-        pool.map(WallCell.run) + addedPhotos.filter { !excludedIDs.contains($0.id) }.map(WallCell.added)
+        let runCells: [WallCell] = ordered.flatMap { run -> [WallCell] in
+            let refs = expandsAllPhotos ? run.photoReferences : Array(run.photoReferences.prefix(1))
+            return refs.map { WallCell.photo(RunPhoto(run: run, reference: $0)) }
+        }
+        return (runCells + addedPhotos.map(WallCell.added))
+            .filter { !excludedIDs.contains($0.id) }
     }
     private var shownCells: [WallCell] { Array(cellPool.prefix(count)) }
-    private var shown: [Run] {
-        shownCells.compactMap { if case .run(let r) = $0 { return r } else { return nil } }
-    }
     private var maxCount: Int { max(1, min(cellPool.count, maxPhotos)) }
 
     private func cityLabel(_ place: RunStatistics.TravelPlace) -> String {
@@ -204,7 +225,7 @@ struct PhotoWallView: View {
     }
 
     private var renderKey: String {
-        "\(shownCells.map { $0.id.uuidString }.joined())-\(columnCount)-\(isLandscape)"
+        "\(shownCells.map(\.id).joined())-\(columnCount)-\(isLandscape)"
     }
 
     var body: some View {
@@ -474,7 +495,7 @@ struct PhotoWallView: View {
 
     private func photo(for item: WallCell) -> UIImage? {
         switch item {
-        case .run(let run):     return images[run.id]
+        case .photo:            return images[item.id]
         case .added(let photo): return photo.image
         }
     }
@@ -631,10 +652,9 @@ struct PhotoWallView: View {
                 var prints: [UIImage] = []
                 for item in items {
                     switch item {
-                    case .run(let run):
-                        guard let reference = run.photoReferences.first else { continue }
+                    case .photo(let photo):
                         if let image = await PhotoLibrary.image(
-                            for: reference,
+                            for: photo.reference,
                             targetSize: CGSize(width: cellPixels, height: cellPixels)
                         ) { prints.append(image) }
                     case .added(let photo):
@@ -833,7 +853,7 @@ struct PhotoWallView: View {
     /// outside the live view graph, where state reads come back with their initial values: the
     /// old version referenced the photos dictionary through state, so the proof rendered every
     /// cell as its empty placeholder even while the on-screen grid was full of photographs.
-    private func posterContent(cells: [WallCell], photos: [UUID: UIImage],
+    private func posterContent(cells: [WallCell], photos: [String: UIImage],
                                columns: Int) -> some View {
         let cols = CGFloat(columns)
         let cellSide = (posterWidth - posterPadding * 2 - posterSpacing * (cols - 1)) / cols
@@ -844,7 +864,7 @@ struct PhotoWallView: View {
 
         func image(for item: WallCell) -> UIImage? {
             switch item {
-            case .run(let run):      return photos[run.id]
+            case .photo:             return photos[item.id]
             case .added(let added):  return added.image
             }
         }
@@ -894,10 +914,11 @@ struct PhotoWallView: View {
         // The wall changed under any prepared cart or approved proof — neither covers it now.
         preparedCart = nil
         proofApproved = false
-        for run in shown {
-            guard images[run.id] == nil, let id = run.photoReferences.first else { continue }
-            if let img = await PhotoLibrary.image(for: id, targetSize: CGSize(width: 600, height: 600)) {
-                images[run.id] = img
+        for cell in shownCells {
+            guard case .photo(let photo) = cell, images[cell.id] == nil else { continue }
+            if let img = await PhotoLibrary.image(for: photo.reference,
+                                                  targetSize: CGSize(width: 600, height: 600)) {
+                images[cell.id] = img
             }
         }
         guard !shownCells.isEmpty else { posterImage = nil; return }
