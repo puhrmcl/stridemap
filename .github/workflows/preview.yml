@@ -218,6 +218,24 @@ jobs:
             esac
           done
 
+      - name: Crash reports
+        if: always()
+        run: |
+          # If the app died during a capture, the shot shows the springboard and says
+          # nothing. The .ips report says everything — dump any Etch crash logs so the
+          # session can read the crashed thread without a device.
+          REPORTS=$(find "$HOME/Library/Logs/DiagnosticReports" -name '*Etch*' -mmin -40 2>/dev/null | head -5)
+          if [ -z "$REPORTS" ]; then
+            echo "No Etch crash reports."
+          else
+            for FILE in $REPORTS; do
+              echo "── CRASH REPORT $(basename "$FILE")"
+              head -c 24000 "$FILE"
+              echo ""
+              echo "── END CRASH REPORT"
+            done
+          fi
+
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4

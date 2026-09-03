@@ -23,8 +23,13 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=yearbook@cover-grid,yearbook@years,yearbook@resume
+screens=collections
 appearance=light
+
+# Reproducing the reported Collections crash: this screen opens
+# BookStudioView(kind: .collection) against the seeded history (races + several states
+# and cities exist, so collection subjects are offered and the first one's plan renders).
+# If the app dies, the new Crash reports step dumps the .ips with the crashed thread.
 
 # b562 — trim safety and hidden pages. The device shot of the Grid cover showed the type
 # pressed against the edges: the LazyVGrid demanded more height than the page has, the
