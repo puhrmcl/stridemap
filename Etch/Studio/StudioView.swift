@@ -63,39 +63,56 @@ struct StudioView: View {
     @State private var pickThumbs: [String: UIImage] = [:]
 
     /// The navigation spine: the product chooser is the root; picking Map or Gallery pushes the
-    /// editor for that product. A saved poster or curated preset skips the chooser — its family
-    /// is part of its identity — by seeding the path.
+    /// editor for that product. A saved poster or curated preset arrives with the product
+    /// already decided, so for those the *editor* is the root — the chooser was never part of
+    /// that visit, and it must not be where Back lands. (It used to be: a decided entry seeded
+    /// the path over a chooser root, and backing out of a Map Print dropped the customer on a
+    /// "choose one of five" page they never chose from, instead of back where they started.)
     @State private var path: [PosterFamily]
+
+    /// True when the visit began with the product decided (a kept poster, a product tile's
+    /// preset) — the editor roots the stack and Done leaves Studio entirely.
+    private let enteredDecided: Bool
 
     init(run: Run, poster: SavedPoster? = nil, preset: PosterConfig? = nil) {
         self.run = run
         self.existingPoster = poster
+        enteredDecided = poster != nil || preset != nil
         if let poster {
             let config = PosterConfig(poster: poster)
             _config = State(initialValue: config)
             _savedPosterID = State(initialValue: poster.id)
-            _path = State(initialValue: [config.family])
         } else if let preset {
             // A curated entry (a Studio collection) opens on its authored recipe — the piece
             // already looks finished; the sections refine it.
             _config = State(initialValue: preset)
-            _path = State(initialValue: [preset.family])
         } else {
             _config = State(initialValue: PosterConfig.makeDefault(for: run))
-            _path = State(initialValue: [])
         }
+        _path = State(initialValue: [])
     }
 
     var body: some View {
         NavigationStack(path: $path) {
+            rootScreen
+                .navigationDestination(for: PosterFamily.self) { family in
+                    editor(for: family)
+                }
+        }
+    }
+
+    @ViewBuilder private var rootScreen: some View {
+        if enteredDecided {
+            editor(for: config.family)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
+                }
+        } else {
             productChooser
                 .navigationTitle("Studio")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
-                }
-                .navigationDestination(for: PosterFamily.self) { family in
-                    editor(for: family)
                 }
         }
     }

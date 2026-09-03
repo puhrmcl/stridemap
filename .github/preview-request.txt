@@ -23,8 +23,13 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=gift
+screens=map-studio
 appearance=light
+
+# b551: entering Studio with the product decided (a Map Print tile, a kept poster) now
+# roots the editor — no chooser page hiding underneath. The map-studio harness enters via
+# a preset, so this shot should show the editor with a "Done" button top-left where the
+# back chevron used to be. Tapping it (on device) leaves Studio entirely.
 
 # b549 (re-run after the Hashable fix): the Gift Cards page (Bag → Gift Cards). CI has no storefront tokens, so the buy
 # section should show its honest "aren't available just yet" line — what to check is the
