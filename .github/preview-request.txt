@@ -26,15 +26,14 @@
 screens=collections
 appearance=light
 
-# b564 — the freeze-then-crash on tapping Collections, found and fixed. `plan` was a
-# computed property running the full story engine over the entire history on EVERY
-# access — and the page-style TabView builds all children up front, each child's context
-# menu asking for its hide-key through that property. A hundred-page collection over a
-# thousand-activity history = a hundred-plus full plan derivations on the main thread at
-# open: seconds frozen, then the watchdog. The render task now builds the plan once per
-# render key and caches it; the pager captures one plan for all children; the cover bands
-# filter by hasRoute instead of decoding every polyline in the span. This shot re-verifies
-# collections opens and renders.
+# b565 — the Collections picker grows structure and the curation grows judgement. The
+# subject menu now offers four parallel dropdowns — Races (the whole shelf + each event
+# with 6+ runnings), Favorites, State, City. A new Pages sheet (toolbar list button)
+# lists every page by name with visibility toggles, hidden ones included, so a single
+# page can come back. The photo sheet detects near-duplicate photos (perceptual hash)
+# and offers "Keep one of each". Export now refuses any plan outside Prodigi's verified
+# layflat envelope (18–122 pages, even counts). The shot verifies collections still
+# opens; the menus and sheets are tap-driven — verified by build here, by hand on device.
 
 # b562 — trim safety and hidden pages. The device shot of the Grid cover showed the type
 # pressed against the edges: the LazyVGrid demanded more height than the page has, the

@@ -15,6 +15,9 @@ enum BookSubject: Hashable, Identifiable {
     case city(String, state: String)
     case favorites
     case races
+    /// One event across every running of it — "Gilbert Half, all five years". The recurring
+    /// race is its own story, which is why it earns a book at a lower activity bar.
+    case raceEvent(String)
 
     /// The two products these subjects are sold as. Same physical book, same SKU — a different
     /// question asked of the same history.
@@ -34,6 +37,7 @@ enum BookSubject: Hashable, Identifiable {
         case .city(let c, let s):   return "city-\(Self.slugify(c))-\(Self.slugify(s))"
         case .favorites:            return "favorites"
         case .races:                return "races"
+        case .raceEvent(let name):  return "race-event-\(Self.slugify(name))"
         }
     }
 
@@ -47,6 +51,7 @@ enum BookSubject: Hashable, Identifiable {
         case .city(let c, _):     return c
         case .favorites:          return "Favorites"
         case .races:              return "Races"
+        case .raceEvent(let n):   return n
         }
     }
 
@@ -64,11 +69,13 @@ enum BookSubject: Hashable, Identifiable {
         case .city:       return "EVERY MILE IN"
         case .favorites:  return "THE ONES WORTH KEEPING"
         case .races:      return "EVERY START LINE"
+        case .raceEvent:  return "EVERY RUNNING OF"
         }
     }
 
     var isState: Bool { if case .state = self { return true }; return false }
     var isCity: Bool { if case .city = self { return true }; return false }
+    var isRaceEvent: Bool { if case .raceEvent = self { return true }; return false }
 
     /// Whether the book is *about* somewhere. A place book has already answered "where", which
     /// changes what its statistics page has left worth counting.
@@ -102,6 +109,8 @@ enum BookSubject: Hashable, Identifiable {
             return run.isFavorite
         case .races:
             return run.isRace
+        case .raceEvent(let name):
+            return run.isRace && run.name == name
         }
     }
 
@@ -200,6 +209,10 @@ extension BookSubject {
     /// keeps a subject out of the picker rather than letting someone buy a nearly empty book.
     static let minimumActivities = 12
 
+    /// A recurring race earns its book at a lower bar: six runnings of one event is six race
+    /// set pieces plus their spreads — a real object, where six scattered activities are not.
+    static let minimumRaceRunnings = 6
+
     /// The years with enough activity to bind, most recent first.
     static func years(in runs: [Run]) -> [BookSubject] {
         let counts = runs.reduce(into: [Int: Int]()) { tally, run in
@@ -239,12 +252,24 @@ extension BookSubject {
             .map { .city($0.city, state: $0.state) }
     }
 
+    /// The recurring events with enough runnings to bind on their own — most recent first,
+    /// because the wall (and the book) is usually being made for the latest one.
+    static func raceEvents(in runs: [Run]) -> [BookSubject] {
+        Dictionary(grouping: runs.filter(\.isRace), by: \.name)
+            .filter { !$0.key.isEmpty && $0.value.count >= minimumRaceRunnings }
+            .map { (name: $0.key, latest: $0.value.map(\.startDate).max() ?? .distantPast) }
+            .sorted { $0.latest > $1.latest }
+            .map { .raceEvent($0.name) }
+    }
+
     /// Every collection this history can be bound as, in the order the picker offers them: the
-    /// two that need no place data first, then places by how much of the history happened there.
+    /// two that need no place data first, then recurring events, then places by how much of
+    /// the history happened there.
     static func collections(in runs: [Run]) -> [BookSubject] {
         var out: [BookSubject] = []
         if runs.filter(\.isFavorite).count >= minimumActivities { out.append(.favorites) }
         if runs.filter(\.isRace).count >= minimumActivities { out.append(.races) }
+        out.append(contentsOf: raceEvents(in: runs))
         out.append(contentsOf: states(in: runs))
         out.append(contentsOf: cities(in: runs))
         return out

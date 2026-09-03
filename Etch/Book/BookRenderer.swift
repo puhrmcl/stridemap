@@ -123,6 +123,18 @@ enum BookRenderer {
     /// one at a time to JPEG files on disk and streamed into the PDF inside autorelease pools —
     /// thirty A4 pages at 300 DPI never coexist in memory.
     static func exportPDF(plan: BookPlan, onProgress: @escaping (Int, Int) -> Void) async -> URL? {
+        // The lab's envelope, enforced at the door (Prodigi layflat, verified live
+        // 2026-08-26): 18–122 total pages, even counts only, first page front cover, last
+        // page back cover. BookPlan.make holds all of this by construction — blank-leaf
+        // padding to the minimum, parity fill, ceiling trim — so this guard should never
+        // fire; if a future plan change breaks the contract, the failure is a refused
+        // export here, not a rejected (or mis-bound) book at the lab.
+        let total = plan.pages.count
+        guard total >= BookCatalog.minPages, total <= BookCatalog.maxPages,
+              total.isMultiple(of: 2) else {
+            assertionFailure("Book plan out of the lab's envelope: \(total) pages")
+            return nil
+        }
         let workDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("book-\(plan.slug)-\(UUID().uuidString.prefix(6))")
         try? FileManager.default.createDirectory(at: workDirectory, withIntermediateDirectories: true)

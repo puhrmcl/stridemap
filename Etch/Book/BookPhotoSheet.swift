@@ -17,6 +17,8 @@ struct BookPhotoSheet: View {
     @State private var picking: [PhotosPickerItem] = []
     /// The curation as it stood when the sheet opened — Republish only lights up on change.
     @State private var opening: BookCuration?
+    /// Near-identical groups found among the candidates (perceptual hash), computed once.
+    @State private var duplicateClusters: [[String]] = []
 
     /// Every photo the book's activities carry, in date order. De-duplicated by reference:
     /// on a real device the same library asset can be attached to two activities, and the
@@ -39,6 +41,8 @@ struct BookPhotoSheet: View {
                     Text("Tap a photo to take it out of the book or put it back. Touch and hold to put one on the cover.")
                         .font(.etch(.footnote))
                         .foregroundStyle(.secondary)
+
+                    duplicatesBanner
 
                     if candidates.isEmpty && curation.extraPhotoIDs.isEmpty {
                         ContentUnavailableView {
@@ -69,6 +73,56 @@ struct BookPhotoSheet: View {
             }
             .safeAreaInset(edge: .bottom) { republishBar }
             .onAppear { if opening == nil { opening = curation } }
+            .task {
+                guard duplicateClusters.isEmpty else { return }
+                duplicateClusters = await PhotoDedupe.clusters(
+                    references: candidates.map(\.reference))
+            }
+        }
+    }
+
+    // MARK: Near-duplicates
+
+    /// The clusters that still hold more than one *included* photo — resolved ones drop out.
+    private var pendingDuplicates: [[String]] {
+        duplicateClusters
+            .map { $0.filter(curation.includes) }
+            .filter { $0.count > 1 }
+    }
+
+    @ViewBuilder private var duplicatesBanner: some View {
+        let pending = pendingDuplicates
+        if !pending.isEmpty {
+            let extras = pending.reduce(0) { $0 + $1.count - 1 }
+            HStack(spacing: 12) {
+                Image(systemName: "square.on.square")
+                    .foregroundStyle(Theme.accent)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(extras) near-duplicate photo\(extras == 1 ? "" : "s")")
+                        .font(.etch(.subheadline, weight: .semibold))
+                    Text("Burst shots and repeats of the same moment.")
+                        .font(.etch(.caption))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Keep one of each") {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        for cluster in pending {
+                            for reference in cluster.dropFirst() {
+                                curation.excludedRefs.insert(reference)
+                                if curation.coverPhotoRef == reference {
+                                    curation.coverPhotoRef = nil
+                                }
+                            }
+                        }
+                    }
+                }
+                .font(.etch(.footnote, weight: .semibold))
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.accent)
+            }
+            .padding(12)
+            .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 14))
         }
     }
 

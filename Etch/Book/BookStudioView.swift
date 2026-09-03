@@ -53,6 +53,7 @@ struct BookStudioView: View {
     /// Bumped by Republish (and cover changes) — part of the render key, so the pages rebuild.
     @State private var curationVersion = 0
     @State private var showPhotoSheet = false
+    @State private var showPagesSheet = false
 
     private var canOrder: Bool {
         PrintOrderService.isConfigured && EtchConfig.current.ordering.enabled && !plan.runs.isEmpty
@@ -124,6 +125,13 @@ struct BookStudioView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
                 ToolbarItem(placement: .topBarTrailing) {
+                    Button { showPagesSheet = true } label: {
+                        Image(systemName: "list.bullet.rectangle")
+                    }
+                    .disabled(subjects.isEmpty || isExporting || orderPhase != nil)
+                    .accessibilityLabel("Show or hide the book's pages")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button { showPhotoSheet = true } label: {
                         Image(systemName: "photo.on.rectangle.angled")
                     }
@@ -133,6 +141,18 @@ struct BookStudioView: View {
             }
             .sheet(isPresented: $showPhotoSheet) {
                 BookPhotoSheet(plan: plan, curation: $curation) {
+                    curationVersion += 1
+                }
+            }
+            .sheet(isPresented: $showPagesSheet) {
+                // The complete table of contents — hidden pages included, so each can come
+                // back individually. Built without the hiding applied, once, on open.
+                BookPagesSheet(fullPlan: {
+                    var complete = curation
+                    complete.hiddenPages = []
+                    return BookPlan.make(subject: resolvedSubject, lens: resolvedLens,
+                                         runs: allRuns, curation: complete)
+                }(), curation: $curation) {
                     curationVersion += 1
                 }
             }
@@ -190,7 +210,25 @@ struct BookStudioView: View {
             case .year:
                 ForEach(subjects) { option in subjectButton(option) }
             case .collection:
-                ForEach(subjects.filter { !$0.isPlace }) { subjectButton($0) }
+                // Four parallel dropdowns — the collection axes read as siblings. Races holds
+                // the whole shelf and each recurring event; Favorites is one entry today but
+                // keeps its station so the menu's shape doesn't change as the history grows.
+                let races = subjects.filter { $0 == .races || $0.isRaceEvent }
+                if !races.isEmpty {
+                    Menu("Races") {
+                        if subjects.contains(.races) {
+                            subjectButton(.races)
+                        }
+                        let events = subjects.filter(\.isRaceEvent)
+                        if !events.isEmpty {
+                            Divider()
+                            ForEach(events) { subjectButton($0) }
+                        }
+                    }
+                }
+                if subjects.contains(.favorites) {
+                    Menu("Favorites") { subjectButton(.favorites) }
+                }
                 let states = subjects.filter(\.isState)
                 if !states.isEmpty {
                     Menu("State") { ForEach(states) { subjectButton($0) } }
