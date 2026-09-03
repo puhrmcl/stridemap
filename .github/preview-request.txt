@@ -26,7 +26,7 @@
 screens=home,map-studio
 appearance=light
 
-# b556 — the unified map bar and the unmarked print lines. home should show ONE glass
+# b556 (re-shot after the responsive fix) — the unified map bar and the unmarked lines. home should show ONE glass
 # pane: etch. | ‹icon› All Activities ⌄ | "82 activities · 568 mi" as a single quiet
 # line | view icon ⌄ | avatar — hairlines between mark/subject and controls/account, map
 # full-bleed behind. map-studio verifies the printed route now ends clean: no dots, no
