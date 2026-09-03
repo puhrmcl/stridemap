@@ -234,6 +234,10 @@ jobs:
               echo ""
               echo "── END CRASH REPORT"
             done
+            # A crash is a red run, so the verdict travels in the conclusion even when
+            # the log itself can't be fetched.
+            echo "::error::Etch crashed during capture — reports above."
+            exit 1
           fi
 
       - name: Upload screenshots
