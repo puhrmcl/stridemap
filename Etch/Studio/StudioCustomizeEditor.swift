@@ -417,6 +417,18 @@ struct StudioCustomizeEditor: View {
                     .font(.caption)
                     .foregroundStyle(Color.secondary.opacity(0.55))
                     .fixedSize(horizontal: false, vertical: true)
+
+                // How the map meets the sheet: to the edges, or framed inside the margin so the
+                // border wraps the whole print. Full Bleed answers this its own way, so the
+                // control steps aside there.
+                if config.mapLayout != .fullBleed {
+                    StudioGroupLabel(text: "Map frame")
+                    Picker("Map frame", selection: $config.mapInset) {
+                        Text("Full Bleed").tag(false)
+                        Text("Bordered").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                }
             }
 
             StudioGroupLabel(text: "Orientation")

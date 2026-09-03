@@ -205,7 +205,10 @@ struct StudioComposition: View {
     /// Map product layout — statement (full footer) / minimal (title + date) / photo (photo strip).
     var mapLayoutRaw: String = MapLayout.statement.rawValue
     /// How many photos the map Photo layout shows (1–3).
-    var mapPhotoCount: Int = 1
+    var mapPhotoCount: Int = 3
+    /// Classic map family: true frames the map inside the sheet's own margin — the
+    /// bone border wraps all the way around — instead of running it to the edges.
+    var mapInset: Bool = false
     /// Multiplies every text (and glyph) point size on the poster, so the user can dial the type
     /// larger or smaller. 1 = the designed size.
     var textScale: CGFloat = 1
@@ -1082,27 +1085,47 @@ struct StudioComposition: View {
         }
     }
 
+    /// Whether the map panel sits framed inside the sheet's margin rather than running to the
+    /// edges. Only the classic map family — Full Bleed is its own layout and answers the
+    /// opposite question, and Memory's photograph was composed to bleed.
+    private var mapInsetActive: Bool {
+        mapInset && layout == .classic && !isFullBleedMap && !edition.isPhoto
+    }
+
     private var artBody: some View {
         ZStack {
             groundColor
-            if edition.isPhoto {
-                // Memory: the photograph is the art. In portrait the route (when on) moves into
-                // the footer; in landscape it stays etched over the photo.
-                photoPanel
-                if memoryRoutePhoto {
-                    LinearGradient(colors: [.black.opacity(0.28), .clear, .black.opacity(0.32)],
-                                   startPoint: .top, endPoint: .bottom)
-                    routeArt.padding(120)
+            Group {
+                if edition.isPhoto {
+                    // Memory: the photograph is the art. In portrait the route (when on) moves
+                    // into the footer; in landscape it stays etched over the photo.
+                    ZStack {
+                        photoPanel
+                        if memoryRoutePhoto {
+                            LinearGradient(colors: [.black.opacity(0.28), .clear, .black.opacity(0.32)],
+                                           startPoint: .top, endPoint: .bottom)
+                            routeArt.padding(120)
+                        }
+                    }
+                } else if edition.usesImagePanel, let panelImage {
+                    Image(uiImage: panelImage).resizable().scaledToFill()
+                } else if run.coordinates.count > 1 {
+                    routeArt.padding(130)
+                } else {
+                    Image(systemName: "figure.run")
+                        .font(.system(size: ts(130), weight: .semibold))
+                        .foregroundStyle(subtleColor)
                 }
-            } else if edition.usesImagePanel, let panelImage {
-                Image(uiImage: panelImage).resizable().scaledToFill()
-            } else if run.coordinates.count > 1 {
-                routeArt.padding(130)
-            } else {
-                Image(systemName: "figure.run")
-                    .font(.system(size: ts(130), weight: .semibold))
-                    .foregroundStyle(subtleColor)
             }
+            // Bordered: the map is clipped to a panel inset by the sheet's own margin — 70pt,
+            // the same margin the footer's content keeps — so the border wraps all the way
+            // around the print and the map aligns with the photos beneath it. The footer edge
+            // needs no inset; its own ground supplies that side.
+            .clipped()
+            .padding(.horizontal, mapInsetActive ? (isSideLayout ? 0 : 70) : 0)
+            .padding(.top, mapInsetActive ? 70 : 0)
+            .padding(.leading, mapInsetActive && isSideLayout ? 70 : 0)
+            .padding(.bottom, mapInsetActive && isSideLayout ? 70 : 0)
         }
     }
 
@@ -1272,21 +1295,14 @@ struct StudioComposition: View {
         }
     }
 
-    /// The photo strip for the map Photo layout — equal-width tiles, or a placeholder if the run
-    /// has no photos yet (the editor offers an Add Photo action to fill it).
+    /// The photo strip for the map Photo layout. Always lays out the *chosen number* of frames:
+    /// a run with fewer photos shows elegant empty frames in their exact places — the layout the
+    /// photos will have, waiting for them — rather than collapsing to a lone grey block. The
+    /// editor fills them from the camera roll or from Files.
     @ViewBuilder private var mapPhotoStrip: some View {
         let n = max(1, min(3, mapPhotoCount))
         let photos = Array(photoImages.prefix(n))
-        if photos.isEmpty {
-            RoundedRectangle(cornerRadius: 14)
-                .fill(subtleColor.opacity(0.12))
-                .frame(height: sp(360))
-                .overlay(
-                    Image(systemName: "photo")
-                        .font(.system(size: ts(88), weight: .semibold))
-                        .foregroundStyle(subtleColor)
-                )
-        } else if photos.count == 1 {
+        if n == 1, photos.count == 1 {
             // A single photo shows whole — fitted, not centre-cropped, which was cutting heads
             // off portrait shots. The band height caps a tall photo; the ground breathes around
             // whatever width the photo's own aspect gives it.
@@ -1297,15 +1313,42 @@ struct StudioComposition: View {
                 .frame(maxWidth: .infinity, maxHeight: sp(430))
         } else {
             HStack(spacing: 14) {
-                ForEach(photos.indices, id: \.self) { i in
-                    Image(uiImage: photos[i])
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: .infinity)
-                        .frame(height: sp(360))
-                        .clipped()
-                        .clipShape(.rect(cornerRadius: 14))
+                ForEach(0..<n, id: \.self) { i in
+                    Group {
+                        if i < photos.count {
+                            Image(uiImage: photos[i])
+                                .resizable()
+                                .scaledToFill()
+                        } else {
+                            photoPlaceholderTile
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: sp(360))
+                    .clipped()
+                    .clipShape(.rect(cornerRadius: 14))
                 }
+            }
+        }
+    }
+
+    /// An empty frame that reads as an invitation, not an error: hairline border on a whisper of
+    /// tone, a small glyph, and a quiet label. If a sheet is proofed with one still open, it
+    /// looks deliberate — but the proof gate makes sure nobody orders one unseen.
+    private var photoPlaceholderTile: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 14)
+                .fill(subtleColor.opacity(0.06))
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(subtleColor.opacity(0.35), lineWidth: 1.5)
+            VStack(spacing: sp(10)) {
+                Image(systemName: "photo")
+                    .font(.system(size: ts(42), weight: .medium))
+                    .foregroundStyle(subtleColor.opacity(0.55))
+                Text("ADD A PHOTO")
+                    .font(.etch(size: ts(12), weight: .semibold))
+                    .tracking(2.5)
+                    .foregroundStyle(subtleColor.opacity(0.7))
             }
         }
     }

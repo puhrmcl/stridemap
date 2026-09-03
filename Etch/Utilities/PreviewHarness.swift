@@ -245,7 +245,9 @@ struct PreviewHarnessView: View {
                 // colour world applied — the only way CI can photograph a look it cannot tap.
                 case let name where name.hasPrefix("map-studio"):
                     studio(family: .map, look: lookVariant(from: name),
-                           material: materialVariant(from: name))
+                           material: materialVariant(from: name),
+                           mapLayout: layoutVariant(from: name),
+                           bordered: name.hasSuffix(":bordered"))
                 case let name where name.hasPrefix("gallery-studio"):
                     studio(family: .gallery, design: designVariant(from: name))
                 case "detail":          detail
@@ -270,14 +272,25 @@ struct PreviewHarnessView: View {
 
     @ViewBuilder private func studio(family: PosterFamily, look: StudioLook? = nil,
                                      material: MapMaterial? = nil,
-                                     design: GalleryDesign? = nil) -> some View {
+                                     design: GalleryDesign? = nil,
+                                     mapLayout: MapLayout? = nil,
+                                     bordered: Bool = false) -> some View {
         if let subject {
             StudioView(run: subject,
                        preset: preset(family, for: subject, look: look, material: material,
-                                      design: design))
+                                      design: design, mapLayout: mapLayout, bordered: bordered))
         } else {
             Color(.systemBackground)
         }
+    }
+
+    /// A map template named after the colon — `map-studio:photo` — for the Layout-row variants
+    /// CI photographs. `:bordered` is the framed-map variant of the Photo template.
+    private func layoutVariant(from name: String) -> MapLayout? {
+        let parts = name.split(separator: ":", maxSplits: 1)
+        guard parts.count == 2 else { return nil }
+        if parts[1] == "bordered" { return .photo }
+        return MapLayout(rawValue: String(parts[1]))
     }
 
     /// The gallery arrangement named after the colon in `gallery-studio:<design>` (raw values,
@@ -322,12 +335,15 @@ struct PreviewHarnessView: View {
     /// Opens the editor straight on the requested product, past the Map/Gallery chooser.
     private func preset(_ family: PosterFamily, for run: Run,
                         look: StudioLook? = nil, material: MapMaterial? = nil,
-                        design: GalleryDesign? = nil) -> PosterConfig {
+                        design: GalleryDesign? = nil, mapLayout: MapLayout? = nil,
+                        bordered: Bool = false) -> PosterConfig {
         var config = PosterConfig.makeDefault(for: run)
         config.family = family
         if let look { config = look.applied(to: config) }
         if let material { config.mapStyle = material.style(for: look) }
         if let design { config.galleryDesign = design }
+        if let mapLayout { config.mapLayout = mapLayout }
+        if bordered { config.mapInset = true }
         return config
     }
 

@@ -23,8 +23,15 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=yearbook@marks,yearbook@review,yearbook@index,yearbook@quiet,yearbook@month
+screens=map-studio:photo,map-studio:bordered
 appearance=light
+
+# b553 — the Photo template grows up. :photo should show THREE frames under the map (the
+# seeded subject has no photos, so all three are the new placeholder tiles: hairline
+# border, glyph, "ADD A PHOTO"), and the route's new endpoint marks — open ring start,
+# solid point finish, fine accent halo when it's a race; the chequer is gone. :bordered
+# is the same sheet with the map framed inside the 70pt margin, aligned with the photo
+# strip, bone border wrapping the whole print.
 
 # b552 — Year Book Phase 1 (story foundation; docs/yearbook-strategy.md is the brief of
 # record). Five pages to judge:

@@ -19,6 +19,10 @@ struct StudioContentEditor: View {
     var onAddPhoto: () -> Void
     var onPickFramePhoto: (Int) -> Void
 
+    @Environment(\.modelContext) private var modelContext
+    /// Presenting the Files importer — the second door for photos that never joined the library.
+    @State private var showFileImporter = false
+
     /// Which text line is expanded for inline editing. Only one at a time — the tray is short and
     /// two open keyboards would push the poster off screen.
     @State private var editingLine: TextLine?
@@ -316,19 +320,53 @@ struct StudioContentEditor: View {
         }
     }
 
+    /// Two doors to the same place: the camera roll, and Files — a race photo often arrives as a
+    /// download or an AirDrop that never joined the library. A file import is saved *into* the
+    /// library and referenced like any other photo, so downstream nothing knows the difference.
     private var addPhotoButton: some View {
-        Button(action: onAddPhoto) {
-            Label(run.photoReferences.isEmpty
-                    ? "Add Photo"
-                    : "Add Photo · \(run.photoReferences.count) on run",
-                  systemImage: "photo.badge.plus")
-                .font(.etch(.subheadline, weight: .semibold))
-                .foregroundStyle(Theme.accent)
-                .frame(maxWidth: .infinity)
-                .frame(height: 42)
-                .background(Theme.accent.opacity(0.12), in: .capsule)
+        HStack(spacing: 10) {
+            Button(action: onAddPhoto) {
+                Label(run.photoReferences.isEmpty
+                        ? "Camera Roll"
+                        : "Camera Roll · \(run.photoReferences.count) on run",
+                      systemImage: "photo.badge.plus")
+                    .font(.etch(.subheadline, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 42)
+                    .background(Theme.accent.opacity(0.12), in: .capsule)
+            }
+            .buttonStyle(.plain)
+            Button { showFileImporter = true } label: {
+                Label("Files", systemImage: "folder.badge.plus")
+                    .font(.etch(.subheadline, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 42)
+                    .background(Theme.accent.opacity(0.12), in: .capsule)
+            }
+            .buttonStyle(.plain)
+            .fileImporter(isPresented: $showFileImporter,
+                          allowedContentTypes: [.image],
+                          allowsMultipleSelection: true) { result in
+                guard case .success(let urls) = result else { return }
+                Task { await importPhotoFiles(urls) }
+            }
         }
-        .buttonStyle(.plain)
+    }
+
+    private func importPhotoFiles(_ urls: [URL]) async {
+        for url in urls {
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            guard let data = try? Data(contentsOf: url),
+                  let identifier = await PhotoLibrary.importImage(data: data) else { continue }
+            if !run.photoReferences.contains(identifier) {
+                run.photoReferences.append(identifier)
+            }
+        }
+        run.updatedAt = Date()
+        try? modelContext.save()
     }
 
     private func frameKind(_ i: Int) -> GalleryTileKind {

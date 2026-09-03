@@ -203,6 +203,22 @@ enum PhotoLibrary {
         }
     }
 
+    /// Imports an image the user chose from Files into the photo library and returns its asset
+    /// identifier — the same currency `photoReferences` speaks, so a photo that arrived as a
+    /// file behaves exactly like one taken on the phone from then on: it renders on posters,
+    /// survives reinstalls with the library, and loads through the one image path.
+    static func importImage(data: Data) async -> String? {
+        let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+        guard status == .authorized || status == .limited else { return nil }
+        var identifier: String?
+        try? await PHPhotoLibrary.shared().performChanges {
+            let request = PHAssetCreationRequest.forAsset()
+            request.addResource(with: .photo, data: data, options: nil)
+            identifier = request.placeholderForCreatedAsset?.localIdentifier
+        }
+        return identifier
+    }
+
     /// Loads the full-resolution image for an asset, for sharing. Nil if the asset is gone.
     static func fullImage(for identifier: String) async -> UIImage? {
         guard !isPreview else { return nil }

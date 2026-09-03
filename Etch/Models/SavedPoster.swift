@@ -69,6 +69,7 @@ final class SavedPoster {
     var mapLayoutRaw: String = "statement"
     /// How many photos the map Photo layout shows (1–3).
     var mapPhotoCount: Int = 1
+    var mapInset: Bool = false
     /// Poster text size multiplier (1 = the designed size).
     var textScale: Double = 1
     /// Per-element size multipliers layered on `textScale` (1 = the designed size).

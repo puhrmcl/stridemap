@@ -63,7 +63,8 @@ enum StudioRenderer {
         /// Map product: how the area beneath the map is composed (statement / minimal / photo).
         var mapLayoutRaw: String = MapLayout.statement.rawValue
         /// Map Photo layout: how many photos to show (1–3).
-        var mapPhotoCount: Int = 1
+        var mapPhotoCount: Int = 3
+        var mapInset: Bool = false
         /// Multiplies every text point size on the poster (user-adjustable). 1 = designed size.
         var textScale: CGFloat = 1
         /// Per-element size multipliers layered on `textScale`.
@@ -263,6 +264,7 @@ enum StudioRenderer {
             galleryDesignRaw: request.galleryDesignRaw,
             mapLayoutRaw: request.mapLayoutRaw,
             mapPhotoCount: request.mapPhotoCount,
+            mapInset: request.mapInset,
             textScale: request.textScale,
             titleScale: request.titleScale,
             locationScale: request.locationScale,

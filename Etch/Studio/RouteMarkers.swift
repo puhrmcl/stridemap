@@ -4,8 +4,9 @@ import CoreLocation
 /// Where a route begins and where it ends, marked on the artwork.
 ///
 /// Every serious print in this category marks both ends, and for good reason: an unmarked line is a
-/// shape, while a line with a start and a finish is a journey with a direction. It is also the
-/// detail that reads instantly as a *race* print when the finish carries a chequer.
+/// shape, while a line with a start and a finish is a journey with a direction. The start is an
+/// open ring, the finish a solid point, and a race's finish carries one fine accent halo — the
+/// medallion. Quiet cartography, in the line's own colours.
 ///
 /// Etch drew these on map panels and nowhere else, so the same run rendered as Minimal — the
 /// route alone on paper, our most restrained and most printable piece — had no ends at all. These
@@ -36,53 +37,41 @@ struct RouteEndpointMarkers: View {
             // a smudge. Within a stroke-width of each other, only the finish is drawn.
             let isLoop = hypot(last.x - first.x, last.y - first.y) < routeWidth * 1.6
 
+            // The marker language is quiet cartography, not novelty: an open ring says "this is
+            // where it began", a solid point says "this is where it ended", and a race's finish
+            // earns one fine concentric halo — a medallion, not a chequerboard. The chequer read
+            // as clip-art at poster size; two weights of the same circle read as typography.
             if !isLoop {
-                dot(context, at: first, radius: routeWidth * 1.15, fill: start)
+                ring(context, at: first, radius: routeWidth * 1.05)
             }
+            point(context, at: last, radius: routeWidth * 1.1)
             if isRace {
-                chequer(context, at: last, radius: routeWidth * 1.45)
-            } else {
-                dot(context, at: last, radius: routeWidth * 1.15, fill: finish)
+                halo(context, at: last, radius: routeWidth * 1.9)
             }
         }
         .allowsHitTesting(false)
     }
 
-    /// A filled pip inside a ring of the ground colour, so it separates from the route and from
-    /// whatever the route is drawn over.
-    private func dot(_ context: GraphicsContext, at point: CGPoint,
-                     radius: CGFloat, fill: Color) {
-        let ring = radius + routeWidth * 0.45
-        context.fill(Path(ellipseIn: square(point, ring)), with: .color(ground))
-        context.fill(Path(ellipseIn: square(point, radius)), with: .color(fill))
+    /// The start: an open ring in the route's own colour over a ground-filled centre, so the line
+    /// visibly *leaves* a hollow point. Ground casing separates it from whatever it sits on.
+    private func ring(_ context: GraphicsContext, at point: CGPoint, radius: CGFloat) {
+        let stroke = max(1.5, routeWidth * 0.5)
+        context.fill(Path(ellipseIn: square(point, radius + stroke)), with: .color(ground))
+        context.stroke(Path(ellipseIn: square(point, radius)),
+                       with: .color(finish), lineWidth: stroke)
     }
 
-    /// The chequered finish: a ring of alternating squares around a solid centre. Drawn as
-    /// geometry rather than as a flag glyph, because at print resolution a symbol font's flag
-    /// turns to mush and this stays crisp at 300 DPI.
-    private func chequer(_ context: GraphicsContext, at point: CGPoint, radius: CGFloat) {
-        let ring = radius + routeWidth * 0.4
-        context.fill(Path(ellipseIn: square(point, ring)), with: .color(ground))
+    /// The finish: a solid point in the route's colour inside a ground casing.
+    private func point(_ context: GraphicsContext, at point: CGPoint, radius: CGFloat) {
+        context.fill(Path(ellipseIn: square(point, radius + routeWidth * 0.45)),
+                     with: .color(ground))
         context.fill(Path(ellipseIn: square(point, radius)), with: .color(finish))
+    }
 
-        // The chequerboard, clipped to the disc.
-        var inner = context
-        inner.clip(to: Path(ellipseIn: square(point, radius)))
-        let cells = 4
-        let cell = radius * 2 / CGFloat(cells)
-        let origin = CGPoint(x: point.x - radius, y: point.y - radius)
-        for row in 0..<cells {
-            for column in 0..<cells where (row + column).isMultiple(of: 2) {
-                let rect = CGRect(x: origin.x + CGFloat(column) * cell,
-                                  y: origin.y + CGFloat(row) * cell,
-                                  width: cell, height: cell)
-                inner.fill(Path(rect), with: .color(ground))
-            }
-        }
-        // A hairline of route colour around the disc, so the pale squares never bleed into a pale
-        // ground and leave the marker looking half-eaten.
+    /// The race finish's halo: one fine ring in the accent, spaced off the point — the medallion.
+    private func halo(_ context: GraphicsContext, at point: CGPoint, radius: CGFloat) {
         context.stroke(Path(ellipseIn: square(point, radius)),
-                       with: .color(finish), lineWidth: max(1, routeWidth * 0.22))
+                       with: .color(start), lineWidth: max(1.2, routeWidth * 0.3))
     }
 
     private func square(_ centre: CGPoint, _ radius: CGFloat) -> CGRect {
