@@ -180,16 +180,111 @@ enum MapPrintRenderer {
         cg.fill(CGRect(origin: .zero, size: size))
 
         let weight = request.artWeight.multiplier
+
+        // The nameplate never shares space with the ink: when it is on, the art yields a band
+        // and redraws inside what remains. Same absolute drawing, smaller window — which is why
+        // the banded print path stays exact.
+        let band = request.artPlateEdge == .hidden ? 0 : size.height * 0.165
+        let artSize = CGSize(width: size.width, height: size.height - band)
+        cg.saveGState()
+        if request.artPlateEdge == .top { cg.translateBy(x: 0, y: band) }
+
         switch request.artStyle {
-        case .grid:          drawGrid(runs, size: size, line: line, unit: unit, weight: weight)
-        case .ridgeline:     drawRidgeline(runs, size: size, line: line, ground: ground, unit: unit, weight: weight)
-        case .rings:         drawRings(runs, size: size, line: line, unit: unit, cg: cg, dark: palette.isDark, weight: weight)
-        case .thread:        drawThread(runs, size: size, line: line, unit: unit, weight: weight)
-        case .strata:        drawStrata(runs, size: size, line: line, unit: unit, weight: weight)
+        case .grid:          drawGrid(runs, size: artSize, line: line, unit: unit, weight: weight)
+        case .ridgeline:     drawRidgeline(runs, size: artSize, line: line, ground: ground, unit: unit, weight: weight)
+        case .rings:         drawRings(runs, size: artSize, line: line, unit: unit, cg: cg, dark: palette.isDark, weight: weight)
+        case .thread:        drawThread(runs, size: artSize, line: line, unit: unit, weight: weight)
+        case .strata:        drawStrata(runs, size: artSize, line: line, unit: unit, weight: weight)
         }
         // No vignette or gradient finish: the ink on its ground *is* the piece — any overlay
         // reads as a filter, not a print.
-        drawArtCaption(request, runs: runs, size: size)
+        drawArtCaption(request, runs: runs, size: artSize)
+        cg.restoreGState()
+
+        drawArtPlate(request, runs: runs, size: size, band: band)
+    }
+
+    /// The nameplate: eyebrow name, serif title, hairline rule, one small-caps meta line —
+    /// centred in its band, in the palette's own ink. The genre's grammar, set with restraint.
+    private static func drawArtPlate(_ request: MapPrintRequest, runs: [Run],
+                                     size: CGSize, band: CGFloat) {
+        guard request.artPlateEdge != .hidden, band > 0 else { return }
+        let unit = size.width / 1000
+        let ink = UIColor(request.artPalette.line)
+
+        let title = (request.artPlateTitle.isEmpty ? request.title : request.artPlateTitle)
+            .uppercased()
+        let name = request.artPlateName.uppercased()
+
+        var meta: [String] = []
+        if request.artPlateShowsYears {
+            let calendar = Calendar.current
+            let dates = runs.map(\.startDate)
+            if let first = dates.min(), let last = dates.max() {
+                let y1 = calendar.component(.year, from: first)
+                let y2 = calendar.component(.year, from: last)
+                meta.append(y1 == y2 ? String(y1) : "\(y1) – \(y2)")
+            }
+        }
+        if request.artPlateShowsTotals {
+            meta.append(runs.count == 1 ? "1 ACTIVITY" : "\(runs.count) ACTIVITIES")
+            let metres = runs.reduce(0.0) { $0 + $1.distance }
+            meta.append(Format.distance(metres, decimals: 0).uppercased())
+        }
+
+        // The serif matches the brand's editorial face (the system serif design, as the poster
+        // compositions use through .etchSerif).
+        let serifBase = UIFont.systemFont(ofSize: 41 * unit, weight: .regular)
+        let serif = serifBase.fontDescriptor.withDesign(.serif)
+            .map { UIFont(descriptor: $0, size: serifBase.pointSize) } ?? serifBase
+
+        let nameAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 13 * unit, weight: .semibold),
+            .foregroundColor: ink.withAlphaComponent(0.6), .kern: 3.4 * unit,
+        ]
+        let titleAttributes: [NSAttributedString.Key: Any] = [
+            .font: serif, .foregroundColor: ink, .kern: 2.4 * unit,
+        ]
+        let metaAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 13.5 * unit, weight: .semibold),
+            .foregroundColor: ink.withAlphaComponent(0.62), .kern: 2.6 * unit,
+        ]
+
+        // Measure the block, then centre it in the band.
+        let gap = 13 * unit
+        let ruleHeight = 1.4 * unit
+        let nameSize = name.isEmpty ? .zero : (name as NSString).size(withAttributes: nameAttributes)
+        let titleSize = title.isEmpty ? .zero : (title as NSString).size(withAttributes: titleAttributes)
+        let metaText = meta.joined(separator: "   ·   ")
+        let metaSize = metaText.isEmpty ? .zero : (metaText as NSString).size(withAttributes: metaAttributes)
+
+        var blockHeight: CGFloat = 0
+        if !name.isEmpty { blockHeight += nameSize.height + gap }
+        if !title.isEmpty { blockHeight += titleSize.height + gap }
+        blockHeight += ruleHeight + gap
+        if !metaText.isEmpty { blockHeight += metaSize.height }
+
+        let bandTop = request.artPlateEdge == .bottom ? size.height - band : 0
+        var y = bandTop + (band - blockHeight) / 2
+
+        if !name.isEmpty {
+            (name as NSString).draw(at: CGPoint(x: (size.width - nameSize.width) / 2, y: y),
+                                    withAttributes: nameAttributes)
+            y += nameSize.height + gap
+        }
+        if !title.isEmpty {
+            (title as NSString).draw(at: CGPoint(x: (size.width - titleSize.width) / 2, y: y),
+                                     withAttributes: titleAttributes)
+            y += titleSize.height + gap
+        }
+        ink.withAlphaComponent(0.35).setFill()
+        UIRectFill(CGRect(x: (size.width - 54 * unit) / 2, y: y,
+                          width: 54 * unit, height: ruleHeight))
+        y += ruleHeight + gap
+        if !metaText.isEmpty {
+            (metaText as NSString).draw(at: CGPoint(x: (size.width - metaSize.width) / 2, y: y),
+                                        withAttributes: metaAttributes)
+        }
     }
 
     /// The one line of type the Anthology allows itself: what this body of work is, set small in

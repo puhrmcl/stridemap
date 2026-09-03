@@ -21,6 +21,13 @@ struct MapPrintView: View {
     @State private var captionEdge: ArtCaptionEdge = .hidden
     @State private var captionTitle = true
     @State private var captionSummary = true
+    // The nameplate — the piece's full typographic block. Off by default; the pieces earned
+    // their silence, and the plate is there for the year that deserves its name on the wall.
+    @State private var plateEdge: ArtPlateEdge = .hidden
+    @State private var plateTitle = ""
+    @State private var plateName = ""
+    @State private var plateYears = true
+    @State private var plateTotals = true
 
     /// A subset selector for the Wall Art. Only choices that actually match runs are offered.
     enum ArtFilter: Hashable {
@@ -186,6 +193,11 @@ struct MapPrintView: View {
         req.artCaptionEdge = captionEdge
         req.artCaptionShowsTitle = captionTitle
         req.artCaptionShowsSummary = captionSummary
+        req.artPlateEdge = plateEdge
+        req.artPlateTitle = plateTitle
+        req.artPlateName = plateName
+        req.artPlateShowsYears = plateYears
+        req.artPlateShowsTotals = plateTotals
         req.showFooter = showDetails || kind.isArt || isSingleState
         return req
     }
@@ -201,7 +213,7 @@ struct MapPrintView: View {
 
     private var currentKey: String {
         "\(kind.rawValue)-\(focusName ?? "all")-\(orientation.rawValue)-\(artPalette.rawValue)-\(artStyle.rawValue)-\(artWeight.rawValue)-\(cityIndexOn)-" +
-        "\(artFilterLabel)-\(stateTitle)|\(stateMetricsKey)-\(statesUSAOnly)-\(showDetails)-\(captionEdge.rawValue)\(captionTitle)\(captionSummary)-\(indexHero.rawValue)\(indexMapScope.rawValue)\(indexTotals)\(indexPhotoStamp)-" +
+        "\(artFilterLabel)-\(stateTitle)|\(stateMetricsKey)-\(statesUSAOnly)-\(showDetails)-\(captionEdge.rawValue)\(captionTitle)\(captionSummary)-\(plateEdge.rawValue)|\(plateTitle)|\(plateName)|\(plateYears)\(plateTotals)-\(indexHero.rawValue)\(indexMapScope.rawValue)\(indexTotals)\(indexPhotoStamp)-" +
         String(format: "%.2f-%.2f-%.2f", zoom, panX, panY)
     }
 
@@ -263,6 +275,15 @@ struct MapPrintView: View {
                 )
             }
             .task(id: currentKey) { await renderIfNeeded(currentKey) }
+            .onAppear {
+                // CI photographs the nameplate via wall-art:<style>@plate — seeded text, bottom
+                // band. Inert without the harness variable, like the rest of the rig.
+                if ProcessInfo.processInfo.environment["ETCH_PREVIEW_SCROLL"] == "plate" {
+                    plateEdge = .bottom
+                    plateTitle = "A Year in Motion"
+                    plateName = "Jordan Avery"
+                }
+            }
             .onChange(of: kind) { focusName = nil; stateTitle = ""; artFilter = .all; statesUSAOnly = false; resetFrame() }
             .onChange(of: focusName) { stateTitle = ""; resetFrame() }
             // Each art style has its own default framing (Home Turf zooms to the home city), so
@@ -333,7 +354,11 @@ struct MapPrintView: View {
                 artFilterMenu
                 styleStrip
                 paletteRow
-                captionMenu
+                HStack(spacing: 10) {
+                    plateMenu
+                    captionMenu
+                }
+                if plateEdge != .hidden { plateFields }
                 Picker("Weight", selection: $artWeight) {
                     ForEach(MapArtWeight.allCases) { Text($0.name).tag($0) }
                 }
@@ -480,6 +505,38 @@ struct MapPrintView: View {
         } label: {
             menuChip(icon: "scope", text: focusName ?? "All \(kind.name)")
         }
+    }
+
+    /// The nameplate's controls: where it sits and which lines it carries. The text itself is
+    /// edited inline below the chips, because a menu cannot hold a keyboard.
+    private var plateMenu: some View {
+        Menu {
+            Picker("Nameplate", selection: $plateEdge) {
+                ForEach(ArtPlateEdge.allCases) { Text($0.name).tag($0) }
+            }
+            if plateEdge != .hidden {
+                Toggle("Years", isOn: $plateYears)
+                Toggle("Totals", isOn: $plateTotals)
+            }
+        } label: {
+            menuChip(icon: "textformat",
+                     text: plateEdge == .hidden ? "No nameplate" : "Nameplate · \(plateEdge.name)")
+        }
+    }
+
+    /// The two lines the customer writes: the title the serif sets, and whose year of work this
+    /// is. Both optional — an empty name simply leaves the eyebrow off, and an empty title falls
+    /// back to the filter's own label.
+    private var plateFields: some View {
+        VStack(spacing: 8) {
+            TextField("Title (e.g. A Year in Motion)", text: $plateTitle)
+                .textFieldStyle(.roundedBorder)
+                .font(.etch(.subheadline))
+            TextField("Name (e.g. Clint Puhrmann)", text: $plateName)
+                .textFieldStyle(.roundedBorder)
+                .font(.etch(.subheadline))
+        }
+        .frame(maxWidth: 340)
     }
 
     /// The data line's controls — a menu, because it is secondary to the piece and hierarchical

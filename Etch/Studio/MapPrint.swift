@@ -196,6 +196,26 @@ enum ArtCaptionEdge: String, CaseIterable, Identifiable {
     }
 }
 
+/// Where the Anthology's nameplate sits — the piece's full typographic block, as distinct from
+/// the caption's one marginal line.
+///
+/// The nameplate is the data-art genre's settled convention (star maps, tree-ring year prints,
+/// route anthologies all speak it): the owner's name as a small tracked eyebrow, the title in
+/// the serif, a short hairline rule, then one small-caps line of years and totals. It never
+/// shares space with the art — when the plate is on, the art yields the band and redraws
+/// smaller, so ink and type each keep their own field.
+enum ArtPlateEdge: String, CaseIterable, Identifiable {
+    case hidden, bottom, top
+    var id: String { rawValue }
+    var name: String {
+        switch self {
+        case .hidden: return "Off"
+        case .bottom: return "Bottom"
+        case .top:    return "Top"
+        }
+    }
+}
+
 /// Line weight for the Wall Art — a global multiplier on every stroke/point.
 enum MapArtWeight: String, CaseIterable, Identifiable {
     case fine, medium, bold
@@ -268,6 +288,16 @@ struct MapPrintRequest {
     var artCaptionEdge: ArtCaptionEdge = .hidden
     var artCaptionShowsTitle: Bool = true
     var artCaptionShowsSummary: Bool = true
+
+    /// The Anthology's nameplate: the full typographic block (name · title · rule · totals).
+    /// When visible the art yields the band — the two never overlap by construction.
+    var artPlateEdge: ArtPlateEdge = .hidden
+    /// The serif line. Empty falls back to the request's own `title`.
+    var artPlateTitle: String = ""
+    /// The eyebrow — whose year of work this is. Empty hides the line.
+    var artPlateName: String = ""
+    var artPlateShowsYears: Bool = true
+    var artPlateShowsTotals: Bool = true
 
     /// Cities drawn as a typographic index — every city named, ranked by visits — instead of
     /// pins on a map. The index is composed entirely of our own type on our own ground, which

@@ -23,8 +23,14 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=yearbook,yearbook@closing
+screens=wall-art:rings@plate,wall-art:ridgeline@plate
 appearance=light
+
+# b555 — the Anthology nameplate. Both shots seed the plate at the bottom: the rings /
+# ridgeline art redrawn INSIDE the upper field (never overlapping), and beneath it the
+# block — "JORDAN AVERY" eyebrow tracked small, "A YEAR IN MOTION" in the serif, a short
+# hairline rule, then "2019 – 2026 · N ACTIVITIES · X MI" in small caps, all in the
+# palette's own ink, centred in the band.
 
 # b554 — the statement cover. The first shot lands on the cover: deep ink ground, blue
 # accent rule + eyebrow, the hero route drawn in bone with the new endpoint marks, the
