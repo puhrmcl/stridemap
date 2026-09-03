@@ -10,13 +10,15 @@ struct BookPageView: View {
     /// A race page's cover photo, loaded by the renderer; nil composes the page photo-free.
     var photo: UIImage? = nil
 
-    private let ground = Theme.Palette.bone
-    private let ink = Theme.Palette.ink
-    private var subtle: Color { ink.opacity(0.55) }
-    private let accent = Theme.Palette.blue
+    // Internal, not private: the page families live across files now (BookStoryPages holds the
+    // marks/review/index/quiet pages) and all of them speak this one vocabulary.
+    let ground = Theme.Palette.bone
+    let ink = Theme.Palette.ink
+    var subtle: Color { ink.opacity(0.55) }
+    let accent = Theme.Palette.blue
 
     /// Design margin: the print guide's safety margin plus breathing room.
-    private let margin: CGFloat = 76
+    let margin: CGFloat = 76
 
     /// What this book is about — the year, the state, the city, the shelf of races.
     private var subject: BookSubject { plan.subject }
@@ -27,8 +29,11 @@ struct BookPageView: View {
             case .cover:                    coverPage
             case .title:                    titlePage
             case .stats:                    statsPage
+            case .marks:                    marksPage
             case .chapter(let start):       chapterPage(start)
             case .race(let index):          racePage(index)
+            case .review:                   reviewPage
+            case .index(let offset):        indexPage(offset: offset)
             case .closing:                  closingPage
             case .blank:                    ground
             case .backCover:                backCoverPage
@@ -155,15 +160,11 @@ struct BookPageView: View {
         .padding(margin)
     }
 
-    // MARK: Chapter page — the chapter's line-work, every route as a small etching
+    // MARK: Chapter page — profiled by content, led by a marquee
 
-    private func chapterPage(_ start: Date) -> some View {
-        let runs = plan.chapterRuns(start)
-        let stats = RunStatistics(runs)
-        let mapped = runs.filter { $0.coordinates.count > 1 }
-        let cells = Array(mapped.prefix(8))
-
-        return VStack(alignment: .leading, spacing: 30) {
+    /// The month's shared masthead: name on the left, its totals on the right, a hairline under.
+    func chapterHeader(_ start: Date, stats: RunStatistics) -> some View {
+        VStack(alignment: .leading, spacing: 30) {
             HStack(alignment: .firstTextBaseline) {
                 Text(chapterName(start))
                     .font(.etchSerif(size: 54, weight: .regular)).tracking(2)
@@ -176,8 +177,35 @@ struct BookPageView: View {
                     .foregroundStyle(subtle)
             }
             Rectangle().fill(subtle.opacity(0.35)).frame(height: 1.5)
+        }
+    }
 
-            if cells.isEmpty {
+    /// Dispatches by what the month actually held: a handful of activities takes the quiet
+    /// treatment; a full month takes the grid, led by its marquee. The content chooses.
+    @ViewBuilder private func chapterPage(_ start: Date) -> some View {
+        let runs = plan.chapterRuns(start)
+        switch BookStory.chapterProfile(for: runs) {
+        case .quiet:    quietChapterPage(start, runs: runs)
+        case .standard: standardChapterPage(start, runs: runs)
+        }
+    }
+
+    /// The grid month. Not the old uniform eight: the month's marquee activity — its race, its
+    /// mark-holder, or simply its longest — takes a double-width cell, because a marathon and a
+    /// recovery jog were never equals. And nothing vanishes any more: what the page can't hold
+    /// is counted and pointed at the index.
+    private func standardChapterPage(_ start: Date, runs: [Run]) -> some View {
+        let stats = RunStatistics(runs)
+        let mapped = runs.filter { $0.coordinates.count > 1 }
+        let marquee = plan.story.marquee(in: mapped)
+        let supporting = mapped.filter { $0.id != marquee?.id }
+        let cells = Array(supporting.prefix(6))
+        let unshown = runs.count - cells.count - (marquee == nil ? 0 : 1)
+
+        return VStack(alignment: .leading, spacing: 30) {
+            chapterHeader(start, stats: stats)
+
+            if marquee == nil && cells.isEmpty {
                 Spacer()
                 Text("INDOOR MILES — NO LINES TO DRAW, STILL COUNTED ABOVE")
                     .font(.etch(size: 14, weight: .semibold)).tracking(3)
@@ -185,16 +213,66 @@ struct BookPageView: View {
                     .frame(maxWidth: .infinity)
                 Spacer()
             } else {
-                let columns = [GridItem](repeating: GridItem(.flexible(), spacing: 26), count: 4)
-                LazyVGrid(columns: columns, spacing: 24) {
-                    ForEach(cells, id: \.id) { run in
-                        routeCell(run)
+                HStack(alignment: .top, spacing: 26) {
+                    if let marquee {
+                        marqueeCell(marquee)
+                            .frame(maxWidth: .infinity)
                     }
+                    let columns = [GridItem](repeating: GridItem(.flexible(), spacing: 26),
+                                             count: marquee == nil ? 4 : 3)
+                    LazyVGrid(columns: columns, spacing: 24) {
+                        ForEach(cells, id: \.id) { run in
+                            routeCell(run)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
                 }
                 Spacer(minLength: 0)
+                if unshown > 0 {
+                    Text("+ \(unshown) MORE — IN THE RECORD, AT THE BACK")
+                        .font(.etch(size: 11.5, weight: .semibold)).tracking(2.5)
+                        .foregroundStyle(subtle)
+                        .frame(maxWidth: .infinity)
+                }
             }
         }
         .padding(margin)
+    }
+
+    /// The month's lead activity at editorial size: the route in accent, name, and its own line
+    /// of numbers — a small poster inside the page.
+    private func marqueeCell(_ run: Run) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            RouteShape(coordinates: run.coordinates)
+                .stroke(accent, style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
+                .frame(maxHeight: .infinity)
+                .padding(.horizontal, 12)
+            VStack(alignment: .leading, spacing: 3) {
+                if run.isRace {
+                    Text("RACE DAY")
+                        .font(.etch(size: 10.5, weight: .semibold)).tracking(3)
+                        .foregroundStyle(accent)
+                }
+                Text(run.name.uppercased())
+                    .font(.etch(size: 15, weight: .semibold)).tracking(1.5)
+                    .foregroundStyle(ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text(marqueeStatLine(run).uppercased())
+                    .font(.etch(size: 11.5, weight: .medium)).tracking(1.2)
+                    .foregroundStyle(subtle)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+        }
+    }
+
+    private func marqueeStatLine(_ run: Run) -> String {
+        [StatMetric.distance.value(for: run),
+         StatMetric.time.value(for: run),
+         shortDate(run.startDate)]
+            .compactMap { $0 }
+            .joined(separator: "  ·  ")
     }
 
     private func routeCell(_ run: Run) -> some View {
@@ -344,7 +422,7 @@ struct BookPageView: View {
 
     // MARK: Shared pieces
 
-    private func pageHeader(_ title: String, subtitle: String) -> some View {
+    func pageHeader(_ title: String, subtitle: String) -> some View {
         VStack(spacing: 8) {
             Text(title)
                 .font(.etch(size: 15, weight: .semibold)).tracking(7)

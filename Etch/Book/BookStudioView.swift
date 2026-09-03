@@ -271,10 +271,38 @@ struct BookStudioView: View {
         preparedCart = nil
         proofApproved = false
         let plan = plan
-        for index in plan.pages.indices {
+
+        // CI's screenshot rig can name a page family (yearbook@review, yearbook@marks, …); the
+        // pager jumps there and that page renders first, so the shot never races the other
+        // thirty renders. Inert without the environment variable, like the rest of the harness.
+        var order = Array(plan.pages.indices)
+        if let anchored = previewAnchorIndex(in: plan) {
+            currentPage = anchored
+            order.removeAll { $0 == anchored }
+            order.insert(anchored, at: 0)
+        }
+
+        for index in order {
             if Task.isCancelled { return }
             if let image = await BookRenderer.pageImage(plan: plan, page: index, scale: 0.45) {
                 previews[index] = image
+            }
+        }
+    }
+
+    /// The first page matching the harness anchor, when one is set.
+    private func previewAnchorIndex(in plan: BookPlan) -> Int? {
+        guard let anchor = ProcessInfo.processInfo.environment["ETCH_PREVIEW_SCROLL"],
+              !anchor.isEmpty else { return nil }
+        return plan.pages.firstIndex { spec in
+            switch (anchor, spec) {
+            case ("marks", .marks), ("review", .review), ("closing", .closing),
+                 ("stats", .stats), ("race", .race(_)), ("index", .index(_)),
+                 ("month", .chapter(_)):
+                return true
+            case ("quiet", .chapter(let start)):
+                return BookStory.chapterProfile(for: plan.chapterRuns(start)) == .quiet
+            default: return false
             }
         }
     }

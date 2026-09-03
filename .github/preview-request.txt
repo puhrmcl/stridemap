@@ -23,13 +23,17 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=map-studio
+screens=yearbook@marks,yearbook@review,yearbook@index,yearbook@quiet,yearbook@month
 appearance=light
 
-# b551: entering Studio with the product decided (a Map Print tile, a kept poster) now
-# roots the editor — no chooser page hiding underneath. The map-studio harness enters via
-# a preset, so this shot should show the editor with a "Done" button top-left where the
-# back chevron used to be. Tapping it (on device) leaves Studio entirely.
+# b552 — Year Book Phase 1 (story foundation; docs/yearbook-strategy.md is the brief of
+# record). Five pages to judge:
+#   @marks  — "THE MARKS": 3×2 achievement cards (values big, labels in accent, detail under)
+#   @review — "YOUR YEAR, ETCHED.": serif hero mileage, highlights ledger, places line
+#   @index  — "The Record": three columns of compact date·name·distance entries
+#   @quiet  — a sparse month: one large accent route left, ledger of activities right
+#   @month  — a standard month: marquee cell (accent, bigger, own stats) + 3-col grid +
+#             "+N more — in the record" honesty line when the month overflows
 
 # b549 (re-run after the Hashable fix): the Gift Cards page (Bag → Gift Cards). CI has no storefront tokens, so the buy
 # section should show its honest "aren't available just yet" line — what to check is the

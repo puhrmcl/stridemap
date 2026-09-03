@@ -10,9 +10,16 @@ enum BookPageSpec {
     case cover
     case title
     case stats
+    /// The achievements spread — what stood out, phrased by the StoryEngine.
+    case marks
     /// A month, or a whole year when the subject spans too many months to give each one a page.
     case chapter(start: Date)
     case race(runIndex: Int)
+    /// "YOUR YEAR, ETCHED." — the emotional summary near the back.
+    case review
+    /// One page of the complete activity index; `offset` is the first entry it lists. This is
+    /// what lets month pages breathe: nothing is ever dropped from the book, it moves here.
+    case index(offset: Int)
     case closing
     case blank
     case backCover
@@ -40,8 +47,21 @@ struct BookPlan {
     let runs: [Run]
     let pages: [BookPageSpec]
     let chapterSpan: ChapterSpan
+    /// What the history *means* — marks, peaks, streaks, firsts — computed once here so every
+    /// page reads the same story instead of re-deriving its own.
+    let story: BookStory
 
     var pageCount: Int { pages.count }
+
+    /// How many activities one index page lists (3 columns × 14 rows).
+    static let indexEntriesPerPage = 42
+
+    /// The slice of activities one index page lists.
+    func indexEntries(from offset: Int) -> ArraySlice<Run> {
+        let end = min(offset + Self.indexEntriesPerPage, runs.count)
+        guard offset < end else { return [] }
+        return runs[offset..<end]
+    }
 
     /// Whether a chapter heading has to name its year. Within one calendar year "MARCH" is
     /// unambiguous; across a collection spanning several it is not.
@@ -55,17 +75,22 @@ struct BookPlan {
     /// The most chapters that can each take their own page before the book switches to years.
     private static let chapterBudget = 60
 
-    /// Builds the plan: cover → title → stats → a page per active chapter, each chapter's race
-    /// pages following it → closing → back cover; padded with blanks to Prodigi's even-count and
-    /// minimum-pages rules, and trimmed to its maximum.
+    /// Builds the plan — the book's arc:
+    /// cover → title → stats → the marks → chapters (races as set pieces) → review →
+    /// the complete index → closing → back cover. The closing stays the last words, after the
+    /// emotional summary and the record, which is where a final statement belongs.
     static func make(subject: BookSubject, runs: [Run]) -> BookPlan {
         let calendar = Calendar.current
         let selected = runs.filter(subject.matches).sorted { $0.startDate < $1.startDate }
+        let story = StoryEngine.story(selected: selected, history: runs)
 
         let months = Set(selected.map { ChapterSpan.month.start(of: $0.startDate, calendar) })
         let span: ChapterSpan = months.count <= chapterBudget ? .month : .year
 
         var pages: [BookPageSpec] = [.cover, .title, .stats]
+
+        // The marks page earns its place; two cards on a spread designed for six reads thin.
+        if story.marks.count >= 3 { pages.append(.marks) }
 
         let byChapter = Dictionary(grouping: selected) { span.start(of: $0.startDate, calendar) }
         var racesUsed = 0
@@ -78,6 +103,16 @@ struct BookPlan {
                     racesUsed += 1
                 }
             }
+        }
+
+        pages.append(.review)
+
+        // The complete record: every activity, honestly, however many pages that takes. This is
+        // what frees the month pages from having to show everything.
+        var offset = 0
+        while offset < selected.count {
+            pages.append(.index(offset: offset))
+            offset += indexEntriesPerPage
         }
 
         pages.append(.closing)
@@ -96,7 +131,8 @@ struct BookPlan {
         }
         pages.append(.backCover)
 
-        return BookPlan(subject: subject, runs: selected, pages: pages, chapterSpan: span)
+        return BookPlan(subject: subject, runs: selected, pages: pages, chapterSpan: span,
+                        story: story)
     }
 
     /// The run a race page shows.
