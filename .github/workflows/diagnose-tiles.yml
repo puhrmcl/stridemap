@@ -145,6 +145,44 @@ jobs:
           check "$BASE/terrain/12/699/1633.png"  "89504e47" "terrain, San Gabriel mountains"
           check "$BASE/imagery/14/2793/6528"     "ffd8"     "imagery, San Diego"
 
+      - name: Wallet pass signs and verifies
+        run: |
+          set -e
+          # The five PASS_* secrets are in and the worker redeployed — prove /giftpass end to
+          # end: a 200 with a real zip, the six files a pkpass needs, a PKCS#7 signature that
+          # verifies over the manifest, and Apple's chain (WWDR + the Pass Type ID cert) inside.
+          BASE=https://etch-fulfilment.clintpuhrmann.workers.dev
+          CODE=$(curl -s -X POST "$BASE/giftpass" \
+            -H "Content-Type: application/json" \
+            -d '{"code":"PROBETESTCODE123","amount":"$50"}' \
+            -o gift.pkpass -w "%{http_code}")
+          echo "── /giftpass → HTTP $CODE, $(wc -c < gift.pkpass | xargs) bytes"
+          if [ "$CODE" = "503" ]; then
+            echo "::error::pass signing not configured on the worker — secrets missing"
+            cat gift.pkpass; exit 1
+          fi
+          [ "$CODE" = "200" ] || { echo "::error::unexpected status"; cat gift.pkpass; exit 1; }
+          unzip -o gift.pkpass -d pass >/dev/null
+          ls pass
+          for f in pass.json icon.png icon@2x.png icon@3x.png logo.png manifest.json signature; do
+            [ -f "pass/$f" ] || { echo "::error::pkpass is missing $f"; exit 1; }
+          done
+          python3 - <<'PY'
+          import json, hashlib
+          manifest = json.load(open("pass/manifest.json"))
+          for name, digest in manifest.items():
+              actual = hashlib.sha1(open(f"pass/{name}", "rb").read()).hexdigest()
+              assert actual == digest, f"{name}: manifest {digest} != actual {actual}"
+          p = json.load(open("pass/pass.json"))
+          assert p["storeCard"]["backFields"][0]["value"] == "PROBETESTCODE123"
+          assert p["barcodes"][0]["message"] == "PROBETESTCODE123"
+          print("manifest digests match; pass.json carries the code; type", p["passTypeIdentifier"])
+          PY
+          openssl smime -verify -inform DER -in pass/signature \
+            -content pass/manifest.json -noverify >/dev/null
+          echo "── signature verifies over the manifest"
+          openssl pkcs7 -inform DER -in pass/signature -print_certs -noout | grep -i "subject" | head -4
+
       - name: Which User-Agents does the edge admit?
         run: |
           set -e
