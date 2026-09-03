@@ -885,7 +885,7 @@ struct HomeView: View {
                     .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
                 Text(scopeTitle)
                     .font(.etch(.subheadline, weight: .semibold))
-                    .lineLimit(1)
+                    .fixedSize()
             }
             .foregroundStyle(.primary)
             .frame(maxHeight: .infinity)
@@ -902,7 +902,7 @@ struct HomeView: View {
                         .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
                     Text(scopeTitle)
                         .font(.etch(.subheadline, weight: .semibold))
-                        .lineLimit(1)
+                        .fixedSize()
                     Image(systemName: "chevron.down")
                         .font(.system(size: 9, weight: .bold))
                         .rotationEffect(.degrees(showTypeMenu ? 180 : 0))
@@ -926,12 +926,25 @@ struct HomeView: View {
         // the header no longer needs; secondary information gets a secondary voice. It shrinks
         // rather than truncates: a number that reads "1,5…" is a defect, the same number a
         // shade smaller is not.
+        ViewThatFits(in: .horizontal) {
+            metricsText(withNoun: true)
+            // The narrow phone's version drops the noun, never the numbers: "2,047 · 1,318 mi"
+            // is still the same fact, and the controls beside it keep their full size.
+            metricsText(withNoun: false)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(derived.shownTotalRuns.formatted()) \(effectiveScope.countNoun), \(Format.distanceValue(derived.shownTotalDistance).formatted(.number.precision(.fractionLength(0)))) \(UnitSystem.current.distanceSuffix)")
+    }
+
+    private func metricsText(withNoun: Bool) -> some View {
         HStack(spacing: 4) {
             Text(derived.shownTotalRuns.formatted())
                 .fontWeight(.semibold)
                 .foregroundStyle(.primary)
-            Text(effectiveScope.countNoun)
-                .foregroundStyle(.secondary)
+            if withNoun {
+                Text(effectiveScope.countNoun)
+                    .foregroundStyle(.secondary)
+            }
             Text("·")
                 .foregroundStyle(.secondary)
             Text(Format.distanceValue(derived.shownTotalDistance)
@@ -943,8 +956,7 @@ struct HomeView: View {
         }
         .font(.etch(.footnote))
         .lineLimit(1)
-        .minimumScaleFactor(0.6)
-        .accessibilityElement(children: .combine)
+        .minimumScaleFactor(0.85)
     }
 
     /// The Activity Type bottom sheet — tiles for All / Runs / Hikes / Rides / Walks (only the
