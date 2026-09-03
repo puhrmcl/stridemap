@@ -8,26 +8,37 @@ import UIKit
 enum BookRenderer {
 
     /// One page as an image. `scale` 1 ≈ screen preview; `BookCatalog.renderScale` = print.
+    ///
+    /// Preview renders load photos at preview size. A big Collections book previews up to a
+    /// hundred pages back to back, and pulling every photograph from the device library at
+    /// its 1500px print size put hundreds of transient megabytes through that loop — the
+    /// simulator's empty library never feels it, a phone's real one gets the app killed.
+    /// Print export (`scale` ≥ 1) still asks full size; the proof and the product are exact.
     static func pageImage(plan: BookPlan, page index: Int, scale: CGFloat) async -> UIImage? {
         guard plan.pages.indices.contains(index) else { return nil }
         let spec = plan.pages[index]
-        let photo = await racePhoto(plan: plan, spec: spec)
-        let photos = await pagePhotos(plan: plan, spec: spec)
-        let renderer = ImageRenderer(content: BookPageView(plan: plan, spec: spec,
-                                                           photo: photo, photos: photos))
-        renderer.scale = scale
-        return renderer.uiImage
+        let preview = scale < 1
+        let photo = await racePhoto(plan: plan, spec: spec, preview: preview)
+        let photos = await pagePhotos(plan: plan, spec: spec, preview: preview)
+        return autoreleasepool {
+            let renderer = ImageRenderer(content: BookPageView(plan: plan, spec: spec,
+                                                               photo: photo, photos: photos))
+            renderer.scale = scale
+            return renderer.uiImage
+        }
     }
 
     /// The single hero photo a page leads with: a race page's cover shot, or the book cover's
     /// photograph when that treatment is chosen. Nil elsewhere.
-    private static func racePhoto(plan: BookPlan, spec: BookPageSpec) async -> UIImage? {
+    private static func racePhoto(plan: BookPlan, spec: BookPageSpec,
+                                  preview: Bool) async -> UIImage? {
+        let heroSide: CGFloat = preview ? 900 : 1800
         switch spec {
         case .race(let index):
             guard let run = plan.run(at: index),
                   let id = run.photoReferences.first(where: plan.curation.includes)
                         ?? run.photoReferences.first else { return nil }
-            return await PhotoLibrary.image(for: id, targetSize: CGSize(width: 1800, height: 1800))
+            return await PhotoLibrary.image(for: id, targetSize: CGSize(width: heroSide, height: heroSide))
         case .cover where plan.curation.coverStyle == .photo:
             // The chosen cover shot; else the best candidate — a race's photo first, then the
             // first photograph the span has. Full-bleed on the cover, so ask big.
@@ -37,7 +48,8 @@ enum BookRenderer {
                 ?? plan.runs.flatMap(\.photoReferences).first(where: plan.curation.includes)
                 ?? plan.curation.extraPhotoIDs.first
             guard let reference else { return nil }
-            return await PhotoLibrary.image(for: reference, targetSize: CGSize(width: 2400, height: 2400))
+            let side: CGFloat = preview ? 1000 : 2400
+            return await PhotoLibrary.image(for: reference, targetSize: CGSize(width: side, height: side))
         default:
             return nil
         }
@@ -47,7 +59,8 @@ enum BookRenderer {
     /// gallery — captioned and loaded at print-safe size. A reference the library no longer
     /// resolves keeps its slot with a nil image: the page draws the frame empty, and the proof
     /// gate shows the customer exactly what would print.
-    private static func pagePhotos(plan: BookPlan, spec: BookPageSpec) async -> [BookPagePhoto] {
+    private static func pagePhotos(plan: BookPlan, spec: BookPageSpec,
+                                   preview: Bool) async -> [BookPagePhoto] {
         let picks: [(run: Run?, reference: String)]
         switch spec {
         case .chapterPhotos(let start):
@@ -64,9 +77,10 @@ enum BookRenderer {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d"
         var photos: [BookPagePhoto] = []
+        let side: CGFloat = preview ? 600 : 1500
         for pick in picks {
             let image = await PhotoLibrary.image(for: pick.reference,
-                                                 targetSize: CGSize(width: 1500, height: 1500))
+                                                 targetSize: CGSize(width: side, height: side))
             let caption = pick.run.map { "\($0.name) · \(formatter.string(from: $0.startDate))" }
                 ?? "From the library"
             photos.append(BookPagePhoto(image: image, caption: caption))

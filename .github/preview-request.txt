@@ -26,10 +26,13 @@
 screens=collections
 appearance=light
 
-# Reproducing the reported Collections crash: this screen opens
-# BookStudioView(kind: .collection) against the seeded history (races + several states
-# and cities exist, so collection subjects are offered and the first one's plan renders).
-# If the app dies, the new Crash reports step dumps the .ips with the crashed thread.
+# b563 — the Collections crash hardening. The seeded repro did NOT crash (46-page Races
+# collection rendered clean), pointing at device-only conditions: preview rendering
+# loaded every photograph at its 1500px PRINT size, and a big collection previews up to
+# a hundred pages of that back to back — a memory spike an empty simulator library never
+# feels. Previews now load photos at preview size (print export still asks full size),
+# each page render sits in an autorelease pool, and the photo sheet de-duplicates a
+# library asset attached to two activities. This shot re-verifies collections stays green.
 
 # b562 — trim safety and hidden pages. The device shot of the Grid cover showed the type
 # pressed against the edges: the LazyVGrid demanded more height than the page has, the

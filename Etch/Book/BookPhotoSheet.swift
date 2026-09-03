@@ -18,9 +18,13 @@ struct BookPhotoSheet: View {
     /// The curation as it stood when the sheet opened — Republish only lights up on change.
     @State private var opening: BookCuration?
 
-    /// Every photo the book's activities carry, in date order.
+    /// Every photo the book's activities carry, in date order. De-duplicated by reference:
+    /// on a real device the same library asset can be attached to two activities, and the
+    /// grid's identity (and the include/exclude choice) is the photograph, not the pairing.
     private var candidates: [(run: Run, reference: String)] {
-        plan.runs.flatMap { run in run.photoReferences.map { (run, $0) } }
+        var seen = Set<String>()
+        return plan.runs.flatMap { run in run.photoReferences.map { (run, $0) } }
+            .filter { seen.insert($0.1).inserted }
     }
 
     private var hasChanges: Bool { opening.map { $0 != curation } ?? false }
