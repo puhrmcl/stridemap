@@ -23,8 +23,13 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=yearbook@map
+screens=home,map-studio,yearbook
 appearance=light
+quality=full
+
+# Landing-page assets — full-resolution JPEGs of the three screens the byetch.com page
+# frames: the map (hero), the Studio editor, and the Year Book cover. The b559 map-page
+# shot (yearbook@map) rides in the previous run on its own sha.
 
 # b559 — Year Book Phase 2 begins: THE MAP. A new spread after the marks — the year's
 # geography, all self-rendered vectors. What to check: the visited states filled in the

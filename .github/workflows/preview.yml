@@ -90,14 +90,23 @@ jobs:
           fi
           [ -z "$SCREENS" ] && SCREENS="studio"
           [ -z "$APPEARANCE" ] && APPEARANCE="light"
+          # quality=full also embeds each shot near-native as JPEG — for when the pixels are
+          # the deliverable (marketing/landing-page assets), not just a review aid.
+          QUALITY=""
+          if [ -f "$FILE" ]; then
+            QUALITY=$(grep -E '^quality=' "$FILE" | tail -1 | cut -d= -f2- | xargs)
+          fi
+          [ -z "$QUALITY" ] && QUALITY="small"
           echo "screens=$SCREENS" >> "$GITHUB_OUTPUT"
           echo "appearance=$APPEARANCE" >> "$GITHUB_OUTPUT"
-          echo "requesting: $SCREENS ($APPEARANCE)"
+          echo "quality=$QUALITY" >> "$GITHUB_OUTPUT"
+          echo "requesting: $SCREENS ($APPEARANCE, $QUALITY)"
 
       - name: Capture each screen
         env:
           SCREENS: ${{ steps.request.outputs.screens }}
           APPEARANCE: ${{ steps.request.outputs.appearance }}
+          QUALITY: ${{ steps.request.outputs.quality }}
         run: |
           set -e
           UDID=$(xcrun simctl list devices available | grep -E "iPhone (1[5-9]|[2-9][0-9])" | grep -v "Plus\|Max\|SE" | head -1 | grep -oE "[0-9A-F-]{36}")
@@ -178,6 +187,16 @@ jobs:
             echo "── BEGIN-B64 $NAME"
             base64 -i "small-$FILE"
             echo "── END-B64 $NAME"
+
+            # quality=full: the shot again at 1300px tall as JPEG — sharp enough to *be* the
+            # asset (a landing page's device frame renders ~260 CSS px wide, so this is >2x).
+            if [ "$QUALITY" = "full" ]; then
+              sips -Z 1300 -s format jpeg -s formatOptions 82 "$FILE" \
+                --out "full-$NAME.jpg" >/dev/null
+              echo "── BEGIN-B64 full-$NAME"
+              base64 -i "full-$NAME.jpg"
+              echo "── END-B64 full-$NAME"
+            fi
 
             # A shot of a whole phone downscaled to 520px tall renders a 25pt tab icon in about
             # fifteen pixels, which is not enough to tell a thin outline from a filled shape —
