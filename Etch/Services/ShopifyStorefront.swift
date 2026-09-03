@@ -269,8 +269,9 @@ enum ShopifyStorefront {
 
     // MARK: Gift cards
 
-    /// One buyable gift amount — a variant of the shop's gift card product.
-    struct GiftDenomination: Sendable, Identifiable {
+    /// One buyable gift amount — a variant of the shop's gift card product. Hashable because
+    /// the picker that offers the amounts tags its rows with whole values.
+    struct GiftDenomination: Sendable, Identifiable, Hashable {
         let id: String        // variant gid, what a cart line takes
         let title: String     // e.g. "$50"
         let amountCents: Int
