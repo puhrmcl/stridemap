@@ -48,6 +48,12 @@ struct BookStudioView: View {
     @State private var isAddingToBag = false
     @State private var addedToBag = false
 
+    /// The reader's photo and cover choices for this book, loaded per plan identity.
+    @State private var curation = BookCuration()
+    /// Bumped by Republish (and cover changes) — part of the render key, so the pages rebuild.
+    @State private var curationVersion = 0
+    @State private var showPhotoSheet = false
+
     private var canOrder: Bool {
         PrintOrderService.isConfigured && EtchConfig.current.ordering.enabled && !plan.runs.isEmpty
     }
@@ -74,11 +80,16 @@ struct BookStudioView: View {
     }
 
     private var plan: BookPlan {
-        BookPlan.make(subject: resolvedSubject, lens: resolvedLens, runs: allRuns)
+        BookPlan.make(subject: resolvedSubject, lens: resolvedLens, runs: allRuns,
+                      curation: curation)
     }
 
     /// What the pager re-renders on: the subject AND the lens are both the book's identity.
     private var planKey: String { resolvedSubject.slug + resolvedLens.slugSuffix }
+
+    /// The full render key: the book's identity plus the curation revision, so Republish
+    /// rebuilds the pages without changing which book this is.
+    private var renderKey: String { "\(planKey)#\(curationVersion)" }
 
     private var title: String { kind == .year ? "Year in Review" : "Collections" }
 
@@ -91,6 +102,7 @@ struct BookStudioView: View {
                     HStack(spacing: 10) {
                         subjectPicker
                         if offeredLenses.count > 1 { lensPicker }
+                        coverPicker
                     }
                     pager
                     footer
@@ -102,6 +114,18 @@ struct BookStudioView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showPhotoSheet = true } label: {
+                        Image(systemName: "photo.on.rectangle.angled")
+                    }
+                    .disabled(subjects.isEmpty || isExporting || orderPhase != nil)
+                    .accessibilityLabel("Choose the book's photos")
+                }
+            }
+            .sheet(isPresented: $showPhotoSheet) {
+                BookPhotoSheet(plan: plan, curation: $curation) {
+                    curationVersion += 1
+                }
             }
             .sheet(item: Binding(
                 get: { checkoutURL.map { BookCheckoutTarget(url: $0) } },
@@ -133,7 +157,7 @@ struct BookStudioView: View {
             )) {
                 Button("OK", role: .cancel) {}
             } message: { Text(orderError ?? "") }
-            .task(id: planKey) { await renderPreviews() }
+            .task(id: renderKey) { await renderPreviews() }
             .addedToBagToast($addedToBag)
         }
     }
@@ -223,6 +247,43 @@ struct BookStudioView: View {
         }
         .disabled(isExporting || orderPhase != nil)
         .accessibilityLabel("Choose which activities the book includes")
+    }
+
+    /// Which treatment the cover wears — the featured route, a photograph, or the grid of
+    /// every line. A compact chip: the covers differ in kind, not in degree, so a menu of
+    /// three names says more than three thumbnails would at this size.
+    private var coverPicker: some View {
+        let hasPhotos = plan.runs.contains { !$0.photoReferences.isEmpty }
+            || !curation.extraPhotoIDs.isEmpty
+        return Menu {
+            ForEach(BookCuration.CoverStyle.allCases) { style in
+                Button {
+                    curation.coverStyle = style
+                    curation.save(slug: plan.slug)
+                    curationVersion += 1
+                } label: {
+                    if style == curation.coverStyle {
+                        Label(style.label, systemImage: "checkmark")
+                    } else {
+                        Text(style.label)
+                    }
+                }
+                .disabled(style == .photo && !hasPhotos)
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "book.closed")
+                    .font(.system(size: 14, weight: .semibold))
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .foregroundStyle(Theme.accent)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(Theme.accent.opacity(0.12), in: .capsule)
+        }
+        .disabled(isExporting || orderPhase != nil)
+        .accessibilityLabel("Choose the cover style, currently \(curation.coverStyle.label)")
     }
 
     /// The book as a receipt names it: the subject, and the lens when it narrows.
@@ -330,6 +391,17 @@ struct BookStudioView: View {
         proofURL = nil
         preparedCart = nil
         proofApproved = false
+
+        // The stored curation for THIS book — loaded before the plan is captured, so a
+        // subject switch brings that book's own choices with it. Republish saves first,
+        // so reloading here never loses anything.
+        curation = BookCuration.load(slug: planKey)
+        // CI's screenshot rig can ask for a cover treatment by name; inert otherwise.
+        switch ProcessInfo.processInfo.environment["ETCH_PREVIEW_SCROLL"] {
+        case "cover-grid":  curation.coverStyle = .grid
+        case "cover-photo": curation.coverStyle = .photo
+        default: break
+        }
         let plan = plan
 
         // CI's screenshot rig can name a page family (yearbook@review, yearbook@marks, …); the
@@ -359,7 +431,9 @@ struct BookStudioView: View {
             case ("marks", .marks), ("map", .map), ("review", .review), ("closing", .closing),
                  ("stats", .stats), ("race", .race(_)), ("index", .index(_)),
                  ("month", .chapter(_)), ("photos", .chapterPhotos(_)),
-                 ("gallery", .gallery), ("numbers", .numbers):
+                 ("gallery", .gallery), ("numbers", .numbers),
+                 ("years", .years), ("resume", .raceHistory), ("atlas", .atlas),
+                 ("cover-grid", .cover), ("cover-photo", .cover):
                 return true
             case ("quiet", .chapter(let start)):
                 return BookStory.chapterProfile(for: plan.chapterRuns(start)) == .quiet

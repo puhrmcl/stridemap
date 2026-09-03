@@ -19,12 +19,28 @@ enum BookRenderer {
         return renderer.uiImage
     }
 
-    /// A race page's cover photo (the run's first photo), sized for its panel; nil elsewhere.
+    /// The single hero photo a page leads with: a race page's cover shot, or the book cover's
+    /// photograph when that treatment is chosen. Nil elsewhere.
     private static func racePhoto(plan: BookPlan, spec: BookPageSpec) async -> UIImage? {
-        guard case .race(let index) = spec,
-              let run = plan.run(at: index),
-              let id = run.photoReferences.first else { return nil }
-        return await PhotoLibrary.image(for: id, targetSize: CGSize(width: 1800, height: 1800))
+        switch spec {
+        case .race(let index):
+            guard let run = plan.run(at: index),
+                  let id = run.photoReferences.first(where: plan.curation.includes)
+                        ?? run.photoReferences.first else { return nil }
+            return await PhotoLibrary.image(for: id, targetSize: CGSize(width: 1800, height: 1800))
+        case .cover where plan.curation.coverStyle == .photo:
+            // The chosen cover shot; else the best candidate — a race's photo first, then the
+            // first photograph the span has. Full-bleed on the cover, so ask big.
+            let reference = plan.curation.coverPhotoRef
+                ?? plan.runs.first(where: { $0.isRace && $0.photoReferences.contains(where: plan.curation.includes) })?
+                    .photoReferences.first(where: plan.curation.includes)
+                ?? plan.runs.flatMap(\.photoReferences).first(where: plan.curation.includes)
+                ?? plan.curation.extraPhotoIDs.first
+            guard let reference else { return nil }
+            return await PhotoLibrary.image(for: reference, targetSize: CGSize(width: 2400, height: 2400))
+        default:
+            return nil
+        }
     }
 
     /// The photographs a picture page shows — the chapter spread's month, or the span-wide
@@ -32,11 +48,18 @@ enum BookRenderer {
     /// resolves keeps its slot with a nil image: the page draws the frame empty, and the proof
     /// gate shows the customer exactly what would print.
     private static func pagePhotos(plan: BookPlan, spec: BookPageSpec) async -> [BookPagePhoto] {
-        let picks: [(run: Run, reference: String)]
+        let picks: [(run: Run?, reference: String)]
         switch spec {
-        case .chapterPhotos(let start): picks = photoPicks(from: plan.chapterRuns(start), cap: 6)
-        case .gallery:                  picks = photoPicks(from: plan.runs, cap: 12)
-        default:                        return []
+        case .chapterPhotos(let start):
+            picks = photoPicks(from: plan.chapterRuns(start), cap: 6, curation: plan.curation)
+        case .gallery:
+            // The reader's own additions join the span-wide gallery after the activity
+            // photographs — inside the same cap, thinning the activity picks to make room.
+            let extras = plan.curation.extraPhotoIDs.map { (Run?.none, $0) }
+            let activityCap = max(0, 12 - extras.count)
+            picks = photoPicks(from: plan.runs, cap: activityCap, curation: plan.curation) + extras
+        default:
+            return []
         }
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d"
@@ -44,29 +67,34 @@ enum BookRenderer {
         for pick in picks {
             let image = await PhotoLibrary.image(for: pick.reference,
                                                  targetSize: CGSize(width: 1500, height: 1500))
-            photos.append(BookPagePhoto(
-                image: image,
-                caption: "\(pick.run.name) · \(formatter.string(from: pick.run.startDate))"
-            ))
+            let caption = pick.run.map { "\($0.name) · \(formatter.string(from: $0.startDate))" }
+                ?? "From the library"
+            photos.append(BookPagePhoto(image: image, caption: caption))
         }
         return photos
     }
 
     /// Which photographs a page shows: one per activity first, in date order, so the page
     /// tells the span rather than one afternoon; second and third photos join only when
-    /// there's room, and an over-full pool is thinned evenly across time.
-    static func photoPicks(from runs: [Run], cap: Int) -> [(run: Run, reference: String)] {
-        let carriers = runs.filter { !$0.photoReferences.isEmpty }
-            .sorted { $0.startDate < $1.startDate }
+    /// there's room, and an over-full pool is thinned evenly across time. Photos the reader
+    /// excluded never enter the pool.
+    static func photoPicks(from runs: [Run], cap: Int,
+                           curation: BookCuration = BookCuration())
+        -> [(run: Run?, reference: String)] {
+        guard cap > 0 else { return [] }
+        let carriers: [(run: Run, refs: [String])] = runs
+            .map { ($0, $0.photoReferences.filter(curation.includes)) }
+            .filter { !$0.1.isEmpty }
+            .sorted { $0.0.startDate < $1.0.startDate }
         guard !carriers.isEmpty else { return [] }
 
-        var picks: [(run: Run, reference: String)] = carriers.map { ($0, $0.photoReferences[0]) }
+        var picks: [(run: Run?, reference: String)] = carriers.map { ($0.run, $0.refs[0]) }
         var depth = 1
         while picks.count < cap {
-            let more = carriers.filter { $0.photoReferences.count > depth }
+            let more = carriers.filter { $0.refs.count > depth }
             guard !more.isEmpty else { break }
-            for run in more where picks.count < cap {
-                picks.append((run, run.photoReferences[depth]))
+            for carrier in more where picks.count < cap {
+                picks.append((carrier.run, carrier.refs[depth]))
             }
             depth += 1
         }
@@ -74,7 +102,7 @@ enum BookRenderer {
             let step = Double(picks.count) / Double(cap)
             picks = (0..<cap).map { picks[min(picks.count - 1, Int(Double($0) * step))] }
         }
-        return picks.sorted { $0.run.startDate < $1.run.startDate }
+        return picks.sorted { ($0.run?.startDate ?? .distantPast) < ($1.run?.startDate ?? .distantPast) }
     }
 
     /// Renders the whole book to a print-ready PDF, reporting page progress. Pages are rendered

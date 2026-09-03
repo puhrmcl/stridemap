@@ -23,20 +23,21 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=yearbook@photos,yearbook@gallery,yearbook@numbers
+screens=yearbook@years,yearbook@resume,yearbook@atlas,yearbook@cover-grid
 appearance=light
 
-# b560 — Year Book Phase 3: pictures and the ledger. Three pages to judge:
-#   @photos  — a month's IN PICTURES page (second half of its spread): the month named in
-#              the serif, "IN PICTURES" in accent, a collage of hairline-framed tiles with
-#              activity captions. CI's library resolves nothing, so every frame draws its
-#              quiet empty state — the layout is what's being checked.
-#   @gallery — "WHAT THE YEAR LOOKED LIKE / IN PICTURES": up to 12 tiles, spread across
-#              the span (one per activity first), same tile language.
-#   @numbers — "WHAT IT ADDED UP TO / THE NUMBERS": nine insight cards in the marks-page
-#              card language — time in motion, active days, biggest week, the average,
-#              total ascent (× Everest), earliest start, the usual day, weekend share,
-#              per active day.
+# b561 — Year Book Phase 4: the portfolio closes the book, and the cover learns choices.
+#   @years      — "THE RECORD SO FAR / THE YEARS": a ledger row per year of the whole
+#                 history (activities · miles · races · states), the book's own year in
+#                 accent with a THIS BOOK tag, lifetime line at the foot.
+#   @resume     — "EVERY START LINE / RACE HISTORY": the lifetime race résumé, newest
+#                 first — date, name, № finish in accent when known, distance, time.
+#   @atlas      — "EVERYWHERE, EVER / THE ATLAS": country outlines framed to the visited
+#                 world, an accent pin for every city ever, lifetime totals beneath.
+#   @cover-grid — the anthology cover: every route of the span as a wall of small bone
+#                 lines on ink, same eyebrow/title/ETCH stations as the statement cover.
+# The photo-curation sheet (toolbar photo button → include/exclude, add from library,
+# Use on the cover, Republish) is verified by build here and by hand on device.
 
 # b559 — Year Book Phase 2 begins: THE MAP. A new spread after the marks — the year's
 # geography, all self-rendered vectors. What to check: the visited states filled in the

@@ -40,6 +40,9 @@ struct BookPageView: View {
             case .gallery:                  galleryPage
             case .numbers:                  numbersPage
             case .review:                   reviewPage
+            case .years:                    yearsPage
+            case .raceHistory:              raceHistoryPage
+            case .atlas:                    atlasPage
             case .index(let offset):        indexPage(offset: offset)
             case .closing:                  closingPage
             case .blank:                    ground
@@ -59,7 +62,20 @@ struct BookPageView: View {
     /// year set enormous in the serif, and one measured line of what the year held. The route
     /// still keeps its own band — stacked, never layered over the type — the same rule the
     /// poster fit engine enforces.
-    private var coverPage: some View {
+    /// Three treatments, one architecture. The eyebrow, the art band, and the type block keep
+    /// their stations across all of them — what changes is what fills the band: the year's
+    /// longest line (route), a photograph under an ink scrim (photo), or every route of the
+    /// span as a wall of small bone lines (grid). Art and type still never overlap.
+    @ViewBuilder private var coverPage: some View {
+        switch plan.curation.coverStyle {
+        case .photo where photo != nil: photoCoverPage
+        case .grid:                     coverScaffold { coverGridBand }
+        default:                        coverScaffold { coverRouteBand }
+        }
+    }
+
+    /// The shared cover skeleton: accent rule + eyebrow, the art band, the title block, ETCH.
+    private func coverScaffold<Band: View>(@ViewBuilder band: () -> Band) -> some View {
         VStack(spacing: 0) {
             VStack(spacing: 16) {
                 Rectangle().fill(accent.opacity(0.85)).frame(width: 54, height: 2)
@@ -70,38 +86,10 @@ struct BookPageView: View {
             }
             .padding(.top, margin + 12)
 
-            // The year's longest mapped route, drawn in bone — a single line of light on the
-            // ink, with the endpoint marks in the cover's own colours.
-            Group {
-                if let hero = plan.runs.filter({ $0.coordinates.count > 1 })
-                    .max(by: { $0.distance < $1.distance }) {
-                    RouteShape(coordinates: hero.coordinates)
-                        .stroke(ground.opacity(0.92),
-                                style: StrokeStyle(lineWidth: 6.5, lineCap: .round, lineJoin: .round))
-                } else {
-                    Color.clear
-                }
-            }
-            .padding(.horizontal, 170)
-            .padding(.vertical, 30)
-            .frame(maxHeight: .infinity)
+            band()
+                .frame(maxHeight: .infinity)
 
-            VStack(spacing: 14) {
-                // A year is four digits and always fits; a place name is not. The size is chosen
-                // by length and the scale factor catches anything longer still.
-                Text(subject.title.uppercased())
-                    .font(.etchSerif(size: subject.coverTitleSize * 1.12, weight: .regular))
-                    .tracking(8)
-                    .foregroundStyle(ground)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.4)
-                Rectangle().fill(ground.opacity(0.35)).frame(width: 54, height: 1.5)
-                Text(totalDistanceLine.uppercased())
-                    .font(.etch(size: 16, weight: .semibold))
-                    .tracking(7)
-                    .foregroundStyle(ground.opacity(0.65))
-            }
-            .fixedSize(horizontal: false, vertical: true)
+            coverTitleBlock
 
             Text("ETCH")
                 .font(.etch(size: 12, weight: .semibold))
@@ -112,6 +100,104 @@ struct BookPageView: View {
         }
         .frame(maxWidth: .infinity)
         .background(ink)
+    }
+
+    private var coverTitleBlock: some View {
+        VStack(spacing: 14) {
+            // A year is four digits and always fits; a place name is not. The size is chosen
+            // by length and the scale factor catches anything longer still.
+            Text(subject.title.uppercased())
+                .font(.etchSerif(size: subject.coverTitleSize * 1.12, weight: .regular))
+                .tracking(8)
+                .foregroundStyle(ground)
+                .lineLimit(1)
+                .minimumScaleFactor(0.4)
+            Rectangle().fill(ground.opacity(0.35)).frame(width: 54, height: 1.5)
+            Text(totalDistanceLine.uppercased())
+                .font(.etch(size: 16, weight: .semibold))
+                .tracking(7)
+                .foregroundStyle(ground.opacity(0.65))
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// The year's longest mapped route, drawn in bone — a single line of light on the ink.
+    private var coverRouteBand: some View {
+        Group {
+            if let hero = plan.runs.filter({ $0.coordinates.count > 1 })
+                .max(by: { $0.distance < $1.distance }) {
+                RouteShape(coordinates: hero.coordinates)
+                    .stroke(ground.opacity(0.92),
+                            style: StrokeStyle(lineWidth: 6.5, lineCap: .round, lineJoin: .round))
+            } else {
+                Color.clear
+            }
+        }
+        .padding(.horizontal, 170)
+        .padding(.vertical, 30)
+    }
+
+    /// Every mapped route of the span, small, in bone — the anthology as a cover. Capped at
+    /// what stays legible; the longest lines get the wall when there are more.
+    private var coverGridBand: some View {
+        let mapped = plan.runs.filter { $0.coordinates.count > 1 }
+            .sorted { $0.distance > $1.distance }
+        let cells = Array(mapped.prefix(48))
+        let columns = cells.count <= 12 ? 4 : cells.count <= 24 ? 6 : 8
+        return LazyVGrid(
+            columns: [GridItem](repeating: GridItem(.flexible(), spacing: 26), count: columns),
+            spacing: 26
+        ) {
+            ForEach(cells, id: \.id) { run in
+                RouteShape(coordinates: run.coordinates)
+                    .stroke(ground.opacity(0.82),
+                            style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                    .aspectRatio(1.35, contentMode: .fit)
+            }
+        }
+        .padding(.horizontal, 120)
+        .padding(.vertical, 26)
+    }
+
+    /// The photograph cover: full-bleed image, an ink scrim rising from the foot so the type
+    /// block keeps its contrast, the same eyebrow and title stations as every other cover.
+    private var photoCoverPage: some View {
+        ZStack {
+            ink
+            if let photo {
+                Color.clear.overlay(
+                    Image(uiImage: photo).resizable().scaledToFill()
+                )
+                .clipped()
+                // Ink at both ends: the eyebrow at the head and the title block at the foot
+                // both sit on darkness, whatever the photograph holds.
+                LinearGradient(
+                    stops: [.init(color: ink.opacity(0.75), location: 0),
+                            .init(color: ink.opacity(0.05), location: 0.3),
+                            .init(color: ink.opacity(0.1), location: 0.55),
+                            .init(color: ink.opacity(0.9), location: 1)],
+                    startPoint: .top, endPoint: .bottom)
+            }
+            VStack(spacing: 0) {
+                VStack(spacing: 16) {
+                    Rectangle().fill(accent.opacity(0.9)).frame(width: 54, height: 2)
+                    Text(plan.coverEyebrow)
+                        .font(.etch(size: 21, weight: .semibold))
+                        .tracking(11)
+                        .foregroundStyle(ground.opacity(0.95))
+                }
+                .padding(.top, margin + 12)
+                Spacer()
+                coverTitleBlock
+                Text("ETCH")
+                    .font(.etch(size: 12, weight: .semibold))
+                    .tracking(9)
+                    .foregroundStyle(accent.opacity(0.9))
+                    .padding(.top, 34)
+                    .padding(.bottom, margin - 10)
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: Title

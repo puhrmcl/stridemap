@@ -27,6 +27,14 @@ enum BookPageSpec {
     case numbers
     /// "YOUR YEAR, ETCHED." — the emotional summary near the back.
     case review
+    /// THE YEARS — every year on record as a ledger row, the book's own year marked. The
+    /// first of the portfolio pages: the book ends by placing its span in a life.
+    case years
+    /// RACE HISTORY — the lifetime résumé of start lines, newest first.
+    case raceHistory
+    /// THE ATLAS — everywhere, ever: country outlines with a pin for every city in the
+    /// whole history, and the lifetime line of numbers beneath.
+    case atlas
     /// One page of the complete activity index; `offset` is the first entry it lists. This is
     /// what lets month pages breathe: nothing is ever dropped from the book, it moves here.
     case index(offset: Int)
@@ -57,6 +65,11 @@ struct BookPlan {
     let lens: BookLens
     /// The subject's activities through the lens, ascending by date.
     let runs: [Run]
+    /// The person's whole history, unfiltered — what the portfolio pages (the years, the race
+    /// résumé, the atlas) read, and what makes "first ever" claims honest.
+    let history: [Run]
+    /// The reader's choices: which photos are in, which leads the cover, which cover style.
+    let curation: BookCuration
     let pages: [BookPageSpec]
     let chapterSpan: ChapterSpan
     /// What the history *means* — marks, peaks, streaks, firsts — computed once here so every
@@ -101,7 +114,7 @@ struct BookPlan {
     /// the complete index → closing → back cover. The closing stays the last words, after the
     /// emotional summary and the record, which is where a final statement belongs.
     static func make(subject: BookSubject, lens: BookLens = .everything,
-                     runs: [Run]) -> BookPlan {
+                     runs: [Run], curation: BookCuration = BookCuration()) -> BookPlan {
         let calendar = Calendar.current
         let selected = runs.filter { subject.matches($0) && lens.matches($0) }
             .sorted { $0.startDate < $1.startDate }
@@ -128,8 +141,11 @@ struct BookPlan {
             pages.append(.chapter(start: start))
             let chapterRuns = byChapter[start] ?? []
             // A chapter whose activities carry photographs becomes a two-page spread: the
-            // routes and numbers on one page, the pictures facing them on the next.
-            if chapterRuns.contains(where: { !$0.photoReferences.isEmpty }) {
+            // routes and numbers on one page, the pictures facing them on the next. A photo
+            // the reader excluded doesn't hold a page open.
+            if chapterRuns.contains(where: { run in
+                run.photoReferences.contains(where: curation.includes)
+            }) {
                 pages.append(.chapterPhotos(start: start))
             }
             let chapterRaces = chapterRuns.filter(\.isRace)
@@ -142,13 +158,28 @@ struct BookPlan {
         }
 
         // The span in pictures — one editorial gallery when there's enough material for one.
-        if selected.reduce(0, { $0 + $1.photoReferences.count }) >= 3 {
+        let includedCount = selected.reduce(0) {
+            $0 + $1.photoReferences.filter(curation.includes).count
+        } + curation.extraPhotoIDs.count
+        if includedCount >= 3 {
             pages.append(.gallery)
         }
 
         // The ledger of derived insight, then the emotional summary it sets up.
         pages.append(.numbers)
         pages.append(.review)
+
+        // The portfolio — the book closes by placing its span inside a life. Every year on
+        // record, the lifetime of start lines, and everywhere ever. Each earns its page:
+        // one year of history has no ledger to print, one race no résumé, one city no atlas.
+        let historyYears = Set(runs.map { calendar.component(.year, from: $0.startDate) })
+        if historyYears.count >= 2 { pages.append(.years) }
+        if runs.filter(\.isRace).count >= 2 { pages.append(.raceHistory) }
+        let historyCities = Set(runs.compactMap { run -> String? in
+            guard let city = run.city, !city.isEmpty else { return nil }
+            return "\(city)|\(PlaceNames.canonicalState(run.state) ?? "")"
+        })
+        if historyCities.count >= 2 { pages.append(.atlas) }
 
         // The complete record: every activity, honestly, however many pages that takes. This is
         // what frees the month pages from having to show everything.
@@ -174,8 +205,8 @@ struct BookPlan {
         }
         pages.append(.backCover)
 
-        return BookPlan(subject: subject, lens: lens, runs: selected, pages: pages,
-                        chapterSpan: span, story: story)
+        return BookPlan(subject: subject, lens: lens, runs: selected, history: runs,
+                        curation: curation, pages: pages, chapterSpan: span, story: story)
     }
 
     /// The run a race page shows.
