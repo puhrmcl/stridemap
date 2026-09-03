@@ -1,4 +1,5 @@
 import SwiftUI
+import PassKit
 import ShopifyCheckoutSheetKit
 
 /// Gift cards: buy one for someone, or redeem the one someone bought for you.
@@ -25,6 +26,14 @@ struct GiftCardView: View {
     @State private var redeemMessage: String?
     @State private var redeemFailed = false
 
+    // The Wallet pass, both directions: the buyer creates one to send, the recipient adds
+    // their redeemed card to their own Wallet.
+    @State private var passCodeField = ""
+    @State private var passBusy = false
+    @State private var passError: String?
+    @State private var lastRedeemedCode: String?
+    @State private var addingPass: PKPass?
+
     var body: some View {
         List {
             buySection
@@ -49,6 +58,12 @@ struct GiftCardView: View {
                     purchased = true
                 }
                 .onFail { _ in checkout = nil }
+        }
+        .sheet(item: Binding(
+            get: { addingPass.map(IdentifiablePass.init) },
+            set: { if $0 == nil { addingPass = nil } }
+        )) { wrapped in
+            AddPassSheet(pass: wrapped.pass).ignoresSafeArea()
         }
     }
 
@@ -96,6 +111,33 @@ struct GiftCardView: View {
                             Label("Share the invite", systemImage: "square.and.arrow.up")
                                 .font(.etch(.subheadline, weight: .semibold))
                         }
+
+                        Divider().padding(.vertical, 2)
+
+                        // The gift as a card, not an email: paste the code Shopify sent and
+                        // send a signed Wallet pass — Messages and AirDrop hand a .pkpass
+                        // straight to the recipient's Wallet, QR code, amount and all.
+                        Text("Or send it as an Apple Wallet pass")
+                            .font(.etch(.subheadline, weight: .semibold))
+                        TextField("Paste the code from the email", text: $passCodeField)
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled()
+                            .font(.system(.footnote, design: .monospaced))
+                        Button {
+                            Task { await sharePass() }
+                        } label: {
+                            HStack {
+                                if passBusy { ProgressView().padding(.trailing, 6) }
+                                Label(passBusy ? "Creating pass…" : "Create Wallet pass to send",
+                                      systemImage: "wallet.pass")
+                                    .font(.etch(.subheadline, weight: .semibold))
+                            }
+                        }
+                        .disabled(passBusy
+                                  || passCodeField.trimmingCharacters(in: .whitespaces).isEmpty)
+                        if let passError {
+                            Text(passError).font(.footnote).foregroundStyle(.red)
+                        }
                     }
                     .padding(.vertical, 4)
                 }
@@ -141,6 +183,18 @@ struct GiftCardView: View {
                 Text(redeemMessage)
                     .font(.footnote)
                     .foregroundStyle(redeemFailed ? .red : Theme.accent)
+            }
+            if let code = lastRedeemedCode {
+                Button {
+                    Task { await addOwnPass(code: code) }
+                } label: {
+                    HStack {
+                        if passBusy { ProgressView().padding(.trailing, 6) }
+                        Label("Add to Apple Wallet", systemImage: "wallet.pass.fill")
+                            .font(.etch(.subheadline, weight: .semibold))
+                    }
+                }
+                .disabled(passBusy)
             }
         } header: {
             Text("Have a code?")
@@ -218,8 +272,10 @@ struct GiftCardView: View {
         redeeming = true
         defer { redeeming = false }
         do {
-            try await wallet.redeem(codeField)
+            let code = codeField.trimmingCharacters(in: .whitespacesAndNewlines)
+            try await wallet.redeem(code)
             codeField = ""
+            lastRedeemedCode = code
             redeemFailed = false
             redeemMessage = "Gift card added — its balance comes off your next order."
         } catch {
@@ -234,6 +290,68 @@ struct GiftCardView: View {
         return dollars == dollars.rounded() ? "$\(Int(dollars))"
                                             : String(format: "$%.2f", dollars)
     }
+
+    // MARK: Wallet passes
+
+    /// Buyer: create a signed pass around the emailed code and hand it to the share sheet —
+    /// a .pkpass sent over Messages or AirDrop opens straight into the recipient's Wallet.
+    private func sharePass() async {
+        passBusy = true
+        defer { passBusy = false }
+        do {
+            let data = try await GiftPassService.pass(
+                code: passCodeField.trimmingCharacters(in: .whitespacesAndNewlines),
+                amount: selected.map { price($0.amountCents) }
+            )
+            // Validate before sharing: a pass PassKit can't parse would fail silently on the
+            // recipient's phone, which is the worst place to find out.
+            guard (try? PKPass(data: data)) != nil else {
+                passError = GiftPassService.PassError.failed.errorDescription
+                return
+            }
+            let file = FileManager.default.temporaryDirectory
+                .appendingPathComponent("Etch Gift Card.pkpass")
+            try data.write(to: file)
+            passError = nil
+            AppShare.present([file])
+        } catch {
+            passError = (error as? LocalizedError)?.errorDescription
+                ?? "The pass couldn't be created."
+        }
+    }
+
+    /// Recipient: the redeemed card into their own Wallet.
+    private func addOwnPass(code: String) async {
+        passBusy = true
+        defer { passBusy = false }
+        do {
+            let data = try await GiftPassService.pass(code: code, amount: nil)
+            guard let pass = try? PKPass(data: data) else {
+                redeemFailed = true
+                redeemMessage = GiftPassService.PassError.failed.errorDescription
+                return
+            }
+            addingPass = pass
+        } catch {
+            redeemFailed = true
+            redeemMessage = (error as? LocalizedError)?.errorDescription
+                ?? "The pass couldn't be created."
+        }
+    }
+}
+
+/// Wraps `PKAddPassesViewController` — the system "Add to Apple Wallet" sheet.
+private struct AddPassSheet: UIViewControllerRepresentable {
+    let pass: PKPass
+    func makeUIViewController(context: Context) -> UIViewController {
+        PKAddPassesViewController(pass: pass) ?? UIViewController()
+    }
+    func updateUIViewController(_ controller: UIViewController, context: Context) {}
+}
+
+private struct IdentifiablePass: Identifiable {
+    let pass: PKPass
+    var id: String { pass.serialNumber }
 }
 
 private struct GiftCheckoutTarget: Identifiable {

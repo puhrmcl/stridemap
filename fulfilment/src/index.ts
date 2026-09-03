@@ -51,8 +51,9 @@
 
 import { serveTile, serveTileJSON, parseTilePath } from "./tiles";
 import { serveTerrain, serveImagery, parseTerrainPath, parseImageryPath } from "./overlays";
+import { serveGiftPass, type PassEnv } from "./giftpass";
 
-export interface Env {
+export interface Env extends PassEnv {
   ASSETS: R2Bucket;
   LEDGER: D1Database;
   /** Shopify webhook signing secret (`wrangler secret put SHOPIFY_WEBHOOK_SECRET`). */
@@ -92,6 +93,7 @@ export default {
         const tile = parseImageryPath(path);
         if (tile) return await serveImagery(tile.z, tile.x, tile.y);
       }
+      if (request.method === "POST" && path === "/giftpass") return await serveGiftPass(request, env);
       if (request.method === "GET" && path === "/config") return await serveConfig(env);
       if (request.method === "PUT" && path === "/admin/config") { requireBearer(request, env); return await putConfig(request, env); }
       if (path.startsWith("/admin/basemap/")) { requireBearer(request, env); return await basemapAdmin(request, env, path, url); }

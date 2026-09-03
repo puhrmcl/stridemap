@@ -217,6 +217,33 @@ install falls back to Apple for display within a config refresh.
 
 Full reasoning and the widen-the-region plan: [`studio-redesign.md`](studio-redesign.md).
 
+## 11 · Gift cards as Apple Wallet passes (b550)
+
+The worker signs `.pkpass` files at `POST /giftpass`; the app's Gift Cards page uses it in both
+directions (buyer sends a pass, recipient adds theirs). It answers 503 until five GitHub repo
+secrets exist — same NestEgg drill:
+
+1. **Apple Developer portal** → Certificates, Identifiers & Profiles → Identifiers → **Pass
+   Type IDs** → register one, e.g. `pass.com.nwagtech.etch.giftcard`.
+2. Create a **certificate for that Pass Type ID** from a CSR, download it, and export the
+   certificate + private key. The worker wants them as **PEM**:
+   `openssl pkcs12 -in pass.p12 -clcerts -nokeys -out cert.pem -legacy` and
+   `openssl pkcs12 -in pass.p12 -nocerts -nodes -out key.pem -legacy`.
+3. Download Apple's **WWDR G4 intermediate** (https://www.apple.com/certificateauthority/) and
+   convert: `openssl x509 -inform DER -in AppleWWDRCAG4.cer -out wwdr.pem`.
+4. GitHub repo secrets (full PEM contents, including the BEGIN/END lines):
+   - `PASS_CERT_PEM` — cert.pem
+   - `PASS_KEY_PEM` — key.pem (the unencrypted key)
+   - `PASS_WWDR_PEM` — wwdr.pem
+   - `PASS_TYPE_ID` — e.g. `pass.com.nwagtech.etch.giftcard`
+   - `PASS_TEAM_ID` — the 10-character team id
+5. Re-run **Deploy fulfilment worker** — it syncs the five to the worker and prints "Wallet
+   pass signing configured."
+6. Verify: `curl -s -X POST https://etch-fulfilment.clintpuhrmann.workers.dev/giftpass \
+   -H 'Content-Type: application/json' -d '{"code":"TESTCODE12345"}' -o t.pkpass && unzip -l
+   t.pkpass` — expect pass.json, three icons, manifest.json, signature. Then AirDrop
+   t.pkpass to an iPhone: it should open in Wallet showing the Etch card.
+
 ## Device verification backlog (does not block the store, does block shipping with confidence)
 
 Everything below shipped since the checklist was first written and is **green in CI but unseen

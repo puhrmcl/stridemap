@@ -87,3 +87,35 @@ final class GiftCardWallet {
         }
     }
 }
+
+/// Fetches a signed Apple Wallet pass for a gift card code from the fulfilment worker, which
+/// holds the Pass Type ID certificate and does the PKCS#7 signing. The pass carries the code
+/// (QR + text) and the how-to-redeem steps, so a buyer can send the gift as a card that lives
+/// in the recipient's Wallet rather than an email they have to keep.
+enum GiftPassService {
+
+    enum PassError: LocalizedError {
+        case notConfigured, failed
+        var errorDescription: String? {
+            switch self {
+            case .notConfigured: return "Wallet passes aren't switched on yet."
+            case .failed:        return "The pass couldn't be created. Try again in a moment."
+            }
+        }
+    }
+
+    static func pass(code: String, amount: String?) async throws -> Data {
+        var request = URLRequest(url: CommerceConfig.workerBase.appendingPathComponent("giftpass"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "code": code, "amount": amount ?? "",
+        ])
+        let (data, response) = try await URLSession.shared.data(for: request)
+        switch (response as? HTTPURLResponse)?.statusCode {
+        case 200: return data
+        case 503: throw PassError.notConfigured
+        default:  throw PassError.failed
+        }
+    }
+}

@@ -178,6 +178,11 @@ jobs:
           PRODIGI_API_KEY: ${{ secrets.PRODIGI_API_KEY }}
           ETCH_UPLOAD_TOKEN: ${{ secrets.ETCH_UPLOAD_TOKEN }}
           SHOPIFY_WEBHOOK_SECRET: ${{ secrets.SHOPIFY_WEBHOOK_SECRET }}
+          PASS_CERT_PEM: ${{ secrets.PASS_CERT_PEM }}
+          PASS_KEY_PEM: ${{ secrets.PASS_KEY_PEM }}
+          PASS_WWDR_PEM: ${{ secrets.PASS_WWDR_PEM }}
+          PASS_TYPE_ID: ${{ secrets.PASS_TYPE_ID }}
+          PASS_TEAM_ID: ${{ secrets.PASS_TEAM_ID }}
         run: |
           # `wrangler secret put` on a worker that has never been deployed fails; deploy a
           # first version if needed so the secrets have somewhere to live.
@@ -194,6 +199,22 @@ jobs:
             printf 'not-configured-yet' | npx wrangler secret put SHOPIFY_WEBHOOK_SECRET
             echo "SHOPIFY_WEBHOOK_SECRET not set — placeholder installed (fails closed)."
             echo "Set the real one when the Shopify store exists, then re-run this workflow."
+          fi
+          # Wallet pass signing — five values, synced only when set, because /giftpass answers
+          # an honest 503 until all five exist and a placeholder would turn that into a
+          # confusing signature failure instead. PEMs are multi-line; printf '%s' keeps them
+          # byte-exact.
+          if [ -n "$PASS_CERT_PEM" ] && [ -n "$PASS_KEY_PEM" ] && [ -n "$PASS_WWDR_PEM" ] \
+             && [ -n "$PASS_TYPE_ID" ] && [ -n "$PASS_TEAM_ID" ]; then
+            printf '%s' "$PASS_CERT_PEM" | npx wrangler secret put PASS_CERT_PEM
+            printf '%s' "$PASS_KEY_PEM"  | npx wrangler secret put PASS_KEY_PEM
+            printf '%s' "$PASS_WWDR_PEM" | npx wrangler secret put PASS_WWDR_PEM
+            printf '%s' "$PASS_TYPE_ID"  | npx wrangler secret put PASS_TYPE_ID
+            printf '%s' "$PASS_TEAM_ID"  | npx wrangler secret put PASS_TEAM_ID
+            echo "Wallet pass signing configured."
+          else
+            echo "Wallet pass secrets not (fully) set — /giftpass stays 503 until all five exist:"
+            echo "PASS_CERT_PEM, PASS_KEY_PEM, PASS_WWDR_PEM, PASS_TYPE_ID, PASS_TEAM_ID."
           fi
 
       - name: Deploy
