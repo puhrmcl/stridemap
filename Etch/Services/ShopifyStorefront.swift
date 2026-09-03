@@ -267,6 +267,97 @@ enum ShopifyStorefront {
         return Cart(id: id, checkoutURL: url)
     }
 
+    // MARK: Gift cards
+
+    /// One buyable gift amount — a variant of the shop's gift card product.
+    struct GiftDenomination: Sendable, Identifiable {
+        let id: String        // variant gid, what a cart line takes
+        let title: String     // e.g. "$50"
+        let amountCents: Int
+        let currency: String
+    }
+
+    /// A gift card the cart accepted: enough to *show* the credit, never the code itself.
+    struct AppliedGiftCredit: Sendable, Equatable {
+        let lastCharacters: String
+        let amountUsedCents: Int
+    }
+
+    /// The gift card product's denominations, cheapest first. Throws `.graphQL` when the shop
+    /// has no product at the handle — the storefront isn't set up for gifting yet, and the page
+    /// says so instead of showing an empty picker.
+    static func giftDenominations(productHandle: String) async throws -> [GiftDenomination] {
+        let query = """
+        query($handle: String!) {
+          product(handle: $handle) {
+            variants(first: 20) {
+              edges { node { id title price { amount currencyCode } } }
+            }
+          }
+        }
+        """
+        let data = try await execute(query: query, variables: ["handle": productHandle])
+        guard let product = data["product"] as? [String: Any],
+              let edges = (product["variants"] as? [String: Any])?["edges"] as? [[String: Any]]
+        else { throw StorefrontError.graphQL("The shop has no gift card product yet.") }
+        let denominations: [GiftDenomination] = edges.compactMap { edge in
+            guard let node = edge["node"] as? [String: Any],
+                  let id = node["id"] as? String,
+                  let title = node["title"] as? String,
+                  let price = node["price"] as? [String: Any],
+                  let amount = price["amount"] as? String,
+                  let currency = price["currencyCode"] as? String,
+                  let value = Double(amount) else { return nil }
+            return GiftDenomination(id: id, title: title,
+                                    amountCents: Int((value * 100).rounded()),
+                                    currency: currency)
+        }
+        guard !denominations.isEmpty else {
+            throw StorefrontError.graphQL("The gift card product has no amounts yet.")
+        }
+        return denominations.sorted { $0.amountCents < $1.amountCents }
+    }
+
+    /// Applies gift card codes to a cart, so the credit is on the order *before* checkout —
+    /// the total the buyer sees in the bag, in the Apple Pay sheet and in the hosted checkout
+    /// is already reduced. Returns what the cart accepted; a code that is invalid, empty or
+    /// foreign simply doesn't appear in the result rather than erroring the whole cart.
+    static func applyGiftCards(cartID: String, codes: [String])
+        async throws -> [AppliedGiftCredit] {
+        let mutation = """
+        mutation($cartId: ID!, $codes: [String!]!) {
+          cartGiftCardCodesUpdate(cartId: $cartId, giftCardCodes: $codes) {
+            cart {
+              appliedGiftCards {
+                lastCharacters
+                amountUsed { amount }
+              }
+            }
+            userErrors { message }
+          }
+        }
+        """
+        let data = try await execute(query: mutation,
+                                     variables: ["cartId": cartID, "codes": codes])
+        guard let payload = data["cartGiftCardCodesUpdate"] as? [String: Any] else {
+            throw StorefrontError.graphQL("Unexpected gift card response.")
+        }
+        if let errors = payload["userErrors"] as? [[String: Any]],
+           let first = errors.first, let message = first["message"] as? String {
+            throw StorefrontError.graphQL(message)
+        }
+        let applied = ((payload["cart"] as? [String: Any])?["appliedGiftCards"]
+                       as? [[String: Any]]) ?? []
+        return applied.compactMap { card in
+            guard let last = card["lastCharacters"] as? String,
+                  let used = card["amountUsed"] as? [String: Any],
+                  let amount = used["amount"] as? String,
+                  let value = Double(amount) else { return nil }
+            return AppliedGiftCredit(lastCharacters: last,
+                                     amountUsedCents: Int((value * 100).rounded()))
+        }
+    }
+
     // MARK: Transport
 
     private static func execute(query: String, variables: [String: Any]) async throws -> [String: Any] {

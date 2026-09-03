@@ -34,4 +34,9 @@ enum CommerceConfig {
     static var isConfigured: Bool {
         !storefrontToken.isEmpty && !uploadToken.isEmpty
     }
+
+    /// Handle of the shop's gift card product. Created once in Shopify admin (Products → Add
+    /// product → type "Gift card") with the denominations as variants; the app reads the
+    /// amounts from the storefront so adding a $200 tier is an admin edit, not a release.
+    static let giftProductHandle = "etch-gift-card"
 }

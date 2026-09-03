@@ -52,6 +52,15 @@ Three ways this fails silently, all covered in the setup doc: a handle Shopify k
 title, `availableForSale` false because inventory tracking is on with zero stock, and products
 not published to the token's channel.
 
+6. **Gift card product** (powers the app's Gift Cards page, b549). Products → Add product →
+   set **product type to "Gift card"** (the dedicated type, not a normal product named gift
+   card), handle exactly `etch-gift-card`, denominations as variants — $25 / $50 / $100 / $150
+   is a sensible opening set. Publish it to the app's channel like the others. Shopify then
+   emails the code on purchase automatically; the app reads the amounts from the storefront, so
+   adding a tier later is an admin edit, not a release. Worth a minute extra: Settings →
+   Notifications → Gift card created — add a line to the email template pointing recipients at
+   the App Store, since that email is the gift.
+
 ## 2 · `SHOPIFY_WEBHOOK_SECRET` — the wire that makes orders real
 
 The worker holds the literal string `not-configured-yet` in place of Shopify's secret, because

@@ -23,8 +23,13 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=gallery-studio:triptych
+screens=gift
 appearance=light
+
+# b549: the Gift Cards page (Bag → Gift Cards). CI has no storefront tokens, so the buy
+# section should show its honest "aren't available just yet" line — what to check is the
+# page shape: Give Etch header, the Have a code? section with the monospaced code field and
+# Redeem button, and the four-step How gifting works.
 
 # b548: the three-frame gallery design ("triptych") is no longer three skinny columns — on
 # a portrait sheet those came out ~1:3.3 and no photo survived that. It is now a collage

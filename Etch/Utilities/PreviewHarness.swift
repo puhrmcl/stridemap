@@ -249,6 +249,7 @@ struct PreviewHarnessView: View {
                 case let name where name.hasPrefix("gallery-studio"):
                     studio(family: .gallery, design: designVariant(from: name))
                 case "detail":          detail
+                case "gift":            NavigationStack { GiftCardView() }
                 // The share-photo chooser, rendered directly rather than raised as a sheet —
                 // CI photographs a screen, not a tap sequence.
                 case "detail:share-photos": sharePhotoPicker

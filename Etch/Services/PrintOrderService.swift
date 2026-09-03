@@ -105,7 +105,7 @@ enum PrintOrderService {
         let variant = try await ShopifyStorefront.variant(
             sku: shopifySKU, productHandle: productHandle
         )
-        return try await ShopifyStorefront.cart(
+        let cart = try await ShopifyStorefront.cart(
             variantID: variant.id,
             quantity: 1,
             attributes: [
@@ -116,6 +116,10 @@ enum PrintOrderService {
                 "_etch_mount": mountAttribute,
             ]
         )
+        // Buy Now is still a cart underneath, so a gift card on this phone prepays it the same
+        // way it prepays the bag — applied before either payment surface opens, best-effort.
+        await GiftCardWallet.shared.apply(to: cart.id)
+        return cart
     }
 
     /// Renders, uploads, and adds the result to the bag instead of opening a checkout.

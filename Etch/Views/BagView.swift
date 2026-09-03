@@ -22,6 +22,7 @@ struct BagView: View {
     @State private var orders: [PrintOrder] = []
     @State private var isRefreshing = false
     @State private var cart = CartStore.shared
+    @State private var wallet = GiftCardWallet.shared
     @State private var checkout: URL?
     @State private var removing: String?
     /// The line whose proof is open full screen.
@@ -31,10 +32,15 @@ struct BagView: View {
         NavigationStack {
             Group {
                 if orders.isEmpty && cart.items.isEmpty {
-                    ContentUnavailableView {
-                        Label("Nothing in your bag", systemImage: "bag")
-                    } description: {
-                        Text("Add pieces here and check out together, or buy one on its own. Orders stay here so you can follow one from the press to your door.")
+                    VStack(spacing: 0) {
+                        ContentUnavailableView {
+                            Label("Nothing in your bag", systemImage: "bag")
+                        } description: {
+                            Text("Add pieces here and check out together, or buy one on its own. Orders stay here so you can follow one from the press to your door.")
+                        }
+                        giftCardLink
+                            .padding(.horizontal, 24)
+                            .padding(.bottom, 28)
                     }
                 } else {
                     List {
@@ -49,6 +55,7 @@ struct BagView: View {
                                 ForEach(orders) { order in orderRow(order) }
                             }
                         }
+                        Section { giftCardLink }
                     }
                     .listStyle(.insetGrouped)
                 }
@@ -149,6 +156,29 @@ struct BagView: View {
     /// Subtotal and the two ways out. The wallet buttons take the whole bag, so one tap pays for
     /// three pieces exactly as it pays for one — the accelerated checkout works on a cart, and a
     /// cart with three lines is still a cart.
+    /// The door to gifting, from the place money already lives. One link, both directions:
+    /// buying a card for someone, and redeeming the one someone bought for you.
+    private var giftCardLink: some View {
+        NavigationLink {
+            GiftCardView()
+        } label: {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Gift Cards")
+                        .font(.etch(.subheadline, weight: .semibold))
+                    Text(wallet.hasCodes
+                         ? "A gift card is on this phone — it pays first at checkout."
+                         : "Give Etch, or redeem a code someone sent you.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            } icon: {
+                Image(systemName: "giftcard")
+                    .foregroundStyle(Theme.accent)
+            }
+        }
+    }
+
     @ViewBuilder private var checkoutBlock: some View {
         VStack(spacing: 12) {
             HStack {
@@ -159,6 +189,22 @@ struct BagView: View {
                 Text(cart.subtotal)
                     .font(.etch(.title3, weight: .semibold))
                     .monospacedDigit()
+            }
+
+            // The gift credit, shown where the money is — already ON the cart (applied via the
+            // storefront before any checkout opens), so the Apple Pay sheet and the hosted
+            // checkout both ask for the reduced amount. This row is the receipt of that.
+            ForEach(wallet.appliedCredits, id: \.lastCharacters) { credit in
+                HStack {
+                    Label("Gift card ····\(credit.lastCharacters)", systemImage: "giftcard.fill")
+                        .font(.etch(.subheadline))
+                        .foregroundStyle(Theme.accent)
+                    Spacer()
+                    Text("−" + Self.dollars(credit.amountUsedCents))
+                        .font(.etch(.subheadline, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                        .monospacedDigit()
+                }
             }
 
             if let url = cart.checkoutURL {
@@ -272,7 +318,17 @@ struct BagView: View {
         isRefreshing = true
         await OrderStore.shared.refreshActive()
         orders = OrderStore.shared.orders
+        // Any gift cards on this phone go onto the cart now, so the credit is visible in the
+        // bag and already deducted by the time either payment path opens.
+        if let cartID = cart.cartID {
+            await wallet.apply(to: cartID)
+        }
         isRefreshing = false
+    }
+
+    private static func dollars(_ cents: Int) -> String {
+        let value = Double(cents) / 100
+        return value == value.rounded() ? "$\(Int(value))" : String(format: "$%.2f", value)
     }
 }
 
