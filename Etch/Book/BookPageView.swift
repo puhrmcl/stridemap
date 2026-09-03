@@ -30,6 +30,7 @@ struct BookPageView: View {
             case .title:                    titlePage
             case .stats:                    statsPage
             case .marks:                    marksPage
+            case .map:                      mapPage
             case .chapter(let start):       chapterPage(start)
             case .race(let index):          racePage(index)
             case .review:                   reviewPage

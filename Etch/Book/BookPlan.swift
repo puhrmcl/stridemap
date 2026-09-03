@@ -1,4 +1,5 @@
 import Foundation
+import MapKit
 
 /// One book page, in PDF order: the first spec becomes the front cover, the last the back cover
 /// (per the layflat print guide), everything between is interior content.
@@ -12,6 +13,8 @@ enum BookPageSpec {
     case stats
     /// The achievements spread — what stood out, phrased by the StoryEngine.
     case marks
+    /// THE MAP — the year's geography: states tinted by mileage, cities dotted, races starred.
+    case map
     /// A month, or a whole year when the subject spans too many months to give each one a page.
     case chapter(start: Date)
     case race(runIndex: Int)
@@ -104,6 +107,13 @@ struct BookPlan {
 
         // The marks page earns its place; two cards on a spread designed for six reads thin.
         if story.marks.count >= 3 { pages.append(.marks) }
+
+        // THE MAP follows the marks — where the year went, right after what stood out. Only when
+        // the history actually touched a mappable US state; an international or treadmill year
+        // simply doesn't get the page rather than getting an empty one.
+        let boundaryNames = Set(USStateBoundaries.shared.boundaries.map(\.name))
+        let touchedStates = selected.compactMap { PlaceNames.canonicalState($0.state) }
+        if touchedStates.contains(where: boundaryNames.contains) { pages.append(.map) }
 
         let byChapter = Dictionary(grouping: selected) { span.start(of: $0.startDate, calendar) }
         var racesUsed = 0

@@ -23,14 +23,15 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=photo-wall:races
+screens=yearbook@map
 appearance=light
 
-# b558 — the race wall gathers every photograph. A wall cell is now a *photo*, not a run:
-# under the race scopes (All Races / one event) each race contributes all of its
-# photoReferences, so the seeded races with 2 and 4 photos should put MORE tiles in the
-# frame than there are races (each an empty placeholder — CI's library has no images).
-# Other scopes stay one-per-activity. Tap-to-remove now removes a single photo.
+# b559 — Year Book Phase 2 begins: THE MAP. A new spread after the marks — the year's
+# geography, all self-rendered vectors. What to check: the visited states filled in the
+# blue tercile ramp with unvisited neighbours as hairlines, ink city dots sized by
+# activity count, accent stars on race days, the legend line under the figure, and the
+# callout column on the right (THE GROUND / MOST MILES / MOST-RUN CITY / RACE DAYS /
+# THE SPAN) set in the marks page's card language.
 
 # b555 — the Anthology nameplate. Both shots seed the plate at the bottom: the rings /
 # ridgeline art redrawn INSIDE the upper field (never overlapping), and beneath it the

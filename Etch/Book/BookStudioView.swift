@@ -356,7 +356,7 @@ struct BookStudioView: View {
               !anchor.isEmpty else { return nil }
         return plan.pages.firstIndex { spec in
             switch (anchor, spec) {
-            case ("marks", .marks), ("review", .review), ("closing", .closing),
+            case ("marks", .marks), ("map", .map), ("review", .review), ("closing", .closing),
                  ("stats", .stats), ("race", .race(_)), ("index", .index(_)),
                  ("month", .chapter(_)):
                 return true
