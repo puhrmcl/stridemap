@@ -36,7 +36,9 @@ extension BookPageView {
                 .padding(.bottom, 12)
                 Rectangle().fill(subtle.opacity(0.35)).frame(height: 1.5)
 
-                ForEach(years.suffix(12), id: \.self) { year in
+                // Nine rows is what the page holds without crowding its own margins; the
+                // lifetime line below still speaks for anything earlier ("SINCE 2014").
+                ForEach(years.suffix(9), id: \.self) { year in
                     let runs = byYear[year] ?? []
                     let miles = Format.distanceValue(runs.reduce(0.0) { $0 + $1.distance })
                         .formatted(.number.precision(.fractionLength(0)))
@@ -63,7 +65,7 @@ extension BookPageView {
                     .font(.etch(size: 17, weight: .semibold))
                     .foregroundStyle(isSubject ? accent : ink)
                     .monospacedDigit()
-                    .padding(.vertical, 13)
+                    .padding(.vertical, 10)
 
                     Rectangle().fill(subtle.opacity(0.16)).frame(height: 1)
                 }
@@ -84,7 +86,9 @@ extension BookPageView {
 
     var raceHistoryPage: some View {
         let races = plan.history.filter(\.isRace).sorted { $0.startDate > $1.startDate }
-        let shown = Array(races.prefix(14))
+        // Twelve rows sit inside the page's margins with room to breathe; anything earlier
+        // is counted honestly below.
+        let shown = Array(races.prefix(12))
         let unshown = races.count - shown.count
 
         return VStack(spacing: 30) {
@@ -118,7 +122,7 @@ extension BookPageView {
                             .monospacedDigit()
                             .frame(width: 120, alignment: .trailing)
                     }
-                    .padding(.vertical, 11)
+                    .padding(.vertical, 9)
                     Rectangle().fill(subtle.opacity(0.16)).frame(height: 1)
                 }
             }

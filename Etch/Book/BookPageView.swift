@@ -139,24 +139,41 @@ struct BookPageView: View {
 
     /// Every mapped route of the span, small, in bone — the anthology as a cover. Capped at
     /// what stays legible; the longest lines get the wall when there are more.
+    ///
+    /// Not a LazyVGrid: grid cells demand their aspect-ratio height, and forty-eight of them
+    /// asked for more page than exists — the whole cover overflowed and the trim-safety
+    /// paddings (and the ETCH foot) were what got clipped. These rows are flexible instead:
+    /// they share whatever height the band actually has, and `RouteShape` aspect-fits each
+    /// line inside its cell, so nothing can push the type toward the edges.
     private var coverGridBand: some View {
         let mapped = plan.runs.filter { $0.coordinates.count > 1 }
             .sorted { $0.distance > $1.distance }
         let cells = Array(mapped.prefix(48))
         let columns = cells.count <= 12 ? 4 : cells.count <= 24 ? 6 : 8
-        return LazyVGrid(
-            columns: [GridItem](repeating: GridItem(.flexible(), spacing: 26), count: columns),
-            spacing: 26
-        ) {
-            ForEach(cells, id: \.id) { run in
-                RouteShape(coordinates: run.coordinates)
-                    .stroke(ground.opacity(0.82),
-                            style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                    .aspectRatio(1.35, contentMode: .fit)
+        let rows = stride(from: 0, to: cells.count, by: columns).map {
+            Array(cells[$0..<min($0 + columns, cells.count)])
+        }
+        return VStack(spacing: 22) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                HStack(spacing: 24) {
+                    ForEach(row, id: \.id) { run in
+                        RouteShape(coordinates: run.coordinates)
+                            .stroke(ground.opacity(0.82),
+                                    style: StrokeStyle(lineWidth: 2, lineCap: .round,
+                                                       lineJoin: .round))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                    if row.count < columns {
+                        ForEach(0..<(columns - row.count), id: \.self) { _ in
+                            Color.clear.frame(maxWidth: .infinity)
+                        }
+                    }
+                }
+                .frame(maxHeight: .infinity)
             }
         }
         .padding(.horizontal, 120)
-        .padding(.vertical, 26)
+        .padding(.vertical, 30)
     }
 
     /// The photograph cover: full-bleed image, an ink scrim rising from the foot so the type

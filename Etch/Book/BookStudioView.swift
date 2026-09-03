@@ -313,6 +313,19 @@ struct BookStudioView: View {
                 }
                 .padding(.horizontal, 22)
                 .tag(index)
+                .contextMenu {
+                    // A page the reader would rather not bind: touch and hold, take it out.
+                    // Structural pages (cover, title, the record, the closing) offer nothing.
+                    if let key = plan.hideKey(at: index) {
+                        Button(role: .destructive) {
+                            curation.hiddenPages.insert(key)
+                            curation.save(slug: plan.slug)
+                            curationVersion += 1
+                        } label: {
+                            Label("Hide this page from the book", systemImage: "eye.slash")
+                        }
+                    }
+                }
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
@@ -324,6 +337,22 @@ struct BookStudioView: View {
             Text("Page \(currentPage + 1) of \(plan.pageCount)  ·  \(resolvedSubject.productName)  ·  \(BookCatalog.price)")
                 .font(.etch(.footnote, weight: .semibold))
                 .foregroundStyle(.secondary)
+
+            // Hidden pages don't render, so the way back is here — one honest count and
+            // one action, not a management screen.
+            if !curation.hiddenPages.isEmpty {
+                Button {
+                    curation.hiddenPages.removeAll()
+                    curation.save(slug: plan.slug)
+                    curationVersion += 1
+                } label: {
+                    Label("Restore \(curation.hiddenPages.count) hidden page\(curation.hiddenPages.count == 1 ? "" : "s")",
+                          systemImage: "eye")
+                        .font(.etch(.footnote, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.accent)
+            }
 
             // The pages above are the proof — the gate asks the customer to say they've read
             // them before either order path unlocks. The dialog makes it an acknowledgment

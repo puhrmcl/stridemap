@@ -23,8 +23,17 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=yearbook@years,yearbook@resume,yearbook@atlas,yearbook@cover-grid
+screens=yearbook@cover-grid,yearbook@years,yearbook@resume
 appearance=light
+
+# b562 — trim safety and hidden pages. The device shot of the Grid cover showed the type
+# pressed against the edges: the LazyVGrid demanded more height than the page has, the
+# cover overflowed, and the safety paddings + accent rule + ETCH foot were what got
+# clipped. The band is flexible rows now. @cover-grid must show: the accent rule ABOVE
+# "A YEAR IN MOTION" with clear air over it, and "ETCH" at the foot below the totals —
+# both were missing in the overflowing version. @years/@resume re-verify the tightened
+# ledgers (9 and 12 rows inside the margins). Hide-a-page (touch and hold a page →
+# Hide, Restore in the footer) is verified by build here, by hand on device.
 
 # b561 — Year Book Phase 4: the portfolio closes the book, and the cover learns choices.
 #   @years      — "THE RECORD SO FAR / THE YEARS": a ledger row per year of the whole

@@ -191,6 +191,12 @@ struct BookPlan {
 
         pages.append(.closing)
 
+        // The reader's hidden pages come out before the padding math, so the book stays an
+        // even, minimum-length object whatever was removed.
+        pages.removeAll { spec in
+            hideKey(for: spec, runs: selected).map(curation.hiddenPages.contains) ?? false
+        }
+
         // Pad to the minimum interior size, then to an even total, with quiet blanks before the
         // back cover.
         while pages.count + 1 < BookCatalog.minPages { pages.append(.blank) }
@@ -207,6 +213,38 @@ struct BookPlan {
 
         return BookPlan(subject: subject, lens: lens, runs: selected, history: runs,
                         curation: curation, pages: pages, chapterSpan: span, story: story)
+    }
+
+    /// A stable identity for pages the reader may hide — stable across replans, lens
+    /// switches and photo changes, so a hidden month stays hidden. Nil marks a structural
+    /// page (cover, title, the index, the closing, the blanks) that cannot be hidden:
+    /// a book without its own cover or its honest record isn't a smaller book, it's a
+    /// broken one.
+    static func hideKey(for spec: BookPageSpec, runs: [Run]) -> String? {
+        switch spec {
+        case .stats:                     return "stats"
+        case .marks:                     return "marks"
+        case .map:                       return "map"
+        case .chapter(let start):        return "chapter:\(Int(start.timeIntervalSince1970))"
+        case .chapterPhotos(let start):  return "chapterPhotos:\(Int(start.timeIntervalSince1970))"
+        case .race(let index):
+            guard runs.indices.contains(index) else { return nil }
+            return "race:\(runs[index].id.uuidString)"
+        case .gallery:                   return "gallery"
+        case .numbers:                   return "numbers"
+        case .review:                    return "review"
+        case .years:                     return "years"
+        case .raceHistory:               return "raceHistory"
+        case .atlas:                     return "atlas"
+        case .cover, .title, .index, .closing, .blank, .backCover:
+            return nil
+        }
+    }
+
+    /// The hide-key for one of this plan's own pages.
+    func hideKey(at index: Int) -> String? {
+        guard pages.indices.contains(index) else { return nil }
+        return Self.hideKey(for: pages[index], runs: runs)
     }
 
     /// The run a race page shows.

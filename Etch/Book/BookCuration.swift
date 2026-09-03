@@ -25,6 +25,11 @@ struct BookCuration: Codable, Equatable {
     /// candidate (a race's photo first).
     var coverPhotoRef: String?
 
+    /// Pages the reader took out of the book, by their stable hide-keys
+    /// (`BookPlan.hideKey`). Structural pages — cover, title, the index, the closing —
+    /// have no key and cannot be hidden.
+    var hiddenPages: Set<String> = []
+
     enum CoverStyle: String, Codable, CaseIterable, Identifiable {
         /// The year's longest line, drawn in bone on ink — the statement cover.
         case route
@@ -45,6 +50,18 @@ struct BookCuration: Codable, Equatable {
 
     /// Whether a reference survived curation.
     func includes(_ reference: String) -> Bool { !excludedRefs.contains(reference) }
+
+    // Tolerant decoding: fields added after a version shipped read as their defaults from
+    // older stored JSON instead of failing the whole document back to a blank curation.
+    init() {}
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        excludedRefs = try container.decodeIfPresent(Set<String>.self, forKey: .excludedRefs) ?? []
+        extraPhotoIDs = try container.decodeIfPresent([String].self, forKey: .extraPhotoIDs) ?? []
+        coverStyle = try container.decodeIfPresent(CoverStyle.self, forKey: .coverStyle) ?? .route
+        coverPhotoRef = try container.decodeIfPresent(String.self, forKey: .coverPhotoRef)
+        hiddenPages = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenPages) ?? []
+    }
 
     // MARK: Storage
 
