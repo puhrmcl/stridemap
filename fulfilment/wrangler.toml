@@ -31,9 +31,16 @@ compatibility_date = "2025-01-01"
 [triggers]
 crons = ["0 3 * * *"]
 
+# The landing page bundles the privacy policy as text.
+rules = [{ type = "Text", globs = ["**/*.html"], fallthrough = true }]
+
 [vars]
 # Prodigi API base. Sandbox by default — flip to https://api.prodigi.com when live.
 PRODIGI_BASE = "https://api.sandbox.prodigi.com"
+# The App Store product link the landing page's install buttons point at. Empty renders
+# the honest "Coming soon to the App Store" state — set this when the listing is live
+# (https://apps.apple.com/app/idXXXXXXXXX) and re-run the deploy workflow.
+APP_STORE_URL = ""
 # Which archive the tile server reads. Rebuilds go to a fresh dated key and move this pointer —
 # the tile cache treats an archive as immutable under its key, so the same key must never hold
 # two different archives. basemap.pmtiles (the Arizona starter) stays in the bucket as rollback.

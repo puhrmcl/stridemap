@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Etch — Privacy Policy</title>
+<meta name="description" content="How Etch handles your information: what stays on your device, what leaves it, and why.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&family=Inter:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400&display=swap">
+<style>
+  /* Etch design tokens — the same names and values as Etch/Design/Theme.swift and
+     storefront/assets/etch-tokens.css. Light is the page; dark deepens out of Etch Ink
+     rather than inverting, and the type stays warm. */
+  :root {
+    --ink: #17212b;
+    --blue: #4a8eae;
+    --canvas: #f3f0e9;
+    --gallery-white: #fbfaf7;
+    --graphite: #4a5055;
+    --mist: #c9cdce;
+
+    --surface: var(--canvas);
+    --surface-raised: var(--gallery-white);
+    --text: var(--ink);
+    --text-secondary: var(--graphite);
+    --line: rgba(201, 205, 206, 0.7);
+    --accent-text: #35708b;
+
+    --font-display: "Inter Tight", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-serif: "Newsreader", Georgia, "Times New Roman", Times, serif;
+    --maxw: 720px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface: #10181f;
+      --surface-raised: var(--ink);
+      --text: var(--canvas);
+      --text-secondary: var(--mist);
+      --line: rgba(74, 80, 85, 0.55);
+      --accent-text: #8ac3de;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--surface);
+    color: var(--text);
+    font: 16px/1.65 var(--font-sans);
+    padding: 0 20px;
+  }
+  main { max-width: var(--maxw); margin: 0 auto; padding: 56px 0 96px; }
+  header { margin-bottom: 40px; }
+  .brand {
+    font-family: var(--font-display);
+    font-weight: 600; font-size: 26px; letter-spacing: -0.02em;
+    color: var(--text);
+  }
+  .brand .dot { color: var(--blue); }
+  h1 { font-family: var(--font-display); font-size: 34px; letter-spacing: -0.02em; margin: 26px 0 6px; font-weight: 500; }
+  h2 { font-family: var(--font-display); font-size: 21px; letter-spacing: -0.01em; margin: 44px 0 10px; font-weight: 500; }
+  h3 { font-size: 16px; margin: 24px 0 6px; font-weight: 600; }
+  p, li { color: var(--text); }
+  .updated { color: var(--text-secondary); font-size: 14px; }
+  .lede { font-family: var(--font-serif); font-size: 19px; line-height: 1.6; }
+  a { color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
+  ul, ol { padding-left: 22px; }
+  li { margin: 6px 0; }
+  strong { font-weight: 600; }
+  .callout {
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px 22px;
+    margin: 26px 0;
+  }
+  hr { border: none; border-top: 1px solid var(--line); margin: 44px 0; }
+  footer { color: var(--text-secondary); font-size: 14px; margin-top: 48px; }
+  code {
+    background: var(--surface-raised); border: 1px solid var(--line);
+    border-radius: 6px; padding: 1px 6px; font-size: 0.9em;
+  }
+  /* The "what leaves your device" table is the substance of this page; it must not push
+     the body sideways on a phone. */
+  .tablewrap { overflow-x: auto; margin: 22px 0; }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 14.5px; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 14px 10px 0; border-bottom: 1px solid var(--line); }
+  th {
+    font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--text-secondary); white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="brand">etch<span class="dot">.</span></span>
+  </header>
+
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated: August 29, 2026</p>
+
+  <p><strong>The short version.</strong> Your activities stay on your iPhone. There is no account, no sign-in, and nothing syncs. We never sell your data or use it for advertising.</p>
+  <p>Two things do leave your device, and we would rather say so plainly than bury them:</p>
+  <ol><li><strong>If you order a print,</strong> the artwork you composed is uploaded so a print lab can make it, and checkout takes the name and address needed to post it to you.</li><li><strong>A few features ask the outside world a question about a place</strong> — naming the city a route ran through, finding the elevation under it, looking up the weather on the day. Those requests carry coordinates. They never carry your name, and they are listed in full in section 3.</li></ol>
+  <p>This Privacy Policy explains how the Etch app ("Etch", "the app", "we", "us") handles your information. Etch maps the runs, rides, hikes and walks in your Apple Health history, and lets you turn them into printed artwork. By using Etch you agree to this policy.</p>
+  <hr>
+  <h2>1. What the app reads on your device</h2>
+  <h3>Apple Health (HealthKit)</h3>
+  <p>With your permission, Etch reads workouts and their associated data from Apple Health so it can draw them on a map. This may include:</p>
+  <ul>
+  <li>Running, cycling, hiking and walking workouts, with their dates and times</li>
+  <li>Workout routes (GPS coordinates)</li>
+  <li>Distance and duration</li>
+  <li>Elevation gain</li>
+  <li>Heart rate</li>
+  <li>Active energy (calories)</li>
+  <li>Cadence, when available</li>
+  </ul>
+  <p>This access is <strong>read-only</strong> — Etch never writes to Apple Health. What it reads is stored only on your device.</p>
+  <h3>Location</h3>
+  <p>Etch may show your current position on the map to give your activities context. Your live location is used for on-screen display and is not recorded or transmitted by the app.</p>
+  <h3>Photos</h3>
+  <p>If you attach photographs to an activity or to a piece of artwork, Etch reads them from your photo library with your permission. They stay on your device unless you order a print that contains them — see section 4.</p>
+  <h3>Imported files</h3>
+  <p>You can import GPX, TCX and FIT files, or a Nike activity export. These are read on your device and turned into activities stored there. Nothing about the import is transmitted.</p>
+  <hr>
+  <h2>2. Strava (optional)</h2>
+  <p>Connecting Strava is entirely optional and the app is fully usable without it. If you connect it, Etch uses Strava's official OAuth sign-in and requests <strong>read-only</strong> access to your activities, in order to add detail Apple Health does not carry — titles, gear, descriptions, race identification.</p>
+  <p>The OAuth code exchange passes through a small service we operate, because Strava requires a client secret that must not ship inside an app. That service handles the exchange and does not store your activities. Your Strava access token is then kept in the iOS Keychain on your device, and the enrichment data is cached locally alongside your other activities.</p>
+  <p>You can disconnect Strava at any time in Settings, which removes the stored token. You can also revoke Etch's access from your Strava account settings.</p>
+  <hr>
+  <h2>3. What leaves your device, and when</h2>
+  <p>This is the complete list. Everything not on it stays on your phone.</p>
+  <div class="tablewrap"><table>
+  <thead><tr><th>When</th><th>What is sent</th><th>Where</th><th>Why</th></tr></thead><tbody>
+  <tr><td>You look at the map</td><td>The area you are viewing</td><td>Apple (MapKit)</td><td>To draw the map</td></tr>
+  <tr><td>An activity is imported</td><td>The coordinates of its start point</td><td>Apple (CLGeocoder)</td><td>To name the city, state and country it happened in</td></tr>
+  <tr><td>You open the Landmarks overlay</td><td>The map region you are viewing</td><td>Apple (MKLocalSearch)</td><td>To find parks and landmarks nearby</td></tr>
+  <tr><td>An activity has no recorded weather</td><td>Its coordinates and date</td><td>Apple (WeatherKit)</td><td>To fill in the weather on the day</td></tr>
+  <tr><td>You compose a contour or topographic piece</td><td>A grid of coordinates around the route</td><td>Open-Meteo</td><td>To find the elevation of the land, so the contour lines can be drawn</td></tr>
+  <tr><td>You compose a printable map piece</td><td>The map tiles for that area</td><td>Our fulfilment service</td><td>To draw the map from OpenStreetMap rather than Apple's data, because Apple's may not be printed</td></tr>
+  <tr><td>The app starts</td><td>Nothing about you</td><td>Our fulfilment service</td><td>To read configuration (prices, whether a product is available)</td></tr>
+  <tr><td>You order a print</td><td>See section 4</td><td>Our fulfilment service, Shopify, the print lab</td><td>To make and post the thing you bought</td></tr>
+  </tbody></table></div>
+  <p>None of these requests carry your name, your email address, an account identifier, or an advertising identifier. Etch has no analytics and no crash reporting.</p>
+  <p><strong>Your workout records are never uploaded.</strong> Not to us, not to anyone. The requests above send a coordinate or a region — the sort of question any map app asks — and never the underlying Health data.</p>
+  <hr>
+  <h2>4. Ordering a print</h2>
+  <p>Etch Studio lets you compose artwork and order it as a physical object — a print, a framed print, a book, a medal frame. This is the one part of the app that necessarily involves other people, because someone has to make the thing and post it to you.</p>
+  <p>When you place an order:</p>
+  <ul>
+  <li><strong>The finished artwork is uploaded to our fulfilment service.</strong> This is a single flattened image (or PDF, for the book) — the piece exactly as you composed it. It may contain a map of your route, statistics you chose to show, text you typed, and photographs you added. It does not contain your Health records, and no workout data travels with it.</li>
+  <li><strong>Checkout is handled by Shopify</strong>, including Apple Pay. Shopify takes your name, email address, shipping address and payment details. We never see your card number; Shopify and its payment processors handle payment.</li>
+  <li><strong>Your artwork and shipping address are passed to the print lab</strong> (Prodigi) so they can print the piece and post it to you. They receive what is needed to make and deliver the order, and nothing else.</li>
+  <li><strong>A record of the order is kept</strong> — the order number, its status, and a reference to the artwork — so the app can show you where your parcel is, and so we can help if something goes wrong.</li>
+  </ul>
+  <p><strong>Retention.</strong> Artwork you composed but never ordered is deleted from our service within seven days. Artwork attached to a placed order is kept while the order is being made and delivered, and afterwards for as long as we may need it to reprint a damaged item or answer a question about it. You can ask us to delete an order record at any time (section 8).</p>
+  <p><strong>We do not use anything about your order for advertising</strong>, and we do not sell it.</p>
+  <hr>
+  <h2>5. How your information is used</h2>
+  <p>Everything the app reads is used for one purpose: to show you your activities and to let you make something out of them. Processing happens on your iPhone.</p>
+  <p><strong>Our commitments regarding Health data.</strong></p>
+  <ul>
+  <li>We do <strong>not</strong> use Apple Health data for advertising or marketing.</li>
+  <li>We do <strong>not</strong> share Apple Health data with any third party — including Shopify and the print lab.</li>
+  <li>We do <strong>not</strong> sell your data.</li>
+  <li>We do <strong>not</strong> store Apple Health data in iCloud or on any server.</li>
+  <li>We do <strong>not</strong> use it for anything other than showing you your activities and composing the artwork you ask for.</li>
+  </ul>
+  <hr>
+  <h2>6. Where your data is stored</h2>
+  <p>Your activities are stored on your device using Apple's on-device storage (SwiftData). Authentication tokens are kept in the iOS Keychain. There is no account and nothing syncs between devices — if you install Etch on a second phone, it builds its map again from that phone's Apple Health.</p>
+  <p>The only data we hold on a server is what section 4 describes: the artwork for an order, and the order record itself.</p>
+  <hr>
+  <h2>7. Third-party services</h2>
+  <ul>
+  <li><strong>Apple</strong> — HealthKit, MapKit, CLGeocoder, MKLocalSearch and WeatherKit all run through Apple and are governed by <a href="https://www.apple.com/legal/privacy/">Apple's Privacy Policy</a>.</li>
+  <li><strong>Open-Meteo</strong> — receives coordinates to look up ground elevation for contour artwork. See <a href="https://open-meteo.com/en/terms">Open-Meteo's terms</a>.</li>
+  <li><strong>OpenStreetMap</strong> — the basemap printed artwork is drawn from. Map data © OpenStreetMap contributors, licensed <a href="https://www.openstreetmap.org/copyright">ODbL</a>. Tiles are served by us; OpenStreetMap receives nothing about you.</li>
+  <li><strong>Shopify</strong> — handles checkout and payment for orders. <a href="https://www.shopify.com/legal/privacy">Shopify's Privacy Policy</a>.</li>
+  <li><strong>Prodigi</strong> — the print lab that manufactures and ships orders. <a href="https://www.prodigi.com/privacy/">Prodigi's Privacy Policy</a>.</li>
+  <li><strong>Strava</strong> (only if you connect it) — <a href="https://www.strava.com/legal/privacy">Strava's Privacy Policy</a>. Etch requests read-only access and never posts to or modifies your Strava account.</li>
+  </ul>
+  <hr>
+  <h2>8. Your choices and controls</h2>
+  <ul>
+  <li><strong>Health access.</strong> Review or revoke Etch's access at any time in <em>Settings → Privacy &amp; Security → Health → Etch</em>, or in the Health app.</li>
+  <li><strong>Location.</strong> Manage in <em>Settings → Privacy &amp; Security → Location Services</em>.</li>
+  <li><strong>Photos.</strong> Manage in <em>Settings → Privacy &amp; Security → Photos</em>.</li>
+  <li><strong>Strava.</strong> Disconnect in the app's Settings, and revoke Etch's access from your Strava account settings.</li>
+  <li><strong>Delete your data on the device.</strong> Use <em>Delete Cache</em> in the app's Settings to remove all stored activities. Deleting the app removes all of its local data.</li>
+  <li><strong>Delete an order record.</strong> Email <strong>software@nwagtech.com</strong> with your order number and we will delete the artwork and the order record, subject to any records we are required to keep for tax or accounting purposes.</li>
+  </ul>
+  <hr>
+  <h2>9. Data security</h2>
+  <p>Data on your device is protected by iOS, and credentials are kept in the iOS Keychain. Artwork uploaded for an order travels over HTTPS, is stored with a random unguessable identifier, and is checksummed on arrival so a corrupted file can never reach the press. Payment details never touch our systems.</p>
+  <p>No system is perfectly secure, but keeping your activities on-device — rather than syncing them to an account we would then have to defend — removes entire categories of risk.</p>
+  <hr>
+  <h2>10. Children's privacy</h2>
+  <p>Etch is not directed to children under 13, and we do not knowingly collect personal information from children.</p>
+  <hr>
+  <h2>11. Changes to this policy</h2>
+  <p>We may update this Privacy Policy from time to time. When we do, we will revise the "Last updated" date above. Material changes will be reflected in an updated version of the app or on this page.</p>
+  <hr>
+  <h2>12. Contact</h2>
+  <p>Questions about this Privacy Policy: <strong>software@nwagtech.com</strong></p>
+  <p>Northwest Ag Technologies, L.L.C.</p>
+
+  <footer>
+    Northwest Ag Technologies, L.L.C. · <a href="mailto:software@nwagtech.com">software@nwagtech.com</a>
+  </footer>
+</main>
+</body>
+</html>

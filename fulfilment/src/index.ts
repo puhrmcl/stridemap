@@ -52,8 +52,9 @@
 import { serveTile, serveTileJSON, parseTilePath } from "./tiles";
 import { serveTerrain, serveImagery, parseTerrainPath, parseImageryPath } from "./overlays";
 import { serveGiftPass, type PassEnv } from "./giftpass";
+import { serveLanding, serveSiteAsset, servePrivacy, type LandingEnv } from "./landing";
 
-export interface Env extends PassEnv {
+export interface Env extends PassEnv, LandingEnv {
   ASSETS: R2Bucket;
   LEDGER: D1Database;
   /** Shopify webhook signing secret (`wrangler secret put SHOPIFY_WEBHOOK_SECRET`). */
@@ -80,6 +81,10 @@ export default {
     const path = url.pathname;
     try {
       if (request.method === "GET" && path === "/health") return json({ ok: true });
+      // The front door: byetch.com pointed at this worker serves the app's landing page.
+      if (request.method === "GET" && (path === "/" || path === "/index.html")) return serveLanding(env);
+      if (request.method === "GET" && path === "/privacy") return servePrivacy();
+      if (request.method === "GET" && path.startsWith("/site/")) return serveSiteAsset(path.slice("/site/".length));
       if (request.method === "GET" && path === "/tiles/tiles.json") return await serveTileJSON(env, url.origin);
       if (request.method === "GET" && path.startsWith("/tiles/")) {
         const tile = parseTilePath(path);
