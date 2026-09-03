@@ -26,13 +26,15 @@
 screens=collections
 appearance=light
 
-# b563 — the Collections crash hardening. The seeded repro did NOT crash (46-page Races
-# collection rendered clean), pointing at device-only conditions: preview rendering
-# loaded every photograph at its 1500px PRINT size, and a big collection previews up to
-# a hundred pages of that back to back — a memory spike an empty simulator library never
-# feels. Previews now load photos at preview size (print export still asks full size),
-# each page render sits in an autorelease pool, and the photo sheet de-duplicates a
-# library asset attached to two activities. This shot re-verifies collections stays green.
+# b564 — the freeze-then-crash on tapping Collections, found and fixed. `plan` was a
+# computed property running the full story engine over the entire history on EVERY
+# access — and the page-style TabView builds all children up front, each child's context
+# menu asking for its hide-key through that property. A hundred-page collection over a
+# thousand-activity history = a hundred-plus full plan derivations on the main thread at
+# open: seconds frozen, then the watchdog. The render task now builds the plan once per
+# render key and caches it; the pager captures one plan for all children; the cover bands
+# filter by hasRoute instead of decoding every polyline in the span. This shot re-verifies
+# collections opens and renders.
 
 # b562 — trim safety and hidden pages. The device shot of the Grid cover showed the type
 # pressed against the edges: the LazyVGrid demanded more height than the page has, the

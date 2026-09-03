@@ -122,9 +122,11 @@ struct BookPageView: View {
     }
 
     /// The year's longest mapped route, drawn in bone — a single line of light on the ink.
+    /// Filtered by `hasRoute` (a string check), not by decoding every polyline in the span —
+    /// a state collection can hold a thousand runs, and only the hero's line gets decoded.
     private var coverRouteBand: some View {
         Group {
-            if let hero = plan.runs.filter({ $0.coordinates.count > 1 })
+            if let hero = plan.runs.filter(\.hasRoute)
                 .max(by: { $0.distance < $1.distance }) {
                 RouteShape(coordinates: hero.coordinates)
                     .stroke(ground.opacity(0.92),
@@ -146,7 +148,7 @@ struct BookPageView: View {
     /// they share whatever height the band actually has, and `RouteShape` aspect-fits each
     /// line inside its cell, so nothing can push the type toward the edges.
     private var coverGridBand: some View {
-        let mapped = plan.runs.filter { $0.coordinates.count > 1 }
+        let mapped = plan.runs.filter(\.hasRoute)
             .sorted { $0.distance > $1.distance }
         let cells = Array(mapped.prefix(48))
         let columns = cells.count <= 12 ? 4 : cells.count <= 24 ? 6 : 8

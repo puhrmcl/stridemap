@@ -79,9 +79,18 @@ struct BookStudioView: View {
         offeredLenses.contains(lens) ? lens : .everything
     }
 
+    /// The plan the whole surface reads. `BookPlan.make` runs the story engine over the
+    /// entire history — real work, not a getter — and this view reads `plan` everywhere,
+    /// including once per page child inside the pager's TabView. As a plain computed
+    /// property that meant a hundred-page Collections book recomputed the full plan a
+    /// hundred-plus times on the main thread at open: seconds of freeze, then the watchdog.
+    /// The render task builds it once per render key and caches it here; the computed path
+    /// below is only the fallback for the first body evaluation before that task lands.
+    @State private var builtPlan: BookPlan?
+
     private var plan: BookPlan {
-        BookPlan.make(subject: resolvedSubject, lens: resolvedLens, runs: allRuns,
-                      curation: curation)
+        builtPlan ?? BookPlan.make(subject: resolvedSubject, lens: resolvedLens, runs: allRuns,
+                                   curation: curation)
     }
 
     /// What the pager re-renders on: the subject AND the lens are both the book's identity.
@@ -158,6 +167,9 @@ struct BookStudioView: View {
                 Button("OK", role: .cancel) {}
             } message: { Text(orderError ?? "") }
             .task(id: renderKey) { await renderPreviews() }
+            // A sync landing new activities mid-session would leave the cached plan stale;
+            // bumping the version refires the render task, which rebuilds and re-caches.
+            .onChange(of: allRuns.count) { curationVersion += 1 }
             .addedToBagToast($addedToBag)
         }
     }
@@ -253,6 +265,7 @@ struct BookStudioView: View {
     /// every line. A compact chip: the covers differ in kind, not in degree, so a menu of
     /// three names says more than three thumbnails would at this size.
     private var coverPicker: some View {
+        let plan = self.plan
         let hasPhotos = plan.runs.contains { !$0.photoReferences.isEmpty }
             || !curation.extraPhotoIDs.isEmpty
         return Menu {
@@ -294,7 +307,13 @@ struct BookStudioView: View {
     }
 
     private var pager: some View {
-        TabView(selection: $currentPage) {
+        // One plan for every page child. The `.page` TabView builds all of its children
+        // up front, and each child's context menu asks for its hide-key — through the
+        // computed property that was a full plan derivation before the render task caches
+        // it. Capturing the value once here is what keeps the first body evaluation of a
+        // hundred-page book from doing a hundred story-engine passes.
+        let plan = self.plan
+        return TabView(selection: $currentPage) {
             ForEach(plan.pages.indices, id: \.self) { index in
                 Group {
                     if let image = previews[index] {
@@ -431,7 +450,12 @@ struct BookStudioView: View {
         case "cover-photo": curation.coverStyle = .photo
         default: break
         }
-        let plan = plan
+        // Build ONCE per render key and cache — every `plan` read below and in the body
+        // (the pager's hundred page children included) now costs a dictionary lookup, not
+        // a story-engine pass over the whole history.
+        let plan = BookPlan.make(subject: resolvedSubject, lens: resolvedLens, runs: allRuns,
+                                 curation: curation)
+        builtPlan = plan
 
         // CI's screenshot rig can name a page family (yearbook@review, yearbook@marks, …); the
         // pager jumps there and that page renders first, so the shot never races the other
