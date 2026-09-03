@@ -26,7 +26,7 @@
 screens=gift
 appearance=light
 
-# b549: the Gift Cards page (Bag → Gift Cards). CI has no storefront tokens, so the buy
+# b549 (re-run after the Hashable fix): the Gift Cards page (Bag → Gift Cards). CI has no storefront tokens, so the buy
 # section should show its honest "aren't available just yet" line — what to check is the
 # page shape: Give Etch header, the Have a code? section with the monospaced code field and
 # Redeem button, and the four-step How gifting works.
