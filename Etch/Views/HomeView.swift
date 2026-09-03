@@ -871,38 +871,28 @@ struct HomeView: View {
     /// control — true, and beside the point: the icon is also the pill's statement of *what you
     /// are looking at*, and removing it left the mark stranded against the totals with a hole
     /// where the subject should be. What it loses is its affordance, not its meaning.
-    /// The scope, named — "All Activities", "Runs" — because an icon alone asked the reader to
-    /// know the glyph vocabulary before knowing what the map was showing.
-    private var scopeTitle: String {
-        effectiveScope == .all ? "All Activities" : effectiveScope.label
-    }
-
+    /// Icon-only, mirroring the view selector on the pill's other side: with a real library on
+    /// the phone the name beside the icon ("All Activities") crowded the totals out of their
+    /// centre, and the icon plus the bottom sheet it opens already say what the map is showing.
+    /// VoiceOver keeps the name — the accessibility labels below still speak it.
     @ViewBuilder private var typeSelector: some View {
         if isSingleActivity {
-            HStack(spacing: 6) {
-                Image(systemName: effectiveScope.icon)
-                    .font(.system(size: 15, weight: .semibold))
-                    .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
-                Text(scopeTitle)
-                    .font(.etch(.subheadline, weight: .semibold))
-                    .fixedSize()
-            }
-            .foregroundStyle(.primary)
-            .frame(maxHeight: .infinity)
-            // Not a button, so it says what it is rather than inviting a tap that does
-            // nothing. Enabling a second activity type in Settings brings the chevron back.
-            .accessibilityLabel("Showing \(currentScopeName)")
+            Image(systemName: effectiveScope.icon)
+                .font(.system(size: 17, weight: .semibold))
+                .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
+                .foregroundStyle(.primary)
+                .frame(maxHeight: .infinity)
+                // Not a button, so it says what it is rather than inviting a tap that does
+                // nothing. Enabling a second activity type in Settings brings the chevron back.
+                .accessibilityLabel("Showing \(currentScopeName)")
         } else {
             Button {
                 withAnimation(Theme.spring) { showTypeMenu.toggle(); showModeMenu = false }
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: 3) {
                     Image(systemName: effectiveScope.icon)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.system(size: 17, weight: .semibold))
                         .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
-                    Text(scopeTitle)
-                        .font(.etch(.subheadline, weight: .semibold))
-                        .fixedSize()
                     Image(systemName: "chevron.down")
                         .font(.system(size: 9, weight: .bold))
                         .rotationEffect(.degrees(showTypeMenu ? 180 : 0))

@@ -23,14 +23,13 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=home,map-studio
+screens=home
 appearance=light
 
-# b556 (re-shot 2 — totals as one Text) — the unified map bar and the unmarked lines. home should show ONE glass
-# pane: etch. | ‹icon› All Activities ⌄ | "82 activities · 568 mi" as a single quiet
-# line | view icon ⌄ | avatar — hairlines between mark/subject and controls/account, map
-# full-bleed behind. map-studio verifies the printed route now ends clean: no dots, no
-# rings at either end of the line.
+# b557 — the type selector goes icon-only. On the phone with a real library the name
+# beside the icon ("All Activities" / "Runs") crowded the totals off-centre. home should
+# show: etch. | ‹type icon› ⌄ | "82 activities · 568 mi" centred with the noun intact |
+# view icon ⌄ | avatar — the two selectors now mirror each other, both icon + chevron.
 
 # b555 — the Anthology nameplate. Both shots seed the plate at the bottom: the rings /
 # ridgeline art redrawn INSIDE the upper field (never overlapping), and beneath it the
