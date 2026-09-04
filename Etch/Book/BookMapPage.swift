@@ -155,14 +155,16 @@ extension BookPageView {
                            value: "\(raceCount)",
                            detail: "STARRED ON THE MAP")
             }
-            if !plan.story.newStates.isEmpty {
-                calloutRow("NEW GROUND",
-                           value: plan.story.newStates.count == 1
-                               ? plan.story.newStates[0].uppercased()
-                               : "\(plan.story.newStates.count) NEW STATES",
-                           detail: plan.story.newStates.count == 1
-                               ? "FIRST MILES EVER"
-                               : plan.story.newStates.prefix(3).joined(separator: " · "))
+            // Not "new states": firsts depend on when the data was imported, and a claim the
+            // reader knows is wrong poisons the page. Miles beyond the home state are true
+            // whenever the history arrived.
+            if let mostState, stateMiles.count > 1 {
+                let away = stateMiles.values.reduce(0, +) - mostState.value
+                if away >= 1 {
+                    calloutRow("AWAY FROM HOME",
+                               value: "\(away.formatted(.number.precision(.fractionLength(0)))) \(UnitSystem.current.label.uppercased())",
+                               detail: "Beyond \(mostState.key)")
+                }
             }
             if let range {
                 calloutRow("THE SPAN",
@@ -209,8 +211,9 @@ extension BookPageView {
                 "\(cityName(north)) TO \(cityName(south))")
     }
 
-    /// "Phoenix, Arizona, United States" → "Phoenix".
-    private func cityName(_ place: RunStatistics.TravelPlace) -> String {
+    /// "Phoenix, Arizona, United States" → "Phoenix". Internal: the portfolio's cities
+    /// ledger names places the same way.
+    func cityName(_ place: RunStatistics.TravelPlace) -> String {
         place.label.components(separatedBy: ", ").first ?? place.label
     }
 

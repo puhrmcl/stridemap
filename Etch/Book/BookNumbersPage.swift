@@ -62,14 +62,18 @@ enum BookNumbers {
         cards.append(.init(id: "motion", value: motionText(seconds),
                            title: "TIME IN MOTION", detail: "Moving time, summed"))
 
-        // Active days, against the span they happened in.
+        // Active days, against the span they happened in. A collection can span a decade —
+        // "20 of 5,070 days" reads as an indictment, not a fact, so long spans speak in years.
         let days = Set(runs.map { calendar.startOfDay(for: $0.startDate) })
         if let first = runs.map(\.startDate).min(), let last = runs.map(\.startDate).max() {
             let span = (calendar.dateComponents([.day], from: calendar.startOfDay(for: first),
                                                 to: calendar.startOfDay(for: last)).day ?? 0) + 1
+            let detail = span > 400
+                ? "Across \(max(2, Int((Double(span) / 365.25).rounded()))) years"
+                : "Of \(span) in the span"
             cards.append(.init(id: "days", value: "\(days.count)",
                                title: days.count == 1 ? "ACTIVE DAY" : "ACTIVE DAYS",
-                               detail: "Of \(span) in the span"))
+                               detail: detail))
         }
 
         // The biggest week.
@@ -120,12 +124,25 @@ enum BookNumbers {
                            title: "ON WEEKENDS",
                            detail: "\(weekend) of \(runs.count) starts"))
 
-        // The longest thing that isn't already a mark: distance covered per active day.
-        if !days.isEmpty {
-            let perDay = (totalMiles / Double(days.count))
-                .formatted(.number.precision(.fractionLength(1)))
-            cards.append(.init(id: "perday", value: "\(perDay) \(unit)",
-                               title: "PER ACTIVE DAY", detail: "When you went, you went"))
+        // The ninth card. "Per active day" used to live here and was a duplicate by
+        // construction — one activity per active day makes it exactly THE AVERAGE again.
+        // A one-discipline span gets its usual pace instead (a mixed span doesn't: a ride
+        // averaged into a run is a number that means nothing); a mixed span counts its
+        // double-digit days.
+        if Set(runs.map(\.activityType)).count == 1, seconds > 0, totalMiles > 0.5 {
+            let secondsPerUnit = Double(seconds) / totalMiles
+            let minutes = Int(secondsPerUnit) / 60, secs = Int(secondsPerUnit) % 60
+            let unitSingular = unit.hasSuffix("S") ? String(unit.dropLast()) : unit
+            cards.append(.init(id: "pace", value: String(format: "%d:%02d", minutes, secs),
+                               title: "THE USUAL PACE",
+                               detail: "Min per \(unitSingular), whole span"))
+        } else {
+            let doubleDigits = runs.filter { Format.distanceValue($0.distance) >= 10 }.count
+            if doubleDigits > 0 {
+                cards.append(.init(id: "double", value: "\(doubleDigits)",
+                                   title: "DOUBLE DIGITS",
+                                   detail: "Activities of 10+ \(UnitSystem.current.label)"))
+            }
         }
 
         return Array(cards.prefix(9))

@@ -123,14 +123,10 @@ enum StoryEngine {
                 detail: "\(climb.name) · \(shortDate(climb.startDate))"
             ))
         }
-        if !firsts.states.isEmpty {
-            marks.append(.init(
-                id: "new-states",
-                value: "\(firsts.states.count)",
-                title: firsts.states.count == 1 ? "NEW STATE" : "NEW STATES",
-                detail: firsts.states.prefix(3).joined(separator: " · ")
-            ))
-        }
+        // "New states" was a card here once — dropped: whether a state is a first depends
+        // on when the history was imported, and a superlative the reader knows is wrong
+        // discredits the honest ones beside it. The detection stays computed (newStates on
+        // the story) for anything that wants it as data, but the book no longer claims it.
 
         let marked = Set(
             [stats.longestRun?.id, stats.highestClimb?.id].compactMap { $0 }

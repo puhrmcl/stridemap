@@ -35,6 +35,8 @@ enum BookPageSpec {
     /// THE ATLAS — everywhere, ever: country outlines with a pin for every city in the
     /// whole history, and the lifetime line of numbers beneath.
     case atlas
+    /// THE CITIES — the atlas's pins as a ledger: every city ever, counted and measured.
+    case cities
     /// One page of the complete activity index; `offset` is the first entry it lists. This is
     /// what lets month pages breathe: nothing is ever dropped from the book, it moves here.
     case index(offset: Int)
@@ -180,6 +182,8 @@ struct BookPlan {
             return "\(city)|\(PlaceNames.canonicalState(run.state) ?? "")"
         })
         if historyCities.count >= 2 { pages.append(.atlas) }
+        // The pins as a ledger — worth a page once there's an actual list to set.
+        if historyCities.count >= 4 { pages.append(.cities) }
 
         // The complete record: every activity, honestly, however many pages that takes. This is
         // what frees the month pages from having to show everything.
@@ -236,6 +240,7 @@ struct BookPlan {
         case .years:                     return "years"
         case .raceHistory:               return "raceHistory"
         case .atlas:                     return "atlas"
+        case .cities:                    return "cities"
         case .cover, .title, .index, .closing, .blank, .backCover:
             return nil
         }

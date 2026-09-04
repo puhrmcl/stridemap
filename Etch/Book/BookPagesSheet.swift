@@ -84,6 +84,7 @@ struct BookPagesSheet: View {
         case .years:                    return "The Years"
         case .raceHistory:              return "Race History"
         case .atlas:                    return "The Atlas"
+        case .cities:                   return "The Cities"
         case .index:                    return "The Record (index)"
         case .closing:                  return "Closing"
         case .blank:                    return "Blank leaf"

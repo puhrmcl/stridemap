@@ -524,7 +524,7 @@ struct BookStudioView: View {
                  ("month", .chapter(_)), ("photos", .chapterPhotos(_)),
                  ("gallery", .gallery), ("numbers", .numbers),
                  ("years", .years), ("resume", .raceHistory), ("atlas", .atlas),
-                 ("cover-grid", .cover), ("cover-photo", .cover):
+                 ("cities", .cities), ("cover-grid", .cover), ("cover-photo", .cover):
                 return true
             case ("quiet", .chapter(let start)):
                 return BookStory.chapterProfile(for: plan.chapterRuns(start)) == .quiet

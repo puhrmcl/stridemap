@@ -99,18 +99,11 @@ extension BookPageView {
 
             // Where the year happened — one quiet line, not a gazetteer.
             if !cities.isEmpty || !states.isEmpty {
-                VStack(spacing: 8) {
-                    Text(placesLine(cities: cities.count, states: states.count))
-                        .font(.etch(size: 14, weight: .semibold)).tracking(3)
-                        .foregroundStyle(subtle)
-                    if !plan.story.newStates.isEmpty {
-                        Text("FIRST MILES IN \(plan.story.newStates.prefix(4).joined(separator: " · ").uppercased())")
-                            .font(.etch(size: 12, weight: .semibold)).tracking(2)
-                            .foregroundStyle(accent)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                    }
-                }
+                // One quiet line; the "first miles in…" claim that used to sit under it is
+                // gone with the rest of the new-states story — import order made it a guess.
+                Text(placesLine(cities: cities.count, states: states.count))
+                    .font(.etch(size: 14, weight: .semibold)).tracking(3)
+                    .foregroundStyle(subtle)
             }
         }
         .frame(maxWidth: .infinity)

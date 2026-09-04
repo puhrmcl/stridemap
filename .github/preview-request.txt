@@ -23,15 +23,20 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=yearbook@map
+screens=yearbook@numbers,yearbook@cities,yearbook@map
 appearance=light
 
-# b566 — the map page's ground names every state. The device proof said "4 STATES" and
-# listed three: the detail line's prefix(3) was dropping the fourth. Up to four states
-# are now all named; five or more fall back to the leaders "+N MORE" — the count and the
-# list can no longer disagree. Also: the Races and Favorites shelves now qualify at six
-# activities (they were gated at the general twelve, which is why a history with a
-# handful of favorites never saw the Favorites dropdown at all).
+# b567 — the numbers stop repeating themselves, the firsts stop guessing, the cities get
+# their ledger.
+#   @numbers — the ninth card is no longer PER ACTIVE DAY (a duplicate of THE AVERAGE by
+#              construction): a one-discipline span shows THE USUAL PACE, a mixed span
+#              counts DOUBLE DIGITS. Long spans phrase active days "ACROSS N YEARS".
+#   @cities  — new portfolio page after the atlas: "EVERY CITY, COUNTED / THE CITIES" —
+#              two ranked columns of city · activities · miles, "+N more stops" honesty.
+#   @map     — NEW GROUND is gone (import order made "first ever" a guess); in its place
+#              AWAY FROM HOME: miles beyond the most-run state, true regardless of when
+#              the history arrived. The new-states mark and the review's FIRST MILES line
+#              are gone with it.
 
 # b562 — trim safety and hidden pages. The device shot of the Grid cover showed the type
 # pressed against the edges: the LazyVGrid demanded more height than the page has, the

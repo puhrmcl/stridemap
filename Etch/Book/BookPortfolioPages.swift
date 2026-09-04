@@ -176,6 +176,67 @@ extension BookPageView {
         .padding(margin)
     }
 
+    // MARK: THE CITIES — the pins as a ledger
+
+    var citiesPage: some View {
+        let places = RunStatistics(plan.history).travelPlaces
+            .sorted {
+                $0.runs.count != $1.runs.count
+                    ? $0.runs.count > $1.runs.count
+                    : $0.totalDistance > $1.totalDistance
+            }
+        let shown = Array(places.prefix(26))
+        let unshown = places.count - shown.count
+        let perColumn = 13
+        let columns = stride(from: 0, to: shown.count, by: perColumn).map {
+            Array(shown[$0..<min($0 + perColumn, shown.count)])
+        }
+        let unit = UnitSystem.current.label.uppercased()
+
+        return VStack(spacing: 30) {
+            pageHeader("EVERY CITY, COUNTED", subtitle: "THE CITIES")
+
+            HStack(alignment: .top, spacing: 60) {
+                ForEach(Array(columns.enumerated()), id: \.offset) { columnIndex, column in
+                    VStack(spacing: 0) {
+                        ForEach(Array(column.enumerated()), id: \.element.id) { rowIndex, place in
+                            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                Text("\(columnIndex * perColumn + rowIndex + 1)")
+                                    .font(.etch(size: 11, weight: .semibold))
+                                    .foregroundStyle(accent)
+                                    .frame(width: 26, alignment: .trailing)
+                                    .monospacedDigit()
+                                Text(cityName(place).uppercased())
+                                    .font(.etch(size: 14, weight: .semibold)).tracking(1)
+                                    .foregroundStyle(ink)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
+                                Spacer(minLength: 8)
+                                Text("\(place.runs.count) · \(Format.distanceValue(place.totalDistance).formatted(.number.precision(.fractionLength(0)))) \(unit)")
+                                    .font(.etch(size: 12, weight: .medium))
+                                    .foregroundStyle(subtle)
+                                    .monospacedDigit()
+                                    .lineLimit(1)
+                            }
+                            .padding(.vertical, 8)
+                            Rectangle().fill(subtle.opacity(0.14)).frame(height: 1)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(maxHeight: .infinity, alignment: .top)
+
+            if unshown > 0 {
+                Text("+ \(unshown) MORE \(unshown == 1 ? "STOP" : "STOPS") ALONG THE WAY")
+                    .font(.etch(size: 11.5, weight: .semibold)).tracking(2.5)
+                    .foregroundStyle(subtle)
+            }
+        }
+        .padding(margin)
+    }
+
     private func atlasStat(_ value: String, _ label: String) -> some View {
         HStack(spacing: 8) {
             Text(value)

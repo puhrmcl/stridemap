@@ -43,6 +43,7 @@ struct BookPageView: View {
             case .years:                    yearsPage
             case .raceHistory:              raceHistoryPage
             case .atlas:                    atlasPage
+            case .cities:                   citiesPage
             case .index(let offset):        indexPage(offset: offset)
             case .closing:                  closingPage
             case .blank:                    ground
