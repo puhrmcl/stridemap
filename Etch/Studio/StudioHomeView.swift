@@ -113,7 +113,6 @@ struct StudioHomeView: View {
                     ScrollViewReader { proxy in
                         ScrollView {
                             VStack(alignment: .leading, spacing: 38) {
-                                intro.id("intro")
                                 momentHero.id("hero")
                                 productGrid.id("products")
                                 recentImportsSection.id("imports")
@@ -143,7 +142,7 @@ struct StudioHomeView: View {
                         .onChange(of: appModel.reselectCount) { _, _ in
                             guard appModel.reselectedTab == .studio else { return }
                             withAnimation(.easeInOut(duration: 0.35)) {
-                                proxy.scrollTo("intro", anchor: .top)
+                                proxy.scrollTo("hero", anchor: .top)
                             }
                         }
                     }
@@ -570,8 +569,8 @@ struct StudioHomeView: View {
     /// so nothing below it has to shout.
     private var productGrid: some View {
         VStack(alignment: .leading, spacing: 16) {
-            sectionTitle("What do you want to remember?",
-                         "Choose the story. Etch composes the artwork from your maps, milestones and photographs.")
+            sectionTitle("Explore Etch",
+                         "More ways to turn the places, races and years behind you into something permanent.")
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)],
                       spacing: 20) {
                 ForEach(StudioProduct.offered) { product in
@@ -863,6 +862,15 @@ struct StudioHomeView: View {
     private var utilityFooter: some View {
         VStack(alignment: .leading, spacing: 10) {
             Divider().padding(.bottom, 4)
+            if !isSingleActivity {
+                HStack {
+                    Text("Showing")
+                        .font(.etch(.subheadline))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    scopeFilter
+                }
+            }
             restoreHeroRow
             utilityRow("Add from the library", "trophy") { showAddRace = true }
             utilityRow("Create from your timeline", "calendar") { showTimeline = true }
@@ -924,6 +932,8 @@ struct StudioHomeView: View {
     // MARK: The moment hero — Studio knows the user; lead with *their* moment
 
     @State private var heroPick: CollectionPiece?
+    /// A finished Studio render for the recommendation — the object, not a map preview.
+    @State private var heroArtwork: UIImage?
     /// Which of the candidates is showing. Cycled by "Show another".
     @State private var heroOffset = 0
     /// Hidden by the reader, remembered across launches.
@@ -965,82 +975,102 @@ struct StudioHomeView: View {
 
     @ViewBuilder private var momentHero: some View {
         if !heroHidden, let piece = heroPiece {
-            let isRace = piece.run.isRace
-            VStack(alignment: .leading, spacing: 0) {
-            Button { heroPick = piece } label: {
-                ZStack(alignment: .bottomLeading) {
-                    RouteMapTile(run: piece.run)
-                        .frame(height: 340)
-                        .frame(maxWidth: .infinity)
-                        .clipped()
-                    // An ink scrim so the type sits on the image the way a gallery caption does.
-                    //
-                    // Shaped with explicit stops rather than an even ramp: the caption block —
-                    // eyebrow, title, subtitle, call to action — occupies the bottom half of the
-                    // tile, and an even three-colour ramp only reached real darkness below the
-                    // title, which left the letterspaced eyebrow sitting on bare map. The scrim
-                    // now arrives at working strength just above the eyebrow and every line of
-                    // type stands on ink.
-                    LinearGradient(
-                        stops: [
-                            .init(color: .clear, location: 0),
-                            .init(color: .clear, location: 0.28),
-                            .init(color: Theme.Palette.ink.opacity(0.55), location: 0.52),
-                            .init(color: Theme.Palette.ink.opacity(0.92), location: 1.0)
-                        ],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text("MAKE IT PERMANENT")
-                            .font(.etch(size: 11, weight: .semibold))
-                            .tracking(2.4)
-                            .foregroundStyle(isRace ? Theme.Palette.blueBright : Theme.Palette.brass)
-                        // The editorial serif enters here — the artwork's voice, not the app's.
-                        Text("Your \(heroTitle(for: piece))")
-                            .font(.etchSerif(size: 30, weight: .semibold))
-                            .foregroundStyle(Theme.Palette.bone)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.7)
-                        Text(heroSubtitle(for: piece))
-                            .font(.etch(.subheadline))
-                            .foregroundStyle(Theme.Palette.bone.opacity(0.7))
-                        HStack(spacing: 6) {
-                            Text("Create your piece")
-                                .font(.etch(.subheadline, weight: .semibold))
-                            Image(systemName: "arrow.right")
-                                .font(.system(size: 12, weight: .bold))
-                        }
-                        .foregroundStyle(Theme.Palette.bone)
-                        .padding(.top, 6)
-                    }
-                    .padding(22)
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Made for you")
+                        .font(.etch(.title2, weight: .bold))
+                    Text("Etch found a moment worth keeping.")
+                        .font(.etch(.subheadline))
+                        .foregroundStyle(.secondary)
                 }
-                .clipShape(.rect(cornerRadius: 22))
-                .contentShape(.rect(cornerRadius: 22))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Your \(heroTitle(for: piece)). Create your piece in Etch Studio.")
 
-            // A featured piece is a suggestion, and a suggestion you cannot refuse is an
-            // instruction. Both ways out sit under it, quietly.
-            HStack(spacing: 18) {
-                if heroCandidates.count > 1 {
-                    Button { withAnimation(.easeInOut(duration: 0.25)) { heroOffset += 1 } } label: {
-                        Label("Show another", systemImage: "arrow.triangle.2.circlepath")
+                Button { heroPick = piece } label: {
+                    VStack(alignment: .leading, spacing: 16) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 22)
+                                .fill(Theme.Palette.bone.opacity(0.72))
+
+                            if let heroArtwork {
+                                FramedPrintMockup(
+                                    moulding: Color(hex: FrameFinish.natural.mouldingHex) ?? .brown,
+                                    hasGrain: true,
+                                    mouldingWidth: 10
+                                ) {
+                                    Image(uiImage: heroArtwork)
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                }
+                                .padding(.horizontal, 58)
+                                .padding(.vertical, 30)
+                                .shadow(color: .black.opacity(0.18), radius: 18, y: 10)
+                                .transition(.opacity)
+                            } else {
+                                ProgressView()
+                                    .tint(.secondary)
+                            }
+                        }
+                        .frame(height: 390)
+                        .clipShape(.rect(cornerRadius: 22))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 22)
+                                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+                        }
+
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(piece.run.isRace ? "ETCH RACE EDITION" : "ETCH EDITION")
+                                .font(.etch(size: 10, weight: .semibold))
+                                .tracking(1.8)
+                                .foregroundStyle(Theme.accent)
+
+                            Text("Your \(heroTitle(for: piece))")
+                                .font(.etchSerif(size: 28, weight: .semibold))
+                                .foregroundStyle(.primary)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.75)
+
+                            Text(heroSubtitle(for: piece))
+                                .font(.etch(.subheadline))
+                                .foregroundStyle(.secondary)
+
+                            HStack(spacing: 6) {
+                                Text("View your artwork")
+                                    .font(.etch(.subheadline, weight: .semibold))
+                                Image(systemName: "arrow.right")
+                                    .font(.system(size: 12, weight: .bold))
+                            }
+                            .foregroundStyle(Theme.accent)
+                            .padding(.top, 5)
+                        }
+                        .padding(.horizontal, 2)
                     }
-                    .buttonStyle(.plain)
-                }
-                Spacer(minLength: 0)
-                Button { withAnimation { heroHidden = true } } label: {
-                    Label("Hide", systemImage: "eye.slash")
+                    .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
-            }
-            .font(.etch(.footnote, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .padding(.top, 10)
+                .accessibilityLabel("Your \(heroTitle(for: piece)). View your artwork in Etch Studio.")
+
+                if heroCandidates.count > 1 {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            heroOffset += 1
+                            heroArtwork = nil
+                        }
+                    } label: {
+                        Label("Show me another", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.etch(.footnote, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                }
             }
             .padding(.horizontal, 20)
+            .task(id: piece.run.id) {
+                var recipe = piece.preset
+                recipe.outputSize = .poster
+                let image = await StudioRenderer.image(for: recipe.request(for: piece.run), scale: 0.58)
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeIn(duration: 0.2)) { heroArtwork = image }
+            }
             .sheet(item: $heroPick) { pick in
                 StudioView(run: pick.run, preset: pick.preset)
             }
