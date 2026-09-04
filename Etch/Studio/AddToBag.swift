@@ -115,7 +115,7 @@ struct DeliveryNote: View {
 /// approval the moment the piece changes under it, the same rule as a prepared cart.
 struct ProofGateButton: View {
     var approved: Bool
-    var title: String = "View & Approve Proof"
+    var title: String = "Approve Your Artwork"
     /// Opens the proof (or, for the book, its acknowledgment dialog).
     var action: () -> Void
     /// Re-opens the proof after approval; nil hides the link.
@@ -126,11 +126,11 @@ struct ProofGateButton: View {
             HStack(spacing: 8) {
                 Image(systemName: "checkmark.seal.fill")
                     .foregroundStyle(.green)
-                Text("Proof approved")
+                Text("Artwork approved")
                     .font(.etch(.subheadline, weight: .semibold))
                 Spacer(minLength: 8)
                 if let viewAgain {
-                    Button("View proof", action: viewAgain)
+                    Button("View artwork", action: viewAgain)
                         .font(.etch(.footnote, weight: .semibold))
                         .foregroundStyle(Theme.accent)
                         .buttonStyle(.plain)
@@ -169,7 +169,7 @@ struct ProofApprovalView: View {
             ArtworkPreviewView(image: image)
 
             VStack(spacing: 10) {
-                Text("Check the names, dates, route and spelling — what you approve is exactly what gets printed.")
+                Text("Check the names, dates, route and spelling. The artwork you approve is exactly what we’ll print.")
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.75))
                     .multilineTextAlignment(.center)
@@ -177,7 +177,7 @@ struct ProofApprovalView: View {
                     onApprove()
                     dismiss()
                 } label: {
-                    Label("Approve proof", systemImage: "checkmark.seal")
+                    Label("Approve artwork", systemImage: "checkmark.seal")
                         .font(.etch(.headline))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
