@@ -463,9 +463,16 @@ struct PrintShopView: View {
                 .font(.etch(.subheadline))
                 .foregroundStyle(.secondary)
 
-            Text(isMedal ? MedalFrameCatalog.price : size.price)
-                .font(.etch(.title3, weight: .semibold))
-                .monospacedDigit()
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(isMedal ? MedalFrameCatalog.price : size.price)
+                    .font(.etch(.title3, weight: .semibold))
+                    .monospacedDigit()
+                if !isMedal && product == .framed {
+                    Text("framed & ready to hang")
+                        .font(.etch(.footnote, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             if let delivery = EtchConfig.current.ordering.delivery, !delivery.isEmpty {
                 Label(delivery, systemImage: "shippingbox")
@@ -700,7 +707,7 @@ struct PrintShopView: View {
 
     private var productPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionLabel("Format", value: isMedal ? "Medal Frame" : product.name)
+            sectionLabel("Finish", value: isMedal ? "Medal Frame" : product.shortName)
             ForEach(offeredProducts) { p in
                 formatCard(name: p.name, tagline: p.tagline, symbol: p.symbol,
                            isSelected: !isMedal && product == p) {

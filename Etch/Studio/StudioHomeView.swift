@@ -570,8 +570,8 @@ struct StudioHomeView: View {
     /// so nothing below it has to shout.
     private var productGrid: some View {
         VStack(alignment: .leading, spacing: 16) {
-            sectionTitle("What would you like to make?",
-                         "Every one is composed from your own maps and photographs, then printed and shipped to you.")
+            sectionTitle("What do you want to remember?",
+                         "Choose the story. Etch composes the artwork from your maps, milestones and photographs.")
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)],
                       spacing: 20) {
                 ForEach(StudioProduct.offered) { product in
@@ -701,9 +701,9 @@ struct StudioHomeView: View {
     private var finishes: some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Every piece, three ways")
+                Text("Choose how it lives")
                     .font(.etch(.subheadline, weight: .semibold))
-                Text("Pick the finish when you order — anything above can arrive as any of these.")
+                Text("We recommend framed and ready to hang. Fine-art editions are also available if you already have the perfect frame.")
                     .font(.etch(.footnote))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

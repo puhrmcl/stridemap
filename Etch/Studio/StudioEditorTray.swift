@@ -136,7 +136,7 @@ enum StudioSection: String, CaseIterable, Identifiable {
         switch self {
         case .design:    return "Design"
         case .content:   return "Content"
-        case .customize: return "Customize"
+        case .customize: return "Personalize"
         }
     }
 }
@@ -183,7 +183,7 @@ struct StudioSectionPicker: View {
 
 // MARK: - Shared control components
 
-/// A drill-down row — the spine of Customize. Carries what it currently is, so the section can be
+/// A drill-down row — the spine of Personalize. Carries what it currently is, so the section can be
 /// read without opening anything.
 struct StudioDrillRow: View {
     let title: String
