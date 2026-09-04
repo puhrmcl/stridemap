@@ -57,13 +57,39 @@ enum StudioCurator {
 
         switch leadKind(for: run) {
         case .race:
-            edition("harbor", "Harbor",
-                    "The race in deep navy, the route in gold — the marathon print.",
-                    style: .harbor)
-            edition("gallery", "Gallery",
-                    "A muted map on gallery paper, the route in Etch Blue.", style: .streets)
-            edition("noir", "Noir",
-                    "Faint streets on near-black, the route in white.", style: .streetsNoir)
+            // Race Edition is an authored product, not a generic map with race data poured into it.
+            // Keep the sheet portrait even when a point-to-point course is wide: the wall object
+            // should retain the same strong 2:3 silhouette across the collection. The finish time
+            // becomes the headline; distance, pace and place sit quietly beneath it.
+            func raceEdition(_ id: String, _ name: String, _ line: String, style: MapStyle) {
+                add(id, name, line) { c in
+                    c.family = .map
+                    c.orientation = .portrait
+                    c.mapStyle = style
+                    c.mapLayout = .nameplate
+                    c.heroMetric = .time
+                    c.dataSlots = [.distance, .pace] + (run.finishPlace.isEmpty ? [] : [.finish])
+                    c.showStatLabels = true
+                    c.font = .editorial
+                    c.dataFont = .modern
+                    c.mapInset = true
+                    let e = style.edition
+                    c.groundColor = e.ground
+                    c.textColor = e.ink
+                    c.routeColor = e.route
+                    c.monochrome = false
+                }
+            }
+
+            raceEdition("race-gallery", "Race Edition",
+                        "Gallery paper, Etch Blue course — the definitive record of race day.",
+                        style: .streets)
+            raceEdition("race-harbor", "Race Edition · Harbor",
+                        "Deep navy and brass — a darker commemorative edition.",
+                        style: .harbor)
+            raceEdition("race-minimal", "Race Edition · Minimal",
+                        "Only the course, result and type. Nothing else.",
+                        style: .none)
         case .summit:
             edition("trail", "Trail Journal",
                     "Terrain contours on aged paper, the route inked over.", style: .contour)

@@ -726,7 +726,23 @@ struct StudioComposition: View {
 
     /// The foot: the place, then a rule, then the figures — the shape a printed record takes.
     private var nameplateFoot: some View {
-        VStack(spacing: sp(26)) {
+        VStack(spacing: sp(isRaceResultNameplate ? 20 : 26)) {
+            if isRaceResultNameplate {
+                VStack(alignment: .leading, spacing: sp(2)) {
+                    Text(heroValue)
+                        .font(.etch(size: ts(68 * heroScale), weight: .bold, face: dataFont.face))
+                        .foregroundStyle(inkColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                    if showStatLabels {
+                        Text("FINISH TIME")
+                            .font(.etch(size: ts(13 * heroScale), weight: .semibold, face: dataFont.face))
+                            .tracking(3.5)
+                            .foregroundStyle(subtleColor)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
             if !placeLine.isEmpty {
                 Text(placeLine.uppercased())
                     .font(.etch(size: ts(22 * locationScale), weight: .semibold))
@@ -756,11 +772,16 @@ struct StudioComposition: View {
         .background(groundColor)
     }
 
-    /// Every figure the poster carries, as peers: the headline metric joins the slots in the row
-    /// rather than standing above them, because this layout has no headline slot to stand in.
+    /// Race pieces use the result as a true headline. On ordinary Nameplates every figure stays
+    /// a peer; on a race, finish time earns the visual hierarchy because the accomplishment is the
+    /// product. The supporting row stays intentionally small: distance, pace, and optional place.
+    private var isRaceResultNameplate: Bool {
+        run.isRace && heroMetric == .time
+    }
+
     private var nameplateStats: [(metric: StatMetric, value: String)] {
         var out: [(metric: StatMetric, value: String)] = []
-        if heroMetric != .none {
+        if !isRaceResultNameplate && heroMetric != .none {
             out.append((heroMetric, metricValue(heroMetric) ?? "—"))
         }
         out += resolvedStats.filter { $0.metric != .none }
