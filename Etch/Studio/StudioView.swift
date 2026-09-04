@@ -5,7 +5,7 @@ import SwiftData
 ///
 /// Two products — a **Map** poster and a **Gallery** poster — refined through three sections
 /// beneath a persistent live preview: **Design** (choose a starting point), **Content** (decide
-/// what the poster says), **Customize** (refine how it says it).
+/// what the poster says), **Personalize** (make the finished piece yours).
 ///
 /// The sections replaced Style · Text · Data · Export, which had become a settings form: every
 /// property the composition owned was exposed at the same altitude, on four flat screens, in the
@@ -14,7 +14,7 @@ import SwiftData
 /// is a handful of taps on pictures and the hundredth can still be tuned to the letter.
 ///
 /// Export stopped being a workspace and became what it always was: an action. Share and Order sit
-/// permanently under the artwork; the share *format* is a setting inside Customize, where the
+/// permanently under the artwork; the share *format* is a setting inside Personalize, where the
 /// other settings live.
 struct StudioView: View {
     let run: Run
@@ -231,7 +231,7 @@ struct StudioView: View {
         }
     }
 
-    /// Opens the editor on a named section, so CI can photograph Content and Customize — which
+    /// Opens the editor on a named section, so CI can photograph Content and Personalize — which
     /// are otherwise two taps past the screen a launch lands on. `map-studio@content` reaches
     /// them; inert without the environment variable, like the rest of the harness.
     private func applyPreviewSection() {
@@ -267,7 +267,7 @@ struct StudioView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(run.name)
                         .font(.etch(.title2, weight: .bold))
-                    Text("Made into \(picks.count) pieces. Choose one — every detail stays yours to change.")
+                    Text("Etch has composed \(picks.count) finished directions from your activity. Choose the one that feels like yours.")
                         .font(.etch(.subheadline))
                         .foregroundStyle(.secondary)
                 }
@@ -278,7 +278,7 @@ struct StudioView: View {
                         .padding(.horizontal, 24)
                 }
 
-                Text("Every piece is printed to order on archival paper — from \(PrintProduct.print.entryPrice.replacingOccurrences(of: "From ", with: ""))")
+                Text("Made for you. Printed to order on archival paper — fine-art editions from \(PrintProduct.print.entryPrice.replacingOccurrences(of: "From ", with: "")), with framing available.")
                     .font(.etch(.caption))
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity)
