@@ -721,12 +721,10 @@ struct HomeView: View {
     /// puts an account. Hairlines divide them, so the pill reads as one object with parts rather
     /// than as buttons in a tray.
     private var homePill: some View {
-        // One pane, five parts: mark · activity · totals · view · avatar. The earlier design
-        // spent the glass on the totals alone and left the rest floating on halos; five
-        // separate objects on one line read as widgets sharing a row, not as a header. One
-        // continuous pane spends the material once, hairlines divide it where meaning changes
-        // (identity | subject, controls | account), and everything inside keeps exactly the
-        // action it had — this is the same set of controls, on one piece of glass.
+        // The map is the product. The default header therefore answers only three questions:
+        // whose map is this, how much life is on it, and where is my account? Activity type and
+        // view remain fully available, but move into a single disclosure control instead of
+        // permanently occupying the map's most valuable horizontal space.
         HStack(spacing: 0) {
             wordmark
                 .padding(.leading, 15)
@@ -734,26 +732,34 @@ struct HomeView: View {
             barDivider
                 .padding(.leading, 11)
 
-            typeSelector
-                .padding(.horizontal, 9)
+            Button {
+                withAnimation(Theme.spring) {
+                    showModeMenu.toggle()
+                    showTypeMenu = false
+                }
+            } label: {
+                metricsRow
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 12)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Map summary, \(derived.shownTotalRuns.formatted()) \(effectiveScope.countNoun), \(Format.distanceValue(derived.shownTotalDistance).formatted(.number.precision(.fractionLength(0)))) \(UnitSystem.current.distanceSuffix)")
+            .accessibilityHint("Double tap to change what the map shows.")
 
-            // The totals yield first on narrow phones: they are the quietest information here,
-            // and a number a shade smaller beats a control a shade too small to hit.
-            metricsRow
-                .frame(maxWidth: .infinity)
-                .layoutPriority(-1)
-                .padding(.horizontal, 4)
-
-            viewSelector
-                .padding(.horizontal, 9)
+            Image(systemName: "chevron.down")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.secondary)
+                .rotationEffect(.degrees(showModeMenu ? 180 : 0))
+                .padding(.trailing, 10)
 
             barDivider
 
             profileButton
                 .padding(.horizontal, 10)
         }
-        .frame(height: 58)
-        .glassBackground(cornerRadius: 29)
+        .frame(height: 54)
+        .glassBackground(cornerRadius: 27)
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 18)
     }
@@ -917,9 +923,16 @@ struct HomeView: View {
         // rather than truncates: a number that reads "1,5…" is a defect, the same number a
         // shade smaller is not.
         ViewThatFits(in: .horizontal) {
-            metricsText(withNoun: true)
-            // The narrow phone's version drops the noun, never the numbers: "2,047 · 1,318 mi"
-            // is still the same fact, and the controls beside it keep their full size.
+            // Distance leads because Etch is a visual record of ground covered, not an activity
+            // counter. The activity count remains available in the compact fallback/accessibility
+            // description and throughout Timeline/Profile.
+            Text(Format.distanceValue(derived.shownTotalDistance)
+                .formatted(.number.precision(.fractionLength(0))))
+                .font(.etch(.subheadline, weight: .semibold))
+            + Text(" \(UnitSystem.current.distanceSuffix) etched")
+                .font(.etch(.subheadline))
+                .foregroundStyle(.secondary)
+
             metricsText(withNoun: false)
         }
         .accessibilityElement(children: .combine)
@@ -968,7 +981,7 @@ struct HomeView: View {
     /// the Map Type sheet. `RunFilter.Mode.allCases` supplies the first five; Places is appended.
     private var activityViewSheet: some View {
         EtchSelectionSheet(
-            title: "Activity View",
+            title: "Show on Map",
             options: activityViewOptions
         ) {
             withAnimation(Theme.spring) { showModeMenu = false }
