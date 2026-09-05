@@ -1,0 +1,16 @@
+{
+  "name": "nwagtech-site",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Northwest Ag Technologies and Verde House — marketing sites.",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build && node scripts/inline.mjs",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "devDependencies": {
+    "astro": "^7.3.1"
+  }
+}

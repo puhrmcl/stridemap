@@ -1,0 +1,112 @@
+---
+import Base from '../layouts/Base.astro';
+import VerdeLockup from '../components/VerdeLockup.astro';
+import VerdeLockupH from '../components/VerdeLockupH.astro';
+import VerdeSymbol from '../components/VerdeSymbol.astro';
+import { products } from '../data/products';
+import css from '../styles/verde.css?raw';
+
+const fonts = `<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..700&family=IBM+Plex+Mono:wght@400;500&display=swap">`;
+---
+<Base
+  title="Verde House"
+  description="A venture studio and product company in Gilbert, Arizona. We research, design, build, launch and operate digital products — ours, and yours. A subsidiary of Northwest Ag Technologies, L.L.C."
+  css={css}
+  fonts={fonts}
+  themeColor="#F4F1E9"
+>
+<nav>
+  <div class="navin">
+    <a class="navmark" href="#top" aria-label="Verde House, home"><VerdeLockupH /></a>
+    <div class="navlinks">
+      <a href="#what">What we do</a><a href="#road">How we work</a>
+      <a href="#products">Products</a><a href="#contact">Contact</a>
+    </div>
+  </div>
+</nav>
+
+<main id="top">
+  <div class="shell">
+    <header class="hero">
+      <div class="herolock"><VerdeLockup /></div>
+      <h1 class="thesis">We build our own software, and we build other people's. <em>Same standards either way.</em></h1>
+      <p class="sub">A venture studio and product company with Southwestern roots. We research,
+      design, build, launch and operate digital products — ours, and yours.</p>
+    </header>
+  </div>
+
+  <div class="shell"><section id="what">
+    <p class="eyebrow">What we do</p>
+    <div class="modes">
+      <div class="mode">
+        <h2>Our products</h2>
+        <p class="body">We start companies. StrideMap, NestEgg and Etch are ours — conceived
+        here, built here, and still operated here. Each one began as a problem we wanted
+        solved properly, and none of them was handed off to somebody else the week after
+        launch. Running our own portfolio is what keeps the studio honest: we live with
+        every decision long enough to find out whether it was a good one.</p>
+      </div>
+      <div class="mode">
+        <h2>Yours</h2>
+        <p class="body">We take founders and businesses down the same road. Research what
+        should exist, design it, build it, put it in front of real people, and stay on to
+        operate it. We work in small numbers and go deep rather than wide. A product that
+        ships and then quietly rots is not finished, so we plan for the second year before
+        we write the first line.</p>
+      </div>
+    </div>
+  </section></div>
+
+  <div class="shell"><section id="road">
+    <p class="eyebrow">How we work</p>
+    <h2 class="wide">Most of the cost in software is not the first version. It is the second year.</h2>
+    <p class="body wide" style="margin-bottom:clamp(30px,4vw,50px)">So we run a paved road:
+    a written set of defaults that every product we own or build follows, whether it is a
+    weekend tool or a company. It is the least glamorous thing about us and the reason our
+    products are still standing.</p>
+    <div class="roads"><div class="road"><span class="rn mono">01</span>
+  <div><h3>One road, not one per project</h3><p class="body">Every product is stamped from the same template and runs the same stack — one repo, one documented set of hosts, one release process. Nothing boring gets decided twice, and anyone who has worked on one of our products can work on all of them.</p></div></div><div class="road"><span class="rn mono">02</span>
+  <div><h3>Documentation written at build time</h3><p class="body">Every product ships the same set before it ships anything else: a README that actually gets you running, a privacy policy, an architecture note, a changelog in plain English, and a configuration contract listing every environment variable. Not requested later, when nobody remembers.</p></div></div><div class="road"><span class="rn mono">03</span>
+  <div><h3>Secrets stay out of the repository</h3><p class="body">Public identifiers can ship in a binary. Everything else sits behind a proxy we control, with real values held by the host and never committed. It is the difference between a product you can hand over and one you have to babysit.</p></div></div><div class="road"><span class="rn mono">04</span>
+  <div><h3>A maintenance rhythm, on the calendar</h3><p class="body">Dependencies reviewed monthly. A compatibility pass with every OS release. A portfolio view that says what is live, what is stale, and what needs a decision. Software rots quietly; the fix is a schedule, not good intentions.</p></div></div></div>
+  </section></div>
+
+  <div class="shell"><section id="products">
+    <p class="eyebrow">Products</p>
+    <div class="prods">
+      {products.map((p) => (
+        <article class={p.needsCopy ? 'prod slot' : 'prod'}>
+          <div class="phead"><h3>{p.name}</h3><span class="mono tag">{p.status}</span></div>
+          <p class="body" set:html={p.body} />
+          <p class="mono stack">{p.stack}</p>
+          {p.needsCopy && <p class="mono needs">Needs a line from you</p>}
+        </article>
+      ))}
+    </div>
+  </section></div>
+
+  <div class="shell"><section id="contact">
+    <p class="eyebrow">Contact</p>
+    <div class="contact">
+      <div>
+        <h2>We take on a small number of outside projects.</h2>
+        <p class="body">If you have something in mind, write to us. A paragraph about the
+        problem is plenty to start — we would rather hear what is broken than read a
+        specification.</p>
+      </div>
+      <div><a class="mail" href="mailto:software@nwagtech.com">software@nwagtech.com</a>
+        <p class="body" style="margin-top:18px">Gilbert, Arizona<br>
+        A subsidiary of Northwest Ag Technologies, L.L.C.</p></div>
+    </div>
+  </section></div>
+
+  <div class="shell"><footer>
+    <div class="fmark"><VerdeSymbol /></div>
+    <p class="fmeta">Verde House is the software studio of<br>
+      <a href="/">Northwest Ag Technologies, L.L.C.</a><br>
+      © 2026 Northwest Ag Technologies, L.L.C.</p>
+  </footer></div>
+</main>
+</Base>

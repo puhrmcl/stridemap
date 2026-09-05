@@ -1,0 +1,32 @@
+---
+/** Shared shell. CSS is inlined at build time — the whole site is ~7 KB of styles,
+ *  so one request beats a render-blocking stylesheet. */
+export interface Props {
+  title: string;
+  description: string;
+  css: string;
+  fonts: string;
+  themeColor?: string;
+}
+const { title, description, css, fonts, themeColor = '#F7F6F1' } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content={themeColor} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
+    <Fragment set:html={fonts} />
+    <style is:global set:html={css}></style>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>
