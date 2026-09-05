@@ -82,20 +82,31 @@ struct StudioContentEditor: View {
             textRow(.title, show: $config.showTitle, text: $config.title, placeholder: run.name)
             textRow(.location, show: $config.showLocation, text: $config.location,
                     placeholder: derivedPlace)
-            // The Gallery masthead carries only a title and a place — no date line — so the row is
-            // offered where the composition can actually draw it.
-            if config.family == .map {
-                textRow(.date, show: $config.showDate, text: $config.date,
-                        placeholder: Format.date(run.startDate))
-            }
+            textRow(.date, show: $config.showDate, text: $config.date,
+                    placeholder: Format.date(run.startDate))
 
             // Whose miles these are. A line, not a signature block: name (and the pinned number,
             // when the race carries one) set a register under the place and date.
             textRow(.athlete, show: $config.showAthlete, text: $config.athleteName,
-                    placeholder: "Your name")
-            if config.showAthlete && !run.bibNumber.isEmpty {
-                Toggle("Show bib \(run.bibNumber)", isOn: $config.showBib)
-                    .font(.etch(.subheadline))
+                    placeholder: "Tap to add name")
+            if !run.bibNumber.isEmpty {
+                HStack(spacing: 12) {
+                    Image(systemName: "number")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(config.showBib ? Theme.accent : Color.secondary.opacity(0.5))
+                        .frame(width: 22)
+                    Text("Bib number")
+                        .font(.etch(.subheadline))
+                    Spacer(minLength: 8)
+                    Text(run.bibNumber)
+                        .font(.etch(.subheadline))
+                        .foregroundStyle(.secondary)
+                    Toggle("", isOn: $config.showBib)
+                        .labelsHidden()
+                        .tint(Theme.accent)
+                        .scaleEffect(0.85)
+                }
+                .padding(.vertical, 7)
             }
 
             // The headline metric is a text line as far as the reader is concerned: it is the
@@ -288,7 +299,31 @@ struct StudioContentEditor: View {
     /// What each Gallery frame shows. Content, not style: the frames are the poster's subject
     /// matter, which is why they moved out of the old Style tab.
     private var frames: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
+            StudioGroupLabel(text: "Photo layout")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(GalleryDesign.allCases) { design in
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) { config.galleryDesign = design }
+                        } label: {
+                            VStack(spacing: 5) {
+                                Image(systemName: design.icon)
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text(galleryDesignName(design))
+                                    .font(.etch(size: 10, weight: .semibold))
+                                    .lineLimit(1)
+                            }
+                            .foregroundStyle(config.galleryDesign == design ? Color.white : Theme.accent)
+                            .frame(width: 82, height: 52)
+                            .background(config.galleryDesign == design ? Theme.accent : Theme.accent.opacity(0.10),
+                                        in: .rect(cornerRadius: 10))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
             StudioGroupLabel(text: "Frames")
             HStack(spacing: 8) {
                 ForEach(0..<config.galleryDesign.frameCount, id: \.self) { i in
@@ -318,6 +353,18 @@ struct StudioContentEditor: View {
                 }
             }
             addPhotoButton
+        }
+    }
+
+    private func galleryDesignName(_ design: GalleryDesign) -> String {
+        switch design {
+        case .portfolio:    return "Hero"
+        case .duo:          return "Duo"
+        case .duoWide:      return "Stack"
+        case .triptych:     return "Gallery"
+        case .triptychWide: return "Strip"
+        case .grid:         return "Grid"
+        case .feature:      return "Feature"
         }
     }
 
