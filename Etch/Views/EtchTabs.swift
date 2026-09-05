@@ -29,7 +29,7 @@ enum EtchTab: String, Hashable, CaseIterable, Identifiable {
         switch self {
         case .map:          return "Map"
         case .timeline:     return "Timeline"
-        case .achievements: return "Achievements"
+        case .achievements: return "Milestones"
         case .studio:       return "Studio"
         case .bag:          return "Bag"
         case .search:       return "Search"
@@ -85,7 +85,7 @@ enum EtchTab: String, Hashable, CaseIterable, Identifiable {
         switch self {
         case .map:          return "Search places and activities"
         case .timeline:     return "Search your activities"
-        case .achievements: return "Search your records"
+        case .achievements: return "Search your milestones"
         case .studio:       return "Search products and sizes"
         case .bag:          return "Search your orders"
         case .search:       return "Search"
