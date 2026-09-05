@@ -20,6 +20,8 @@ struct MeaningEngine {
         case newPlace
         case distanceMilestone
         case anniversary
+        case returnToPlace
+        case enduringPlace
     }
 
     enum Emotion: String, Hashable {
@@ -27,6 +29,7 @@ struct MeaningEngine {
         case discovery
         case perseverance
         case nostalgia
+        case belonging
     }
 
     /// What missing history is allowed to do to a claim.
@@ -123,6 +126,7 @@ struct MeaningEngine {
         candidates += placeFirsts()
         candidates += cumulativeDistanceMoments()
         candidates += anniversaries()
+        candidates += placeRelationshipMoments()
 
         // One activity can be meaningful for several reasons. Keep distinct stories, but avoid
         // repeating the exact same claim if multiple detectors reach it.
@@ -133,7 +137,8 @@ struct MeaningEngine {
         }
 
         return Array(unique.sorted {
-            if $0.significance != $1.significance { return $0.significance > $1.significance }
+            let lhs = rankingScore($0), rhs = rankingScore($1)
+            if lhs != rhs { return lhs > rhs }
             return ($0.run?.startDate ?? .distantPast) > ($1.run?.startDate ?? .distantPast)
         }.prefix(limit))
     }
@@ -279,6 +284,112 @@ struct MeaningEngine {
             }
         }
         return out
+    }
+
+    // MARK: - Personal significance & place relationships
+
+    /// A compact geographic cell (~1 km north/south at mid-latitudes). This deliberately
+    /// describes repeated ground, not "home" or another inferred life fact.
+    private struct PlaceCell: Hashable {
+        let lat: Int
+        let lon: Int
+
+        init(latitude: Double, longitude: Double) {
+            lat = Int((latitude * 100).rounded())
+            lon = Int((longitude * 100).rounded())
+        }
+    }
+
+    private func placeRelationshipMoments() -> [Insight] {
+        let located = chronological.compactMap { run -> (Run, PlaceCell)? in
+            guard let coordinate = run.startCoordinate else { return nil }
+            return (run, PlaceCell(latitude: coordinate.latitude, longitude: coordinate.longitude))
+        }
+        guard located.count >= 8 else { return [] }
+
+        let groups = Dictionary(grouping: located, by: { $0.1 })
+        let sorted = groups.values.sorted { $0.count > $1.count }
+        guard let strongest = sorted.first, strongest.count >= 5 else { return [] }
+
+        var out: [Insight] = []
+        let placeRuns = strongest.map(\.0).sorted { $0.startDate < $1.startDate }
+        guard let first = placeRuns.first, let latest = placeRuns.last else { return [] }
+
+        let spanDays = max(0, calendar.dateComponents([.day], from: first.startDate, to: latest.startDate).day ?? 0)
+        let totalDistance = placeRuns.reduce(0.0) { $0 + $1.distance }
+        let share = Double(placeRuns.count) / Double(located.count)
+
+        // Repetition over time is more meaningful than raw frequency. A cluster of five runs in
+        // one week is routine; returning across seasons/years is a relationship with place.
+        if placeRuns.count >= 12 && spanDays >= 180 {
+            let years = Double(spanDays) / 365.25
+            let spanText = years >= 1.5
+                ? "\(Int(years.rounded())) years"
+                : "\(max(1, Int((Double(spanDays) / 30.4).rounded()))) months"
+            let title = share >= 0.20 ? "The ground you return to" : "A place that stayed"
+            out.append(Insight(
+                kind: .enduringPlace, emotion: .belonging,
+                title: title,
+                story: "\(placeRuns.count) activities across \(spanText), covering \(Format.distance(totalDistance)).",
+                symbol: "point.topleft.down.to.point.bottomright.curvepath",
+                run: latest,
+                significance: personalSignificance(base: 72, rarity: min(1, years / 5), repetition: min(1, Double(placeRuns.count) / 50)),
+                confidence: Confidence(0.97, reasons: [
+                    "\(placeRuns.count) located activities begin in the same ~1 km area",
+                    "Observed across \(spanDays) days"
+                ]),
+                claimWorld: .closed,
+                evidence: [
+                    "\(placeRuns.count) repeated starts in the same geographic cell",
+                    "\(Format.distance(totalDistance)) recorded from this area",
+                    "\(Int((share * 100).rounded()))% of located activities"
+                ]
+            ))
+        }
+
+        // A return after a long absence can carry nostalgia without guessing why the user left.
+        var previous = placeRuns.first
+        for run in placeRuns.dropFirst() {
+            guard let prior = previous else { break }
+            let gap = calendar.dateComponents([.day], from: prior.startDate, to: run.startDate).day ?? 0
+            if gap >= 365 {
+                let years = max(1, Int((Double(gap) / 365.25).rounded()))
+                out.append(Insight(
+                    kind: .returnToPlace, emotion: .nostalgia,
+                    title: "You came back",
+                    story: "\(years) \(years == 1 ? "year" : "years") after your previous recorded activity here, this place appeared on your map again.",
+                    symbol: "arrow.uturn.backward.circle", run: run,
+                    significance: personalSignificance(base: 70, rarity: min(1, Double(gap) / 1_825), repetition: min(1, Double(placeRuns.count) / 30)),
+                    confidence: Confidence(0.96, reasons: [
+                        "Both activities have recorded start coordinates",
+                        "\(gap)-day observed gap between activities in the same ~1 km area"
+                    ]),
+                    claimWorld: .closed,
+                    evidence: [
+                        "Previous recorded activity here: \(prior.startDate.formatted(date: .abbreviated, time: .omitted))",
+                        "Return: \(run.startDate.formatted(date: .abbreviated, time: .omitted))"
+                    ]
+                ))
+            }
+            previous = run
+        }
+        return out
+    }
+
+    /// V2B starts replacing universal hard-coded importance with personal context.
+    /// Rarity = how unusual the pattern is in this person's history.
+    /// Repetition = accumulated evidence that it is a durable part of their story.
+    private func personalSignificance(base: Int, rarity: Double, repetition: Double) -> Int {
+        let rarityLift = 12.0 * min(1, max(0, rarity))
+        let repetitionLift = 12.0 * min(1, max(0, repetition))
+        return min(100, max(0, base + Int((rarityLift + repetitionLift).rounded())))
+    }
+
+    private func rankingScore(_ insight: Insight) -> Double {
+        // Confidence is a gate/discount, not a proxy for importance. High-confidence ordinary
+        // facts should not automatically outrank rare, meaningful moments.
+        let confidenceFactor = 0.55 + (0.45 * insight.confidence.value)
+        return Double(insight.significance) * confidenceFactor
     }
 
     // MARK: - Time
