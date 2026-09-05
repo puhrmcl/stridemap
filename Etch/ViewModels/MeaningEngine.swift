@@ -29,6 +29,35 @@ struct MeaningEngine {
         case nostalgia
     }
 
+    /// What missing history is allowed to do to a claim.
+    enum ClaimWorld: String, Hashable {
+        /// Missing data cannot falsify the claim because the record itself is the subject.
+        case closed
+        /// Missing data can only make the quantity larger (for example, "at least 10 states").
+        case floor
+        /// Missing data could falsify the claim (for example, "your first marathon").
+        case open
+    }
+
+    enum ConfidenceBand: String, Hashable {
+        case high
+        case medium
+        case low
+    }
+
+    struct Confidence: Hashable {
+        let value: Double
+        let band: ConfidenceBand
+        let reasons: [String]
+
+        init(_ value: Double, reasons: [String]) {
+            let clamped = min(1, max(0, value))
+            self.value = clamped
+            self.band = clamped >= 0.82 ? .high : (clamped >= 0.55 ? .medium : .low)
+            self.reasons = reasons
+        }
+    }
+
     struct Insight: Identifiable {
         let kind: Kind
         let emotion: Emotion
@@ -38,29 +67,58 @@ struct MeaningEngine {
         let run: Run?
         /// 0...100. Used to rank, never shown as a gamified score.
         let significance: Int
+        let confidence: Confidence
+        let claimWorld: ClaimWorld
         let evidence: [String]
 
+        /// Identity is structural. Copy changes must never orphan user feedback.
         var id: String {
-            "\(kind.rawValue)-\(run?.id.uuidString ?? title)-\(title)"
+            "\(kind.rawValue)-\(run?.id.uuidString ?? "history")-\(claimWorld.rawValue)"
         }
     }
 
     private let runs: [Run]
     private let chronological: [Run]
     private let calendar: Calendar
+    private let referenceDate: Date
 
-    init(runs: [Run], calendar: Calendar = .current) {
+    init(runs: [Run], calendar: Calendar = .current, referenceDate: Date = Date()) {
         self.runs = runs.filter { !$0.isHidden && !$0.excludedFromTotals }
         self.chronological = self.runs.sorted { $0.startDate < $1.startDate }
         self.calendar = calendar
+        self.referenceDate = referenceDate
     }
+
+    /// Confidence that the imported record is broad enough to support an open-world claim.
+    /// A bulk backfill is useful history, but it is not proof that the earliest imported event
+    /// was the first event in the person's life.
+    private func openWorldConfidence(for run: Run) -> Confidence {
+        let ageAtImport = max(0, run.importedAt.timeIntervalSince(run.startDate))
+        let witnessed = ageAtImport <= 7 * 86_400
+        let horizon = chronological.first?.startDate ?? run.startDate
+        let yearsFromHorizon = max(0, calendar.dateComponents([.day], from: horizon, to: run.startDate).day ?? 0) / 365
+
+        var score = witnessed ? 0.78 : 0.34
+        var reasons = [witnessed ? "Activity imported close to when it happened" : "Activity appears to be historical/backfilled data"]
+        if yearsFromHorizon >= 2 {
+            score += 0.12
+            reasons.append("Claim occurs well after the beginning of the imported history")
+        } else {
+            reasons.append("Claim is close to the beginning of the imported history")
+        }
+        return Confidence(score, reasons: reasons)
+    }
+
+    private let closedWorldConfidence = Confidence(0.99, reasons: ["Claim is fully supported by the imported Etch record"])
+
 
     /// The strongest moments in this history, deduplicated and ranked.
     func insights(limit: Int = 12) -> [Insight] {
         guard !chronological.isEmpty else { return [] }
         var candidates: [Insight] = []
         candidates += firsts()
-        candidates += raceMoments()
+        // Race enumeration is intentionally not a meaning signal. A numbered list of finishes
+        // is inventory, not interpretation.
         candidates += recordMoments()
         candidates += placeFirsts()
         candidates += cumulativeDistanceMoments()
@@ -94,11 +152,12 @@ struct MeaningEngine {
             let noun = first.activityType.detailLabel
             out.append(Insight(
                 kind: .first, emotion: .nostalgia,
-                title: "Where your \(noun.lowercased()) story begins",
+                title: "Where your Etch record begins",
                 story: first.placeLabel.isEmpty
-                    ? "Your first \(noun.lowercased()) in Etch."
-                    : "Your first \(noun.lowercased()) in Etch began in \(first.placeLabel).",
+                    ? "The earliest \(noun.lowercased()) in your Etch history."
+                    : "The earliest \(noun.lowercased()) in your Etch history is in \(first.placeLabel).",
                 symbol: "sparkles", run: first, significance: 62,
+                confidence: openWorldConfidence(for: first), claimWorld: .open,
                 evidence: ["Earliest \(noun.lowercased()) in imported history"]
             ))
         }
@@ -106,9 +165,10 @@ struct MeaningEngine {
         if let firstRace = chronological.first(where: { $0.isRace }) {
             out.append(Insight(
                 kind: .first, emotion: .pride,
-                title: "Your first race",
-                story: placeStory(prefix: "This is where your race history begins", run: firstRace),
+                title: "Your earliest race in Etch",
+                story: placeStory(prefix: "This is the earliest race in your imported Etch history", run: firstRace),
                 symbol: "flag.checkered", run: firstRace, significance: 88,
+                confidence: openWorldConfidence(for: firstRace), claimWorld: .open,
                 evidence: ["Earliest activity marked as a race"]
             ))
         }
@@ -116,26 +176,6 @@ struct MeaningEngine {
     }
 
     // MARK: - Race & records
-
-    private func raceMoments() -> [Insight] {
-        let races = chronological.filter(\.isRace)
-        guard !races.isEmpty else { return [] }
-        var out: [Insight] = []
-
-        for (index, race) in races.enumerated() {
-            if index > 0 {
-                out.append(Insight(
-                    kind: .race, emotion: .pride,
-                    title: "Race \(index + 1)",
-                    story: placeStory(prefix: "Another finish added to your story", run: race),
-                    symbol: "flag.checkered", run: race,
-                    significance: min(82, 68 + index * 2),
-                    evidence: ["\(index + 1)th race chronologically"]
-                ))
-            }
-        }
-        return out
-    }
 
     private func recordMoments() -> [Insight] {
         let stats = RunStatistics(runs)
@@ -147,6 +187,7 @@ struct MeaningEngine {
                 title: "Your furthest effort",
                 story: "\(Format.distance(run.distance)) — farther than any other activity in this history.",
                 symbol: "arrow.left.and.right", run: run, significance: 86,
+                confidence: closedWorldConfidence, claimWorld: .closed,
                 evidence: ["Maximum distance in history"]
             ))
         }
@@ -156,6 +197,7 @@ struct MeaningEngine {
                 title: "Your biggest climb",
                 story: "\(Format.elevation(run.elevationGain)) of climbing — your highest recorded ascent.",
                 symbol: "mountain.2", run: run, significance: 80,
+                confidence: closedWorldConfidence, claimWorld: .closed,
                 evidence: ["Maximum elevation gain in history"]
             ))
         }
@@ -168,6 +210,7 @@ struct MeaningEngine {
                 story: "\(Format.duration(pr.time)) · \(Format.pace(secondsPerKm: pr.run.paceSecondsPerKm)) pace.",
                 symbol: "stopwatch.fill", run: pr.run,
                 significance: isRace ? 96 : 90,
+                confidence: closedWorldConfidence, claimWorld: .closed,
                 evidence: ["Fastest qualifying \(pr.label) in history"]
             ))
         }
@@ -188,10 +231,11 @@ struct MeaningEngine {
                 if seenCountries.count > 1 {
                     out.append(Insight(
                         kind: .newPlace, emotion: .discovery,
-                        title: "A new country etched",
-                        story: "\(country) became part of your map.",
-                        symbol: "globe.americas.fill", run: run, significance: 88,
-                        evidence: ["First located activity in \(country)"]
+                        title: "\(country), in your Etch history",
+                        story: "This is the earliest \(country) activity currently in your Etch record.",
+                        symbol: "globe.americas.fill", run: run, significance: 72,
+                        confidence: openWorldConfidence(for: run), claimWorld: .open,
+                        evidence: ["Earliest located activity in \(country) within imported history"]
                     ))
                 }
             }
@@ -199,10 +243,11 @@ struct MeaningEngine {
                seenStates.insert(state).inserted, seenStates.count > 1 {
                 out.append(Insight(
                     kind: .newPlace, emotion: .discovery,
-                    title: "A new state etched",
-                    story: "\(state) became part of your map.",
-                    symbol: "map.fill", run: run, significance: 76,
-                    evidence: ["First located activity in \(state)"]
+                    title: "\(state), in your Etch history",
+                    story: "This is the earliest \(state) activity currently in your Etch record.",
+                    symbol: "map.fill", run: run, significance: 66,
+                    confidence: openWorldConfidence(for: run), claimWorld: .open,
+                    evidence: ["Earliest located activity in \(state) within imported history"]
                 ))
             }
         }
@@ -228,6 +273,7 @@ struct MeaningEngine {
                     story: "This activity carried your recorded history past \(km.formatted()) kilometres.",
                     symbol: "point.topleft.down.to.point.bottomright.curvepath.fill",
                     run: run, significance: min(92, 66 + Int(log10(Double(km))) * 8),
+                    confidence: closedWorldConfidence, claimWorld: .floor,
                     evidence: ["Cumulative distance crossed \(km) km"]
                 ))
             }
@@ -239,14 +285,15 @@ struct MeaningEngine {
 
     private func anniversaries() -> [Insight] {
         guard let first = chronological.first else { return [] }
-        let years = calendar.dateComponents([.year], from: first.startDate, to: Date()).year ?? 0
+        let years = calendar.dateComponents([.year], from: first.startDate, to: referenceDate).year ?? 0
         guard years >= 1 else { return [] }
 
         return [Insight(
             kind: .anniversary, emotion: .nostalgia,
             title: "\(years) \(years == 1 ? "year" : "years") in motion",
             story: "Your Etch history reaches back to \(first.startDate.formatted(date: .abbreviated, time: .omitted)).",
-            symbol: "clock.arrow.circlepath", run: first, significance: min(90, 68 + years * 3),
+            symbol: "clock.arrow.circlepath", run: first, significance: min(78, 60 + years * 2),
+            confidence: closedWorldConfidence, claimWorld: .closed,
             evidence: ["Elapsed years since earliest imported activity"]
         )]
     }
