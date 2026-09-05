@@ -171,7 +171,7 @@ struct HighlightsView: View {
                 }
                 // The one place this page's data is built. Everything else reads values.
                 .onChange(of: derivedKey, initial: true) { _, _ in rebuildDerived() }
-                .navigationTitle("Achievements")
+                .navigationTitle("Milestones")
                 .navigationDestination(item: $pushedRun) { run in
                     RunDetailView(run: run)
                 }
@@ -182,7 +182,7 @@ struct HighlightsView: View {
                 .safeAreaInset(edge: .top, spacing: 0) {
                     VStack(spacing: 8) {
                         if embedded {
-                            EtchPageHeader("Achievements")
+                            EtchPageHeader("Milestones", subtitle: "What mattered.")
                         }
                         EtchFilterChip(filter: appModel.filter) {
                             appModel.setFilter(RunFilter())
@@ -273,7 +273,7 @@ struct HighlightsView: View {
 
     private var reachSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Your reach")
+            Text("Places you’ve etched")
                 .font(.etch(.title2, weight: .bold))
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
@@ -374,7 +374,7 @@ struct HighlightsView: View {
     private var breakdownSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                Text("Your activities")
+                Text("Your movement")
                     .font(.etch(.title3, weight: .bold))
                 Spacer()
                 Text("Tap to explore")
@@ -437,7 +437,7 @@ struct HighlightsView: View {
 
     private var superlativesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Records")
+            Text("Standout moments")
                 .font(.etch(.title3, weight: .bold))
 
             // Rendered from `stats.records(usesPace:)` rather than composed here, so the records
@@ -469,7 +469,7 @@ struct HighlightsView: View {
         let bests = records.filter { $0.group == .personalBest }
         if !bests.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Personal Bests")
+                Text("Personal bests")
                     .font(.etch(.title3, weight: .bold))
 
                 ForEach(bests) { pr in
@@ -484,7 +484,7 @@ struct HighlightsView: View {
 
     private var recapsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Year in Review")
+            Text("Your years")
                 .font(.etch(.title3, weight: .bold))
 
             ForEach(derived.years, id: \.self) { year in
