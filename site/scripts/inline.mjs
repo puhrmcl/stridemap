@@ -22,6 +22,7 @@ const web = resolve(here, '../../web');
 const routes = [
   { from: `${dist}/index.html`, to: `${web}/nwagtech/index.html`, name: 'Northwest Ag Technologies' },
   { from: `${dist}/verde-house/index.html`, to: `${web}/index.html`, name: 'Verde House' },
+  { from: `${dist}/soil-sampling/index.html`, to: `${web}/soil-sampling/index.html`, name: 'Contract Soil Sampling' },
 ];
 
 for (const { from, to, name } of routes) {

@@ -1,0 +1,100 @@
+/* Northwest Ag Technologies — parent company.
+   Deliberately quieter than the operating companies' pages. The display italic
+   appears only in the logo; this page speaks in the body serif. */
+:root{
+  --paper:#F7F6F1; --surface:#FFFFFF; --ink:#2A2C28; --soft:#6E7068;
+  --green:#386E0D; --hair:#2A2C281F; --hair-2:#2A2C2833; --band:#EFEEE7;
+  --d:"Archivo",-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --b:"Newsreader",Georgia,"Times New Roman",serif;
+  --gut:clamp(20px,5vw,72px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#1B1E19; --surface:#232720; --ink:#E9E7DE; --soft:#9AA095;
+  --green:#8FBE4A; --hair:#E9E7DE1F; --hair-2:#E9E7DE33; --band:#212520;
+}}
+:root[data-theme="dark"]{
+  --paper:#1B1E19; --surface:#232720; --ink:#E9E7DE; --soft:#9AA095;
+  --green:#8FBE4A; --hair:#E9E7DE1F; --hair-2:#E9E7DE33; --band:#212520;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--b);
+  font-size:17px;line-height:1.66;-webkit-font-smoothing:antialiased}
+p{margin:0} a{color:inherit}
+:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+.shell{max-width:1000px;margin:0 auto;padding-inline:var(--gut)}
+.label{font-family:var(--d);font-variation-settings:"wdth" 88,"wght" 600;
+  font-size:11px;letter-spacing:.17em;text-transform:uppercase;color:var(--green)}
+.body{font-size:16.5px;line-height:1.7;color:var(--soft);max-width:62ch}
+
+nav{border-bottom:1px solid var(--hair);background:var(--paper);position:sticky;top:0;z-index:10}
+.navin{display:flex;align-items:center;justify-content:space-between;gap:20px;padding-block:15px;
+  max-width:1000px;margin:0 auto;padding-inline:var(--gut)}
+.navmark{display:block;width:clamp(160px,20vw,205px)}
+.nwlogo{width:100%;height:auto;display:block}
+.nwlogo .ic{fill:var(--green)} .nwlogo .wd{fill:var(--ink)}
+.nwicon{width:100%;height:auto;display:block;color:var(--green)}
+.navlinks{display:none;gap:24px}
+@media(min-width:820px){.navlinks{display:flex}}
+.navlinks a{font-family:var(--d);font-size:11.5px;letter-spacing:.13em;text-transform:uppercase;
+  font-variation-settings:"wdth" 88,"wght" 600;text-decoration:none;color:var(--soft);
+  padding-bottom:3px;border-bottom:2px solid transparent}
+.navlinks a:hover{color:var(--ink);border-bottom-color:var(--green)}
+
+.hero{padding-block:clamp(52px,9vw,110px) clamp(38px,6vw,72px)}
+h1{font-family:var(--b);font-weight:400;font-size:clamp(27px,4vw,46px);line-height:1.2;
+  letter-spacing:-.012em;margin:20px 0 0;max-width:21ch;text-wrap:balance}
+.lede{margin-top:clamp(20px,3vw,30px);max-width:60ch;font-size:clamp(16.5px,1.6vw,19px);
+  line-height:1.62;color:var(--soft)}
+
+section{padding-block:clamp(44px,6.5vw,84px);border-top:1px solid var(--hair)}
+h2{font-family:var(--b);font-weight:400;font-size:clamp(21px,2.6vw,31px);line-height:1.24;
+  margin:14px 0 14px;max-width:26ch;letter-spacing:-.008em;text-wrap:balance}
+.sechead{margin-bottom:clamp(26px,3.6vw,42px)}
+
+/* org chart */
+.org{width:100%;height:auto;display:block;max-width:900px;margin:0 auto}
+.org .rule line{stroke:var(--hair-2);stroke-width:1.5}
+.org rect{fill:var(--surface);stroke:var(--hair-2);stroke-width:1.5}
+.org .parent rect{fill:var(--band);stroke:var(--green);stroke-width:2}
+.org .pending rect{stroke-dasharray:5 5;fill:none}
+.org text{font-family:var(--d);text-anchor:middle;fill:var(--ink)}
+.org .nm{font-variation-settings:"wdth" 92,"wght" 600;font-size:15px}
+.org .sub{font-variation-settings:"wdth" 92,"wght" 400;font-size:12px;fill:var(--soft)}
+.org .pending .nm{fill:var(--soft)}
+.chartwrap{overflow-x:auto;padding-block:8px}
+
+/* tables */
+table{border-collapse:collapse;width:100%;font-size:15.5px;margin-top:6px}
+caption{text-align:left;font-family:var(--d);font-size:11px;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--soft);padding-bottom:12px}
+th,td{text-align:left;padding:12px 16px 12px 0;border-bottom:1px solid var(--hair);
+  vertical-align:top}
+thead th{font-family:var(--d);font-variation-settings:"wdth" 90,"wght" 600;font-size:11px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--soft);padding-bottom:9px}
+td.nm{white-space:nowrap}
+td.nm a{text-decoration:none;border-bottom:1px solid var(--hair-2)}
+td.nm a:hover{color:var(--green);border-bottom-color:var(--green)}
+.st{font-family:var(--d);font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;
+  font-variation-settings:"wdth" 90,"wght" 600;white-space:nowrap}
+.st.op{color:var(--green)} .st.ev{color:var(--soft)} .st.di{color:var(--soft);opacity:.75}
+td .note{display:block;font-size:14px;color:var(--soft);margin-top:5px;max-width:52ch}
+
+/* definition block */
+dl.facts{display:grid;gap:0;margin:0}
+@media(min-width:640px){dl.facts{grid-template-columns:minmax(0,22ch) minmax(0,1fr)}}
+dl.facts dt{font-family:var(--d);font-size:11px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--soft);padding:13px 0 4px;font-variation-settings:"wdth" 90,"wght" 600}
+dl.facts dd{margin:0;padding:0 0 13px;border-bottom:1px solid var(--hair)}
+@media(min-width:640px){dl.facts dt{padding:13px 0;border-bottom:1px solid var(--hair)}}
+dd a{text-decoration:none;border-bottom:1px solid var(--hair-2)}
+dd a:hover{color:var(--green);border-bottom-color:var(--green)}
+.slot{color:var(--soft);font-style:italic}
+.slot::after{content:" — not published until confirmed";font-style:normal;font-size:13px;
+  font-family:var(--d);letter-spacing:.06em;opacity:.8}
+
+footer{border-top:1px solid var(--hair);padding-block:clamp(30px,4vw,50px);
+  display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:flex-end}
+.fmark{width:48px;opacity:.9}
+.fmeta{font-size:13.5px;color:var(--soft);text-align:right;line-height:1.85}

@@ -2,119 +2,131 @@
 import Base from '../layouts/Base.astro';
 import NwatLockup from '../components/NwatLockup.astro';
 import NwatIcon from '../components/NwatIcon.astro';
-import VerdeSymbol from '../components/VerdeSymbol.astro';
-import { companies } from '../data/companies';
-import css from '../styles/nwat.css?raw';
+import OrgChart from '../components/OrgChart.astro';
+import { subsidiaries, former, corporate } from '../data/entities';
+import css from '../styles/corporate.css?raw';
 
 const fonts = `<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,75..100,400..700;1,75..100,600..700&family=Newsreader:opsz,wght@6..72,300..600&display=swap">`;
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..700&family=Newsreader:opsz,wght@6..72,300..500&display=swap">`;
+
+const cls = { Operating: 'op', 'In evaluation': 'ev', Discontinued: 'di' } as const;
 ---
 <Base
   title="Northwest Ag Technologies"
-  description="A holding company in northwest Iowa. Verde House builds software from Gilbert, Arizona; independent contract soil sampling crews work out of Paullina, Iowa."
+  description="Northwest Ag Technologies, L.L.C. is a privately held company owning and operating businesses in agricultural services and software development."
   css={css}
   fonts={fonts}
   themeColor="#F7F6F1"
 >
 <nav><div class="navin">
-  <a class="navmark" href="#top"><NwatLockup /></a>
+  <a class="navmark" href="/"><NwatLockup /></a>
   <div class="navlinks">
-    <a href="#companies">Companies</a><a href="#sampling">Soil Sampling</a>
-    <a href="#process">How it works</a><a href="#contact">Contact</a>
+    <a href="#structure">Structure</a><a href="#companies">Companies</a>
+    <a href="#investments">Investments</a><a href="#corporate">Corporate</a>
+    <a href="#contact">Contact</a>
   </div>
 </div></nav>
 
-<main id="top">
+<main>
   <div class="shell"><header class="hero">
-    <p class="label">Paullina, Iowa &middot; Gilbert, Arizona</p>
-    <h1 class="disp">We write software. <span class="hl">We pull soil cores.</span></h1>
-    <p class="lede">Northwest Ag Technologies is a holding company in northwest Iowa.
-    Verde House, our software studio, is where most of the work sits today. Alongside it we
-    put independent sampling crews on the ground for ag businesses across the Midwest.</p>
-    <svg class="furrow" viewBox="0 0 520 74" aria-hidden="true">
-      <g fill="none" stroke="currentColor" stroke-width="2.4">
-        <path d="M0 72 C150 64 330 34 520 3"/><path d="M0 72 C170 60 350 40 520 22"/>
-        <path d="M0 72 C190 62 360 50 520 41"/><path d="M0 72 C210 66 370 60 520 58"/>
-      </g></svg>
+    <p class="label">Northwest Ag Technologies, L.L.C.</p>
+    <h1>A privately held company operating businesses in agriculture and software.</h1>
+    <p class="lede">Northwest Ag Technologies owns, operates and capitalises its subsidiaries.
+    Each one runs under its own name, serves its own customers, and is accountable for its own
+    results. The parent holds the entity, sets the standard they build to, and decides what the
+    company takes on next.</p>
   </header></div>
 
-  <div class="shell"><div class="stats">
-    <div class="stat"><b>2 businesses</b><span>software and contract sampling</span></div>
-    <div class="stat"><b>9 states</b><span>sampled, from western Iowa to Florida</span></div>
-    <div class="stat"><b>100,000+</b><span>acres covered annually</span></div>
-  </div></div>
+  <div class="shell"><section id="structure">
+    <div class="sechead"><span class="label">Structure</span>
+      <h2>One parent. Independent operating companies beneath it.</h2>
+      <p class="body">Subsidiaries are not divisions. They carry their own brands and their own
+      customer relationships, which is why a soil sampling client and a software client have no
+      reason to meet each other.</p></div>
+    <div class="chartwrap"><OrgChart /></div>
+  </section></div>
 
   <div class="shell"><section id="companies">
-    <div class="sechead"><span class="label">Our companies</span>
-      <h2 class="disp">Two businesses under one roof.</h2>
-      <p class="body">Northwest Ag Technologies, L.L.C. is the parent company. Verde House is the
-      software studio and carries most of the work today. Contract soil sampling is the original
-      business and still goes to the field every fall.</p></div>
-    <div class="arms">
-      {companies.map((c) => (
-        <div class="arm">
-          <div class="armmark">{c.mark === 'verde' ? <VerdeSymbol /> : <NwatIcon />}</div>
-          <h3>{c.name}{c.primary && <span class="pill">Primary</span>}</h3>
-          <p class="armloc">{c.office}</p>
-          <p class="body" set:html={c.body} />
-          <a class="go" href={c.href}>{c.cta} &rarr;</a>
-        </div>
-      ))}
-    </div>
+    <div class="sechead"><span class="label">Operating companies</span>
+      <h2>What the company owns today.</h2></div>
+    <table>
+      <thead><tr><th>Company</th><th>Sector</th><th>Principal office</th><th>Status</th></tr></thead>
+      <tbody>
+        {subsidiaries.map((s) => (
+          <tr>
+            <td class="nm">{s.href ? <a href={s.href}>{s.name}</a> : s.name}
+              {s.note && <span class="note">{s.note}</span>}</td>
+            <td>{s.sector}</td>
+            <td>{s.office}</td>
+            <td><span class={`st ${cls[s.status]}`}>{s.status}</span></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+
+    <table style="margin-top:clamp(34px,4vw,52px)">
+      <caption>Former operations</caption>
+      <thead><tr><th>Business</th><th>Sector</th><th>Principal office</th><th>Status</th></tr></thead>
+      <tbody>
+        {former.map((s) => (
+          <tr>
+            <td class="nm">{s.name}{s.note && <span class="note">{s.note}</span>}</td>
+            <td>{s.sector}</td>
+            <td>{s.office}</td>
+            <td><span class={`st ${cls[s.status]}`}>{s.status}</span></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   </section></div>
 
-  <div class="shell"><section id="sampling">
-    <div class="sechead">
-      <span class="label">Contract soil sampling</span>
-      <h2 class="disp">Crews for hire, when the acres outrun the people.</h2>
-      <p class="body">Cooperatives, custom applicators, farm management companies and agronomy
-      centers hire us for one thing: sampling labor they can count on through the fall rush.
-      We are independent — no product line, no agronomy program of our own to protect — so
-      putting our crews on your acres doesn't put anything else on your growers.</p>
-    </div>
-    <div class="duo">
-      <div><h3>Who we sample for</h3><ul><li>Cooperatives</li><li>Custom applicators</li><li>Farm management companies</li><li>Agronomy centers</li><li>Independent growers</li></ul></div>
-      <div><h3>Where we work</h3><ul class="two"><li>Iowa</li><li>Minnesota</li><li>South Dakota</li><li>North Dakota</li><li>Missouri</li><li>Arkansas</li><li>Oklahoma</li><li>Texas</li><li>Florida</li></ul></div>
-    </div>
+  <div class="shell"><section id="investments">
+    <div class="sechead"><span class="label">Investments</span>
+      <h2>Interests held outside the operating companies.</h2>
+      <p class="body">Where Northwest Ag Technologies holds a position in a business it does
+      not operate, it is listed here, subject to what the counterparty permits us to disclose.</p></div>
+    <dl class="facts">
+      <dt>Current holdings</dt>
+      <dd><span class="slot">To be listed</span></dd>
+      <dt>Investment enquiries</dt>
+      <dd><a href={`mailto:${corporate.general}`}>{corporate.general}</a></dd>
+    </dl>
   </section></div>
 
-  <div class="shell"><section id="process">
-    <div class="sechead"><span class="label">How it works</span>
-      <h2 class="disp">We supply the labor. The program stays yours.</h2>
-      <p class="body">Contract sampling is all we do on the ag side now — crews, not
-      consulting. You keep the protocol, the lab relationship and the recommendations.
-      We put trained people on the acres in the window you have.</p></div>
-    <ol class="steps"><li class="step"><span class="sn">1</span>
-  <div><h3>Your program</h3><p class="body">You set the protocol — density, depth, zones or grid, the lab it goes to. We don't change it and we don't second-guess it.</p></div></li><li class="step"><span class="sn">2</span>
-  <div><h3>Our crews</h3><p class="body">Trained samplers who have done this across nine states. They show up knowing what a clean pull looks like and what a mislabeled bag costs.</p></div></li><li class="step"><span class="sn">3</span>
-  <div><h3>Your window</h3><p class="body">Fall is short. We staff to the acres and the days you actually have, alongside your own people or in place of them.</p></div></li></ol>
+  <div class="shell"><section id="corporate">
+    <div class="sechead"><span class="label">Corporate</span>
+      <h2>Entity and offices.</h2></div>
+    <dl class="facts">
+      <dt>Legal name</dt><dd>{corporate.legalName}</dd>
+      <dt>Entity type</dt><dd>{corporate.entityType}</dd>
+      <dt>Jurisdiction of formation</dt>
+      <dd>{corporate.jurisdiction ?? <span class="slot">To be confirmed</span>}</dd>
+      <dt>Formed</dt>
+      <dd>{corporate.formed ?? <span class="slot">To be confirmed</span>}</dd>
+      <dt>Principal offices</dt><dd>{corporate.offices.join(' · ')}</dd>
+      <dt>Registered agent</dt><dd><span class="slot">To be confirmed</span></dd>
+    </dl>
   </section></div>
 
   <div class="shell"><section id="contact">
-    <div class="contact">
-      <div>
-        <span class="label">Contact</span>
-        <h2 class="disp" style="margin-top:14px">Two businesses, two inboxes.</h2>
-        <p class="body">For sampling, tell us the acres and the window &mdash; fall books up early,
-        and knowing roughly how many acres and when they need pulling is enough for us to say
-        whether we can cover it. For software, a paragraph about the problem is plenty to start.</p>
-      </div>
-      <div>
-        <div class="cline"><span class="label">General &amp; sampling</span>
-          <a href="mailto:info@nwagtech.com">info@nwagtech.com</a></div>
-        <div class="cline"><span class="label">Software &middot; Verde House</span>
-          <a href="mailto:software@nwagtech.com">software@nwagtech.com</a></div>
-        <div class="cline"><span class="label">Offices</span>
-          <span>Paullina, Iowa<br>Gilbert, Arizona</span></div>
-      </div>
-    </div>
+    <div class="sechead"><span class="label">Contact</span>
+      <h2>Corporate enquiries.</h2>
+      <p class="body">Business, investor and legal correspondence goes to the general address.
+      Anything to do with software reaches Verde House directly.</p></div>
+    <dl class="facts">
+      <dt>General, investor &amp; legal</dt>
+      <dd><a href={`mailto:${corporate.general}`}>{corporate.general}</a></dd>
+      <dt>Software — Verde House</dt>
+      <dd><a href={`mailto:${corporate.software}`}>{corporate.software}</a></dd>
+      <dt>Offices</dt><dd>{corporate.offices.join(' · ')}</dd>
+    </dl>
   </section></div>
 
   <div class="shell"><footer>
     <div class="fmark"><NwatIcon /></div>
-    <p class="fmeta">Paullina, Iowa &middot; Gilbert, Arizona<br>
-      © 2026 Northwest Ag Technologies, L.L.C.</p>
+    <p class="fmeta">{corporate.offices.join(' · ')}<br>
+      &copy; 2026 {corporate.legalName}</p>
   </footer></div>
 </main>
 </Base>

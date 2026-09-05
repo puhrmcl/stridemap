@@ -1,0 +1,27 @@
+---
+import { subsidiaries, corporate } from '../data/entities';
+const cx = [150, 450, 750];
+---
+<svg class="org" viewBox="0 0 900 258" role="img"
+     aria-label={`${corporate.legalName} owns ${subsidiaries.map((s) => s.name).join(', ')}`}>
+  <g class="rule">
+    <line x1="450" y1="64" x2="450" y2="104" />
+    <line x1={cx[0]} y1="104" x2={cx[2]} y2="104" />
+    {cx.map((x) => <line x1={x} y1="104" x2={x} y2="146" />)}
+  </g>
+
+  <g class="box parent">
+    <rect x="300" y="0" width="300" height="64" />
+    <text x="450" y="27" class="nm">{corporate.legalName}</text>
+    <text x="450" y="47" class="sub">Parent</text>
+  </g>
+
+  {subsidiaries.map((s, i) => (
+    <g class={s.status === 'In evaluation' ? 'box pending' : 'box'}>
+      <rect x={cx[i] - 132} y="146" width="264" height="86" />
+      <text x={cx[i]} y="176" class="nm">{s.name}</text>
+      <text x={cx[i]} y="196" class="sub">{s.sector}</text>
+      <text x={cx[i]} y="214" class="sub">{s.office}</text>
+    </g>
+  ))}
+</svg>
