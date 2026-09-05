@@ -23,8 +23,15 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=yearbook@numbers,yearbook@cities,yearbook@map
+screens=gallery-studio:portfolio,gallery-studio:duo,gallery-studio:duoWide,gallery-studio:triptych,gallery-studio:triptychWide,gallery-studio:grid,gallery-studio:feature,map-studio:photo,print-engine
 appearance=light
+
+# PR #8 verification (release-engineer pass). All seven authored photo arrangements —
+# Hero(portfolio)/Duo/Stack(duoWide)/Gallery(triptych)/Strip(triptychWide)/Grid/Feature —
+# shot to confirm each composition stays inside the print canvas; map-studio:photo for
+# the map+photos family; print-engine for the 300-DPI writer self-check. The Race
+# Edition mark, gallery date line, athlete/bib independence and wide-metric treatment
+# are verified in code (compile-checked bindings) and on device.
 
 # b567 — the numbers stop repeating themselves, the firsts stop guessing, the cities get
 # their ledger.
