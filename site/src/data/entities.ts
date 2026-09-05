@@ -6,6 +6,8 @@ export type Status = 'Operating' | 'In evaluation' | 'Concluded';
 export type Entity = {
   name: string;
   sector: string;
+  /** Short form for the org chart, where SVG text cannot wrap. */
+  short: string;
   office: string;
   status: Status;
   href?: string;
@@ -17,6 +19,7 @@ export const subsidiaries: Entity[] = [
   {
     name: 'Verde House',
     sector: 'Software development and venture studio',
+    short: 'Software development',
     office: 'Gilbert, Arizona',
     status: 'Operating',
     href: '/verde-house',
@@ -24,13 +27,23 @@ export const subsidiaries: Entity[] = [
   {
     name: 'Contract Soil Sampling',
     sector: 'Agricultural services',
+    short: 'Agricultural services',
     office: 'Paullina, Iowa',
     status: 'Operating',
     href: '/soil-sampling',
   },
   {
+    name: 'Ascend Imagery',
+    sector: 'Aerial photography and imaging',
+    short: 'Aerial imaging',
+    office: 'To be confirmed',
+    status: 'Operating',
+    note: 'No page yet — it needs a paragraph from you before it gets one.',
+  },
+  {
     name: 'Undisclosed',
     sector: 'Under evaluation',
+    short: 'Under evaluation',
     office: '—',
     status: 'In evaluation',
     note: 'A further line of business is being assessed. It will be named here once it is formed.',
@@ -79,13 +92,6 @@ export const ventures: Venture[] = [
     status: 'Concluded',
   },
   {
-    name: 'Ascend Imagery',
-    year: null,
-    field: 'Aerial photography',
-    body: 'The same aircraft and the same flying, pointed at a different industry: drone photography and imaging for real estate.',
-    status: 'Concluded',
-  },
-  {
     name: 'Top Line Trucking',
     year: '2016',
     field: 'Transportation',
@@ -100,8 +106,15 @@ export const ventures: Venture[] = [
     status: 'Concluded',
   },
   {
+    name: 'Ascend Imagery',
+    year: '2021',
+    field: 'Aerial photography',
+    body: 'Drone photography and imaging for real estate. The second time the company has built a business around a camera in the air, seven years after the first.',
+    status: 'Operating',
+  },
+  {
     name: 'Verde House',
-    year: null,
+    year: '2024',
     field: 'Software development',
     body: 'A software studio building its own products and taking founders and businesses from research through launch and into operation. The first software the company builds for itself rather than represents for someone else.',
     status: 'Operating',

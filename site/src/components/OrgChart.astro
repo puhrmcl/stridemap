@@ -1,27 +1,35 @@
 ---
 import { subsidiaries, corporate } from '../data/entities';
-const cx = [150, 450, 750];
+
+// Positions are computed, so adding a company to entities.ts widens the chart
+// instead of breaking it.
+const N = subsidiaries.length;
+const GAP = 24;
+const BOX_W = 232;
+const W = N * BOX_W + (N - 1) * GAP;
+const cx = subsidiaries.map((_, i) => i * (BOX_W + GAP) + BOX_W / 2);
+const MID = W / 2;
 ---
-<svg class="org" viewBox="0 0 900 258" role="img"
+<svg class="org" viewBox={`0 0 ${W} 262`} role="img"
      aria-label={`${corporate.legalName} owns ${subsidiaries.map((s) => s.name).join(', ')}`}>
   <g class="rule">
-    <line x1="450" y1="64" x2="450" y2="104" />
-    <line x1={cx[0]} y1="104" x2={cx[2]} y2="104" />
-    {cx.map((x) => <line x1={x} y1="104" x2={x} y2="146" />)}
+    <line x1={MID} y1="66" x2={MID} y2="106" />
+    <line x1={cx[0]} y1="106" x2={cx[N - 1]} y2="106" />
+    {cx.map((x) => <line x1={x} y1="106" x2={x} y2="148" />)}
   </g>
 
   <g class="box parent">
-    <rect x="300" y="0" width="300" height="64" />
-    <text x="450" y="27" class="nm">{corporate.legalName}</text>
-    <text x="450" y="47" class="sub">Parent</text>
+    <rect x={MID - 160} y="0" width="320" height="66" />
+    <text x={MID} y="28" class="nm">{corporate.legalName}</text>
+    <text x={MID} y="48" class="sub">Parent &middot; {corporate.formed}</text>
   </g>
 
   {subsidiaries.map((s, i) => (
-    <g class={s.status === 'In evaluation' ? 'box pending' : 'box'}>
-      <rect x={cx[i] - 132} y="146" width="264" height="86" />
-      <text x={cx[i]} y="176" class="nm">{s.name}</text>
-      <text x={cx[i]} y="196" class="sub">{s.sector}</text>
-      <text x={cx[i]} y="214" class="sub">{s.office}</text>
+    <g class={s.status === 'Operating' ? 'box' : 'box pending'}>
+      <rect x={cx[i] - BOX_W / 2} y="148" width={BOX_W} height="90" />
+      <text x={cx[i]} y="180" class="nm">{s.name}</text>
+      <text x={cx[i]} y="200" class="sub">{s.short}</text>
+      <text x={cx[i]} y="219" class="sub">{s.office}</text>
     </g>
   ))}
 </svg>
