@@ -50,6 +50,28 @@ export type Venture = {
  *  only 2013 and 2014 are confirmed. */
 export const ventures: Venture[] = [
   {
+    name: 'E4 Crop Intelligence',
+    year: '2013',
+    field: 'Precision agriculture software',
+    body: 'The platform the company represented from the beginning — authorised reseller and account management, sold alongside our own soil testing rather than instead of it.',
+    status: 'Concluded',
+  },
+  {
+    name: 'Soil sampling and fertility services',
+    year: '2013',
+    field: 'Agricultural services',
+    body: 'There from the first year. It began as soil testing with fertility recommendations attached; today it runs as independent contract sampling labor, where the client keeps the protocol, the lab and the recommendations.',
+    status: 'Operating',
+    href: '/soil-sampling',
+  },
+  {
+    name: 'Pioneer Encirca',
+    year: '2014',
+    field: 'Precision agriculture services',
+    body: 'Represented Pioneer\'s Encirca services in the year they reached the field — a second decision platform alongside E4, at a point when growers were still deciding whether software belonged in agronomy at all.',
+    status: 'Concluded',
+  },
+  {
     name: 'AgAir',
     year: '2014',
     field: 'Aerial crop science',
@@ -78,25 +100,10 @@ export const ventures: Venture[] = [
     status: 'Concluded',
   },
   {
-    name: 'Precision agriculture software',
-    year: null,
-    field: 'Software distribution',
-    body: 'Authorised reseller and account management for a third-party platform. The relationship has ended.',
-    status: 'Concluded',
-  },
-  {
-    name: 'Contract Soil Sampling',
-    year: null,
-    field: 'Agricultural services',
-    body: 'Independent sampling crews for cooperatives, custom applicators, farm management companies and agronomy centers.',
-    status: 'Operating',
-    href: '/soil-sampling',
-  },
-  {
     name: 'Verde House',
     year: null,
     field: 'Software development',
-    body: 'A software studio building its own products and taking founders and businesses from research through launch and into operation.',
+    body: 'A software studio building its own products and taking founders and businesses from research through launch and into operation. The first software the company builds for itself rather than represents for someone else.',
     status: 'Operating',
     href: '/verde-house',
   },

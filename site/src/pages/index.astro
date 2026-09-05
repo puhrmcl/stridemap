@@ -3,7 +3,8 @@ import Base from '../layouts/Base.astro';
 import NwatLockup from '../components/NwatLockup.astro';
 import NwatIcon from '../components/NwatIcon.astro';
 import OrgChart from '../components/OrgChart.astro';
-import { subsidiaries, ventures, corporate } from '../data/entities';
+import Timeline from '../components/Timeline.astro';
+import { subsidiaries, corporate } from '../data/entities';
 import css from '../styles/corporate.css?raw';
 
 const fonts = `<link rel="preconnect" href="https://fonts.googleapis.com">
@@ -40,23 +41,12 @@ const cls = { Operating: 'op', 'In evaluation': 'ev', Concluded: 'di' } as const
 
   <div class="shell"><section id="record">
     <div class="sechead"><span class="label">Track record</span>
-      <h2>Seven ventures since 2013.</h2>
-      <p class="body">Concluded ventures are listed alongside operating ones. A company that
-      shows only what is still running is harder to assess, not easier &mdash; and the ones that
-      ended are where most of what we know came from.</p></div>
-    <ol class="record">
-      {ventures.map((v) => (
-        <li class={v.status === 'Operating' ? 'vent live' : 'vent'}>
-          <div class="yr">{v.year ?? <span class="slotyr">year</span>}</div>
-          <div class="vbody">
-            <h3>{v.href ? <a href={v.href}>{v.name}</a> : v.name}
-              <span class={`st ${cls[v.status]}`}>{v.status}</span></h3>
-            <p class="fld">{v.field}</p>
-            <p class="body">{v.body}</p>
-          </div>
-        </li>
-      ))}
-    </ol>
+      <h2>Eight ventures since 2013.</h2>
+      <p class="body">Concluded ventures sit alongside operating ones. A company that shows
+      only what is still running is harder to assess, not easier &mdash; and the ones that ended
+      are where most of what we know came from. Two of the first three were other people&rsquo;s
+      software; everything since, we built.</p></div>
+    <Timeline />
   </section></div>
 
   <div class="shell"><section id="today">

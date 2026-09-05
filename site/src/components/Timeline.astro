@@ -1,0 +1,29 @@
+---
+import { ventures } from '../data/entities';
+
+// group consecutive ventures that share a start year
+type Group = { year: string | null; items: typeof ventures };
+const groups: Group[] = [];
+for (const v of ventures) {
+  const last = groups[groups.length - 1];
+  if (last && last.year === v.year && v.year !== null) last.items.push(v);
+  else groups.push({ year: v.year, items: [v] });
+}
+---
+<ol class="tl">
+  {groups.map((g) => (
+    <li class={g.items.some((v) => v.status === 'Operating') ? 'tlg live' : 'tlg'}>
+      <div class="tlyear">{g.year ?? <span class="tlslot">year</span>}</div>
+      <div class="tlitems">
+        {g.items.map((v) => (
+          <article class="tlv">
+            <h3>{v.href ? <a href={v.href}>{v.name}</a> : v.name}
+              <span class={v.status === 'Operating' ? 'st op' : 'st di'}>{v.status}</span></h3>
+            <p class="fld">{v.field}</p>
+            <p class="body">{v.body}</p>
+          </article>
+        ))}
+      </div>
+    </li>
+  ))}
+</ol>
