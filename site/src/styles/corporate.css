@@ -129,3 +129,35 @@ footer{border-top:1px solid var(--hair);padding-block:clamp(30px,4vw,50px);
 .tlv h3 a:hover{color:var(--green);border-bottom-color:var(--green)}
 .fld{font-family:var(--d);font-size:11px;letter-spacing:.13em;text-transform:uppercase;
   color:var(--soft);margin:0 0 9px;font-variation-settings:"wdth" 90,"wght" 600}
+
+/* horizontal axis — a navigator for the timeline below it.
+   Anchors, :hover, :focus-visible and :target only. No JavaScript. */
+.axis{margin:0 0 clamp(30px,4vw,46px)}
+.axistrack{position:relative;height:98px;margin-inline:clamp(30px,6vw,60px)}
+.axisline{position:absolute;inset-inline:0;top:46px;height:1px;background:var(--hair-2)}
+.tick{position:absolute;top:0;left:var(--p);transform:translateX(-50%);
+  width:96px;text-align:center;text-decoration:none;display:block;height:98px}
+.tickstem{position:absolute;top:24px;left:50%;width:1px;height:22px;background:var(--hair-2)}
+.tickdot{position:absolute;top:42px;left:50%;transform:translateX(-50%);
+  width:9px;height:9px;border-radius:50%;background:var(--paper);
+  border:1.5px solid var(--hair-2)}
+.tick.live .tickdot{background:var(--green);border-color:var(--green)}
+.tickyear{position:absolute;top:60px;left:50%;transform:translateX(-50%);
+  font-family:var(--d);font-variation-settings:"wdth" 88,"wght" 600;font-size:12px;
+  letter-spacing:.04em;color:var(--soft);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tickpop{position:absolute;top:2px;left:50%;transform:translateX(-50%);
+  font-family:var(--d);font-variation-settings:"wdth" 90,"wght" 600;font-size:10.5px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--green);white-space:nowrap;
+  opacity:0;pointer-events:none;background:var(--paper);padding:2px 8px}
+.tick:hover .tickyear,.tick:focus-visible .tickyear{color:var(--ink)}
+.tick:hover .tickdot,.tick:focus-visible .tickdot{border-color:var(--green);
+  box-shadow:0 0 0 4px color-mix(in srgb,var(--green) 18%,transparent)}
+.tick:hover .tickpop,.tick:focus-visible .tickpop{opacity:1}
+@media (prefers-reduced-motion:no-preference){
+  .tickpop,.tickdot,.tickyear{transition:opacity .16s ease,box-shadow .16s ease,color .16s ease}
+}
+/* the axis is a convenience; below 600px the vertical timeline is the whole story */
+@media (max-width:599px){ .axis{display:none} }
+.tlg{scroll-margin-top:96px}
+.tlg:target .tlyear{color:var(--ink)}
+.tlg:target .tlv h3 a,.tlg:target .tlv h3{color:var(--green)}

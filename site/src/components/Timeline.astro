@@ -1,19 +1,41 @@
 ---
 import { ventures } from '../data/entities';
 
-// group consecutive ventures that share a start year
-type Group = { year: string | null; items: typeof ventures };
+type Group = { year: string; items: typeof ventures };
 const groups: Group[] = [];
 for (const v of ventures) {
   const last = groups[groups.length - 1];
-  if (last && last.year === v.year && v.year !== null) last.items.push(v);
-  else groups.push({ year: v.year, items: [v] });
+  if (last && last.year === v.year) last.items.push(v);
+  else groups.push({ year: v.year!, items: [v] });
 }
+
+// Ticks sit at their true distance along the decade, so the four quiet years
+// between 2016 and 2020 read as a gap rather than as one more step.
+const years = groups.map((g) => Number(g.year));
+const first = Math.min(...years);
+const last = Math.max(...years);
+const span = last - first;
+const pct = (y: number) => ((y - first) / span) * 100;
 ---
+<nav class="axis" aria-label="Ventures by year">
+  <div class="axistrack">
+  <span class="axisline" aria-hidden="true"></span>
+  {groups.map((g) => (
+    <a class={g.items.some((v) => v.status === 'Operating') ? 'tick live' : 'tick'}
+       href={`#y${g.year}`} style={`--p:${pct(Number(g.year)).toFixed(3)}%`}>
+      <span class="tickstem" aria-hidden="true"></span>
+      <span class="tickdot" aria-hidden="true"></span>
+      <span class="tickyear">{g.year}</span>
+      <span class="tickpop">{g.items.map((v) => v.name).join(' · ')}</span>
+    </a>
+  ))}
+  </div>
+</nav>
+
 <ol class="tl">
   {groups.map((g) => (
-    <li class={g.items.some((v) => v.status === 'Operating') ? 'tlg live' : 'tlg'}>
-      <div class="tlyear">{g.year ?? <span class="tlslot">year</span>}</div>
+    <li class={g.items.some((v) => v.status === 'Operating') ? 'tlg live' : 'tlg'} id={`y${g.year}`}>
+      <div class="tlyear">{g.year}</div>
       <div class="tlitems">
         {g.items.map((v) => (
           <article class="tlv">

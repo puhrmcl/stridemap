@@ -40,14 +40,6 @@ export const subsidiaries: Entity[] = [
     status: 'Operating',
     note: 'No page yet — it needs a paragraph from you before it gets one.',
   },
-  {
-    name: 'Undisclosed',
-    sector: 'Under evaluation',
-    short: 'Under evaluation',
-    office: '—',
-    status: 'In evaluation',
-    note: 'A further line of business is being assessed. It will be named here once it is formed.',
-  },
 ];
 
 export type Venture = {
