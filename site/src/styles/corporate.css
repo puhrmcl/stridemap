@@ -98,3 +98,21 @@ footer{border-top:1px solid var(--hair);padding-block:clamp(30px,4vw,50px);
   display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:flex-end}
 .fmark{width:48px;opacity:.9}
 .fmeta{font-size:13.5px;color:var(--soft);text-align:right;line-height:1.85}
+
+/* track record */
+.record{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.vent{display:grid;grid-template-columns:1fr;gap:4px;padding-block:clamp(20px,2.8vw,30px);
+  border-top:1px solid var(--hair)}
+.vent:first-child{border-top:0;padding-top:0}
+@media(min-width:680px){.vent{grid-template-columns:minmax(0,9ch) minmax(0,1fr);
+  column-gap:clamp(22px,3.4vw,44px)}}
+.yr{font-family:var(--d);font-variation-settings:"wdth" 88,"wght" 600;font-size:15px;
+  letter-spacing:.03em;color:var(--green);padding-top:3px;font-variant-numeric:tabular-nums}
+.slotyr{color:var(--soft);opacity:.5;font-size:11px;letter-spacing:.13em;text-transform:uppercase}
+.vent h3{font-family:var(--b);font-weight:500;font-size:19px;margin:0 0 3px;
+  display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.vent h3 a{text-decoration:none;border-bottom:1px solid var(--hair-2)}
+.vent h3 a:hover{color:var(--green);border-bottom-color:var(--green)}
+.fld{font-family:var(--d);font-size:11px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--soft);margin:0 0 9px;font-variation-settings:"wdth" 90,"wght" 600}
+.vent.live .yr{color:var(--green)}

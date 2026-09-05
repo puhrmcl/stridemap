@@ -3,18 +3,18 @@ import Base from '../layouts/Base.astro';
 import NwatLockup from '../components/NwatLockup.astro';
 import NwatIcon from '../components/NwatIcon.astro';
 import OrgChart from '../components/OrgChart.astro';
-import { subsidiaries, former, corporate } from '../data/entities';
+import { subsidiaries, ventures, corporate } from '../data/entities';
 import css from '../styles/corporate.css?raw';
 
 const fonts = `<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..700&family=Newsreader:opsz,wght@6..72,300..500&display=swap">`;
 
-const cls = { Operating: 'op', 'In evaluation': 'ev', Discontinued: 'di' } as const;
+const cls = { Operating: 'op', 'In evaluation': 'ev', Concluded: 'di' } as const;
 ---
 <Base
   title="Northwest Ag Technologies"
-  description="Northwest Ag Technologies, L.L.C. is a privately held company owning and operating businesses in agricultural services and software development."
+  description="A technology development company formed in Paullina, Iowa in 2013. Aerial crop science, real estate imaging, freight software, soil fertility, and software development through Verde House."
   css={css}
   fonts={fonts}
   themeColor="#F7F6F1"
@@ -22,34 +22,48 @@ const cls = { Operating: 'op', 'In evaluation': 'ev', Discontinued: 'di' } as co
 <nav><div class="navin">
   <a class="navmark" href="/"><NwatLockup /></a>
   <div class="navlinks">
-    <a href="#structure">Structure</a><a href="#companies">Companies</a>
-    <a href="#investments">Investments</a><a href="#corporate">Corporate</a>
+    <a href="#record">Track record</a><a href="#today">Today</a>
+    <a href="#structure">Structure</a><a href="#corporate">Corporate</a>
     <a href="#contact">Contact</a>
   </div>
 </div></nav>
 
 <main>
   <div class="shell"><header class="hero">
-    <p class="label">Northwest Ag Technologies, L.L.C.</p>
-    <h1>A privately held company operating businesses in agriculture and software.</h1>
-    <p class="lede">Northwest Ag Technologies owns, operates and capitalises its subsidiaries.
-    Each one runs under its own name, serves its own customers, and is accountable for its own
-    results. The parent holds the entity, sets the standard they build to, and decides what the
-    company takes on next.</p>
+    <p class="label">{corporate.shortName} &middot; formed {corporate.formed}</p>
+    <h1>We were measuring photosynthesis from a drone in 2014.</h1>
+    <p class="lede">Northwest Ag Technologies builds technology for industries before they get
+    around to asking for it. Aerial crop science, real estate imaging, freight dispatch, soil
+    fertility, and now software for founders and businesses. Some of it we built because our own
+    operations needed it and no one was selling it yet. The pattern has held for over a decade.</p>
   </header></div>
 
-  <div class="shell"><section id="structure">
-    <div class="sechead"><span class="label">Structure</span>
-      <h2>One parent. Independent operating companies beneath it.</h2>
-      <p class="body">Subsidiaries are not divisions. They carry their own brands and their own
-      customer relationships, which is why a soil sampling client and a software client have no
-      reason to meet each other.</p></div>
-    <div class="chartwrap"><OrgChart /></div>
+  <div class="shell"><section id="record">
+    <div class="sechead"><span class="label">Track record</span>
+      <h2>Seven ventures, five industries, one company.</h2>
+      <p class="body">Concluded ventures are listed alongside operating ones. A company that
+      shows only what is still running is harder to assess, not easier &mdash; and the ones that
+      ended are where most of what we know came from.</p></div>
+    <ol class="record">
+      {ventures.map((v) => (
+        <li class={v.status === 'Operating' ? 'vent live' : 'vent'}>
+          <div class="yr">{v.year ?? <span class="slotyr">year</span>}</div>
+          <div class="vbody">
+            <h3>{v.href ? <a href={v.href}>{v.name}</a> : v.name}
+              <span class={`st ${cls[v.status]}`}>{v.status}</span></h3>
+            <p class="fld">{v.field}</p>
+            <p class="body">{v.body}</p>
+          </div>
+        </li>
+      ))}
+    </ol>
   </section></div>
 
-  <div class="shell"><section id="companies">
-    <div class="sechead"><span class="label">Operating companies</span>
-      <h2>What the company owns today.</h2></div>
+  <div class="shell"><section id="today">
+    <div class="sechead"><span class="label">Today</span>
+      <h2>Two operating companies.</h2>
+      <p class="body">Each runs under its own name, serves its own customers, and is accountable
+      for its own results. A sampling client and a software client have no reason to meet.</p></div>
     <table>
       <thead><tr><th>Company</th><th>Sector</th><th>Principal office</th><th>Status</th></tr></thead>
       <tbody>
@@ -64,34 +78,12 @@ const cls = { Operating: 'op', 'In evaluation': 'ev', Discontinued: 'di' } as co
         ))}
       </tbody>
     </table>
-
-    <table style="margin-top:clamp(34px,4vw,52px)">
-      <caption>Former operations</caption>
-      <thead><tr><th>Business</th><th>Sector</th><th>Principal office</th><th>Status</th></tr></thead>
-      <tbody>
-        {former.map((s) => (
-          <tr>
-            <td class="nm">{s.name}{s.note && <span class="note">{s.note}</span>}</td>
-            <td>{s.sector}</td>
-            <td>{s.office}</td>
-            <td><span class={`st ${cls[s.status]}`}>{s.status}</span></td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
   </section></div>
 
-  <div class="shell"><section id="investments">
-    <div class="sechead"><span class="label">Investments</span>
-      <h2>Interests held outside the operating companies.</h2>
-      <p class="body">Where Northwest Ag Technologies holds a position in a business it does
-      not operate, it is listed here, subject to what the counterparty permits us to disclose.</p></div>
-    <dl class="facts">
-      <dt>Current holdings</dt>
-      <dd><span class="slot">To be listed</span></dd>
-      <dt>Investment enquiries</dt>
-      <dd><a href={`mailto:${corporate.general}`}>{corporate.general}</a></dd>
-    </dl>
+  <div class="shell"><section id="structure">
+    <div class="sechead"><span class="label">Structure</span>
+      <h2>One parent. Independent operating companies beneath it.</h2></div>
+    <div class="chartwrap"><OrgChart /></div>
   </section></div>
 
   <div class="shell"><section id="corporate">
@@ -100,10 +92,8 @@ const cls = { Operating: 'op', 'In evaluation': 'ev', Discontinued: 'di' } as co
     <dl class="facts">
       <dt>Legal name</dt><dd>{corporate.legalName}</dd>
       <dt>Entity type</dt><dd>{corporate.entityType}</dd>
-      <dt>Jurisdiction of formation</dt>
-      <dd>{corporate.jurisdiction ?? <span class="slot">To be confirmed</span>}</dd>
-      <dt>Formed</dt>
-      <dd>{corporate.formed ?? <span class="slot">To be confirmed</span>}</dd>
+      <dt>Jurisdiction of formation</dt><dd>{corporate.jurisdiction}</dd>
+      <dt>Formed</dt><dd>{corporate.formed}, {corporate.formedAt}</dd>
       <dt>Principal offices</dt><dd>{corporate.offices.join(' · ')}</dd>
       <dt>Registered agent</dt><dd><span class="slot">To be confirmed</span></dd>
     </dl>
@@ -126,7 +116,7 @@ const cls = { Operating: 'op', 'In evaluation': 'ev', Discontinued: 'di' } as co
   <div class="shell"><footer>
     <div class="fmark"><NwatIcon /></div>
     <p class="fmeta">{corporate.offices.join(' · ')}<br>
-      &copy; 2026 {corporate.legalName}</p>
+      &copy; 2026 {corporate.legalName} &middot; formed {corporate.formed}</p>
   </footer></div>
 </main>
 </Base>
