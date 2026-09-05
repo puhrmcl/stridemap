@@ -498,6 +498,14 @@ struct StudioComposition: View {
             if showPaceProfile && paceSamples.count > 1 {
                 paceProfileContent.fixedSize(horizontal: false, vertical: true)
             }
+
+            if run.isRace {
+                Text("ETCH  /  RACE EDITION")
+                    .font(.etch(size: ts(9), weight: .semibold, face: dataFont.face))
+                    .tracking(3.2)
+                    .foregroundStyle(subtleColor.opacity(0.8))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(80)
         .frame(width: galleryCanvas.width, height: measuring ? nil : galleryCanvas.height)
@@ -570,6 +578,12 @@ struct StudioComposition: View {
                     .tracking(5)
                     .foregroundStyle(subtleColor)
             }
+            if !dateLine.isEmpty {
+                Text(dateLine.uppercased())
+                    .font(.etch(size: ts(14 * dateScale), weight: .semibold, face: dataFont.face))
+                    .tracking(3.5)
+                    .foregroundStyle(subtleColor)
+            }
             if !athleteLine.isEmpty {
                 Text(athleteLine)
                     .font(.etch(size: ts(13), weight: .semibold)).tracking(3)
@@ -579,15 +593,48 @@ struct StudioComposition: View {
         .frame(maxWidth: .infinity, alignment: just(.center))
     }
 
-    /// A compact centred row of the chosen data slots, under the masthead.
+    /// Compact metrics stay in the classic peer row. Long editorial facts (coordinates,
+    /// weather, place, date) get a full-width line below it instead of being crushed into a
+    /// third-width stat column. The customer can add detail without breaking the composition.
+    private var galleryCompactStats: [(metric: StatMetric, value: String)] {
+        resolvedStats.filter { !galleryWideMetric($0.metric) }
+    }
+
+    private var galleryWideStats: [(metric: StatMetric, value: String)] {
+        resolvedStats.filter { galleryWideMetric($0.metric) }
+    }
+
+    private func galleryWideMetric(_ metric: StatMetric) -> Bool {
+        metric == .coordinates || metric == .weather || metric == .place || metric == .date
+    }
+
     private var galleryStatRow: some View {
-        HStack(alignment: .top, spacing: 0) {
-            ForEach(Array(resolvedStats.enumerated()), id: \.offset) { index, item in
-                if statDividerShown(resolvedStats, index) { statDivider }
-                stat(item.metric, item.value)
+        VStack(spacing: sp(14)) {
+            if !galleryCompactStats.isEmpty {
+                HStack(alignment: .top, spacing: 0) {
+                    ForEach(Array(galleryCompactStats.enumerated()), id: \.offset) { index, item in
+                        if statDividerShown(galleryCompactStats, index) { statDivider }
+                        stat(item.metric, item.value)
+                    }
+                }
+                .frame(maxWidth: 680)
+            }
+
+            ForEach(Array(galleryWideStats.enumerated()), id: \.offset) { _, item in
+                HStack(spacing: 10) {
+                    Text(item.metric.label)
+                        .font(.etch(size: ts(11 * statScale), weight: .semibold, face: dataFont.face))
+                        .tracking(2.2)
+                        .foregroundStyle(subtleColor)
+                    Text(item.value)
+                        .font(.etch(size: ts(15 * statScale), weight: .semibold, face: dataFont.face))
+                        .foregroundStyle(inkColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.65)
+                }
+                .frame(maxWidth: 720, alignment: .center)
             }
         }
-        .frame(maxWidth: 680)
     }
 
     /// One gallery frame. The *box* is the layout element — a fully flexible clear rectangle, so
@@ -1708,10 +1755,13 @@ struct StudioComposition: View {
     /// "CLINT PUHRMANN · BIB 2417" — whose miles these are, set one register quieter than the
     /// place and date. Name and bib each optional; with neither, nothing is emitted.
     private var athleteLine: String {
-        guard showAthlete else { return "" }
         var parts: [String] = []
-        let name = athleteName.trimmingCharacters(in: .whitespaces)
-        if !name.isEmpty { parts.append(name.uppercased()) }
+        if showAthlete {
+            let name = athleteName.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !name.isEmpty { parts.append(name.uppercased()) }
+        }
+        // Bib is its own piece of race metadata. It must not disappear just because the athlete
+        // chooses not to print a name (or has not typed one yet).
         if showBib, !run.bibNumber.isEmpty { parts.append("BIB \(run.bibNumber)") }
         return parts.joined(separator: "  ·  ")
     }
