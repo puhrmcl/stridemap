@@ -208,6 +208,9 @@ struct PreviewHarnessView: View {
                     NavigationStack {
                         TimelineView(embedded: true, scope: timelineScope(from: name))
                     }
+                // Milestones, including the Meaning Engine's "Etch noticed" section — the only
+                // way CI can photograph what the engine actually decided to say.
+                case "milestones":      HighlightsView(embedded: true)
                 case "archive":         CollectionBrowserView(collection: .archive, runs: allRuns)
                 case "course":          CollectionBrowserView(collection: .course, runs: allRuns)
                 case "summit":          CollectionBrowserView(collection: .summit, runs: allRuns)

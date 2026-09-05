@@ -72,11 +72,17 @@ struct MeaningEngine {
         let significance: Int
         let confidence: Confidence
         let claimWorld: ClaimWorld
+        /// What the claim is *about*, when kind and activity alone don't say. One activity can
+        /// hold two claims of the same kind — the furthest run is often also the biggest climb,
+        /// and the first activity in a new country is by definition also the first in a new
+        /// state — so without this the two share an identity and SwiftUI sees a duplicate row.
+        /// Structural, never prose: it must survive a copy change.
+        let subjectKey: String
         let evidence: [String]
 
         /// Identity is structural. Copy changes must never orphan user feedback.
         var id: String {
-            "\(kind.rawValue)-\(run?.id.uuidString ?? "history")-\(claimWorld.rawValue)"
+            "\(kind.rawValue)-\(run?.id.uuidString ?? "history")-\(claimWorld.rawValue)-\(subjectKey)"
         }
     }
 
@@ -139,10 +145,17 @@ struct MeaningEngine {
         return Array(unique.sorted {
             let lhs = rankingScore($0), rhs = rankingScore($1)
             if lhs != rhs { return lhs > rhs }
-            return ($0.run?.startDate ?? .distantPast) > ($1.run?.startDate ?? .distantPast)
+            let ld = $0.run?.startDate ?? .distantPast, rd = $1.run?.startDate ?? .distantPast
+            if ld != rd { return ld > rd }
+            // Never let equal candidates order themselves differently between launches.
+            return $0.id < $1.id
         }.prefix(limit))
     }
 
+    /// - Warning: this recomputes the entire history to answer for one activity. It is fine for
+    ///   a single detail screen, and pathological anywhere it would be called per row. Before
+    ///   wiring "why this mattered" into a list, hoist the computation the way `HighlightsView`
+    ///   does — build once into derived state, then read.
     func insights(for run: Run) -> [Insight] {
         insights(limit: 100).filter { $0.run?.id == run.id }
     }
@@ -163,6 +176,7 @@ struct MeaningEngine {
                     : "The earliest \(noun.lowercased()) in your Etch history is in \(first.placeLabel).",
                 symbol: "sparkles", run: first, significance: 62,
                 confidence: openWorldConfidence(for: first), claimWorld: .open,
+                subjectKey: first.activityType.rawValue,
                 evidence: ["Earliest \(noun.lowercased()) in imported history"]
             ))
         }
@@ -174,6 +188,7 @@ struct MeaningEngine {
                 story: placeStory(prefix: "This is the earliest race in your imported Etch history", run: firstRace),
                 symbol: "flag.checkered", run: firstRace, significance: 88,
                 confidence: openWorldConfidence(for: firstRace), claimWorld: .open,
+                subjectKey: "race",
                 evidence: ["Earliest activity marked as a race"]
             ))
         }
@@ -182,7 +197,13 @@ struct MeaningEngine {
 
     // MARK: - Race & records
 
+    /// A superlative needs a population to be superlative *within*. With one recorded activity,
+    /// "your furthest" and "your best 5K" are the same tautology wearing two labels — the
+    /// definition of the filler a sparse history must not manufacture.
+    private var supportsSuperlatives: Bool { runs.count >= 3 }
+
     private func recordMoments() -> [Insight] {
+        guard supportsSuperlatives else { return [] }
         let stats = RunStatistics(runs)
         var out: [Insight] = []
 
@@ -193,6 +214,7 @@ struct MeaningEngine {
                 story: "\(Format.distance(run.distance)) — farther than any other activity in this history.",
                 symbol: "arrow.left.and.right", run: run, significance: 86,
                 confidence: closedWorldConfidence, claimWorld: .closed,
+                subjectKey: "distance",
                 evidence: ["Maximum distance in history"]
             ))
         }
@@ -203,11 +225,21 @@ struct MeaningEngine {
                 story: "\(Format.elevation(run.elevationGain)) of climbing — your highest recorded ascent.",
                 symbol: "mountain.2", run: run, significance: 80,
                 confidence: closedWorldConfidence, claimWorld: .closed,
+                subjectKey: "elevation",
                 evidence: ["Maximum elevation gain in history"]
             ))
         }
 
         for pr in stats.personalRecords {
+            // A "best" needs someone to have beaten. One marathon in the record makes that
+            // marathon the PR by definition, and announcing it as an achievement is the fastest
+            // way to spend the credibility the honest insights beside it are earning.
+            // Window and eligibility mirror `RunStatistics.personalRecords`.
+            let contenders = runs.filter {
+                $0.activityType == .run && $0.movingTime > 0
+                    && $0.distance >= pr.meters * 0.98 && $0.distance <= pr.meters * 1.10
+            }.count
+            guard contenders >= 2 else { continue }
             let isRace = pr.run.isRace
             out.append(Insight(
                 kind: .personalBest, emotion: .pride,
@@ -216,6 +248,7 @@ struct MeaningEngine {
                 symbol: "stopwatch.fill", run: pr.run,
                 significance: isRace ? 96 : 90,
                 confidence: closedWorldConfidence, claimWorld: .closed,
+                subjectKey: pr.label,
                 evidence: ["Fastest qualifying \(pr.label) in history"]
             ))
         }
@@ -240,6 +273,7 @@ struct MeaningEngine {
                         story: "This is the earliest \(country) activity currently in your Etch record.",
                         symbol: "globe.americas.fill", run: run, significance: 72,
                         confidence: openWorldConfidence(for: run), claimWorld: .open,
+                        subjectKey: country,
                         evidence: ["Earliest located activity in \(country) within imported history"]
                     ))
                 }
@@ -252,6 +286,7 @@ struct MeaningEngine {
                     story: "This is the earliest \(state) activity currently in your Etch record.",
                     symbol: "map.fill", run: run, significance: 66,
                     confidence: openWorldConfidence(for: run), claimWorld: .open,
+                    subjectKey: state,
                     evidence: ["Earliest located activity in \(state) within imported history"]
                 ))
             }
@@ -279,6 +314,7 @@ struct MeaningEngine {
                     symbol: "point.topleft.down.to.point.bottomright.curvepath.fill",
                     run: run, significance: min(92, 66 + Int(log10(Double(km))) * 8),
                     confidence: closedWorldConfidence, claimWorld: .floor,
+                    subjectKey: "km-\(km)",
                     evidence: ["Cumulative distance crossed \(km) km"]
                 ))
             }
@@ -300,6 +336,15 @@ struct MeaningEngine {
         }
     }
 
+    /// Metres between two coordinates, flat-earth approximation. Exact enough at the ~1 km scale
+    /// it is used at here, and allocation-free across a large history.
+    private func metres(from a: (lat: Double, lon: Double), to b: (lat: Double, lon: Double)) -> Double {
+        let midLat = ((a.lat + b.lat) / 2) * .pi / 180
+        let dx = (b.lon - a.lon) * cos(midLat) * 111_320
+        let dy = (b.lat - a.lat) * 110_574
+        return (dx * dx + dy * dy).squareRoot()
+    }
+
     private func placeRelationshipMoments() -> [Insight] {
         let located = chronological.compactMap { run -> (Run, PlaceCell)? in
             guard let coordinate = run.startCoordinate else { return nil }
@@ -307,12 +352,33 @@ struct MeaningEngine {
         }
         guard located.count >= 8 else { return [] }
 
+        // Dictionary iteration order is not stable between launches, so ties must not decide
+        // which ground the page calls yours. Count first, then the cell itself.
         let groups = Dictionary(grouping: located, by: { $0.1 })
-        let sorted = groups.values.sorted { $0.count > $1.count }
-        guard let strongest = sorted.first, strongest.count >= 5 else { return [] }
+        let ranked = groups.sorted {
+            $0.value.count != $1.value.count
+                ? $0.value.count > $1.value.count
+                : ($0.key.lat, $0.key.lon) > ($1.key.lat, $1.key.lon)
+        }
+        guard let strongest = ranked.first?.value, strongest.count >= 5 else { return [] }
 
         var out: [Insight] = []
-        let placeRuns = strongest.map(\.0).sorted { $0.startDate < $1.startDate }
+
+        // The grid only *finds* the busiest ground; it must not define it. A cell boundary can
+        // run straight through a doorstep, and start points scatter tens of metres, so a hard
+        // cell can cut one place in two and under-report it by half — the story would say 172
+        // activities where the truth is 340. The seed cell picks the area; the cluster is every
+        // located start within ~1 km of its centre, which is also exactly what the story and the
+        // evidence claim.
+        let seed = strongest.compactMap { $0.0.startCoordinate }
+        let centre = (lat: seed.map(\.latitude).reduce(0, +) / Double(seed.count),
+                      lon: seed.map(\.longitude).reduce(0, +) / Double(seed.count))
+        let placeRuns = located.compactMap { pair -> Run? in
+            guard let c = pair.0.startCoordinate,
+                  metres(from: centre, to: (lat: c.latitude, lon: c.longitude)) <= 1_000
+            else { return nil }
+            return pair.0
+        }.sorted { $0.startDate < $1.startDate }
         guard let first = placeRuns.first, let latest = placeRuns.last else { return [] }
 
         let spanDays = max(0, calendar.dateComponents([.day], from: first.startDate, to: latest.startDate).day ?? 0)
@@ -339,8 +405,9 @@ struct MeaningEngine {
                     "Observed across \(spanDays) days"
                 ]),
                 claimWorld: .closed,
+                subjectKey: "enduring",
                 evidence: [
-                    "\(placeRuns.count) repeated starts in the same geographic cell",
+                    "\(placeRuns.count) repeated starts within ~1 km of the same point",
                     "\(Format.distance(totalDistance)) recorded from this area",
                     "\(Int((share * 100).rounded()))% of located activities"
                 ]
@@ -365,6 +432,7 @@ struct MeaningEngine {
                         "\(gap)-day observed gap between activities in the same ~1 km area"
                     ]),
                     claimWorld: .closed,
+                    subjectKey: "return",
                     evidence: [
                         "Previous recorded activity here: \(prior.startDate.formatted(date: .abbreviated, time: .omitted))",
                         "Return: \(run.startDate.formatted(date: .abbreviated, time: .omitted))"
@@ -405,6 +473,7 @@ struct MeaningEngine {
             story: "Your Etch history reaches back to \(first.startDate.formatted(date: .abbreviated, time: .omitted)).",
             symbol: "clock.arrow.circlepath", run: first, significance: min(78, 60 + years * 2),
             confidence: closedWorldConfidence, claimWorld: .closed,
+            subjectKey: "history",
             evidence: ["Elapsed years since earliest imported activity"]
         )]
     }
