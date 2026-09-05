@@ -106,6 +106,20 @@ candidates to check against a physical guide: 5535 C, 3435 C, 350 C.
 Contrast: Verde on Warm White **11.2:1**, Verde on Pure White **12.7:1**,
 Black on Warm White **16.1:1**. All pass WCAG AAA.
 
+**Decided.** A second palette was carried through the same tests — `#1F3D2E` /
+`#F9F7F2` / `#1A1A1A` — and is not used. It cleared AAA identically, so contrast
+never separated them; temperature and geography did. Verde House works out of
+Gilbert, Arizona. The shipped green sits at hue 141°, near a nopal pad; the
+alternative at 150° is a conifer green, a northern colour on a Sonoran mark. The
+shipped warm white carries 4.5 % chroma and reads as plaster against true white,
+where the alternative measured 1.07:1 and barely read as warm. And the shipped
+black carries a faint green cast, so the one-colour cut stays in the family
+rather than going neutral and cold.
+
+For reference, the parent company's greens sit at hue 86–93° — a bright crop
+yellow-green. Northwest Ag Technologies and Verde House are deliberately two
+different greens, not a near-miss.
+
 ## 6 · Files
 
     svg/lockup-primary*.svg       A · cactus + stacked wordmark

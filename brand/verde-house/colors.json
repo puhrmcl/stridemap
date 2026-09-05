@@ -1,6 +1,84 @@
 {
-  "verde-green": { "hex": "#1A3925", "rgb": [26, 57, 37],   "cmyk": [80, 45, 75, 55], "pantone_candidates": ["5535 C", "3435 C", "350 C"], "role": "primary" },
-  "warm-white":  { "hex": "#F4F1E9", "rgb": [244, 241, 233], "cmyk": [3, 3, 7, 0],    "pantone_candidates": ["Warm Gray 1 C at 25%", "9184 C"], "role": "ground" },
-  "black":       { "hex": "#131614", "rgb": [19, 22, 20],    "cmyk": [70, 55, 60, 90], "pantone_candidates": ["Black 6 C"], "role": "one-colour / text" },
-  "pure-white":  { "hex": "#FFFFFF", "rgb": [255, 255, 255], "cmyk": [0, 0, 0, 0],     "role": "reverse / screen" }
+  "verde-green": {
+    "hex": "#1A3925",
+    "rgb": [
+      26,
+      57,
+      37
+    ],
+    "cmyk": [
+      80,
+      45,
+      75,
+      55
+    ],
+    "pantone_candidates": [
+      "5535 C",
+      "3435 C",
+      "350 C"
+    ],
+    "role": "primary"
+  },
+  "warm-white": {
+    "hex": "#F4F1E9",
+    "rgb": [
+      244,
+      241,
+      233
+    ],
+    "cmyk": [
+      3,
+      3,
+      7,
+      0
+    ],
+    "pantone_candidates": [
+      "Warm Gray 1 C at 25%",
+      "9184 C"
+    ],
+    "role": "ground"
+  },
+  "black": {
+    "hex": "#131614",
+    "rgb": [
+      19,
+      22,
+      20
+    ],
+    "cmyk": [
+      70,
+      55,
+      60,
+      90
+    ],
+    "pantone_candidates": [
+      "Black 6 C"
+    ],
+    "role": "one-colour / text"
+  },
+  "pure-white": {
+    "hex": "#FFFFFF",
+    "rgb": [
+      255,
+      255,
+      255
+    ],
+    "cmyk": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "role": "reverse / screen"
+  },
+  "_meta": {
+    "status": "decided",
+    "decided": "2026-09-05",
+    "rejected_alternative": {
+      "verde-green": "#1F3D2E",
+      "warm-white": "#F9F7F2",
+      "black": "#1A1A1A"
+    },
+    "rationale": "Gilbert, Arizona. Hue 141 sits near a nopal pad; the alternative at 150 is a conifer green. Warm white at 4.5% chroma reads as plaster; the alternative at 1.07:1 against pure white barely reads warm. Black carries a green cast so the one-colour cut stays in the family."
+  }
 }
