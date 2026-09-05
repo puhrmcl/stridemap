@@ -64,6 +64,7 @@ struct HighlightsView: View {
         var yearTotals: [Int: (runs: Int, distance: Double)] = [:]
         var breakdown: [(scope: ActivityScope, stats: RunStatistics)] = []
         var locatedCount = 0
+        var meaningInsights: [MeaningEngine.Insight] = []
     }
 
     @State private var derived = Derived()
@@ -123,6 +124,7 @@ struct HighlightsView: View {
             next.yearTotals[year] = (yearStats.totalRuns, yearStats.totalDistanceMeters)
         }
         next.locatedCount = scoped.reduce(0) { $0 + ($1.startLatitude != nil ? 1 : 0) }
+        next.meaningInsights = MeaningEngine(runs: scoped).insights(limit: 3)
         if scope == .all {
             next.breakdown = breakdownScopes.compactMap { s in
                 let subset = RunStatistics(runs.scoped(to: s))
@@ -143,6 +145,7 @@ struct HighlightsView: View {
                         // With more than one activity type, offer the switcher; a single type just
                         // shows its own achievements with no chooser.
                         if !isSingleActivity { scopeSwitcher }
+                        if !derived.meaningInsights.isEmpty { meaningSection }
                         if scope == .all {
                             // The bigger story: combined reach, a per-discipline hub, and recaps.
                             reachSection
@@ -163,7 +166,7 @@ struct HighlightsView: View {
                     // you were.
                     .id("top")
                 }
-                // Tap Achievements while you are already there and the page returns to the top.
+                // Tap Milestones while you are already there and the page returns to the top.
                 .onChange(of: appModel.reselectCount) { _, _ in
                     guard appModel.reselectedTab == .achievements else { return }
                     pushedRun = nil
@@ -267,6 +270,76 @@ struct HighlightsView: View {
 
     private func setScope(_ newValue: ActivityScope) {
         withAnimation(Theme.gentle) { appModel.activityScope = newValue }
+    }
+
+    // MARK: Meaning
+
+    private var meaningSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Etch noticed")
+                    .font(.etch(.title2, weight: .bold))
+                Spacer()
+                Text("From your history")
+                    .font(.etch(.caption))
+                    .foregroundStyle(.secondary)
+            }
+
+            ForEach(Array(derived.meaningInsights.enumerated()), id: \.element.id) { index, insight in
+                Button {
+                    if let run = insight.run { pushedRun = run }
+                } label: {
+                    MeaningCard(insight: insight, featured: index == 0)
+                }
+                .buttonStyle(.plain)
+                .disabled(insight.run == nil)
+            }
+        }
+    }
+
+    private struct MeaningCard: View {
+        let insight: MeaningEngine.Insight
+        let featured: Bool
+
+        var body: some View {
+            HStack(alignment: .top, spacing: 14) {
+                Image(systemName: insight.symbol)
+                    .font(.system(size: featured ? 20 : 17, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 30, height: 30)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(insight.title)
+                        .font(.etch(featured ? .title3 : .headline, weight: .bold))
+                        .foregroundStyle(.primary)
+                    Text(insight.story)
+                        .font(.etch(.subheadline))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if insight.confidence.band != .high && insight.claimWorld == .open {
+                        Text("Based on the history currently in Etch")
+                            .font(.etch(.caption))
+                            .foregroundStyle(.tertiary)
+                            .padding(.top, 2)
+                    }
+                }
+                Spacer(minLength: 4)
+                if insight.run != nil {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                        .padding(.top, 5)
+                }
+            }
+            .padding(featured ? 18 : 15)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.regularMaterial, in: .rect(cornerRadius: featured ? 22 : 18))
+            .overlay {
+                RoundedRectangle(cornerRadius: featured ? 22 : 18)
+                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+            }
+        }
     }
 
     // MARK: Reach (shared, scopes with the selection)
