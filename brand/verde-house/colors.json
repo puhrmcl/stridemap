@@ -1,28 +1,28 @@
 {
   "verde-green": {
-    "hex": "#1A3925",
+    "hex": "#3E4F38",
     "rgb": [
-      26,
-      57,
-      37
+      62,
+      79,
+      56
     ],
     "cmyk": [
-      80,
+      68,
       45,
-      75,
-      55
+      76,
+      32
     ],
     "pantone_candidates": [
+      "5605 C",
       "5535 C",
-      "3435 C",
-      "350 C"
+      "5747 C"
     ],
     "role": "primary"
   },
   "terracotta": {
-    "hex": "#B76F43",
+    "hex": "#B86F43",
     "rgb": [
-      183,
+      184,
       111,
       67
     ],
@@ -92,13 +92,12 @@
     "role": "reverse / screen"
   },
   "_meta": {
-    "status": "revised",
+    "status": "from artwork",
     "decided": "2026-09-06",
-    "note": "Terracotta added with the arch concept. It appears on the sun and nowhere else \u2014 it is not a second brand colour, it is one element. The reference artwork's green (#3F5139, hue 100, an olive) was not adopted; the locked #1A3925 stands.",
-    "rejected_alternative": {
-      "verde-green": "#1F3D2E",
-      "warm-white": "#F9F7F2",
-      "black": "#1A1A1A"
+    "note": "Values taken from the supplied lockup rather than chosen. This supersedes the earlier #1A3925 decision: the client supplied the artwork as final, and the logo's green is the brand's green. #1A3925 (hue 141) and the rejected #1F3D2E are kept below for the record; the shipped green sits at hue 100.",
+    "superseded": {
+      "verde-green": "#1A3925",
+      "also_considered": "#1F3D2E"
     }
   }
 }
