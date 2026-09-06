@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// Search across run names, cities, states, races, and dates. Tap a result to zoom.
+/// Search across activity names, cities, states, races, and dates. Tap a result to zoom.
 struct SearchView: View {
     /// True when pushed inside the Explore hub's navigation stack (no own NavigationStack).
     var embedded: Bool = false
@@ -11,11 +11,18 @@ struct SearchView: View {
 
     @State private var query = ""
 
+    /// The legacy/modal search uses the same visibility contract as the main scoped search: hidden
+    /// activities and activity types disabled in Settings do not get a second life through Search.
+    private var searchableRuns: [Run] {
+        let scope = ActivitySettings.isVisible(appModel.activityScope) ? appModel.activityScope : .all
+        return runs.scoped(to: scope)
+    }
+
     private var results: [Run] {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return Array(runs.prefix(30)) }
+        guard !trimmed.isEmpty else { return Array(searchableRuns.prefix(30)) }
         let q = trimmed.lowercased()
-        return runs.filter { RunSearch.matches($0, query: q) }
+        return searchableRuns.filter { RunSearch.matches($0, query: q) }
     }
 
     var body: some View {
