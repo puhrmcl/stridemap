@@ -79,11 +79,18 @@ struct SelectionTile: View {
 /// rounded-top glass card, a titled header, and the tiles laid out in centred rows of `columns`.
 /// Incomplete rows (e.g. two tiles across three columns) centre. Tap the backdrop or the close
 /// button to dismiss.
+///
+/// `Show on Map` is the one deliberate specialization: the Home header was simplified to a single
+/// summary disclosure, so that disclosure must still provide both halves of the old control —
+/// *what activity* and *what view*. The activity choice lives here as a compact strip above the
+/// view tiles instead of returning a second permanent control to the map chrome.
 struct EtchSelectionSheet: View {
     let title: String
     let options: [SelectionOption]
     var columns: Int = 3
     let onClose: () -> Void
+
+    @Environment(AppModel.self) private var appModel
 
     /// Measured content width, so tiles size to the screen (compact on an SE, capped on large phones)
     /// and incomplete rows centre with consistent tile widths.
@@ -111,6 +118,57 @@ struct EtchSelectionSheet: View {
         min(116, (contentWidth - spacing * CGFloat(columns - 1)) / CGFloat(columns))
     }
 
+    /// The Home summary opens `Show on Map`; when more than one concrete activity type is enabled,
+    /// that sheet carries a compact activity strip so Runs / Hikes / Rides / Walks never become an
+    /// orphaned capability after the header simplification.
+    private var showsActivityStrip: Bool {
+        title == "Show on Map" && ActivitySettings.visibleScopes.filter { $0 != .all }.count > 1
+    }
+
+    private var activityStrip: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Activity")
+                .font(.etch(.caption, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .tracking(0.8)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(ActivitySettings.visibleScopes) { scope in
+                        let selected = appModel.activityScope == scope
+                        Button {
+                            withAnimation(Theme.gentle) { appModel.activityScope = scope }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: scope.icon)
+                                    .font(.system(size: 12, weight: .semibold))
+                                Text(scope == .all ? "All" : scope.label)
+                                    .font(.etch(.footnote, weight: .semibold))
+                                    .lineLimit(1)
+                            }
+                            .foregroundStyle(selected ? Theme.accent : .primary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                selected ? Theme.accent.opacity(0.14) : Color.secondary.opacity(0.10),
+                                in: .capsule
+                            )
+                            .overlay {
+                                Capsule()
+                                    .strokeBorder(selected ? Theme.accent : Color.clear, lineWidth: 1.5)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Activity Type, \(scope == .all ? "All Activities" : scope.label)")
+                        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+                    }
+                }
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
+    }
+
     /// The tallest a sheet's tiles may grow before they scroll instead.
     ///
     /// Activity View carries nine options — All, Recent, PRs, Races, Favorites, then a tile per
@@ -121,12 +179,27 @@ struct EtchSelectionSheet: View {
     /// which is a thing they cannot.
     private var maxTileAreaHeight: CGFloat {
         let screen = UIScreen.main.bounds.height
-        return max(220, screen * 0.46)
+        // The activity strip consumes a little of the available card height; trim the tile area
+        // rather than letting the whole card climb under the header on compact phones.
+        let fraction = showsActivityStrip ? 0.38 : 0.46
+        return max(200, screen * fraction)
     }
 
     private var card: some View {
         VStack(spacing: 18) {
             SelectionSheetHeader(title: title, onClose: onClose)
+
+            if showsActivityStrip {
+                activityStrip
+                Divider()
+                Text("View")
+                    .font(.etch(.caption, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                    .tracking(0.8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
             ScrollView {
                 VStack(spacing: 14) {
                     ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
