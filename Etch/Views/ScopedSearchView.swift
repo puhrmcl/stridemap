@@ -19,10 +19,22 @@ struct ScopedSearchView: View {
     @Query(sort: \Run.startDate, order: .reverse) private var runs: [Run]
 
     @State private var query = ""
-    /// False once the chip is dismissed — the search then covers everything.
+    /// False once the chip is dismissed — the search then covers every destination. Activity-type
+    /// visibility still applies: a hidden walk should not reappear just because Search is broad.
     @State private var scoped = true
 
     private var activeScope: EtchTab? { scoped ? scope : nil }
+
+    /// Search follows the same activity-type truth as Map, Timeline and Milestones. `scoped(to:)`
+    /// also removes individually hidden activities and types disabled in Settings, so Search can
+    /// never become a back door to content the user deliberately hid elsewhere.
+    private var effectiveActivityScope: ActivityScope {
+        ActivitySettings.isVisible(appModel.activityScope) ? appModel.activityScope : .all
+    }
+
+    private var activityRuns: [Run] {
+        runs.scoped(to: effectiveActivityScope)
+    }
 
     var body: some View {
         NavigationStack {
@@ -94,7 +106,7 @@ struct ScopedSearchView: View {
     /// So the empty state teaches, using this person's own history as the examples: every chip is
     /// a query drawn from what they actually have, which means none of them can return nothing.
     @ViewBuilder private var starter: some View {
-        if !suggestions.isEmpty {
+        if includesActivities, !suggestions.isEmpty {
             Section {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
@@ -153,9 +165,9 @@ struct ScopedSearchView: View {
         }
     }
 
-    /// The eight most recent activities — "the one from Tuesday" is the commonest reason anyone
-    /// opens a search, and it needs no typing at all.
-    private var recent: [Run] { Array(runs.prefix(8)) }
+    /// The eight most recent *visible, in-scope* activities. Search used to read the raw query here,
+    /// which meant an activity explicitly hidden from Etch could casually reappear in Recent.
+    private var recent: [Run] { Array(activityRuns.prefix(8)) }
 
     /// Example queries, each drawn from this history so each one returns results.
     ///
@@ -163,14 +175,14 @@ struct ScopedSearchView: View {
     /// distance figure and an activity type are the two that surprise them.
     private var suggestions: [String] {
         var out: [String] = []
-        let stats = RunStatistics(runs)
+        let stats = RunStatistics(activityRuns)
 
         if let city = stats.travelPlaces.first?.label
             .components(separatedBy: ", ").first, !city.isEmpty {
             out.append(city)
         }
         if let year = stats.years.first { out.append(String(year)) }
-        if runs.contains(where: \.isRace) { out.append("race") }
+        if activityRuns.contains(where: \.isRace) { out.append("race") }
 
         // From Achievements, lead with the words that find a record. They are the reason someone
         // reached for search from that page, and they are also the least guessable thing here.
@@ -181,7 +193,7 @@ struct ScopedSearchView: View {
         }
 
         // A distance they own, in the form the app prints it — which is the form that matches.
-        if let longest = runs.max(by: { $0.distance < $1.distance }) {
+        if let longest = activityRuns.max(by: { $0.distance < $1.distance }) {
             let figure = String(format: "%.1f", Format.distanceValue(longest.distance))
             if figure != "0.0" { out.append(figure) }
         }
@@ -191,7 +203,7 @@ struct ScopedSearchView: View {
         let types: [ActivityScope] = [.hikes, .rides, .walks, .runs]
         if let other = types.first(where: { scope in
             guard let type = scope.activityType else { return false }
-            return runs.contains { $0.activityType == type }
+            return activityRuns.contains { $0.activityType == type }
         }) {
             out.append(other.singularNoun)
         }
@@ -256,9 +268,9 @@ struct ScopedSearchView: View {
         return activeScope == .achievements
     }
 
-    /// The records this history holds, from the same list Achievements renders.
+    /// The records this visible activity history holds, from the same list Milestones renders.
     private var records: [RunStatistics.Record] {
-        RunStatistics(runs.countingTotals).records(usesPace: appModel.activityScope.usesPace)
+        RunStatistics(activityRuns.countingTotals).records(usesPace: effectiveActivityScope.usesPace)
     }
 
     private var matchingRecords: [RunStatistics.Record] {
@@ -305,7 +317,7 @@ struct ScopedSearchView: View {
     private var matchingRuns: [Run] {
         let q = trimmed.lowercased()
         guard !q.isEmpty else { return [] }
-        return runs.filter { run in
+        return activityRuns.filter { run in
             haystack(for: run).contains(q)
         }
     }
@@ -436,9 +448,10 @@ struct ScopedSearchView: View {
         }
     }
 
-    /// Selecting focuses the map on the run. Search is a way of arriving somewhere, which is the
-    /// reason it is a tool beside the tabs rather than a fifth one among them.
+    /// Selecting an activity should actually *arrive* at it. The old code focused the map behind
+    /// Search but left the search tab selected, so tapping a result could appear to do nothing.
     private func open(_ run: Run) {
         appModel.select(run)
+        appModel.selectedTab = .map
     }
 }
