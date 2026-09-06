@@ -36,9 +36,9 @@ export const subsidiaries: Entity[] = [
     name: 'Ascend Imagery',
     sector: 'Aerial photography and imaging',
     short: 'Aerial imaging',
-    office: 'To be confirmed',
+    office: 'Gilbert, Arizona',
     status: 'Operating',
-    note: 'No page yet — it needs a paragraph from you before it gets one.',
+    note: 'Formerly at ascendimg.com; the site is no longer live.',
   },
 ];
 
@@ -101,7 +101,7 @@ export const ventures: Venture[] = [
     name: 'Ascend Imagery',
     year: '2021',
     field: 'Aerial photography',
-    body: 'Drone photography and imaging for real estate. The second time the company has built a business around a camera in the air, seven years after the first.',
+    body: 'Drone photography and imaging for real estate, out of Gilbert. The second time the company has built a business around a camera in the air, seven years after the first. It traded at ascendimg.com; that site is no longer live.',
     status: 'Operating',
   },
   {

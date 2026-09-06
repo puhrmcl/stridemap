@@ -3,18 +3,18 @@
    appears only in the logo; this page speaks in the body serif. */
 :root{
   --paper:#F7F6F1; --surface:#FFFFFF; --ink:#2A2C28; --soft:#6E7068;
-  --green:#386E0D; --hair:#2A2C281F; --hair-2:#2A2C2833; --band:#EFEEE7;
+  --green:#386E0D; --terra:#B76F43; --hair:#2A2C281F; --hair-2:#2A2C2833; --band:#EFEEE7;
   --d:"Archivo",-apple-system,"Helvetica Neue",Arial,sans-serif;
   --b:"Newsreader",Georgia,"Times New Roman",serif;
   --gut:clamp(20px,5vw,72px);
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --paper:#1B1E19; --surface:#232720; --ink:#E9E7DE; --soft:#9AA095;
-  --green:#8FBE4A; --hair:#E9E7DE1F; --hair-2:#E9E7DE33; --band:#212520;
+  --green:#8FBE4A; --terra:#C98459; --hair:#E9E7DE1F; --hair-2:#E9E7DE33; --band:#212520;
 }}
 :root[data-theme="dark"]{
   --paper:#1B1E19; --surface:#232720; --ink:#E9E7DE; --soft:#9AA095;
-  --green:#8FBE4A; --hair:#E9E7DE1F; --hair-2:#E9E7DE33; --band:#212520;
+  --green:#8FBE4A; --terra:#C98459; --hair:#E9E7DE1F; --hair-2:#E9E7DE33; --band:#212520;
 }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -161,3 +161,8 @@ footer{border-top:1px solid var(--hair);padding-block:clamp(30px,4vw,50px);
 .tlg{scroll-margin-top:96px}
 .tlg:target .tlyear{color:var(--ink)}
 .tlg:target .tlv h3 a,.tlg:target .tlv h3{color:var(--green)}
+
+/* Verde House mark — two colour layers, both theme-driven */
+.vhmark{width:100%;height:auto;display:block}
+.vh-ink{fill:var(--verde,var(--green))}
+.vh-sun{fill:var(--terra)}

@@ -19,6 +19,26 @@
     ],
     "role": "primary"
   },
+  "terracotta": {
+    "hex": "#B76F43",
+    "rgb": [
+      183,
+      111,
+      67
+    ],
+    "cmyk": [
+      22,
+      62,
+      79,
+      7
+    ],
+    "pantone_candidates": [
+      "7586 C",
+      "1615 C",
+      "4635 C"
+    ],
+    "role": "accent \u2014 the sun, and nothing else"
+  },
   "warm-white": {
     "hex": "#F4F1E9",
     "rgb": [
@@ -72,13 +92,13 @@
     "role": "reverse / screen"
   },
   "_meta": {
-    "status": "decided",
-    "decided": "2026-09-05",
+    "status": "revised",
+    "decided": "2026-09-06",
+    "note": "Terracotta added with the arch concept. It appears on the sun and nowhere else \u2014 it is not a second brand colour, it is one element. The reference artwork's green (#3F5139, hue 100, an olive) was not adopted; the locked #1A3925 stands.",
     "rejected_alternative": {
       "verde-green": "#1F3D2E",
       "warm-white": "#F9F7F2",
       "black": "#1A1A1A"
-    },
-    "rationale": "Gilbert, Arizona. Hue 141 sits near a nopal pad; the alternative at 150 is a conifer green. Warm white at 4.5% chroma reads as plaster; the alternative at 1.07:1 against pure white barely reads warm. Black carries a green cast so the one-colour cut stays in the family."
+    }
   }
 }

@@ -1,6 +1,8 @@
-/* Verde House — production palette. Four colours. No tints beyond these. */
+/* Verde House — production palette.
+   Terracotta is the sun and nothing else. It is not a general-purpose accent. */
 :root {
   --vh-verde:      #1A3925;  /* rgb(26 57 37)    · CMYK 80/45/75/55 */
+  --vh-terracotta: #B76F43;  /* rgb(183 111 67)  · CMYK 22/62/79/7  */
   --vh-warm-white: #F4F1E9;  /* rgb(244 241 233) · CMYK 3/3/7/0     */
   --vh-black:      #131614;  /* rgb(19 22 20)    · CMYK 70/55/60/90 */
   --vh-white:      #FFFFFF;  /* rgb(255 255 255) · CMYK 0/0/0/0     */

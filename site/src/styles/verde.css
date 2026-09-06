@@ -1,16 +1,16 @@
 :root{
-  --ground:#F4F1E9; --surface:#FFFFFF; --ink:#131614; --verde:#1A3925;
+  --ground:#F4F1E9; --surface:#FFFFFF; --ink:#131614; --verde:#1A3925; --terra:#B76F43;
   --accent:#1A3925; --muted:#6E6A60; --hair:#1A392524; --hair-strong:#1A392540;
   --f:"Archivo",-apple-system,"Helvetica Neue",Arial,sans-serif;
   --m:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
   --gut:clamp(20px,5vw,72px);
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --ground:#12241B; --surface:#172C21; --ink:#E9E5DA; --verde:#F4F1E9;
+  --ground:#12241B; --surface:#172C21; --ink:#E9E5DA; --verde:#F4F1E9; --terra:#C98459;
   --accent:#9CC4A9; --muted:#8FA394; --hair:#F4F1E922; --hair-strong:#F4F1E93A;
 }}
 :root[data-theme="dark"]{
-  --ground:#12241B; --surface:#172C21; --ink:#E9E5DA; --verde:#F4F1E9;
+  --ground:#12241B; --surface:#172C21; --ink:#E9E5DA; --verde:#F4F1E9; --terra:#C98459;
   --accent:#9CC4A9; --muted:#8FA394; --hair:#F4F1E922; --hair-strong:#F4F1E93A;
 }
 *{box-sizing:border-box}
@@ -102,3 +102,8 @@ footer{border-top:1px solid var(--hair);padding-block:clamp(34px,5vw,58px) clamp
 .fmark{color:var(--verde);width:52px}
 .fmark svg{width:100%;height:auto;display:block}
 .fmeta{font-family:var(--m);font-size:11px;color:var(--muted);line-height:1.9;text-align:right}
+
+/* Verde House mark — two colour layers, both theme-driven */
+.vhmark{width:100%;height:auto;display:block}
+.vh-ink{fill:var(--verde,var(--green))}
+.vh-sun{fill:var(--terra)}
