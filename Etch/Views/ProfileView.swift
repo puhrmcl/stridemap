@@ -25,13 +25,15 @@ struct ProfileView: View {
     @AppStorage("profileBio") private var bio = ""
     @State private var showEditor = false
 
-    /// The scope the totals reflect — the user's app-wide selection, clamped back to All if the
-    /// stored scope was hidden in Settings. The filter is always available here on the profile hub.
+    /// The scope the identity totals reflect — the user's app-wide activity choice, clamped back
+    /// to All if that type has since been hidden in Settings.
     private var scope: ActivityScope {
         ActivitySettings.isVisible(appModel.activityScope) ? appModel.activityScope : .all
     }
 
-    /// Totals honour the activity filter and drop activities the user kept out of totals.
+    /// Profile is identity, not a temporary query result. These are all-time totals for the active
+    /// activity type and deliberately ignore the Map/Timeline browse filter. A Phoenix/date/race
+    /// filter should not make someone's profile identity shrink until they happen to clear it.
     private var stats: RunStatistics { RunStatistics(allRuns.scoped(to: scope).countingTotals) }
 
     var body: some View {
@@ -134,8 +136,9 @@ struct ProfileView: View {
         .padding(.vertical, 24)
     }
 
-    /// The filter row between Search and Settings — opens the full Filters sheet (activity, date,
-    /// distance, time, location, surface, race). The subtitle summarises what's currently applied.
+    /// The browse-filter row between Search and Settings. The filter affects Map, Timeline and
+    /// other browsing surfaces, not the all-time identity totals above — the label makes that
+    /// boundary explicit so "Profile says 3,382 mi while Filters says Phoenix" never reads as a bug.
     private var activityFilterRow: some View {
         Button { showFilters = true } label: {
             HStack(spacing: 14) {
@@ -144,7 +147,7 @@ struct ProfileView: View {
                     .foregroundStyle(Theme.accent)
                     .frame(width: 30)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Filters").font(.body.weight(.semibold)).foregroundStyle(.primary)
+                    Text("Browse Filters").font(.body.weight(.semibold)).foregroundStyle(.primary)
                     Text(filterSummary).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer()
@@ -157,11 +160,10 @@ struct ProfileView: View {
         .buttonStyle(.plain)
     }
 
-    /// A short line naming what the filter is currently doing — the activity plus whether any
-    /// further filter (date, distance, location, …) is narrowing the set.
+    /// A short line naming the global browsing state without suggesting it changes Profile totals.
     private var filterSummary: String {
         let scopeLabel = scope == .all ? "All activities" : scope.label
-        return appModel.filter.isActive ? "\(scopeLabel) · filtered" : "\(scopeLabel) · all time"
+        return appModel.filter.isActive ? "\(scopeLabel) · filter active elsewhere" : "\(scopeLabel) · no browse filter"
     }
 
     private func stat(value: String, label: String) -> some View {
