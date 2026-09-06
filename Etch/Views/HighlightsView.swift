@@ -86,12 +86,10 @@ struct HighlightsView: View {
 
     /// Rebuilds the page.
     ///
-    /// Same reasoning as the Timeline for the filter reaching here: "your cities" means the
-    /// cities in what you are currently looking at rather than the cities in everything. A
-    /// records page that ignored the filter would quietly contradict the map beside it.
-    ///
-    /// Reach and the per-discipline breakdown describe everywhere you've been, so they include
-    /// every activity. Records, personal bests and year sums use only the counting activities.
+    /// Temporary browse filters scope the factual sections below so the page agrees with the map.
+    /// Meaning is different: “Etch noticed” is a statement about the selected activity history,
+    /// not about whatever date/place/race slice happens to be active right now. It therefore uses
+    /// `typed`, while reach/records/recaps continue using the filtered `scoped` set.
     private func rebuildDerived() {
         let typed = runs.scoped(to: scope)
         let scoped: [Run]
@@ -124,7 +122,7 @@ struct HighlightsView: View {
             next.yearTotals[year] = (yearStats.totalRuns, yearStats.totalDistanceMeters)
         }
         next.locatedCount = scoped.reduce(0) { $0 + ($1.startLatitude != nil ? 1 : 0) }
-        next.meaningInsights = MeaningEngine(runs: scoped).insights(limit: 3)
+        next.meaningInsights = MeaningEngine(runs: typed).insights(limit: 3)
         if scope == .all {
             next.breakdown = breakdownScopes.compactMap { s in
                 let subset = RunStatistics(runs.scoped(to: s))
