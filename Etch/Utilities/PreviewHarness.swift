@@ -227,6 +227,16 @@ struct PreviewHarnessView: View {
                 case "scope-rule":      ScopeRuleCheckView()
                 case "photo-memory":    PhotoMemoryCheckView()
                 case "memories":        PhotoMemoriesView()
+                // The route-aware orientation rule and the race panel's composition decisions,
+                // reported as pass/fail. Its visual half is "race-panel" below.
+                case "smart-layout":    SmartLayoutCheckView()
+                // The race data panel rendered across the four scenarios that matter — wide,
+                // compact, dense and sparse — because "does the panel look designed" is a
+                // question only a picture answers.
+                case "race-panel":      RacePanelPreviewView()
+                // The Design section alone, so the Orientation recommendation is on screen —
+                // inside the tray it sits below three thumbnail rows, off the bottom of a shot.
+                case "orientation":     OrientationRecommendationPreview()
                 // Also not a screen of the app: the brand sheet's UI elements on one page, so
                 // CI can photograph them and they can be held against the reference.
                 case "components":      ComponentSheetView()

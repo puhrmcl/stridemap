@@ -1,39 +1,24 @@
 import SwiftUI
 
-/// **Content** — what the poster actually says.
-///
-/// The old Data tab asked the user to think in the renderer's vocabulary: a "headline slot", four
-/// "data points" drawn as empty dashed boxes whether or not they held anything, and three lines
-/// named Text 1, Text 2 and Text 3. None of those are things a person wants; they are things the
-/// composition has. This section names each line by what it *is* and shows the value that will be
-/// printed, so the list reads as the poster's content rather than as the form that produces it.
-///
-/// Empty placeholder boxes are gone. A slot that holds nothing is simply not a row — adding one is
-/// a single explicit action at the foot of the list.
+/// What the artwork says and which supporting details it carries. The preview stays visible above
+/// this editor, so every choice is judged on the finished piece rather than in a settings form.
 struct StudioContentEditor: View {
     let run: Run
     @Binding var config: PosterConfig
 
-    /// Editing targets handed back up to the editor, which owns the sheets.
     var onEditMetric: (StudioContentTarget) -> Void
     var onAddPhoto: () -> Void
     var onPickFramePhoto: (Int) -> Void
 
     @Environment(\.modelContext) private var modelContext
-    /// Presenting the Files importer — the second door for photos that never joined the library.
     @State private var showFileImporter = false
-
-    /// Which text line is expanded for inline editing. Only one at a time — the tray is short and
-    /// two open keyboards would push the poster off screen.
     @State private var editingLine: TextLine?
-    /// Reorder mode for the data rows. Explicit rather than drag-always-on: this list lives inside
-    /// a panel the user can also drag to resize, and two live drag gestures in one surface is how
-    /// you get a list that rubber-bands when someone meant to resize the tray.
     @State private var isReordering = false
 
     enum TextLine: String, Identifiable {
         case title, location, date, athlete
         var id: String { rawValue }
+
         var name: String {
             switch self {
             case .title:    return "Title"
@@ -42,6 +27,7 @@ struct StudioContentEditor: View {
             case .athlete:  return "Name"
             }
         }
+
         var icon: String {
             switch self {
             case .title:    return "textformat"
@@ -57,16 +43,16 @@ struct StudioContentEditor: View {
             included
             if config.family == .gallery { frames }
             if config.family == .map && config.mapLayout == .photo { photos }
-            optionalElements
+            finishingDetails
         }
     }
 
-    // MARK: Included on poster
+    // MARK: - Included on artwork
 
     private var included: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                StudioGroupLabel(text: "Included on poster")
+                StudioGroupLabel(text: "Included on artwork")
                 if config.dataSlots.count > 1 {
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) { isReordering.toggle() }
@@ -84,11 +70,9 @@ struct StudioContentEditor: View {
                     placeholder: derivedPlace)
             textRow(.date, show: $config.showDate, text: $config.date,
                     placeholder: Format.date(run.startDate))
-
-            // Whose miles these are. A line, not a signature block: name (and the pinned number,
-            // when the race carries one) set a register under the place and date.
             textRow(.athlete, show: $config.showAthlete, text: $config.athleteName,
                     placeholder: "Tap to add name")
+
             if !run.bibNumber.isEmpty {
                 HStack(spacing: 12) {
                     Image(systemName: "number")
@@ -109,8 +93,6 @@ struct StudioContentEditor: View {
                 .padding(.vertical, 7)
             }
 
-            // The headline metric is a text line as far as the reader is concerned: it is the
-            // biggest thing on the poster. Map only — a Gallery sheet has no headline block.
             if config.family == .map {
                 metricRow(config.heroMetric, label: "Headline", isHeadline: true) {
                     onEditMetric(.hero)
@@ -141,8 +123,6 @@ struct StudioContentEditor: View {
         }
     }
 
-    /// One editable line: a switch, its name, the value that will print, and — when tapped open —
-    /// the field that overrides it.
     @ViewBuilder
     private func textRow(_ line: TextLine, show: Binding<Bool>, text: Binding<String>,
                          placeholder: String) -> some View {
@@ -211,8 +191,6 @@ struct StudioContentEditor: View {
         }
     }
 
-    /// A data row: what it is, what it currently reads, and the controls to retune, reorder or
-    /// remove it.
     @ViewBuilder
     private func metricRow(_ metric: StatMetric, label: String, isHeadline: Bool,
                            index: Int? = nil, edit: @escaping () -> Void) -> some View {
@@ -243,6 +221,7 @@ struct StudioContentEditor: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(index == 0)
+
                     Button { move(index, by: 1) } label: {
                         Image(systemName: "chevron.down")
                             .font(.system(size: 12, weight: .bold))
@@ -259,6 +238,7 @@ struct StudioContentEditor: View {
                             .font(.etch(.subheadline))
                             .foregroundStyle(Color.secondary)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                         Image(systemName: "chevron.right")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(Color.secondary.opacity(0.55))
@@ -294,10 +274,8 @@ struct StudioContentEditor: View {
         }
     }
 
-    // MARK: Gallery frames
+    // MARK: - Gallery
 
-    /// What each Gallery frame shows. Content, not style: the frames are the poster's subject
-    /// matter, which is why they moved out of the old Style tab.
     private var frames: some View {
         VStack(alignment: .leading, spacing: 12) {
             StudioGroupLabel(text: "Photo layout")
@@ -316,38 +294,43 @@ struct StudioContentEditor: View {
                             }
                             .foregroundStyle(config.galleryDesign == design ? Color.white : Theme.accent)
                             .frame(width: 82, height: 52)
-                            .background(config.galleryDesign == design ? Theme.accent : Theme.accent.opacity(0.10),
+                            .background(config.galleryDesign == design ? Theme.accent
+                                                                       : Theme.accent.opacity(0.10),
                                         in: .rect(cornerRadius: 10))
                         }
                         .buttonStyle(.plain)
+                        .accessibilityAddTraits(config.galleryDesign == design ? [.isSelected] : [])
                     }
                 }
             }
 
             StudioGroupLabel(text: "Frames")
             HStack(spacing: 8) {
-                ForEach(0..<config.galleryDesign.frameCount, id: \.self) { i in
+                ForEach(0..<config.galleryDesign.frameCount, id: \.self) { index in
                     Menu {
-                        Picker("Frame", selection: frameBinding(i)) {
+                        Picker("Frame", selection: frameBinding(index)) {
                             ForEach(GalleryTileKind.allCases) { kind in
                                 Label(kind.name, systemImage: kind.icon).tag(kind)
                             }
                         }
-                        if frameKind(i) == .photo {
-                            Button { onPickFramePhoto(i) } label: {
+                        if frameKind(index) == .photo {
+                            Button { onPickFramePhoto(index) } label: {
                                 Label("Choose Photo…", systemImage: "photo.on.rectangle.angled")
                             }
                         }
                     } label: {
-                        let kind = frameKind(i)
+                        let kind = frameKind(index)
                         VStack(spacing: 3) {
-                            Image(systemName: kind.icon).font(.system(size: 15, weight: .semibold))
-                            Text(frameLabel(i, kind)).font(.etch(size: 10, weight: .semibold))
+                            Image(systemName: kind.icon)
+                                .font(.system(size: 15, weight: .semibold))
+                            Text(frameLabel(index, kind))
+                                .font(.etch(size: 10, weight: .semibold))
+                                .lineLimit(1)
                         }
                         .foregroundStyle(Theme.accent)
                         .frame(maxWidth: .infinity)
                         .frame(height: 46)
-                        .background(Theme.accent.opacity(0.1), in: .rect(cornerRadius: 8))
+                        .background(Theme.accent.opacity(0.10), in: .rect(cornerRadius: 8))
                     }
                     .buttonStyle(.plain)
                 }
@@ -371,22 +354,19 @@ struct StudioContentEditor: View {
     private var photos: some View {
         VStack(alignment: .leading, spacing: 8) {
             StudioGroupLabel(text: "Photos")
-            Stepper("Photos on poster: \(config.mapPhotoCount)",
+            Stepper("Photos on artwork: \(config.mapPhotoCount)",
                     value: $config.mapPhotoCount, in: 1...3)
                 .font(.etch(.subheadline))
             addPhotoButton
         }
     }
 
-    /// Two doors to the same place: the camera roll, and Files — a race photo often arrives as a
-    /// download or an AirDrop that never joined the library. A file import is saved *into* the
-    /// library and referenced like any other photo, so downstream nothing knows the difference.
     private var addPhotoButton: some View {
         HStack(spacing: 10) {
             Button(action: onAddPhoto) {
                 Label(run.photoReferences.isEmpty
                         ? "Camera Roll"
-                        : "Camera Roll · \(run.photoReferences.count) on run",
+                        : "Camera Roll · \(run.photoReferences.count)",
                       systemImage: "photo.badge.plus")
                     .font(.etch(.subheadline, weight: .semibold))
                     .foregroundStyle(Theme.accent)
@@ -395,6 +375,7 @@ struct StudioContentEditor: View {
                     .background(Theme.accent.opacity(0.12), in: .capsule)
             }
             .buttonStyle(.plain)
+
             Button { showFileImporter = true } label: {
                 Label("Files", systemImage: "folder.badge.plus")
                     .font(.etch(.subheadline, weight: .semibold))
@@ -425,72 +406,96 @@ struct StudioContentEditor: View {
         try? modelContext.save()
     }
 
-    private func frameKind(_ i: Int) -> GalleryTileKind {
-        let frames = config.resolvedFrames
-        return i < frames.count ? frames[i] : .photo
+    private func frameKind(_ index: Int) -> GalleryTileKind {
+        let resolved = config.resolvedFrames
+        return index < resolved.count ? resolved[index] : .photo
     }
 
-    private func frameLabel(_ i: Int, _ kind: GalleryTileKind) -> String {
+    private func frameLabel(_ index: Int, _ kind: GalleryTileKind) -> String {
         guard kind == .photo, run.photoReferences.count > 1 else { return kind.name }
-        return "Photo \(effectivePhotoPick(i) + 1)"
+        return "Photo \(effectivePhotoPick(index) + 1)"
     }
 
-    private func effectivePhotoPick(_ i: Int) -> Int {
+    private func effectivePhotoPick(_ index: Int) -> Int {
         let picks = config.resolvedPhotoPicks
-        if i < picks.count, picks[i] >= 0 { return picks[i] }
-        return config.resolvedFrames.prefix(i).filter { $0 == .photo }.count
+        if index < picks.count, picks[index] >= 0 { return picks[index] }
+        return config.resolvedFrames.prefix(index).filter { $0 == .photo }.count
     }
 
-    private func frameBinding(_ i: Int) -> Binding<GalleryTileKind> {
+    private func frameBinding(_ index: Int) -> Binding<GalleryTileKind> {
         Binding(
-            get: { frameKind(i) },
+            get: { frameKind(index) },
             set: { newValue in
                 var frames = config.resolvedFrames
-                guard frames.indices.contains(i) else { return }
-                frames[i] = newValue
+                guard frames.indices.contains(index) else { return }
+                frames[index] = newValue
                 config.galleryFrames = frames
             }
         )
     }
 
-    // MARK: Optional elements
+    // MARK: - Finishing details
 
-    /// The extras the composition can draw. Each is offered only when this activity actually
-    /// carries the data behind it — a pace band with no per-point timing is a promise the
-    /// renderer cannot keep.
-    private var optionalElements: some View {
+    /// Standalone weather belongs only in layouts that have an authored metadata line for it.
+    /// Gallery can still use Weather as an explicit data point; Minimal and Full Bleed stay true to
+    /// their names. A control that cannot change the artwork must never be shown.
+    private var supportsStandaloneWeather: Bool {
+        guard config.family == .map else { return false }
+        switch config.mapLayout {
+        case .nameplate, .statement, .photo: return true
+        case .minimal, .fullBleed: return false
+        }
+    }
+
+    private var finishingDetails: some View {
         VStack(alignment: .leading, spacing: 4) {
-            StudioGroupLabel(text: "Optional elements")
+            StudioGroupLabel(text: "Finishing details")
             elementToggle("Elevation profile", "mountain.2", $config.showElevation)
             if run.hasPaceSeries {
                 elementToggle("Pace profile", "speedometer", $config.showPace)
             }
-            if run.hasWeather {
-                elementToggle("Weather", "cloud.sun", $config.includeWeather)
+            if run.hasWeather, supportsStandaloneWeather {
+                elementToggle("Weather", "cloud.sun", $config.includeWeather,
+                              detail: run.weatherLine())
             }
             elementToggle("Data labels", "textformat.abc", $config.showStatLabels)
         }
     }
 
-    private func elementToggle(_ title: String, _ icon: String, _ value: Binding<Bool>) -> some View {
+    private func elementToggle(_ title: String, _ icon: String, _ value: Binding<Bool>,
+                               detail: String? = nil) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(value.wrappedValue ? Theme.accent : Color.secondary.opacity(0.5))
                 .frame(width: 22)
-            Text(title)
-                .font(.etch(.subheadline))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.etch(.subheadline))
+                if let detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+            }
+
             Spacer(minLength: 8)
             Toggle("", isOn: value)
                 .labelsHidden()
                 .tint(Theme.accent)
                 .scaleEffect(0.85)
         }
-        .padding(.vertical, 5)
+        .padding(.vertical, 6)
     }
 
     private var derivedPlace: String {
-        [run.city, run.state].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
+        [run.city, run.state]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: ", ")
     }
 }
 
@@ -499,10 +504,11 @@ enum StudioContentTarget: Identifiable {
     case hero
     case slot(Int)
     case add
+
     var id: String {
         switch self {
         case .hero: return "hero"
-        case .slot(let i): return "slot-\(i)"
+        case .slot(let index): return "slot-\(index)"
         case .add: return "add"
         }
     }
