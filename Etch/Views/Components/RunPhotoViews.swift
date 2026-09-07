@@ -226,18 +226,27 @@ private struct FilmstripFrame: View {
 private struct FullPhoto: View {
     let identifier: String
     @State private var image: UIImage?
+    @State private var loading = true
 
     var body: some View {
         ZStack {
             Color.black
             if let image {
                 Image(uiImage: image).resizable().scaledToFit()
-            } else {
+            } else if loading {
                 ProgressView().tint(.white)
+            } else {
+                ContentUnavailableView("Photo unavailable", systemImage: "photo",
+                    description: Text("It may have been deleted or be outside Etch’s current photo access. The activity is still here."))
             }
         }
         .task(id: identifier) {
-            image = await PhotoLibrary.image(for: identifier, targetSize: CGSize(width: 1600, height: 1600))
+            image = nil
+            loading = true
+            let loaded = await PhotoLibrary.image(for: identifier, targetSize: CGSize(width: 1600, height: 1600))
+            guard !Task.isCancelled else { return }
+            image = loaded
+            loading = false
         }
     }
 }

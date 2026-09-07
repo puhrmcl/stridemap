@@ -37,6 +37,7 @@ struct RunDetailView: View {
     @State private var isFindingPhotos = false
     @State private var showPhotoReview = false
     @State private var showPhotoMap = false
+    @State private var photoSaveError = false
     @State private var removedPhoto: (id: String, index: Int)?
     @State private var showStudio = false
     /// The recipe Studio opens on when entered from the moment card; nil = the plain default.
@@ -145,6 +146,10 @@ struct RunDetailView: View {
                     selection: GalleryPhoto(photoID: selection.id, run: run).id
                 )
             }
+            .alert("Couldn’t save photo changes", isPresented: $photoSaveError) {
+                Button("Retry") { savePhotoChanges() }
+                Button("OK", role: .cancel) {}
+            } message: { Text("Your changes are still on this screen. Try saving again before leaving.") }
             .sheet(isPresented: $showPhotoReview) { PhotoReviewView(run: run) }
             .sheet(isPresented: $showPhotoMap) { ActivityPhotoMap(run: run) }
             .navigationBarTitleDisplayMode(.inline)
@@ -789,7 +794,7 @@ struct RunDetailView: View {
                     Button("Undo") {
                         run.restorePhoto(removedPhoto.id, at: removedPhoto.index)
                         self.removedPhoto = nil
-                        try? context.save()
+                        savePhotoChanges()
                     }
                 }
             }
@@ -893,7 +898,7 @@ struct RunDetailView: View {
     private func addIdentifiers(_ ids: [String]) {
         guard !ids.isEmpty else { return }
         run.attachPhotos(ids, manually: true)
-        try? context.save()
+        savePhotoChanges()
     }
 
     private func addPicked(_ items: [PhotosPickerItem]) {
@@ -904,7 +909,7 @@ struct RunDetailView: View {
     private func deletePhoto(_ identifier: String) {
         if let index = run.rejectPhoto(identifier) { removedPhoto = (identifier, index) }
         run.updatedAt = Date()
-        try? context.save()
+        savePhotoChanges()
     }
 
     /// Makes a photo the run's cover by moving it to the front of `photoReferences`.
@@ -920,7 +925,7 @@ struct RunDetailView: View {
         refs.insert(identifier, at: 0)
         run.photoReferences = refs
         run.updatedAt = Date()
-        try? context.save()
+        savePhotoChanges()
     }
 
     private var photoScanKey: String { "photoScan-\(run.id.uuidString)" }
@@ -930,7 +935,7 @@ struct RunDetailView: View {
         guard PhotoLibrary.isAuthorized,
               !UserDefaults.standard.bool(forKey: photoScanKey) else { return }
         run.attachPhotos(PhotoLibrary.matchingIdentifiers(for: run), manually: false)
-        try? context.save()
+        savePhotoChanges()
         UserDefaults.standard.set(true, forKey: photoScanKey)
     }
 
@@ -940,8 +945,12 @@ struct RunDetailView: View {
         defer { isFindingPhotos = false }
         guard await PhotoLibrary.requestAuthorization() else { return }
         run.attachPhotos(PhotoLibrary.matchingIdentifiers(for: run), manually: false)
-        try? context.save()
+        savePhotoChanges()
         UserDefaults.standard.set(true, forKey: photoScanKey)
+    }
+
+    private func savePhotoChanges() {
+        do { try context.save() } catch { photoSaveError = true }
     }
 
     /// Subtle provenance line — where the workout originated. Deliberately quiet.
@@ -1084,6 +1093,10 @@ private struct EditRunSheet: View {
                 routeAttached = true
             }
             .navigationTitle("Edit Activity")
+            .alert("Couldn’t save photo changes", isPresented: $photoSaveError) {
+                Button("Retry") { savePhotoChanges() }
+                Button("OK", role: .cancel) {}
+            } message: { Text("Your changes are still on this screen. Try saving again before leaving.") }
             .sheet(isPresented: $showPhotoReview) { PhotoReviewView(run: run) }
             .sheet(isPresented: $showPhotoMap) { ActivityPhotoMap(run: run) }
             .navigationBarTitleDisplayMode(.inline)
