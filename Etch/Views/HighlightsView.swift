@@ -19,21 +19,18 @@ struct HighlightsView: View {
     /// over-count DC/territories, foreign regions, spelling variants, and GPS-less imported runs.
     private struct ReachGeo { var states = 0; var countries = 0; var ready = false }
     @State private var reachGeo = ReachGeo()
+    /// Monotonic stamp so only the newest reach computation may publish its result.
+    @State private var reachGeneration = 0
 
-    /// Concrete activity types (not "All") that are both enabled in Settings and actually present.
-    /// When only one qualifies, there's nothing to switch between.
-    private var presentActivityScopes: [ActivityScope] {
-        [.runs, .hikes, .rides, .walks].filter { ActivitySettings.isVisible($0) && !runs.scoped(to: $0).isEmpty }
+    /// Whether the switcher is offered — kept whenever an explicit selection differs from the one
+    /// populated type, so an intentionally empty scope still has a way out.
+    private var isSingleActivity: Bool {
+        !ActivitySettings.offersActivityChoice(appModel.activityScope, in: runs)
     }
-    private var isSingleActivity: Bool { presentActivityScopes.count <= 1 }
-    private var soleScope: ActivityScope { presentActivityScopes.first ?? .runs }
 
-    /// The scope actually shown: the sole type when there's only one (no switcher), `.all` if the
-    /// stored scope was hidden in Settings, otherwise the user's selection.
+    /// The scope actually shown — the one rule every surface shares.
     private var scope: ActivityScope {
-        if isSingleActivity { return soleScope }
-        if !ActivitySettings.isVisible(appModel.activityScope) { return .all }
-        return appModel.activityScope
+        ActivitySettings.resolvedScope(appModel.activityScope, in: runs)
     }
 
     // MARK: Derived data, computed once per change
@@ -65,6 +62,8 @@ struct HighlightsView: View {
         var breakdown: [(scope: ActivityScope, stats: RunStatistics)] = []
         var locatedCount = 0
         var meaningInsights: [MeaningEngine.Insight] = []
+        /// Identifies the exact located set the reach tiles describe — see `reachKey`.
+        var reachSignature = 0
     }
 
     @State private var derived = Derived()
@@ -122,6 +121,18 @@ struct HighlightsView: View {
             next.yearTotals[year] = (yearStats.totalRuns, yearStats.totalDistanceMeters)
         }
         next.locatedCount = scoped.reduce(0) { $0 + ($1.startLatitude != nil ? 1 : 0) }
+        // Membership and coordinates, not merely how many there are. Two different filtered sets
+        // of equal size are a different geography, and keying on the count alone let the previous
+        // set's state and country totals survive the change. Built here, once per rebuild, rather
+        // than in `reachKey` — which SwiftUI evaluates on every body pass.
+        var reachHasher = Hasher()
+        reachHasher.combine(scope.rawValue)
+        for run in scoped {
+            reachHasher.combine(run.id)
+            reachHasher.combine(run.startLatitude)
+            reachHasher.combine(run.startLongitude)
+        }
+        next.reachSignature = reachHasher.finalize()
         next.meaningInsights = MeaningEngine(runs: typed).insights(limit: 3)
         if scope == .all {
             next.breakdown = breakdownScopes.compactMap { s in
@@ -203,16 +214,20 @@ struct HighlightsView: View {
         }
     }
 
-    /// Keys the reach computation to the scope and the number of located runs, so it re-runs when
-    /// the user switches activity or new routes give older runs coordinates.
-    private var reachKey: String {
-        "\(scope.rawValue)-\(derived.locatedCount)"
-    }
+    /// Keys the reach computation to *which* activities are in scope and where they start, so a
+    /// filter change that happens to preserve the located count still recomputes.
+    private var reachKey: Int { derived.reachSignature }
 
     /// Attributes each located run to a US state and a country by point-in-polygon — off the main
     /// actor — so the reach tiles read exactly what the maps shade. Coordinates are snapshotted on
     /// the main actor first (Run isn't Sendable); the polygon tests run detached.
     private func computeReachGeo() async {
+        // `.task(id:)` cancels the previous task, but the polygon work runs in a *detached* task,
+        // which does not inherit that cancellation. A slow earlier pass can therefore finish after
+        // a newer one and publish the older geography. The generation stamp makes the last request
+        // the only one allowed to write.
+        reachGeneration &+= 1
+        let generation = reachGeneration
         let coordinates = scopedRuns.compactMap(\.startCoordinate)
         let result = await Task.detached(priority: .userInitiated) { () -> (states: Int, countries: Int) in
             let stateBoundaries = USStateBoundaries.shared
@@ -229,6 +244,7 @@ struct HighlightsView: View {
             }
             return (states.count, countries.count)
         }.value
+        guard generation == reachGeneration else { return }   // a newer request already answered
         reachGeo = ReachGeo(states: result.states, countries: result.countries, ready: true)
     }
 

@@ -146,20 +146,16 @@ struct HomeView: View {
 
     /// Concrete activity types (not "All") that are both enabled in Settings and actually present
     /// in the library. When only one qualifies, the app has nothing to switch between.
-    private var presentActivityScopes: [ActivityScope] {
-        [.runs, .hikes, .rides, .walks].filter { ActivitySettings.isVisible($0) && !allRuns.scoped(to: $0).isEmpty }
+    /// True when there is nothing to choose between — the activity selector collapses to a
+    /// statement. It stays a control whenever the reader has selected a type that isn't the one
+    /// populated type, so an intentionally empty scope is never a dead end.
+    private var isSingleActivity: Bool {
+        !ActivitySettings.offersActivityChoice(appModel.activityScope, in: allRuns)
     }
-    /// True when there's a single activity type — the activity selector is hidden and the pill
-    /// collapses to that one type, with no icon or dropdown to choose between.
-    private var isSingleActivity: Bool { presentActivityScopes.count <= 1 }
-    private var soleScope: ActivityScope { presentActivityScopes.first ?? .runs }
 
-    /// The scope actually used for totals and labels: the sole type when there's only one, `.all`
-    /// if the stored scope was hidden in Settings, otherwise the user's selection.
+    /// The scope actually used for totals and labels — the one rule every surface shares.
     private var effectiveScope: ActivityScope {
-        if isSingleActivity { return soleScope }
-        if !ActivitySettings.isVisible(appModel.activityScope) { return .all }
-        return appModel.activityScope
+        ActivitySettings.resolvedScope(appModel.activityScope, in: allRuns)
     }
 
     /// Runs limited to the active activity scope (All / Runs / Hikes / Walks) — the base for every
@@ -301,6 +297,29 @@ struct HomeView: View {
         // down and rebuilt it. Tying the bump to the data instead of to its inputs makes the two
         // impossible to disagree.
         appModel.bumpMapContent()
+
+        // A reveal is only finished once the activity is genuinely on the map. Doing it here —
+        // after `shown` is in hand — is what keeps the camera command from being issued into a
+        // set that does not contain its target.
+        fulfilReveal(using: shown)
+    }
+
+    /// Completes a pending `reveal` once its activity is among the drawn runs.
+    ///
+    /// If the target still isn't drawable the request is left outstanding rather than cleared:
+    /// exiting a location overlay changes `derivedKey`, which rebuilds and calls this again. The
+    /// one case that must not hang is a target that can never be drawn — an activity hidden by
+    /// the reader or belonging to a type disabled in Settings — so that is resolved explicitly.
+    private func fulfilReveal(using shown: [Run]) {
+        guard let request = appModel.revealRequest else { return }
+        if let run = shown.first(where: { $0.id == request.runID }) {
+            appModel.focus(on: run)
+            appModel.finishReveal()
+            return
+        }
+        // Not drawable and not recoverable: visibility rules outrank Search, by design.
+        let admissible = allRuns.scoped(to: effectiveScope).contains { $0.id == request.runID }
+        if !admissible { appModel.finishReveal() }
     }
 
     /// Runs that count as milestones — their map pins get the gold trophy.
@@ -492,13 +511,32 @@ struct HomeView: View {
         // switches to States, then selects Arizona — logging each stage so the map rig's
         // screenshots and log show exactly where the pipeline breaks, without a device.
         .task { await runMapDiagnostics() }
-        // Applying a filter reframes the route map to the newly filtered runs.
+        // Applying a filter reframes the route map to the newly filtered runs — unless a reveal
+        // is in flight. A reveal clears a conflicting filter on its way in, and refitting to the
+        // whole set here would issue a camera command *after* the focus and throw it away, which
+        // is precisely how "search finds it, the map goes somewhere else" happened.
         .onChange(of: appModel.filter) {
+            guard appModel.revealRequest == nil else { return }
             if !isOverviewMode { appModel.fit(visibleRuns) }
         }
-        // Switching activity type reframes the route map to the newly scoped set.
+        // Switching activity type reframes the route map to the newly scoped set — same exception.
         .onChange(of: appModel.activityScope) {
+            guard appModel.revealRequest == nil else { return }
             if !isOverviewMode { appModel.fit(visibleRuns) }
+        }
+        // Arriving at one activity leaves the place overviews: they hide the route map entirely
+        // (opacity 0, hit-testing off), so a focus behind them reveals nothing. Clearing the
+        // overlay changes `derivedKey`, which rebuilds and completes the reveal.
+        .onChange(of: appModel.revealRequest) { _, request in
+            guard request != nil else { return }
+            if showLocations {
+                // Leaving the overlay changes `derivedKey`; the rebuild completes the reveal.
+                withAnimation(Theme.gentle) { showLocations = false }
+            } else {
+                // Nothing else may be about to change, and a reveal that needed no filter or
+                // scope adjustment would otherwise wait for a rebuild that never comes.
+                fulfilReveal(using: shownRuns)
+            }
         }
         // Advance the map's content revision on the discrete events that change what it draws —
         // filter, scope, new/removed activities, or a route edit / favorite toggle (same count, new

@@ -14,8 +14,7 @@ struct SearchView: View {
     /// The legacy/modal search uses the same visibility contract as the main scoped search: hidden
     /// activities and activity types disabled in Settings do not get a second life through Search.
     private var searchableRuns: [Run] {
-        let scope = ActivitySettings.isVisible(appModel.activityScope) ? appModel.activityScope : .all
-        return runs.scoped(to: scope)
+        runs.scoped(to: ActivitySettings.resolvedScope(appModel.activityScope, in: runs))
     }
 
     private var results: [Run] {
@@ -54,7 +53,11 @@ struct SearchView: View {
     }
 
     private func open(_ run: Run) {
-        appModel.select(run)
+        // Same shared arrival as the scoped search: make the activity drawable, land on the Map,
+        // focus once it is there. Both dismissals are still needed — this search is a sheet
+        // presented from Profile, which is itself a presented surface, and leaving either standing
+        // would put the map behind a modal the reader has to dismiss to see what they searched for.
+        appModel.reveal(run)
         appModel.presentedSurface = nil
         dismiss()
     }

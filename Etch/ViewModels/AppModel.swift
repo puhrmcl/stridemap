@@ -125,6 +125,60 @@ final class AppModel {
         focus(on: run)
     }
 
+    // MARK: Reveal — arriving at one activity from anywhere
+
+    /// A request to show one activity on the map, outstanding until the map can actually draw it.
+    ///
+    /// The token makes two reveals of the *same* activity distinct values, so a second attempt
+    /// still registers as a change.
+    struct RevealRequest: Equatable {
+        let runID: UUID
+        let token: Int
+    }
+
+    /// Non-nil while a reveal is in flight. `HomeView` fulfils and clears it.
+    private(set) var revealRequest: RevealRequest?
+    private var revealToken = 0
+
+    /// Arrive on the Map and reveal one activity — the shared action behind every search result.
+    ///
+    /// Selecting a result used to call `select(_:)`, which sets the selection and fires a camera
+    /// command immediately. That fails whenever the target is not among the activities the map
+    /// draws: an activity outside the active browse filter is simply absent, and a location
+    /// overlay hides the route map entirely, so the command lands on nothing. Worse, the camera
+    /// then moved anyway — `HomeView` refits the map on any filter or scope change, so a focus
+    /// issued before those settled was overwritten a moment later.
+    ///
+    /// So this makes the target admissible first and defers the camera. Conflicting *browse*
+    /// filters are cleared and a conflicting activity type widens to All; visibility rules are
+    /// deliberately untouched, because a hidden activity or a disabled type must not reappear
+    /// through Search. The focus itself is issued by `HomeView` once the activity is genuinely
+    /// drawable.
+    func reveal(_ run: Run) {
+        // A selected type that excludes this activity would leave the map with nothing to focus.
+        // Widening to All is the smallest change that admits it, and it never reveals a type the
+        // reader disabled in Settings — `scoped(to:)` still drops those.
+        if !ActivitySettings.isVisible(activityScope) { activityScope = .all }
+        if let selectedType = activityScope.activityType, run.activityType != selectedType {
+            activityScope = .all
+        }
+        // A temporary browse filter (a date range, Favourites, a city) is a query, not a
+        // preference — arriving at a specific activity is a new query that replaces it. Judged
+        // with `isPR: false`, which is the safe direction here: only the map knows the real
+        // personal-best set, so PRs mode is treated as excluding and cleared rather than risking
+        // a reveal that quietly lands on an activity the map is not drawing.
+        if filter.isActive, !filter.matches(run, isPR: false) {
+            filter = RunFilter()
+        }
+        selectedRunID = run.id
+        selectedTab = .map
+        revealToken &+= 1
+        revealRequest = RevealRequest(runID: run.id, token: revealToken)
+    }
+
+    /// Called by the map once the reveal has been honoured (or is no longer satisfiable).
+    func finishReveal() { revealRequest = nil }
+
     func clearSelection() {
         selectedRunID = nil
     }

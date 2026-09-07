@@ -61,18 +61,13 @@ struct StudioHomeView: View {
 
     /// Runs limited to the app-wide activity scope (All / Runs / Hikes / Walks).
     /// Concrete activity types present and enabled — used to decide whether to offer a filter.
-    private var presentActivityScopes: [ActivityScope] {
-        [.runs, .hikes, .rides, .walks].filter { ActivitySettings.isVisible($0) && !runs.scoped(to: $0).isEmpty }
+    private var isSingleActivity: Bool {
+        !ActivitySettings.offersActivityChoice(appModel.activityScope, in: runs)
     }
-    private var isSingleActivity: Bool { presentActivityScopes.count <= 1 }
-    private var soleScope: ActivityScope { presentActivityScopes.first ?? .runs }
 
-    /// The scope Studio shows: the sole present type when there's only one, `.all` if the stored
-    /// scope was hidden in Settings, otherwise the user's selection.
+    /// The scope Studio shows — the one rule every surface shares.
     private var scope: ActivityScope {
-        if isSingleActivity { return soleScope }
-        if !ActivitySettings.isVisible(appModel.activityScope) { return .all }
-        return appModel.activityScope
+        ActivitySettings.resolvedScope(appModel.activityScope, in: runs)
     }
 
     /// Every activity of the chosen type — **deliberately not narrowed by `appModel.filter`.**

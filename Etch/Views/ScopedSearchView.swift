@@ -29,7 +29,7 @@ struct ScopedSearchView: View {
     /// also removes individually hidden activities and types disabled in Settings, so Search can
     /// never become a back door to content the user deliberately hid elsewhere.
     private var effectiveActivityScope: ActivityScope {
-        ActivitySettings.isVisible(appModel.activityScope) ? appModel.activityScope : .all
+        ActivitySettings.resolvedScope(appModel.activityScope, in: runs)
     }
 
     private var activityRuns: [Run] {
@@ -44,7 +44,7 @@ struct ScopedSearchView: View {
                 } else {
                     // Records lead from Achievements, because on that tab they *are* the answer —
                     // "furthest" is a question about the history, not about one activity.
-                    if !matchingRecords.isEmpty && includesRecords {
+                    if showsRecords {
                         Section("Records") {
                             ForEach(matchingRecords) { record in
                                 Button { open(record.run) } label: { recordRow(record) }
@@ -52,7 +52,7 @@ struct ScopedSearchView: View {
                             }
                         }
                     }
-                    if !matchingRuns.isEmpty && includesActivities {
+                    if showsActivities {
                         Section("Activities") {
                             ForEach(matchingRuns.prefix(20), id: \.id) { run in
                                 Button { open(run) } label: { runRow(run) }
@@ -60,7 +60,7 @@ struct ScopedSearchView: View {
                             }
                         }
                     }
-                    if !matchingProducts.isEmpty && includesProducts {
+                    if showsProducts {
                         Section("Products") {
                             ForEach(matchingProducts) { hit in
                                 Button { open(hit) } label: { productRow(hit) }
@@ -68,7 +68,11 @@ struct ScopedSearchView: View {
                             }
                         }
                     }
-                    if matchingRuns.isEmpty && matchingProducts.isEmpty && matchingRecords.isEmpty {
+                    // "Nothing found" has to mean nothing *this scope would have shown*. Judging
+                    // it on the raw match sets let a Studio query that matched only an activity
+                    // suppress the empty state while the Activities section stayed correctly
+                    // hidden — leaving a blank list and no explanation.
+                    if !showsRecords && !showsActivities && !showsProducts {
                         ContentUnavailableView.search(text: trimmed)
                     }
                 }
@@ -244,6 +248,12 @@ struct ScopedSearchView: View {
     }
 
     // MARK: What each scope admits
+
+    // Displaying a section and deciding the search came back empty are the same question, so they
+    // read the same three values rather than each re-deriving their own answer.
+    private var showsRecords: Bool { includesRecords && !matchingRecords.isEmpty }
+    private var showsActivities: Bool { includesActivities && !matchingRuns.isEmpty }
+    private var showsProducts: Bool { includesProducts && !matchingProducts.isEmpty }
 
     /// Activities are the answer nearly everywhere — the Map wants them pinned, the Timeline wants
     /// them by date — so only an unscoped Studio search leaves them out.
@@ -448,10 +458,12 @@ struct ScopedSearchView: View {
         }
     }
 
-    /// Selecting an activity should actually *arrive* at it. The old code focused the map behind
-    /// Search but left the search tab selected, so tapping a result could appear to do nothing.
+    /// Selecting an activity should actually *arrive* at it — on the Map, with the activity on
+    /// screen. Selecting the Map tab alone was not enough: an activity outside the active browse
+    /// filter is not among the runs the map draws, and a location overlay hides the route map
+    /// altogether, so the camera command had nothing to land on. `reveal(_:)` makes the target
+    /// admissible first and defers the focus until the map can actually draw it.
     private func open(_ run: Run) {
-        appModel.select(run)
-        appModel.selectedTab = .map
+        appModel.reveal(run)
     }
 }
