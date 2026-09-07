@@ -261,6 +261,7 @@ jobs:
           shoot race-all-data        race-panel all-data         30
           shoot race-sparse          race-panel sparse           30
           # The two editor screens open the tray directly on the section being reviewed.
+          shoot studio-orientation   orientation ""              25
           shoot studio-design        map-studio design           45
           shoot studio-personalize   map-studio customize        45
 

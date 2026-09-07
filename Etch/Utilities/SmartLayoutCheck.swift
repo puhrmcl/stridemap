@@ -443,3 +443,36 @@ struct RacePanelPreviewView: View {
         rendering = false
     }
 }
+
+/// The Design section on its own, so the Orientation recommendation can be photographed.
+///
+/// Inside the editor tray that control sits below Layout, Style and Color — off the bottom of a
+/// screenshot, and `simctl` cannot scroll a sheet. This is the same production `StudioDesignEditor`,
+/// just not wrapped in the tray, shown against the wide fixture so the line it prints is the
+/// route-derived one rather than the default.
+@MainActor
+struct OrientationRecommendationPreview: View {
+    private let run = SmartLayoutFixtures.wideRace
+    @State private var config = PosterConfig.makeDefault(for: SmartLayoutFixtures.wideRace)
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Design")
+                    .font(.etch(.title3, weight: .bold))
+                Text("Wide fixture · corrected aspect "
+                     + String(format: "%.2f", StudioCurator.routeAspect(for: run) ?? 0))
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                StudioDesignEditor(run: run, config: $config, onNeedRoom: {})
+            }
+            .padding(20)
+        }
+        .onAppear {
+            config.family = .map
+            config.mapStyle = .none
+            config.mapLayout = .nameplate
+            config.orientation = StudioCurator.bestOrientation(for: run)
+        }
+    }
+}
