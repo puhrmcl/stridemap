@@ -123,9 +123,71 @@ enum ActivitySettings {
         }
     }
 
+    /// Whether a given activity *type* is currently enabled in Settings.
+    ///
+    /// The scope-shaped overload above answers "may this selector option be chosen?"; this one
+    /// answers "may this activity be shown at all?", which is what admitting a single activity —
+    /// a search result, a reveal — actually needs.
+    /// Types outside the four toggles (ski, swim, row, other) are never filtered out by
+    /// `scoped(to:)` either — this has to agree with it exactly, or a reveal would reject an
+    /// activity the map is perfectly happy to draw.
+    static func isVisible(_ type: ActivityType) -> Bool {
+        switch type {
+        case .run:  return includeRuns
+        case .hike: return includeHikes
+        case .ride: return includeRides
+        case .walk: return includeWalks
+        case .ski, .swim, .row, .other: return true
+        }
+    }
+
     /// The scopes offered in every activity selector, in order — the disabled ones dropped.
     static var visibleScopes: [ActivityScope] {
         ActivityScope.allCases.filter(isVisible)
+    }
+
+    // MARK: The shared scope rule
+    //
+    // Map, Timeline, Milestones, Search and Profile must agree about which activities the reader
+    // is looking at. They used to disagree: Map and Milestones each carried their own copy of a
+    // "if only one type has activities, use that one" shortcut that ran *before* consulting the
+    // selection, while Search and Profile honoured the selection directly. With a runs-only
+    // library and Hikes enabled, choosing Hikes therefore left the map showing runs and the
+    // search showing nothing — two surfaces answering the same question differently.
+    //
+    // The rule below is the single answer. Its one substantive change: the single-type shortcut
+    // is a *presentation* convenience for All, not a licence to overrule an explicit choice.
+
+    /// The activity types this history actually contains, among those enabled in Settings.
+    static func populatedScopes(in runs: [Run]) -> [ActivityScope] {
+        [.runs, .hikes, .rides, .walks].filter { isVisible($0) && !runs.scoped(to: $0).isEmpty }
+    }
+
+    /// The scope a surface should actually present and count, given the reader's selection.
+    ///
+    /// - A type disabled in Settings cannot be the selection, so it falls back to All.
+    /// - An explicitly selected, enabled type is kept **even when it holds no activities**. An
+    ///   honest empty state is the correct answer to "show me my hikes" when there are none;
+    ///   silently showing runs instead is not.
+    /// - Only All may collapse to a sole populated type, and that is presentation rather than
+    ///   filtering: with one populated type the two sets are identical.
+    static func resolvedScope(_ selected: ActivityScope, in runs: [Run]) -> ActivityScope {
+        guard isVisible(selected) else { return .all }
+        guard selected == .all else { return selected }
+        let populated = populatedScopes(in: runs)
+        return populated.count == 1 ? populated[0] : .all
+    }
+
+    /// Whether a surface should still offer its activity chooser.
+    ///
+    /// Hidden when there is genuinely nothing to choose — but never when the reader has selected
+    /// a type that isn't the one populated type, or hiding the control would strand them inside
+    /// an empty scope with no way back.
+    static func offersActivityChoice(_ selected: ActivityScope, in runs: [Run]) -> Bool {
+        let populated = populatedScopes(in: runs)
+        if populated.count > 1 { return true }
+        guard isVisible(selected), selected != .all else { return false }
+        return populated.first != selected
     }
 }
 

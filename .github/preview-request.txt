@@ -23,8 +23,14 @@
 #
 # screens: a product tile can be named directly, e.g. studio@lithograph
 
-screens=milestones,home
+screens=scope-rule,milestones,home
 appearance=light
+
+# b569 — PR #15 quality-pass corrections.
+#   scope-rule  — the new shared activity-scope truth table, reported PASS/FAIL as text. This is
+#                 the regression check for "explicit empty type must stay selected".
+#   milestones  — Etch noticed + reach tiles still render after the reach-key change.
+#   home        — the simplified summary bar still renders after the scope-rule swap.
 
 # b568 — Meaning Engine stack (PRs #11-#14) + Home simplification (#9) + Milestones (#10).
 # milestones must show: the "Milestones / What mattered." header, then "Etch noticed" with AT

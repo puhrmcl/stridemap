@@ -28,7 +28,7 @@ struct ProfileView: View {
     /// The scope the identity totals reflect — the user's app-wide activity choice, clamped back
     /// to All if that type has since been hidden in Settings.
     private var scope: ActivityScope {
-        ActivitySettings.isVisible(appModel.activityScope) ? appModel.activityScope : .all
+        ActivitySettings.resolvedScope(appModel.activityScope, in: allRuns)
     }
 
     /// Profile is identity, not a temporary query result. These are all-time totals for the active
