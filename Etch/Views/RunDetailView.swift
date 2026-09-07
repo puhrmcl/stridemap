@@ -796,6 +796,22 @@ struct RunDetailView: View {
                         self.removedPhoto = nil
                         savePhotoChanges()
                     }
+                    Button {
+                        self.removedPhoto = nil
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityLabel("Dismiss undo")
+                }
+                // An offer, not a status line. Without an expiry it sat on the photo section for
+                // the rest of the session, still offering to undo a removal made ten minutes and
+                // three activities ago.
+                .task(id: removedPhoto.id) {
+                    try? await Task.sleep(for: .seconds(12))
+                    guard !Task.isCancelled else { return }
+                    self.removedPhoto = nil
                 }
             }
             if run.photoReferences.isEmpty {
@@ -907,8 +923,8 @@ struct RunDetailView: View {
     }
 
     private func deletePhoto(_ identifier: String) {
-        if let index = run.rejectPhoto(identifier) { removedPhoto = (identifier, index) }
-        run.updatedAt = Date()
+        guard let index = run.rejectPhoto(identifier) else { return }
+        removedPhoto = (identifier, index)
         savePhotoChanges()
     }
 
@@ -934,8 +950,9 @@ struct RunDetailView: View {
     private func autoMatchPhotosIfNeeded() async {
         guard PhotoLibrary.isAuthorized,
               !UserDefaults.standard.bool(forKey: photoScanKey) else { return }
-        run.attachPhotos(PhotoLibrary.matchingIdentifiers(for: run), manually: false)
-        savePhotoChanges()
+        if run.attachPhotos(PhotoLibrary.matchingIdentifiers(for: run), manually: false) {
+            savePhotoChanges()
+        }
         UserDefaults.standard.set(true, forKey: photoScanKey)
     }
 
@@ -944,8 +961,9 @@ struct RunDetailView: View {
         isFindingPhotos = true
         defer { isFindingPhotos = false }
         guard await PhotoLibrary.requestAuthorization() else { return }
-        run.attachPhotos(PhotoLibrary.matchingIdentifiers(for: run), manually: false)
-        savePhotoChanges()
+        if run.attachPhotos(PhotoLibrary.matchingIdentifiers(for: run), manually: false) {
+            savePhotoChanges()
+        }
         UserDefaults.standard.set(true, forKey: photoScanKey)
     }
 

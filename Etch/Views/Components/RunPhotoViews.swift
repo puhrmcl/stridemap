@@ -6,23 +6,35 @@ struct RunPhotoThumbnail: View {
     let identifier: String
     var size: CGFloat = 84
     @State private var image: UIImage?
+    @State private var loading = true
 
     var body: some View {
         ZStack {
             Rectangle().fill(Theme.Brand.inkWell)
             if let image {
                 Image(uiImage: image).resizable().scaledToFill()
+            } else if loading {
+                ProgressView().controlSize(.small)
             } else {
-                Image(systemName: "photo").foregroundStyle(.secondary)
+                // Settled and empty is a different fact from still arriving, and it deserves a
+                // different mark: deleted from Photos, or outside a limited-access selection.
+                Image(systemName: "photo.badge.exclamationmark")
+                    .foregroundStyle(.secondary)
             }
         }
         .frame(width: size, height: size)
         .clipShape(.rect(cornerRadius: 12))
+        .accessibilityLabel(image == nil && !loading ? "Photo unavailable" : "Activity photo")
         .task(id: identifier) {
-            image = await PhotoLibrary.image(
+            image = nil
+            loading = true
+            let loaded = await PhotoLibrary.image(
                 for: identifier,
                 targetSize: CGSize(width: size * 3, height: size * 3)
             )
+            guard !Task.isCancelled else { return }
+            image = loaded
+            loading = false
         }
     }
 }
@@ -57,8 +69,11 @@ struct RunPhotoViewer: View {
                         description: Text("The original is still in Apple Photos. You can undo below."))
                 } else {
                     TabView(selection: $selection) {
-                        ForEach(pages) { photo in
-                            FullPhoto(identifier: photo.photoID).tag(photo.id)
+                        ForEach(Array(pages.enumerated()), id: \.element.id) { index, photo in
+                            FullPhoto(identifier: photo.photoID)
+                                .tag(photo.id)
+                                .accessibilityLabel(
+                                    "Photo \(index + 1) of \(pages.count) from \(photo.run.name)")
                         }
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
@@ -187,6 +202,7 @@ private struct FilmstripFrame: View {
     let identifier: String
     let isCurrent: Bool
     @State private var image: UIImage?
+    @State private var loading = true
 
     /// The strip's height, and the current frame's. Named so the ScrollView and the frame cannot
     /// disagree about it — a strip 2pt shorter than its tallest child clips the border.
@@ -203,6 +219,13 @@ private struct FilmstripFrame: View {
                     Image(uiImage: image).resizable().scaledToFill()
                 } else {
                     Rectangle().fill(.white.opacity(0.12))
+                        .overlay {
+                            if !loading {
+                                Image(systemName: "photo.badge.exclamationmark")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.white.opacity(0.5))
+                            }
+                        }
                 }
             }
             .clipShape(.rect(cornerRadius: isCurrent ? 6 : 4))
@@ -215,10 +238,15 @@ private struct FilmstripFrame: View {
             .contentShape(.rect)
             .animation(.easeInOut(duration: 0.2), value: isCurrent)
             .task(id: identifier) {
-                image = await PhotoLibrary.image(
+                image = nil
+                loading = true
+                let loaded = await PhotoLibrary.image(
                     for: identifier,
                     targetSize: CGSize(width: 160, height: 160)
                 )
+                guard !Task.isCancelled else { return }
+                image = loaded
+                loading = false
             }
     }
 }

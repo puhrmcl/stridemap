@@ -6,7 +6,7 @@ import SwiftData
 @MainActor
 struct PhotoMemoryCheckView: View {
     @State private var report = "Running photo memory checks…"
-    private static let expectedChecks = 26
+    private static let expectedChecks = 31
 
     var body: some View {
         ScrollView { Text(report).font(.system(.caption, design: .monospaced)).padding() }
@@ -58,8 +58,18 @@ struct PhotoMemoryCheckView: View {
         run.setPhotoHiddenFromMemories("cover", hidden: false)
         check("Memory hiding is reversible", run.memoryPhotoReferences == run.photoReferences)
         run.rejectPhoto("cover")
-        run.attachPhotos(["cover"], manually: true)
+        check("Manual re-add reports a change", run.attachPhotos(["cover"], manually: true))
         check("Manual re-add intentionally clears rejection", run.photoReferences.contains("cover") && run.rejectedPhotoReferences.isEmpty)
+
+        // A rescan that finds nothing new is not an edit. The map keys its content revision on the
+        // newest edit, so an unconditional stamp made every scan look like every activity changed.
+        let settled = run.updatedAt
+        let quiet = run.attachPhotos(run.photoReferences, manually: false)
+        check("A rescan that adds nothing reports no change", quiet == false)
+        check("A rescan that adds nothing does not stamp the activity", run.updatedAt == settled)
+        check("A rescan that adds something reports a change", run.attachPhotos(["third"], manually: false))
+        check("A rescan that adds something stamps the activity", run.updatedAt != settled)
+        run.rejectPhoto("third")
 
         let now = date(2026)
         func memories(_ activities: [Run], at day: Date? = nil, scope: ActivityScope = .all) -> [PhotoMemory] {

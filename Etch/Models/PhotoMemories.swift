@@ -6,12 +6,26 @@ extension Run {
         photoReferences.filter { !memoryHiddenPhotoReferences.contains($0) && !rejectedPhotoReferences.contains($0) }
     }
 
-    func attachPhotos(_ identifiers: [String], manually: Bool) {
-        if manually { rejectedPhotoReferences.removeAll { identifiers.contains($0) } }
+    /// - Returns: whether anything actually changed.
+    ///
+    /// The return value is not decoration. A rescan that finds nothing new must not stamp
+    /// `updatedAt`: the map keys its content revision on the newest edit, so an unconditional bump
+    /// makes every scan look like an edit to every activity and rebuilds overlays that did not
+    /// change.
+    @discardableResult
+    func attachPhotos(_ identifiers: [String], manually: Bool) -> Bool {
+        var changed = false
+        if manually {
+            let before = rejectedPhotoReferences.count
+            rejectedPhotoReferences.removeAll { identifiers.contains($0) }
+            changed = rejectedPhotoReferences.count != before
+        }
         for id in identifiers where !rejectedPhotoReferences.contains(id) && !photoReferences.contains(id) {
             photoReferences.append(id)
+            changed = true
         }
-        updatedAt = Date()
+        if changed { updatedAt = Date() }
+        return changed
     }
 
     /// The former index is enough to restore the cover/order without replacing later edits.

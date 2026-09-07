@@ -1,4 +1,4 @@
-# Photo Memories 1 (b572)
+# Photo Memories 1 (b580)
 
 Entry points: Timeline → Memories; activity → Photos → Manage / View photos on map.
 The four main destinations remain unchanged.
@@ -26,7 +26,8 @@ Artifacts: `check-reports/photo-memory-report.txt` plus the existing reports.
 
 ## Device acceptance
 
-1. Back up/preserve a pre-b572 store; upgrade without reinstalling. Verify activities, covers, and
+1. Back up/preserve a store written before the photo-correction fields existed (any build
+   up to and including b578); upgrade without reinstalling. Verify activities, covers, and
    original ordering survive the additive SwiftData migration. The disk-reopen unit check does
    **not** replace a historical-schema migration test.
 2. Remove a cover, confirm the next photo remains usable, Undo, then bulk rescan and reopen the
