@@ -942,11 +942,18 @@ struct StudioComposition: View {
         }
         // One or two figures stay centred rather than pinned to opposite margins, where they read
         // as a comparison instead of a pair of facts. Four fill the width.
-        .frame(maxWidth: stats.count <= 2 ? Self.sparseRaceStatWidth : .infinity)
+        .frame(maxWidth: stats.count <= 2 ? sparseRaceStatWidth : .infinity)
     }
 
-    /// The width a one- or two-figure supporting row is allowed to occupy.
-    private static let sparseRaceStatWidth: CGFloat = 620
+    /// The width a one- or two-figure supporting row is allowed to occupy — a share of the content
+    /// width, not a fixed number.
+    ///
+    /// As an absolute 620 it filled most of a 1000pt portrait footer and then huddled in the middle
+    /// third of a 1640pt landscape one, under a rule running the full width: the rule promised a
+    /// structure the row did not use. A proportion sits the same way on both sheets.
+    private var sparseRaceStatWidth: CGFloat {
+        (Self.canvasSize(orientation, placement, printAspect).width - 140) * 0.72
+    }
 
     private var raceStatDivider: some View {
         Rectangle()
