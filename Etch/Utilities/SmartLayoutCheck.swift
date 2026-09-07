@@ -415,9 +415,13 @@ struct RacePanelPreviewView: View {
              "A · wide course → \(StudioCurator.bestOrientation(for: wide).name), data beneath the art",
              wide, raceConfig(for: wide, slots: [.distance, .pace], weather: false)),
 
+            // B is the compact race exactly as the curator composes it — three supporting
+            // figures, so the cell dividers appear. D is the same sheet with two, which is the
+            // only difference worth photographing between them; composed identically they were
+            // the same picture twice.
             ("compact-portrait",
-             "B · compact loop → \(StudioCurator.bestOrientation(for: compact).name)",
-             compact, raceConfig(for: compact, slots: [.distance, .pace], weather: false)),
+             "B · compact loop → \(StudioCurator.bestOrientation(for: compact).name), as curated",
+             compact, raceConfig(for: compact, slots: [.distance, .pace, .finish], weather: false)),
 
             ("all-data",
              "C · four supporting metrics + weather",

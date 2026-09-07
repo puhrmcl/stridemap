@@ -850,8 +850,10 @@ struct StudioComposition: View {
             }
             if !stats.isEmpty { raceStatRow(stats) }
             if let weather {
+                // A finishing line, not a fifth caption. It needs enough air above it that the
+                // eye reads a pause; at 26 it sat almost on the stat captions.
                 raceWeatherBand(weather)
-                    .padding(.top, sp(stats.isEmpty ? 0 : 26))
+                    .padding(.top, sp(stats.isEmpty ? 0 : 40))
             }
         }
     }
@@ -912,10 +914,20 @@ struct StudioComposition: View {
     }
 
     /// Band B — one hairline across the content width. Structure, not decoration.
+    ///
+    /// The weight is in canvas points, and the canvas is 1000 wide for a sheet that prints at
+    /// twelve inches: a 1pt rule is 0.86 of a print point — a real hairline on paper, and
+    /// literally nothing on screen. The first render of this panel had no visible divider at all
+    /// because of it, in the app's own preview as much as in CI. 2.5 canvas points is ~2.2 print
+    /// points: still a hairline in the hand, and actually present in the picture.
+    private static let raceHairline: CGFloat = 2.5
+    /// The cell dividers are subordinate to the structural rule and read a register lighter.
+    private static let raceCellHairline: CGFloat = 1.5
+
     private var raceRule: some View {
         Rectangle()
-            .fill(subtleColor.opacity(0.28))
-            .frame(height: 1)
+            .fill(subtleColor.opacity(0.32))
+            .frame(height: Self.raceHairline)
     }
 
     /// Band C — the supporting figures, all of equal weight.
@@ -938,8 +950,8 @@ struct StudioComposition: View {
 
     private var raceStatDivider: some View {
         Rectangle()
-            .fill(subtleColor.opacity(0.22))
-            .frame(width: 1, height: raceStatValueHeight * 0.86)
+            .fill(subtleColor.opacity(0.26))
+            .frame(width: Self.raceCellHairline, height: raceStatValueHeight * 0.86)
     }
 
     private func raceStat(_ metric: StatMetric, _ value: String) -> some View {
@@ -1015,8 +1027,8 @@ struct StudioComposition: View {
 
     private var raceWeatherHairline: some View {
         Rectangle()
-            .fill(subtleColor.opacity(0.20))
-            .frame(height: 1)
+            .fill(subtleColor.opacity(0.24))
+            .frame(height: Self.raceCellHairline)
     }
 
     // MARK: What the race panel prints
