@@ -155,6 +155,7 @@ jobs:
 
           FAILED=0
           run_check scope-rule       scope-rule 0 60  || FAILED=1
+          run_check photo-memory     photo-memory 0 60 || FAILED=1
           run_check reveal-diagnostic home       1 120 || FAILED=1
 
           python3 - <<'PY' || FAILED=1
@@ -162,8 +163,8 @@ jobs:
 
           problems = []
           reports = sorted(glob.glob("check-reports/*-report.txt"))
-          if len(reports) != 2:
-              problems.append("expected 2 reports, found %d: %s" % (len(reports), reports))
+          if len(reports) != 3:
+              problems.append("expected 3 reports, found %d: %s" % (len(reports), reports))
 
           def number(lines, label):
               for line in lines:

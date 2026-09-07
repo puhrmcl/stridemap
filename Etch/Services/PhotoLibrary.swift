@@ -60,7 +60,7 @@ enum PhotoLibrary {
                 result.append(asset.localIdentifier)
             }
         }
-        return result
+        return result.filter { !run.rejectedPhotoReferences.contains($0) }
     }
 
     /// Whether a coordinate falls within the run's bounding box, expanded by ~600 m.
@@ -139,10 +139,31 @@ enum PhotoLibrary {
             }
             i += 1
         }
-        return result
+        return result.filter { !run.rejectedPhotoReferences.contains($0) }
     }
 
     // MARK: Image loading
+
+    struct LocatedPhoto: Identifiable {
+        let id: String
+        let coordinate: CLLocationCoordinate2D
+    }
+
+    /// Actual photo GPS only. An activity association is not evidence of a photo's coordinates.
+    /// Assets outside limited access or deleted from Photos simply have no available location.
+    static func locatedPhotos(for identifiers: [String]) -> [LocatedPhoto] {
+        guard isAuthorized, !identifiers.isEmpty else { return [] }
+        let assets = PHAsset.fetchAssets(withLocalIdentifiers: identifiers, options: nil)
+        var locations: [String: CLLocationCoordinate2D] = [:]
+        assets.enumerateObjects { asset, _, _ in
+            guard let location = asset.location, CLLocationCoordinate2DIsValid(location.coordinate),
+                  location.horizontalAccuracy >= 0 else { return }
+            locations[asset.localIdentifier] = location.coordinate
+        }
+        return identifiers.compactMap { id in
+            locations[id].map { LocatedPhoto(id: id, coordinate: $0) }
+        }
+    }
 
     /// True while CI is photographing a screen. The harness seeds photo references that point at
     /// nothing, and the first `PHAsset` fetch against an undetermined authorization puts the

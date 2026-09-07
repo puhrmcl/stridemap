@@ -225,6 +225,8 @@ struct PreviewHarnessView: View {
                 case "print-engine":    PrintEngineCheckView()
                 // The shared activity-scope rule's truth table, reported as pass/fail.
                 case "scope-rule":      ScopeRuleCheckView()
+                case "photo-memory":    PhotoMemoryCheckView()
+                case "memories":        PhotoMemoriesView()
                 // Also not a screen of the app: the brand sheet's UI elements on one page, so
                 // CI can photograph them and they can be held against the reference.
                 case "components":      ComponentSheetView()

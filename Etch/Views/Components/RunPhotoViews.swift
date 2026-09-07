@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// A square thumbnail that loads a Photos asset by identifier.
 struct RunPhotoThumbnail: View {
@@ -26,170 +27,159 @@ struct RunPhotoThumbnail: View {
     }
 }
 
-/// Full-screen swipeable viewer for a run's photos, with close, cover, share and delete actions.
+/// A pager whose identity is the association, not just the asset: overlapping activities can
+/// legitimately share a photo. All actions address the activity shown on the current page.
 struct RunPhotoViewer: View {
-    let identifiers: [String]
+    let photos: [GalleryPhoto]
     @State var selection: String
-    /// Whether a given photo is currently its activity's cover — the one that represents it on
-    /// tiles, in the timeline, on the Photo Wall and on a book's race page.
-    ///
-    /// A closure rather than a single identifier, because the gallery swipes across every
-    /// activity's photos at once: which photo is "the cover" changes with the page, and only the
-    /// caller knows whose cover it would be.
-    var isCoverPhoto: ((String) -> Bool)?
-    var onDelete: (String) -> Void
-    /// Makes the visible photo the cover. Optional so a viewer opened somewhere without a run to
-    /// write back to simply does not offer it.
-    var onSetCover: ((String) -> Void)?
     @Environment(\.dismiss) private var dismiss
-
-    /// Full-resolution image for the current photo, loaded for sharing.
+    @Environment(\.modelContext) private var context
+    @State private var order: [GalleryPhoto] = []
+    @State private var initialized = false
     @State private var shareImage: UIImage?
+    @State private var removed: Removed?
+    @State private var saveError = false
 
-    /// The photo chosen as a cover on this screen, so the star fills on the tap rather than on the
-    /// next model update. Only ever the one that was tapped; every other page asks the model.
-    @State private var pickedCover: String?
-
-    /// The page order, snapshotted on first appearance.
-    ///
-    /// Setting a cover moves that photo to the front of `run.photoReferences`, which would
-    /// re-order the pager under the reader's thumb — the photo they are looking at would slide to
-    /// position one mid-gesture. The order they opened with is the order they keep.
-    @State private var order: [String] = []
-    private var pages: [String] { order.isEmpty ? identifiers : order }
-
-    private var isCover: Bool {
-        pickedCover == selection || (isCoverPhoto?(selection) ?? false)
+    private struct Removed {
+        let photo: GalleryPhoto
+        let photoIndex: Int
+        let pageIndex: Int
     }
+
+    private var pages: [GalleryPhoto] { initialized ? order : photos }
+    private var current: GalleryPhoto? { pages.first { $0.id == selection } }
 
     var body: some View {
         NavigationStack {
-            TabView(selection: $selection) {
-                ForEach(pages, id: \.self) { id in
-                    FullPhoto(identifier: id).tag(id)
+            Group {
+                if pages.isEmpty {
+                    ContentUnavailableView("Photo removed from activity", systemImage: "photo",
+                        description: Text("The original is still in Apple Photos. You can undo below."))
+                } else {
+                    TabView(selection: $selection) {
+                        ForEach(pages) { photo in
+                            FullPhoto(identifier: photo.photoID).tag(photo.id)
+                        }
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: .never))
                 }
             }
-            // Page dots go away once the filmstrip is there. Two indicators of the same position,
-            // one of which shows you the actual photographs, is one too many.
-            .tabViewStyle(.page(indexDisplayMode: .never))
             .background(Color.black.ignoresSafeArea())
             .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button { dismiss() } label: { Image(systemName: "xmark") }
+                    Button("Done") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     if let shareImage {
-                        ShareLink(
-                            item: Image(uiImage: shareImage),
-                            preview: SharePreview("Run photo", image: Image(uiImage: shareImage))
-                        ) {
+                        ShareLink(item: Image(uiImage: shareImage),
+                            preview: SharePreview("Activity photo", image: Image(uiImage: shareImage))) {
                             Image(systemName: "square.and.arrow.up")
                         }
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(role: .destructive) {
-                        onDelete(selection)
-                        dismiss()
-                    } label: { Image(systemName: "trash") }
-                }
             }
-            .toolbarBackground(.visible, for: .navigationBar)
-            .onAppear { if order.isEmpty { order = identifiers } }
+            .onAppear {
+                guard !initialized else { return }
+                order = photos
+                initialized = true
+            }
+            .alert("Couldn’t save photo changes", isPresented: $saveError) {
+                Button("Retry") { save() }
+                Button("OK", role: .cancel) {}
+            } message: { Text("Your changes are still on this screen. Try saving again before leaving.") }
         }
         .preferredColorScheme(.dark)
-        // Reload the shareable image whenever the visible photo changes.
         .task(id: selection) {
             shareImage = nil
-            shareImage = await PhotoLibrary.fullImage(for: selection)
+            guard let photo = current else { return }
+            let loaded = await PhotoLibrary.fullImage(for: photo.photoID)
+            guard !Task.isCancelled else { return }
+            shareImage = loaded
         }
     }
 
-    // MARK: The bottom bar
-
-    /// The filmstrip, with the cover action under it.
-    ///
-    /// Both are here rather than in the toolbar because both are about *this* photograph and the
-    /// ones around it. The cover action in particular is the one control on this screen that
-    /// changes what the activity looks like everywhere else in the app, and it has to say which
-    /// photo is currently carrying that job — neither of which a 22pt toolbar glyph can do.
-    @ViewBuilder
     private var bottomBar: some View {
-        if pages.count > 1 || onSetCover != nil {
-            VStack(spacing: 10) {
-                if pages.count > 1 { filmstrip }
-                if onSetCover != nil { coverButton }
-            }
-            .padding(.top, 10)
-            .padding(.bottom, 6)
-            .background(.ultraThinMaterial)
-        }
-    }
-
-    /// Every photograph in the set, as a scrubbable strip under the one you are looking at.
-    ///
-    /// Swiping is fine for the next picture and useless for the fortieth: a gallery viewer opened
-    /// on a photograph from 2023 is a thousand swipes from one taken last week. The strip is how
-    /// Photos solves it — you see where you are in the set, what is on either side, and you can
-    /// jump. The current frame is drawn taller with a light border so the strip reads as a
-    /// position, not just a row of thumbnails.
-    private var filmstrip: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 3) {
-                    ForEach(pages, id: \.self) { id in
-                        FilmstripFrame(identifier: id, isCurrent: id == selection)
-                            .id(id)
-                            .onTapGesture {
-                                withAnimation(.easeInOut(duration: 0.2)) { selection = id }
-                            }
+        VStack(spacing: 12) {
+            if let removed {
+                HStack {
+                    Text("Removed from activity").font(.footnote)
+                    Spacer()
+                    Button("Undo") {
+                        removed.photo.run.restorePhoto(removed.photo.photoID, at: removed.photoIndex)
+                        order.insert(removed.photo, at: min(removed.pageIndex, order.count))
+                        selection = removed.photo.id
+                        self.removed = nil
+                        save()
                     }
                 }
-                .padding(.horizontal, 14)
-                .frame(height: FilmstripFrame.tall)
             }
-            .frame(height: FilmstripFrame.tall)
-            // Follows the pager, in both directions: swiping the photo scrolls the strip, and
-            // tapping the strip pages the photo. `.center` keeps the current frame in the middle
-            // except at the two ends, where the scroll view clamps — which is the right answer,
-            // since the first and last photographs have nothing to be centred against.
-            .onChange(of: selection) { _, id in
-                withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .center) }
+            if pages.count > 1 {
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHStack(spacing: 5) {
+                            ForEach(pages) { photo in
+                                Button { selection = photo.id } label: {
+                                    FilmstripFrame(identifier: photo.photoID, isCurrent: photo.id == selection)
+                                }
+                                .buttonStyle(.plain)
+                                .id(photo.id)
+                                .accessibilityLabel("Photo from \(photo.run.name)")
+                            }
+                        }
+                    }
+                    .frame(height: FilmstripFrame.tall)
+                    .onChange(of: selection, initial: true) { _, id in proxy.scrollTo(id, anchor: .center) }
+                }
             }
-            .task {
-                // No animation on the way in: the strip should already be in position when the
-                // viewer appears, not scroll there while you watch.
-                proxy.scrollTo(selection, anchor: .center)
+            if let photo = current {
+                Text(photo.run.name).font(.etch(.subheadline, weight: .semibold)).lineLimit(2)
+                HStack {
+                    Button {
+                        photo.run.makePhotoCover(photo.photoID)
+                        save()
+                    } label: {
+                        Label(photo.run.photoReferences.first == photo.photoID ? "Cover photo" : "Make cover",
+                              systemImage: "star")
+                    }
+                    Spacer()
+                    Menu {
+                        Button {
+                            let hidden = photo.run.memoryHiddenPhotoReferences.contains(photo.photoID)
+                            photo.run.setPhotoHiddenFromMemories(photo.photoID, hidden: !hidden)
+                            save()
+                        } label: {
+                            Label(photo.run.memoryHiddenPhotoReferences.contains(photo.photoID)
+                                  ? "Show in Memories" : "Hide from Memories", systemImage: "eye.slash")
+                        }
+                    } label: { Label("More", systemImage: "ellipsis") }
+                }
+                .font(.etch(.footnote, weight: .semibold))
+                Button {
+                    guard let index = photo.run.rejectPhoto(photo.photoID),
+                          let page = order.firstIndex(where: { $0.id == photo.id }) else { return }
+                    removed = Removed(photo: photo, photoIndex: index, pageIndex: page)
+                    order.remove(at: page)
+                    selection = order.isEmpty ? "" : order[min(page, order.count - 1)].id
+                    shareImage = nil
+                    save()
+                } label: {
+                    Label("Not part of this activity", systemImage: "minus.circle")
+                }
+                .font(.etch(.footnote, weight: .semibold))
+                Text("This only removes the match in Etch, not the original photo.")
+                    .font(.caption2).foregroundStyle(.secondary)
             }
         }
+        .padding(16)
+        .background(.ultraThinMaterial)
     }
 
-    /// Star this photo as the one that represents the activity.
-    ///
-    /// It states the outcome rather than the toggle: "Cover photo" with a filled star is a label,
-    /// and "Make cover photo" is an invitation. Tapping the one that is already the cover does
-    /// nothing rather than un-setting it — an activity with photos always has a cover, so there is
-    /// no off state to offer.
-    private var coverButton: some View {
-        Button {
-            guard !isCover else { return }
-            pickedCover = selection
-            onSetCover?(selection)
-        } label: {
-            Label(isCover ? "Cover photo" : "Make cover photo",
-                  systemImage: isCover ? "star.fill" : "star")
-                .font(.etch(.subheadline, weight: .semibold))
-                .foregroundStyle(isCover ? Theme.accent : .white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 9)
-                .background(.ultraThinMaterial, in: .capsule)
-        }
-        .buttonStyle(.plain)
-        .animation(.snappy(duration: 0.2), value: isCover)
-        .accessibilityLabel(isCover ? "This is the cover photo" : "Make this the cover photo")
+    private func save() {
+        do { try context.save() } catch { saveError = true }
     }
 }
+
 
 /// One frame in the filmstrip. The current one is taller and outlined; the rest are dimmed, so a
 /// glance down finds your place without reading anything.

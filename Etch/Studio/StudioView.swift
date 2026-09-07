@@ -634,12 +634,9 @@ struct StudioView: View {
     /// run so they show both here and in the run's activity details, then re-renders the preview.
     private func addPhotos(_ ids: [String]) {
         guard !ids.isEmpty else { pendingPhotoFrame = nil; return }
-        var refs = run.photoReferences
-        for id in ids where !refs.contains(id) { refs.append(id) }
-        if refs.count != run.photoReferences.count {
-            run.photoReferences = refs
-            try? modelContext.save()
-        }
+        run.attachPhotos(ids, manually: true)
+        let refs = run.photoReferences
+        try? modelContext.save()
         // A Gallery frame was waiting on this add: land the first picked photo straight into it —
         // add-and-place in one gesture, no second trip through the picker.
         if let frame = pendingPhotoFrame, let first = ids.first,

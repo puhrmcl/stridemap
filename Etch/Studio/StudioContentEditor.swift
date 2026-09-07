@@ -419,9 +419,7 @@ struct StudioContentEditor: View {
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             guard let data = try? Data(contentsOf: url),
                   let identifier = await PhotoLibrary.importImage(data: data) else { continue }
-            if !run.photoReferences.contains(identifier) {
-                run.photoReferences.append(identifier)
-            }
+            run.attachPhotos([identifier], manually: true)
         }
         run.updatedAt = Date()
         try? modelContext.save()
