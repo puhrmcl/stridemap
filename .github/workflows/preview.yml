@@ -169,13 +169,14 @@ jobs:
               # the runner can print costs nothing and is far easier to act on. Only the
               # print-engine check writes one today.
               CONTAINER=$(xcrun simctl get_app_container "$UDID" com.nwagtech.etch data 2>/dev/null || true)
-              REPORT="$CONTAINER/Documents/print-engine-report.txt"
+              for REPORT in "$CONTAINER"/Documents/*-report.txt; do
               if [ -n "$CONTAINER" ] && [ -f "$REPORT" ]; then
                 echo "── REPORT $SCREEN"
                 cat "$REPORT"
                 echo "── END-REPORT"
                 rm -f "$REPORT"
               fi
+              done
             done
           done
 

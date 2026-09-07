@@ -80,7 +80,9 @@ struct TimelineView: View {
     }
 
     private func rebuildDerived() {
-        let typed = runs.scoped(to: appModel.activityScope)
+        // The shared scope rule, so Timeline never disagrees with Map or Milestones about which
+        // activities the reader chose.
+        let typed = runs.scoped(to: ActivitySettings.resolvedScope(appModel.activityScope, in: runs))
         let scoped: [Run]
         if appModel.filter.isActive {
             let prs = appModel.filter.mode == .prs ? RunStatistics(typed).milestoneRunIDs : []

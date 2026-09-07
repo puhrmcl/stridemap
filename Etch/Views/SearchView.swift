@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// Search across run names, cities, states, races, and dates. Tap a result to zoom.
+/// Search across activity names, cities, states, races, and dates. Tap a result to zoom.
 struct SearchView: View {
     /// True when pushed inside the Explore hub's navigation stack (no own NavigationStack).
     var embedded: Bool = false
@@ -11,11 +11,17 @@ struct SearchView: View {
 
     @State private var query = ""
 
+    /// The legacy/modal search uses the same visibility contract as the main scoped search: hidden
+    /// activities and activity types disabled in Settings do not get a second life through Search.
+    private var searchableRuns: [Run] {
+        runs.scoped(to: ActivitySettings.resolvedScope(appModel.activityScope, in: runs))
+    }
+
     private var results: [Run] {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return Array(runs.prefix(30)) }
+        guard !trimmed.isEmpty else { return Array(searchableRuns.prefix(30)) }
         let q = trimmed.lowercased()
-        return runs.filter { RunSearch.matches($0, query: q) }
+        return searchableRuns.filter { RunSearch.matches($0, query: q) }
     }
 
     var body: some View {
@@ -47,7 +53,15 @@ struct SearchView: View {
     }
 
     private func open(_ run: Run) {
-        appModel.select(run)
+        // Same shared arrival as the scoped search: make the activity drawable, land on the Map,
+        // focus once it is there. Both dismissals are still needed — this search is a sheet
+        // presented from Profile, which is itself a presented surface, and leaving either standing
+        // would put the map behind a modal the reader has to dismiss to see what they searched for.
+        //
+        // A rejected reveal (hidden, or a type disabled in Settings) leaves everything standing:
+        // sending the reader to a map that will not draw what they tapped is worse than the tap
+        // doing nothing. `searchableRuns` is scoped, so this is a guard rather than a live path.
+        guard appModel.reveal(run) else { return }
         appModel.presentedSurface = nil
         dismiss()
     }

@@ -125,6 +125,58 @@ final class AppModel {
         focus(on: run)
     }
 
+    // MARK: Reveal — arriving at one activity from anywhere
+
+    /// Non-nil while a reveal is in flight. `HomeView` advances and clears it; the decisions it
+    /// makes along the way are in `Reveal`, so they can be executed without a view.
+    private(set) var revealRequest: RevealRequest?
+    private var revealToken = 0
+
+    /// Arrive on the Map and reveal one activity — the shared action behind every search result.
+    ///
+    /// Selecting a result used to call `select(_:)`, which sets the selection and fires a camera
+    /// command immediately. That fails whenever the target is not among the activities the map
+    /// draws: an activity outside the active browse filter is simply absent, and a location
+    /// overlay hides the route map entirely, so the command lands on nothing. Worse, the camera
+    /// then moved anyway — `HomeView` refits the map on any filter or scope change, so a focus
+    /// issued before those settled was overwritten a moment later.
+    ///
+    /// So this makes the target admissible first and defers the camera. The focus itself is issued
+    /// by `HomeView` once the activity is genuinely drawable, and is protected until the map has
+    /// consumed it.
+    ///
+    /// - Returns: `false` when the activity may not be revealed at all — hidden by the reader, or
+    ///   a type disabled in Settings. Nothing is mutated in that case, selection included:
+    ///   visibility rules outrank Search, so a result that slipped through a caller's own filter
+    ///   must not move the app or change what is selected.
+    @discardableResult
+    func reveal(_ run: Run) -> Bool {
+        guard Reveal.isRevealable(run) else { return false }
+        let plan = Reveal.plan(for: run, scope: activityScope, filter: filter)
+        activityScope = plan.scope
+        if plan.clearsFilter { filter = RunFilter() }
+        selectedRunID = run.id
+        selectedTab = .map
+        revealToken &+= 1
+        revealRequest = RevealRequest(runID: run.id, token: revealToken)
+        return true
+    }
+
+    /// The focus command has been issued, but the map has not read it yet.
+    ///
+    /// The request stays outstanding through this phase deliberately. `HomeView`'s filter and
+    /// scope handlers refit the camera, they fire in the same update that started the reveal, and
+    /// they stand down only while a request exists — clearing it here is exactly how the focus
+    /// used to be thrown away a moment after it was issued.
+    func revealDidFocus() {
+        guard var request = revealRequest, request.phase == .pending else { return }
+        request.phase = .focused
+        revealRequest = request
+    }
+
+    /// Called once the map has consumed the camera command, or the reveal can never be satisfied.
+    func finishReveal() { revealRequest = nil }
+
     func clearSelection() {
         selectedRunID = nil
     }
