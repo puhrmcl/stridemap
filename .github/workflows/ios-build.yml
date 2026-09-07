@@ -230,7 +230,9 @@ jobs:
         run: |
           set -e
           mkdir -p shots
-          UDID=$(xcrun simctl list devices booted | head -1 | grep -oE "[0-9A-F-]{36}" || true)
+          # `head -1` before the grep used to take the "== Devices ==" header and find no UDID
+          # in it, so this step reported "no booted simulator" on a runner that had one.
+          UDID=$(xcrun simctl list devices booted | grep -oE "[0-9A-F-]{36}" | head -1 || true)
           if [ -z "$UDID" ]; then
             echo "No booted simulator — the checks step did not get far enough."
             exit 0

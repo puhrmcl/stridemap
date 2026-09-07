@@ -127,7 +127,7 @@ struct SmartLayoutCheckView: View {
 
     /// Asserted by the workflow, so a check that bails out early is a red job rather than a
     /// shorter clean report.
-    static let expectedChecks = 18
+    static let expectedChecks = 21
 
     @State private var results: [Result] = []
     @State private var running = true
@@ -253,21 +253,33 @@ struct SmartLayoutCheckView: View {
         let wideRaceEdition = widePicks.first { $0.id == "race-gallery" }?.config
         let compactRaceEdition = compactPicks.first { $0.id == "race-gallery" }?.config
 
+        expect("A Race Edition is curated for both routes",
+               wideRaceEdition != nil && compactRaceEdition != nil, true,
+               "the race lead kind produces its editions whatever the geometry")
+
         expect("Wide race opens in Landscape",
-               wideRaceEdition?.orientation, StudioOrientation.landscape,
+               wideRaceEdition?.orientation ?? .portrait, StudioOrientation.landscape,
                "the unconditional portrait override is gone")
         expect("Compact race opens in Portrait",
-               compactRaceEdition?.orientation, StudioOrientation.portrait,
+               compactRaceEdition?.orientation ?? .landscape, StudioOrientation.portrait,
                "portrait is still the answer when the route says so")
         expect("Landscape race keeps its data beneath the art",
-               wideRaceEdition?.dataPlacement, StudioDataPlacement.bottom,
+               wideRaceEdition?.dataPlacement ?? .right, StudioDataPlacement.bottom,
                "not a side column — a Nameplate composes head → art → foot in both orientations")
         expect("Race Edition still leads with the result",
-               wideRaceEdition?.heroMetric, StatMetric.time,
+               wideRaceEdition?.heroMetric ?? .none, StatMetric.time,
                "landscape changes the sheet, not the product")
-        expect("Portrait race keeps the standard placement",
-               compactRaceEdition?.dataPlacement, StudioDataPlacement.bottom,
-               "portrait never used the side-column canvas anyway")
+        // Portrait ignores data placement entirely — `canvasSize(.portrait, _)` never reads it —
+        // so the curated portrait piece keeps whatever the default was, and that is correct. What
+        // matters is that the composition agrees, which is what the next check asserts.
+        expect("Portrait is unaffected by data placement",
+               StudioComposition.canvasSize(.portrait, .right, .twoThree)
+                   == StudioComposition.canvasSize(.portrait, .bottom, .twoThree), true,
+               "the portrait canvas is the same sheet whichever placement is stored")
+        expect("A landscape Nameplate is not sized as a side-column sheet",
+               StudioComposition.canvasSize(.landscape, .bottom, .twoThree)
+                   != StudioComposition.canvasSize(.landscape, .right, .twoThree), true,
+               "the two canvases genuinely differ, so picking the wrong one would misshape the print")
 
         // ── The values the panel prints.
 
@@ -290,17 +302,20 @@ struct SmartLayoutCheckView: View {
                slots.count <= 3, true,
                "Distance, Pace and an optional finishing position — \(slots.map(\.rawValue))")
 
-        if out.count != Self.expectedChecks {
+        // Counted before the count check itself is appended — otherwise the report's own
+        // `RAN_CHECKS` disagrees with the number the failure quotes.
+        let ran = out.count
+        if ran != Self.expectedChecks {
             out.append(Result(name: "Check count", passed: false,
-                              detail: "expected \(Self.expectedChecks) checks, ran \(out.count)"))
+                              detail: "expected \(Self.expectedChecks) checks, ran \(ran)"))
         }
 
         results = out
         running = false
-        writeReport(out)
+        writeReport(out, ran: ran)
     }
 
-    private func writeReport(_ results: [Result]) {
+    private func writeReport(_ results: [Result], ran: Int) {
         guard let directory = FileManager.default.urls(for: .documentDirectory,
                                                        in: .userDomainMask).first else { return }
         var lines = ["smart-layout \(AppInfo.changeTag)"]
@@ -308,8 +323,8 @@ struct SmartLayoutCheckView: View {
             lines.append("\(result.passed ? "PASS" : "FAIL")  \(result.name) — \(result.detail)")
         }
         lines.append("EXPECTED_CHECKS: \(Self.expectedChecks)")
-        lines.append("RAN_CHECKS: \(results.count)")
-        let ok = results.allSatisfy(\.passed) && results.count == Self.expectedChecks
+        lines.append("RAN_CHECKS: \(ran)")
+        let ok = results.allSatisfy(\.passed) && ran == Self.expectedChecks
         lines.append(ok ? "RESULT: ALL PASS" : "RESULT: FAIL")
         try? lines.joined(separator: "\n").write(
             to: directory.appendingPathComponent("smart-layout-report.txt"),
