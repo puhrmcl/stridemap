@@ -156,8 +156,7 @@ enum PhotoLibrary {
         let assets = PHAsset.fetchAssets(withLocalIdentifiers: identifiers, options: nil)
         var locations: [String: CLLocationCoordinate2D] = [:]
         assets.enumerateObjects { asset, _, _ in
-            guard let location = asset.location, CLLocationCoordinate2DIsValid(location.coordinate),
-                  location.horizontalAccuracy >= 0 else { return }
+            guard let location = asset.location, CLLocationCoordinate2DIsValid(location.coordinate) else { return }
             locations[asset.localIdentifier] = location.coordinate
         }
         return identifiers.compactMap { id in

@@ -16,7 +16,7 @@ struct PhotoMemoryCheckView: View {
     private func fixture(_ date: Date) -> Run {
         Run(provider: .healthKit, name: "Memory fixture", startDate: date,
             distance: 5000, movingTime: 1500, elapsedTime: 1800, elevationGain: 0,
-            summaryPolyline: "", photoReferences: ["cover", "second"])
+            summaryPolyline: "", sportType: "Run", photoReferences: ["cover", "second"])
     }
 
     private func runChecks() {
