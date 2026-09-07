@@ -257,6 +257,22 @@ struct StudioDesignEditor: View {
                 ForEach(StudioOrientation.allCases) { Text($0.name).tag($0) }
             }
             .pickerStyle(.segmented)
+
+            // One quiet line. It says what the route's own shape suggests and then stops — it does
+            // not move the control, warn, score, or reappear as a prompt when the customer chooses
+            // the other one. It also stays visible after an override, on purpose: someone who
+            // turned the sheet deliberately should still be able to see what Etch would have done.
+            Text("\(recommendedOrientation.name) recommended for this route")
+                .font(.etch(.caption))
+                .foregroundStyle(.secondary)
+                .accessibilityLabel(
+                    "\(recommendedOrientation.name) orientation is recommended for this route")
         }
+    }
+
+    /// The orientation the curator would compose this activity in — read from the stored route
+    /// bounds, so asking is four arithmetic operations and costs nothing to re-read on each render.
+    private var recommendedOrientation: StudioOrientation {
+        StudioCurator.bestOrientation(for: run)
     }
 }

@@ -36,6 +36,14 @@ enum StudioCurator {
             c.heroMetric = .distance
             c.dataSlots = dataSlots(for: run)
             build(&c)
+            // A Nameplate always composes masthead → art → foot, whatever the data placement says.
+            // In landscape the default `.right` placement would therefore size the sheet for a
+            // square-art-plus-column print it never draws. Landscape Nameplates take the wide
+            // canvas, with the data beneath the art — which is also exactly what a landscape Race
+            // Edition has to be.
+            if c.orientation == .landscape, c.family == .map, c.mapLayout == .nameplate {
+                c.dataPlacement = .bottom
+            }
             picks.append(StudioPick(id: id, name: name, line: line, config: c))
         }
 
@@ -58,13 +66,14 @@ enum StudioCurator {
         switch leadKind(for: run) {
         case .race:
             // Race Edition is an authored product, not a generic map with race data poured into it.
-            // Keep the sheet portrait even when a point-to-point course is wide: the wall object
-            // should retain the same strong 2:3 silhouette across the collection. The finish time
-            // becomes the headline; distance, pace and place sit quietly beneath it.
+            // It used to force portrait so the collection kept one silhouette on the wall — but a
+            // wide point-to-point course drawn on a 2:3 sheet spends two thirds of the art panel on
+            // empty ground either side of a thin line, which is a worse object than a matched pair.
+            // The course chooses the sheet now, like every other piece; the finish time is still
+            // the headline, and the data still sits beneath the art in both orientations.
             func raceEdition(_ id: String, _ name: String, _ line: String, style: MapStyle) {
                 add(id, name, line) { c in
                     c.family = .map
-                    c.orientation = .portrait
                     c.mapStyle = style
                     c.mapLayout = .nameplate
                     c.heroMetric = .time
@@ -154,16 +163,50 @@ enum StudioCurator {
 
     // MARK: Composition from geometry
 
-    /// Portrait unless the route itself argues otherwise. The bounding box is compared in
-    /// Mercator-corrected spans, and only a decisively wide route (an east–west point-to-point,
-    /// a coastline ride) flips the sheet — a loop stays portrait, which is what a wall wants.
-    static func bestOrientation(for run: Run) -> StudioOrientation {
+    /// How many times wider than tall this route actually is on the ground.
+    ///
+    /// Read from the activity's stored bounding box — four `Double`s already on the model — so this
+    /// is arithmetic, not analysis: no route walk, no snapshot, nothing that would make asking the
+    /// question expensive enough to cache.
+    ///
+    /// The longitude span is corrected for latitude because a degree of longitude narrows as you
+    /// leave the equator. Without it the same loop reads half again as wide in Reykjavík as in
+    /// Quito, and the sheet would be chosen by where the run happened rather than by its shape.
+    ///
+    /// - Returns: the corrected width : height ratio, or `nil` when the bounds are missing or
+    ///   degenerate — an activity with no route, or one that never moved east or west.
+    static func routeAspect(for run: Run) -> Double? {
         let spanLat = run.maxLatitude - run.minLatitude
         let spanLon = run.maxLongitude - run.minLongitude
-        guard spanLat > 0, spanLon > 0 else { return .portrait }
+        guard spanLat >= 0, spanLon > 0 else { return nil }
         let midLat = (run.maxLatitude + run.minLatitude) / 2
         let width = spanLon * cos(midLat * .pi / 180)
-        guard width / spanLat > 1.8 else { return .portrait }
-        return .landscape
+        guard width > 0 else { return nil }
+        // A route with no north–south extent at all is as wide as a route gets. Real GPS never
+        // produces it, but a hand-authored or single-latitude course can, and dividing by zero to
+        // find that out would hand the sheet an orientation of `nan`.
+        guard spanLat > 0 else { return .infinity }
+        return width / spanLat
+    }
+
+    /// Where a route stops being a shape that suits a portrait sheet and starts being one that
+    /// needs a landscape one.
+    ///
+    /// The previous value was 1.8, which in practice meant almost nothing flipped: a genuinely
+    /// wide point-to-point marathon measures around 1.6–1.9 corrected, so half of them stayed on a
+    /// portrait sheet with the course squeezed into the middle third of the art panel. Rendered
+    /// against the seeded courses, 1.5 is the point where the map visibly starts wasting the sheet
+    /// in portrait — comfortably above a loop (which lands near 1.0–1.2) and below an out-and-back
+    /// that still reads well upright.
+    static let landscapeAspectThreshold: Double = 1.5
+
+    /// Portrait unless the route itself argues otherwise.
+    ///
+    /// Portrait is the default answer, and it is the answer for every case the geometry cannot
+    /// speak to: a loop, a tall north–south route, an activity with no usable bounds at all. Only a
+    /// decisively wide route — an east–west point-to-point, a coastline ride — turns the sheet.
+    static func bestOrientation(for run: Run) -> StudioOrientation {
+        guard let aspect = routeAspect(for: run) else { return .portrait }
+        return aspect >= landscapeAspectThreshold ? .landscape : .portrait
     }
 }

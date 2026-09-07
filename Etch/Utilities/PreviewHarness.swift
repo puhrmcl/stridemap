@@ -225,6 +225,13 @@ struct PreviewHarnessView: View {
                 case "print-engine":    PrintEngineCheckView()
                 // The shared activity-scope rule's truth table, reported as pass/fail.
                 case "scope-rule":      ScopeRuleCheckView()
+                // The route-aware orientation rule and the race panel's composition decisions,
+                // reported as pass/fail. Its visual half is "race-panel" below.
+                case "smart-layout":    SmartLayoutCheckView()
+                // The race data panel rendered across the four scenarios that matter — wide,
+                // compact, dense and sparse — because "does the panel look designed" is a
+                // question only a picture answers.
+                case "race-panel":      RacePanelPreviewView()
                 // Also not a screen of the app: the brand sheet's UI elements on one page, so
                 // CI can photograph them and they can be held against the reference.
                 case "components":      ComponentSheetView()
