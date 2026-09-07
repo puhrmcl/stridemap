@@ -110,6 +110,10 @@ jobs:
           xcrun simctl install "$UDID" "$APP"
           xcrun simctl spawn "$UDID" defaults write com.nwagtech.etch didCompleteOnboarding -bool true
           xcrun simctl spawn "$UDID" defaults write com.nwagtech.etch didCompleteSetup -bool true
+          # Before the first launch, or the location prompt has already been raised by the time
+          # the visual step grants it and it sits over every screenshot that follows.
+          xcrun simctl privacy "$UDID" grant location com.nwagtech.etch || true
+          xcrun simctl privacy "$UDID" grant photos com.nwagtech.etch || true
 
           # Two checks, two launches.
           #
@@ -237,12 +241,6 @@ jobs:
             echo "No booted simulator — the checks step did not get far enough."
             exit 0
           fi
-
-          # The location prompt sits over whatever is being photographed otherwise — the checks
-          # step only writes the onboarding defaults, because a report does not care about an
-          # alert and a screenshot very much does.
-          xcrun simctl privacy "$UDID" grant location com.nwagtech.etch || true
-          xcrun simctl privacy "$UDID" grant photos com.nwagtech.etch || true
 
           shoot () {
             NAME="$1"; PREVIEW="$2"; ANCHOR="$3"; WAIT="$4"
