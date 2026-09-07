@@ -531,6 +531,8 @@ struct HomeView: View {
         // switches to States, then selects Arizona — logging each stage so the map rig's
         // screenshots and log show exactly where the pipeline breaks, without a device.
         .task { await runMapDiagnostics() }
+        // The reveal's highest-risk path, driven unattended in CI (ETCH_DIAG_REVEAL=1).
+        .task { await runRevealDiagnostics() }
         // Applying a filter reframes the route map to the newly filtered runs — unless a reveal
         // is in flight. A reveal clears a conflicting filter on its way in, and refitting to the
         // whole set here would issue a camera command *after* the focus and throw it away, which
@@ -1406,6 +1408,144 @@ struct HomeView: View {
         NSLog("ETCHDIAG map: after select — selected=%@ points=%d",
               selectedStateName ?? "nil", selectedStateRunPoints.count)
     }
+
+    /// Drives the reveal's highest-risk path in the real view, unattended, and writes a verdict.
+    ///
+    /// `ScopeRuleCheckView` proves the *decisions*; this proves the wiring around them — the
+    /// `onChange` ordering, the overlay transition, and `RunMapView` actually consuming the camera
+    /// command. That wiring is what regressed twice, and it is the one part a pure-logic check
+    /// cannot reach, so it is driven here instead: a search result selected from the States
+    /// overlay while a Favorites filter that excludes it is active.
+    ///
+    /// Runs under `ETCH_PREVIEW=home ETCH_DIAG_REVEAL=1`, on the harness's seeded library.
+    private func runRevealDiagnostics() async {
+        guard ProcessInfo.processInfo.environment["ETCH_DIAG_REVEAL"] == "1" else { return }
+
+        var results: [(name: String, passed: Bool, detail: String)] = []
+        func check(_ name: String, _ passed: Bool, _ detail: String) {
+            results.append((name, passed, detail))
+            NSLog("ETCHDIAG reveal: %@ %@ — %@", passed ? "PASS" : "FAIL", name, detail)
+        }
+
+        // The seed, the first rebuild and the map's first layout all have to land first.
+        try? await Task.sleep(for: .seconds(8))
+
+        let located = allRuns.filter { $0.startCoordinate != nil && !$0.isHidden }
+        guard located.count >= 3, let target = located.first else {
+            check("Seeded library is usable", false,
+                  "need at least three located activities, found \(located.count)")
+            writeRevealReport(results)
+            return
+        }
+
+        // A library with favourites in it, and a target that is deliberately not one of them.
+        for run in located.dropFirst().prefix(4) { run.isFavorite = true }
+        target.isFavorite = false
+        try? modelContext.save()
+
+        // ── Stage the conflicting state: Favorites filter, States overlay up.
+        appModel.filter.mode = .favorites
+        withAnimation { locationOverlay = .states; showLocations = true }
+        try? await Task.sleep(for: .seconds(5))
+
+        check("Staged: overlay up, filter excludes the target",
+              showLocations && !visibleRuns.contains { $0.id == target.id },
+              "showLocations=\(showLocations) targetDrawable=\(visibleRuns.contains { $0.id == target.id })")
+
+        // ── The tap. `reveal` is exactly what a search result calls.
+        appModel.startCameraLog()
+        let accepted = appModel.reveal(target)
+        check("The search result is accepted", accepted, "reveal returned \(accepted)")
+        try? await Task.sleep(for: .seconds(6))
+
+        check("The overlay exits", !showLocations,
+              "showLocations=\(showLocations) — a focus behind a place overview reveals nothing")
+        check("The route becomes drawable", visibleRuns.contains { $0.id == target.id },
+              "the conflicting Favorites filter was cleared, so the route map now holds the target")
+        check("The conflicting filter is gone", !appModel.filter.isActive,
+              "filter.isActive=\(appModel.filter.isActive)")
+        check("The target is selected", appModel.selectedRunID == target.id,
+              "selectedRunID=\(appModel.selectedRunID?.uuidString ?? "nil")")
+        check("The reveal completes", appModel.revealRequest == nil,
+              "the map consumed the camera command, so the request is no longer outstanding")
+
+        // The heart of it: a focus followed by a fit is the original defect, and it looks
+        // identical to success in any end-state snapshot.
+        check("The camera stays focused", appModel.cameraLog.last == "focus:\(target.id)",
+              "camera log: \(appModel.cameraLog.joined(separator: " → "))")
+        check("Exactly one focus was issued",
+              appModel.cameraLog.filter { $0.hasPrefix("focus:") }.count == 1,
+              "camera log: \(appModel.cameraLog.joined(separator: " → "))")
+
+        // ── Repeated selection of the same activity.
+        appModel.startCameraLog()
+        _ = appModel.reveal(target)
+        try? await Task.sleep(for: .seconds(5))
+        check("Repeat selection focuses again", appModel.cameraLog.last == "focus:\(target.id)",
+              "camera log: \(appModel.cameraLog.joined(separator: " → "))")
+        check("Repeat selection completes too", appModel.revealRequest == nil,
+              "a second tap on the same result must not leave a request outstanding")
+
+        // ── The same conflict with the overlay *off*, which is where the focus/fit race is
+        // actually live: with no overlay, clearing the filter reaches `onChange(of: filter)`,
+        // which refits the map. If that handler ran without seeing the outstanding request, the
+        // camera log would read "focus → fit" and the map would end up framing the whole library
+        // with the right activity still selected — the original defect, and indistinguishable
+        // from success in any end-state snapshot.
+        appModel.filter.mode = .favorites
+        try? await Task.sleep(for: .seconds(4))
+        check("Staged: no overlay, filter excludes the target",
+              !showLocations && !visibleRuns.contains { $0.id == target.id },
+              "showLocations=\(showLocations) targetDrawable=\(visibleRuns.contains { $0.id == target.id })")
+
+        appModel.startCameraLog()
+        _ = appModel.reveal(target)
+        try? await Task.sleep(for: .seconds(6))
+        check("No overlay: the camera ends on the focus",
+              appModel.cameraLog.last == "focus:\(target.id)",
+              "camera log: \(appModel.cameraLog.joined(separator: " → "))")
+        check("No overlay: no refit followed the focus",
+              !appModel.cameraLog.contains { $0.hasPrefix("fit") },
+              "clearing the filter must not refit while the reveal is outstanding — "
+                + "camera log: \(appModel.cameraLog.joined(separator: " → "))")
+
+        // ── Visibility outranks Search, in the live app rather than only in the rule.
+        let hidden = located[1]
+        hidden.isHidden = true
+        try? modelContext.save()
+        try? await Task.sleep(for: .seconds(3))
+        let selectionBefore = appModel.selectedRunID
+        let hiddenAccepted = appModel.reveal(hidden)
+        try? await Task.sleep(for: .seconds(2))
+        check("A hidden activity is refused", !hiddenAccepted, "reveal returned \(hiddenAccepted)")
+        check("A refused reveal changes nothing", appModel.selectedRunID == selectionBefore,
+              "the selection must survive a result that cannot be shown")
+
+        writeRevealReport(results)
+    }
+
+    /// Same shape as the scope-rule report, so one CI parser reads both.
+    private func writeRevealReport(_ results: [(name: String, passed: Bool, detail: String)]) {
+        guard let directory = FileManager.default.urls(for: .documentDirectory,
+                                                       in: .userDomainMask).first else { return }
+        var lines = ["reveal-diagnostic \(AppInfo.changeTag)"]
+        for result in results {
+            lines.append("\(result.passed ? "PASS" : "FAIL")  \(result.name) — \(result.detail)")
+        }
+        lines.append("EXPECTED_CHECKS: \(Self.expectedRevealChecks)")
+        lines.append("RAN_CHECKS: \(results.count)")
+        let ok = results.allSatisfy(\.passed) && results.count == Self.expectedRevealChecks
+        lines.append(ok ? "RESULT: ALL PASS" : "RESULT: FAIL")
+        try? lines.joined(separator: "\n").write(
+            to: directory.appendingPathComponent("reveal-diagnostic-report.txt"),
+            atomically: true, encoding: .utf8
+        )
+        NSLog("ETCHDIAG reveal: %@", ok ? "ALL PASS" : "FAIL")
+    }
+
+    /// Asserted by the workflow, so a diagnostic that bails out early is a red job rather than a
+    /// shorter clean report.
+    private static let expectedRevealChecks = 16
 
     /// Attributes each located run to a US state by point-in-polygon and shades proportionally
     /// to run count. The coordinate snapshot happens on the main actor (Run isn't Sendable);

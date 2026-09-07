@@ -111,81 +111,113 @@ jobs:
           xcrun simctl spawn "$UDID" defaults write com.nwagtech.etch didCompleteOnboarding -bool true
           xcrun simctl spawn "$UDID" defaults write com.nwagtech.etch didCompleteSetup -bool true
 
-          SIMCTL_CHILD_ETCH_PREVIEW="scope-rule" \
-            xcrun simctl launch "$UDID" com.nwagtech.etch >/dev/null
+          # Two checks, two launches.
+          #
+          # scope-rule is pure value logic — the shared scope rule and the reveal state machine.
+          # reveal-diagnostic drives the wiring those decisions sit in, in the real HomeView: a
+          # search result selected from the States overlay while a Favorites filter that excludes
+          # it is active, which is the path that regressed twice and the one a value-level check
+          # cannot reach. It needs the seeded library and the map's own update cycle, so it is
+          # slower and gets a longer budget.
+          run_check () {
+            NAME="$1"; PREVIEW="$2"; DIAG="$3"; TRIES="$4"
+            echo "── running $NAME"
+            xcrun simctl terminate "$UDID" com.nwagtech.etch 2>/dev/null || true
+            SIMCTL_CHILD_ETCH_PREVIEW="$PREVIEW" \
+            SIMCTL_CHILD_ETCH_DIAG_REVEAL="$DIAG" \
+              xcrun simctl launch "$UDID" com.nwagtech.etch >/dev/null
 
-          # Poll rather than sleep blind: the check is pure value logic and normally lands in a
-          # second or two, but a cold first launch on a shared runner is not predictable.
-          CONTAINER=""
-          REPORT=""
-          for _ in $(seq 1 60); do
-            CONTAINER=$(xcrun simctl get_app_container "$UDID" com.nwagtech.etch data 2>/dev/null || true)
-            if [ -n "$CONTAINER" ] && [ -f "$CONTAINER/Documents/scope-rule-report.txt" ]; then
-              REPORT="$CONTAINER/Documents/scope-rule-report.txt"
-              break
+            # Poll rather than sleep blind: a cold launch on a shared runner is not predictable.
+            REPORT=""
+            for _ in $(seq 1 "$TRIES"); do
+              CONTAINER=$(xcrun simctl get_app_container "$UDID" com.nwagtech.etch data 2>/dev/null || true)
+              if [ -n "$CONTAINER" ] && [ -f "$CONTAINER/Documents/$NAME-report.txt" ]; then
+                REPORT="$CONTAINER/Documents/$NAME-report.txt"
+                break
+              fi
+              sleep 2
+            done
+
+            if [ -z "$REPORT" ]; then
+              echo "::error::$NAME wrote no report — the check did not run (crash, or the preview route did not open)."
+              xcrun simctl spawn "$UDID" log show --last 5m --predicate 'process == "Etch"' \
+                --style compact 2>/dev/null | tail -80 || true
+              return 1
             fi
-            sleep 2
-          done
 
-          if [ -z "$REPORT" ]; then
-            echo "::error::scope-rule wrote no report — the check did not run (crash, or the preview route did not open)."
-            xcrun simctl spawn "$UDID" log show --last 3m --predicate 'process == "Etch"' \
-              --style compact 2>/dev/null | tail -60 || true
-            exit 1
-          fi
+            cp "$REPORT" "check-reports/$NAME-report.txt"
+            rm -f "$REPORT"
+            echo "── REPORT $NAME"
+            cat "check-reports/$NAME-report.txt"
+            echo ""
+            echo "── END-REPORT"
+          }
 
-          cp "$REPORT" check-reports/scope-rule-report.txt
-          echo "── REPORT scope-rule"
-          cat check-reports/scope-rule-report.txt
-          echo "── END-REPORT"
+          FAILED=0
+          run_check scope-rule       scope-rule 0 60  || FAILED=1
+          run_check reveal-diagnostic home       1 120 || FAILED=1
 
-          python3 - <<'PY'
-          import re, sys
-
-          path = "check-reports/scope-rule-report.txt"
-          text = open(path, encoding="utf-8").read()
-          lines = [l.strip() for l in text.splitlines() if l.strip()]
+          python3 - <<'PY' || FAILED=1
+          import glob, sys
 
           problems = []
+          reports = sorted(glob.glob("check-reports/*-report.txt"))
+          if len(reports) != 2:
+              problems.append("expected 2 reports, found %d: %s" % (len(reports), reports))
 
-          def number(label):
+          def number(lines, label):
               for line in lines:
                   if line.startswith(label + ":"):
                       return int(line.split(":", 1)[1].strip())
               return None
 
-          expected = number("EXPECTED_CHECKS")
-          ran = number("RAN_CHECKS")
-          passes = [l for l in lines if l.startswith("PASS")]
-          failures = [l for l in lines if l.startswith("FAIL")]
-          verdict = [l for l in lines if l.startswith("RESULT:")]
+          for path in reports:
+              name = path.split("/")[-1].replace("-report.txt", "")
+              lines = [l.strip() for l in open(path, encoding="utf-8").read().splitlines() if l.strip()]
 
-          if expected is None or ran is None:
-              problems.append("report is missing EXPECTED_CHECKS/RAN_CHECKS — it is not a complete report")
-          else:
-              if ran != expected:
-                  problems.append("incomplete: ran %d of %d checks" % (ran, expected))
-              if ran <= 0:
-                  problems.append("no checks ran at all")
-              if len(passes) + len(failures) != ran:
-                  problems.append("report lists %d result lines but claims %d checks"
-                                  % (len(passes) + len(failures), ran))
+              before = len(problems)
 
-          if failures:
-              problems.append("%d failing check(s):\n  %s" % (len(failures), "\n  ".join(failures)))
+              def fault(msg):
+                  problems.append("%s: %s" % (name, msg))
 
-          if len(verdict) != 1:
-              problems.append("expected exactly one RESULT: line, found %d" % len(verdict))
-          elif verdict[0] != "RESULT: ALL PASS":
-              problems.append("verdict is %r" % verdict[0])
+              expected = number(lines, "EXPECTED_CHECKS")
+              ran = number(lines, "RAN_CHECKS")
+              passes = [l for l in lines if l.startswith("PASS")]
+              failures = [l for l in lines if l.startswith("FAIL")]
+              verdict = [l for l in lines if l.startswith("RESULT:")]
+
+              if expected is None or ran is None:
+                  fault("report is missing EXPECTED_CHECKS/RAN_CHECKS — it is not a complete report")
+              else:
+                  if ran != expected:
+                      fault("incomplete: ran %d of %d checks" % (ran, expected))
+                  if ran <= 0:
+                      fault("no checks ran at all")
+                  if len(passes) + len(failures) != ran:
+                      fault("report lists %d result lines but claims %d checks"
+                            % (len(passes) + len(failures), ran))
+
+              if failures:
+                  fault("%d failing check(s):\n  %s" % (len(failures), "\n  ".join(failures)))
+
+              if len(verdict) != 1:
+                  fault("expected exactly one RESULT: line, found %d" % len(verdict))
+              elif verdict[0] != "RESULT: ALL PASS":
+                  fault("verdict is %r" % verdict[0])
+
+              if len(problems) == before:
+                  print("%s: %d/%d checks passed" % (name, ran, expected))
 
           if problems:
               for p in problems:
-                  print("::error::scope-rule: %s" % p)
+                  print("::error::%s" % p)
               sys.exit(1)
-
-          print("scope-rule: %d/%d checks passed" % (ran, expected))
           PY
+
+          if [ "$FAILED" -ne 0 ]; then
+            echo "::error::Behavioural checks failed — reports above and in the check-reports artifact."
+            exit 1
+          fi
 
       # Preserve the verdict even when the step above fails — a red run is exactly when the
       # report is worth reading.

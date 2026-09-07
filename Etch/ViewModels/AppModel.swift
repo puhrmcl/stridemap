@@ -104,17 +104,39 @@ final class AppModel {
 
     // MARK: Camera helpers
 
+    /// The camera commands issued since `startCameraLog()`, for the unattended reveal diagnostic.
+    ///
+    /// The defect this exists to catch is invisible in any end-state snapshot: "search finds it,
+    /// the map goes somewhere else" is a focus *followed by* a fit, and a moment later the map is
+    /// framing the whole library with the right run still selected. Only the order tells them
+    /// apart. Off unless armed, so it costs nothing in a real session.
+    private(set) var cameraLog: [String] = []
+    private var recordsCameraLog = false
+
+    func startCameraLog() {
+        recordsCameraLog = true
+        cameraLog = []
+    }
+
+    private func record(_ entry: String) {
+        guard recordsCameraLog else { return }
+        cameraLog.append(entry)
+    }
+
     func focus(on run: Run) {
+        record("focus:\(run.id)")
         withAnimation(Theme.spring) {
             command = MapCameraCommand(target: .focus(runID: run.id))
         }
     }
 
     func fit(_ runs: [Run]) {
+        record("fit:\(runs.count)")
         command = MapCameraCommand(target: .fit(runIDs: runs.map(\.id)))
     }
 
     func fitAll(_ runs: [Run]) {
+        record("fitAll")
         command = MapCameraCommand(target: .fit(runIDs: []))
         // Empty list tells the map to fit whatever is currently visible.
         _ = runs
