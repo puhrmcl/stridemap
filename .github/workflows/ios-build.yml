@@ -238,6 +238,12 @@ jobs:
             exit 0
           fi
 
+          # The location prompt sits over whatever is being photographed otherwise — the checks
+          # step only writes the onboarding defaults, because a report does not care about an
+          # alert and a screenshot very much does.
+          xcrun simctl privacy "$UDID" grant location com.nwagtech.etch || true
+          xcrun simctl privacy "$UDID" grant photos com.nwagtech.etch || true
+
           shoot () {
             NAME="$1"; PREVIEW="$2"; ANCHOR="$3"; WAIT="$4"
             xcrun simctl terminate "$UDID" com.nwagtech.etch 2>/dev/null || true
@@ -248,11 +254,15 @@ jobs:
             xcrun simctl io "$UDID" screenshot "shots/$NAME.png" || true
           }
 
-          # The four race-panel scenarios render on one scrolling page; the two editor screens open
-          # the tray directly on the section being reviewed.
-          shoot race-panel      race-panel  ""          40
-          shoot studio-design   map-studio  design      45
-          shoot studio-personalize map-studio customize 45
+          # One scenario per shot — four sheets stacked on one scroll are too small in a
+          # screenshot to judge whether a caption is colliding with the value above it.
+          shoot race-wide-landscape  race-panel wide-landscape   30
+          shoot race-compact-portrait race-panel compact-portrait 30
+          shoot race-all-data        race-panel all-data         30
+          shoot race-sparse          race-panel sparse           30
+          # The two editor screens open the tray directly on the section being reviewed.
+          shoot studio-design        map-studio design           45
+          shoot studio-personalize   map-studio customize        45
 
           for FILE in shots/*.png; do
             [ -f "$FILE" ] || continue

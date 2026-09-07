@@ -351,13 +351,29 @@ struct RacePanelPreviewView: View {
     @State private var pieces: [Piece] = []
     @State private var rendering = true
 
+    /// `race-panel@all-data` photographs one scenario filling the screen. Four sheets stacked on
+    /// one scroll are each a couple of hundred pixels tall in a screenshot, which is not enough to
+    /// judge whether a caption is colliding with the value above it — and judging that is the
+    /// whole point of rendering them.
+    private var wanted: String? {
+        let anchor = ProcessInfo.processInfo.environment["ETCH_PREVIEW_SCROLL"] ?? ""
+        return anchor.isEmpty ? nil : anchor
+    }
+
+    private var shown: [Piece] {
+        guard let wanted else { return pieces }
+        return pieces.filter { $0.id == wanted }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                Text("Race data panel")
-                    .font(.etch(.title2, weight: .bold))
+                if wanted == nil {
+                    Text("Race data panel")
+                        .font(.etch(.title2, weight: .bold))
+                }
                 if rendering { ProgressView().controlSize(.small) }
-                ForEach(pieces) { piece in
+                ForEach(shown) { piece in
                     VStack(alignment: .leading, spacing: 6) {
                         Text(piece.caption)
                             .font(.system(size: 11, weight: .semibold, design: .monospaced))
@@ -374,7 +390,7 @@ struct RacePanelPreviewView: View {
                     }
                 }
             }
-            .padding(20)
+            .padding(12)
         }
         .task { await render() }
     }
@@ -417,7 +433,8 @@ struct RacePanelPreviewView: View {
 
     private func render() async {
         var out: [Piece] = []
-        for scenario in scenarios() {
+        let requested = wanted
+        for scenario in scenarios() where requested == nil || scenario.id == requested {
             let image = await StudioRenderer.image(
                 for: scenario.config.request(for: scenario.run), scale: 0.5)
             out.append(Piece(id: scenario.id, caption: scenario.caption, image: image))
