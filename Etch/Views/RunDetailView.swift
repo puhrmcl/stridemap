@@ -1093,12 +1093,6 @@ private struct EditRunSheet: View {
                 routeAttached = true
             }
             .navigationTitle("Edit Activity")
-            .alert("Couldn’t save photo changes", isPresented: $photoSaveError) {
-                Button("Retry") { savePhotoChanges() }
-                Button("OK", role: .cancel) {}
-            } message: { Text("Your changes are still on this screen. Try saving again before leaving.") }
-            .sheet(isPresented: $showPhotoReview) { PhotoReviewView(run: run) }
-            .sheet(isPresented: $showPhotoMap) { ActivityPhotoMap(run: run) }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
