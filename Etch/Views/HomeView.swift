@@ -298,28 +298,48 @@ struct HomeView: View {
         // impossible to disagree.
         appModel.bumpMapContent()
 
-        // A reveal is only finished once the activity is genuinely on the map. Doing it here —
-        // after `shown` is in hand — is what keeps the camera command from being issued into a
-        // set that does not contain its target.
-        fulfilReveal(using: shown)
+        // A reveal is only finished once the activity is genuinely on the route map. Doing it
+        // here — after `visible` is in hand — is what keeps the camera command from being issued
+        // into a set that does not contain its target.
+        //
+        // `visible`, emphatically not `shown`. `shown` is the *scoped* set while a place overview
+        // is up, which is a superset of what the route map draws and belongs to a different map
+        // entirely; completing against it focused a run `RunMapView` did not have, on a view at
+        // opacity 0.
+        advanceReveal(routeMapRuns: visible)
     }
 
-    /// Completes a pending `reveal` once its activity is among the drawn runs.
+    /// Advances a pending `reveal` one step, against the runs the **route map** is drawing.
     ///
-    /// If the target still isn't drawable the request is left outstanding rather than cleared:
-    /// exiting a location overlay changes `derivedKey`, which rebuilds and calls this again. The
-    /// one case that must not hang is a target that can never be drawn — an activity hidden by
-    /// the reader or belonging to a type disabled in Settings — so that is resolved explicitly.
-    private func fulfilReveal(using shown: [Run]) {
-        guard let request = appModel.revealRequest else { return }
-        if let run = shown.first(where: { $0.id == request.runID }) {
+    /// Every decision here is `Reveal`'s, so the same logic runs in CI without a simulator's view
+    /// state (see `ScopeRuleCheckView`). This function is only the part that needs a view: exiting
+    /// the overlay, issuing the camera command, and marking the phase.
+    private func advanceReveal(routeMapRuns: [Run]) {
+        let request = appModel.revealRequest
+        let admissible = request.map { pending in
+            allRuns.scoped(to: effectiveScope).contains { $0.id == pending.runID }
+        } ?? false
+
+        switch Reveal.next(request: request,
+                           showLocations: showLocations,
+                           drawnRunIDs: Set(routeMapRuns.map(\.id)),
+                           isAdmissible: admissible) {
+        case .focus(let id):
+            guard let run = routeMapRuns.first(where: { $0.id == id }) else { return }
             appModel.focus(on: run)
+            // Not `finishReveal()`. The map has not read the command yet, and the filter/scope
+            // refit handlers fire in this same update — the request has to outlive the issue.
+            appModel.revealDidFocus()
+        case .exitLocationOverlay:
+            // Leaving the overlay changes `derivedKey`, which rebuilds and asks again — this time
+            // with the route map on screen and its own filtered set in hand.
+            withAnimation(Theme.gentle) { showLocations = false }
+        case .abandon:
+            // Not drawable and not recoverable: visibility rules outrank Search, by design.
             appModel.finishReveal()
-            return
+        case .wait:
+            break
         }
-        // Not drawable and not recoverable: visibility rules outrank Search, by design.
-        let admissible = allRuns.scoped(to: effectiveScope).contains { $0.id == request.runID }
-        if !admissible { appModel.finishReveal() }
     }
 
     /// Runs that count as milestones — their map pins get the gold trophy.
@@ -516,27 +536,41 @@ struct HomeView: View {
         // whole set here would issue a camera command *after* the focus and throw it away, which
         // is precisely how "search finds it, the map goes somewhere else" happened.
         .onChange(of: appModel.filter) {
-            guard appModel.revealRequest == nil else { return }
+            guard Reveal.allowsCameraRefit(request: appModel.revealRequest) else { return }
             if !isOverviewMode { appModel.fit(visibleRuns) }
         }
         // Switching activity type reframes the route map to the newly scoped set — same exception.
         .onChange(of: appModel.activityScope) {
-            guard appModel.revealRequest == nil else { return }
+            guard Reveal.allowsCameraRefit(request: appModel.revealRequest) else { return }
             if !isOverviewMode { appModel.fit(visibleRuns) }
         }
         // Arriving at one activity leaves the place overviews: they hide the route map entirely
-        // (opacity 0, hit-testing off), so a focus behind them reveals nothing. Clearing the
-        // overlay changes `derivedKey`, which rebuilds and completes the reveal.
+        // (opacity 0, hit-testing off), so a focus behind them reveals nothing. `advanceReveal`
+        // decides which of those applies; it is called here as well as from the rebuild because a
+        // reveal that needed no filter or scope adjustment changes `derivedKey` not at all, and
+        // would otherwise wait for a rebuild that never comes. That is also the repeat case —
+        // selecting the same result twice only advances the token.
         .onChange(of: appModel.revealRequest) { _, request in
-            guard request != nil else { return }
-            if showLocations {
-                // Leaving the overlay changes `derivedKey`; the rebuild completes the reveal.
-                withAnimation(Theme.gentle) { showLocations = false }
-            } else {
-                // Nothing else may be about to change, and a reveal that needed no filter or
-                // scope adjustment would otherwise wait for a rebuild that never comes.
-                fulfilReveal(using: shownRuns)
-            }
+            guard request?.phase == .pending else { return }
+            advanceReveal(routeMapRuns: visibleRuns)
+        }
+        // The map clears `command` once it has applied it. *That* is when a reveal is over — any
+        // earlier and the refit handlers above, which fire in the same update that started it,
+        // replace the focus before `RunMapView.updateUIView` ever reads it.
+        .onChange(of: appModel.command) { _, command in
+            guard command == nil, appModel.revealRequest?.phase == .focused else { return }
+            appModel.finishReveal()
+        }
+        // Safety valve for the phase above. Holding the request until the map consumes the command
+        // is what protects the focus, but it also means a map that never takes an update pass would
+        // leave the camera refits switched off for the rest of the session. `RunMapView` clears
+        // `command` in the same update it applies it, so this should never elapse — and if it does,
+        // releasing the reveal is strictly better than a map that has quietly stopped reframing.
+        .task(id: appModel.revealRequest) {
+            guard appModel.revealRequest?.phase == .focused else { return }
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            appModel.finishReveal()
         }
         // Advance the map's content revision on the discrete events that change what it draws —
         // filter, scope, new/removed activities, or a route edit / favorite toggle (same count, new

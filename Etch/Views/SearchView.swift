@@ -57,7 +57,11 @@ struct SearchView: View {
         // focus once it is there. Both dismissals are still needed — this search is a sheet
         // presented from Profile, which is itself a presented surface, and leaving either standing
         // would put the map behind a modal the reader has to dismiss to see what they searched for.
-        appModel.reveal(run)
+        //
+        // A rejected reveal (hidden, or a type disabled in Settings) leaves everything standing:
+        // sending the reader to a map that will not draw what they tapped is worse than the tap
+        // doing nothing. `searchableRuns` is scoped, so this is a guard rather than a live path.
+        guard appModel.reveal(run) else { return }
         appModel.presentedSurface = nil
         dismiss()
     }

@@ -123,6 +123,24 @@ enum ActivitySettings {
         }
     }
 
+    /// Whether a given activity *type* is currently enabled in Settings.
+    ///
+    /// The scope-shaped overload above answers "may this selector option be chosen?"; this one
+    /// answers "may this activity be shown at all?", which is what admitting a single activity —
+    /// a search result, a reveal — actually needs.
+    /// Types outside the four toggles (ski, swim, row, other) are never filtered out by
+    /// `scoped(to:)` either — this has to agree with it exactly, or a reveal would reject an
+    /// activity the map is perfectly happy to draw.
+    static func isVisible(_ type: ActivityType) -> Bool {
+        switch type {
+        case .run:  return includeRuns
+        case .hike: return includeHikes
+        case .ride: return includeRides
+        case .walk: return includeWalks
+        case .ski, .swim, .row, .other: return true
+        }
+    }
+
     /// The scopes offered in every activity selector, in order — the disabled ones dropped.
     static var visibleScopes: [ActivityScope] {
         ActivityScope.allCases.filter(isVisible)
