@@ -310,8 +310,18 @@ struct StudioComposition: View {
         return height * (layout == .gallery ? 0.34 : 0.40)
     }
 
+    /// The data placement the sheet is actually built to.
+    ///
+    /// A Nameplate composes masthead → art → foot and reaches none of the side-column branches, so
+    /// a `.left`/`.right` placement on a landscape Nameplate would size the canvas for a
+    /// square-art-plus-column print the composition never draws — a sheet measured to one shape and
+    /// filled with another. Every layout calculation reads this rather than the stored value.
+    private var placement: StudioDataPlacement {
+        isNameplateMap && dataPlacement.isSide ? .bottom : dataPlacement
+    }
+
     private var artFloorHeight: CGFloat {
-        Self.artFloor(orientation, dataPlacement, layout: layout, aspect: printAspect)
+        Self.artFloor(orientation, placement, layout: layout, aspect: printAspect)
     }
 
     /// Grey version of a colour (luminance), used when the poster is monochrome so the route and
@@ -343,9 +353,9 @@ struct StudioComposition: View {
         return groundOverride != nil ? autoInk.opacity(0.6) : edition.subtle
     }
 
-    private var artDimensions: CGSize { Self.artSize(orientation, dataPlacement) }
+    private var artDimensions: CGSize { Self.artSize(orientation, placement) }
     /// Landscape with the data column beside the art (vs. above/below it).
-    private var isSideLayout: Bool { orientation == .landscape && dataPlacement.isSide }
+    private var isSideLayout: Bool { orientation == .landscape && placement.isSide }
 
     /// The elevation strip only fits under the art in portrait.
     private var hasElevationStrip: Bool {
@@ -717,7 +727,7 @@ struct StudioComposition: View {
     /// headline and demote the rest to slots; here every figure is a peer, so distance, time and
     /// climb read as three facts about one day rather than as a score with footnotes.
     private var nameplateComposition: some View {
-        let canvas = Self.canvasSize(orientation, dataPlacement, printAspect)
+        let canvas = Self.canvasSize(orientation, placement, printAspect)
         return VStack(spacing: 0) {
             nameplateHead
                 .fixedSize(horizontal: false, vertical: true)
@@ -740,7 +750,7 @@ struct StudioComposition: View {
     /// sets its own justification.
     private var nameplateHead: some View {
         let tracking: CGFloat = titleFont == .editorial ? 1 : 0
-        let columnWidth = Self.canvasSize(orientation, dataPlacement, printAspect).width - 140
+        let columnWidth = Self.canvasSize(orientation, placement, printAspect).width - 140
         let titleSize = filledTitleSize(base: ts(62 * titleScale), tracking: tracking,
                                         width: columnWidth)
         return VStack(alignment: justH(.leading), spacing: sp(10)) {
@@ -757,7 +767,10 @@ struct StudioComposition: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: just(.leading))
             }
-            if !dateLine.isEmpty {
+            // A Race Edition prints the date beside the place in the result band, where it reads as
+            // context for the result. Printing it here as well says the same thing twice on one
+            // sheet. Every other Nameplate keeps its authored masthead date.
+            if !dateLine.isEmpty && !isRaceResultNameplate {
                 Text(dateLine.uppercased())
                     .font(.etch(size: ts(20 * dateScale), weight: .semibold))
                     .tracking(3)
@@ -771,25 +784,20 @@ struct StudioComposition: View {
         .background(groundColor)
     }
 
-    /// The foot: the place, then a rule, then the figures — the shape a printed record takes.
+    /// The foot: on an ordinary Nameplate the place, then the figures. On a race, the result panel.
     private var nameplateFoot: some View {
-        VStack(spacing: sp(isRaceResultNameplate ? 20 : 26)) {
-            if isRaceResultNameplate {
-                VStack(alignment: .leading, spacing: sp(2)) {
-                    Text(heroValue)
-                        .font(.etch(size: ts(68 * heroScale), weight: .bold, face: dataFont.face))
-                        .foregroundStyle(inkColor)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                    if showStatLabels {
-                        Text("FINISH TIME")
-                            .font(.etch(size: ts(13 * heroScale), weight: .semibold, face: dataFont.face))
-                            .tracking(3.5)
-                            .foregroundStyle(subtleColor)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
+        Group {
+            if isRaceResultNameplate { raceResultFoot } else { standardNameplateFoot }
+        }
+        .padding(.horizontal, 70)
+        .padding(.top, sp(24))
+        .padding(.bottom, max(40, sp(62)))
+        .background(groundColor)
+    }
+
+    /// Every figure a peer, under the place — the shape a printed record takes.
+    private var standardNameplateFoot: some View {
+        VStack(spacing: sp(26)) {
             if !placeLine.isEmpty {
                 Text(placeLine.uppercased())
                     .font(.etch(size: ts(22 * locationScale), weight: .semibold))
@@ -801,7 +809,8 @@ struct StudioComposition: View {
             }
             // No rule. Neither reference print draws a line anywhere on the sheet — space does
             // the separating, and a 2pt bar across the foot was doing work a wider margin does
-            // more quietly. The gap below is that margin.
+            // more quietly. The gap below is that margin. (The race panel is the exception: it
+            // carries two distinct registers of information and needs the structure.)
             if !nameplateStats.isEmpty {
                 HStack(alignment: .top, spacing: 0) {
                     ForEach(Array(nameplateStats.enumerated()), id: \.offset) { _, item in
@@ -813,10 +822,267 @@ struct StudioComposition: View {
                 weatherText(weather, leading: false)
             }
         }
-        .padding(.horizontal, 70)
-        .padding(.top, sp(24))
-        .padding(.bottom, max(40, sp(62)))
-        .background(groundColor)
+    }
+
+    // MARK: The race result panel
+    //
+    // Four bands, in falling order of importance: the result and where it happened, a hairline,
+    // the supporting figures, and the weather as an ambient last word.
+    //
+    // What it replaces stacked the same content as four full-width rows — finish time, then place,
+    // then every selected metric in one equal `HStack`, then weather. With two supporting metrics
+    // that read acceptably. With four it did not: the coordinates squeezed a nineteen-character
+    // string into a quarter of the column and scaled it down until it was smaller than its own
+    // caption, the weather sat in the row as a fifth peer, and the whole foot read as a fitness
+    // dashboard bolted to the bottom of a print. The hierarchy below is the fix — the result is
+    // unmistakably the subject, and everything under the rule is support.
+
+    private var raceResultFoot: some View {
+        let stats = raceSupportingStats
+        let weather = raceWeatherLine
+        let hasSupport = !stats.isEmpty || weather != nil
+        return VStack(spacing: 0) {
+            raceResultBand
+            if hasSupport {
+                raceRule
+                    .padding(.top, sp(24))
+                    .padding(.bottom, sp(26))
+            }
+            if !stats.isEmpty { raceStatRow(stats) }
+            if let weather {
+                // A finishing line, not a fifth caption. It needs enough air above it that the
+                // eye reads a pause; at 26 it sat almost on the stat captions.
+                raceWeatherBand(weather)
+                    .padding(.top, sp(stats.isEmpty ? 0 : 40))
+            }
+        }
+    }
+
+    /// Band A — the result, and the context it belongs to.
+    ///
+    /// Deliberately not two equal halves. The finish time takes the width it needs and keeps it
+    /// (`layoutPriority`), the place and date take theirs, and the space between them is whatever
+    /// is left — which is what optical balance looks like when one side is 68pt and the other is
+    /// 22pt. Sharing a first baseline is what makes them read as one row rather than two.
+    private var raceResultBand: some View {
+        HStack(alignment: .firstTextBaseline, spacing: sp(30)) {
+            VStack(alignment: .leading, spacing: sp(3)) {
+                Text(heroValue)
+                    .font(.etch(size: ts(68 * heroScale), weight: .bold, face: dataFont.face))
+                    .foregroundStyle(inkColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                if showStatLabels {
+                    Text("FINISH TIME")
+                        .font(.etch(size: ts(13 * heroScale), weight: .semibold, face: dataFont.face))
+                        .tracking(3.5)
+                        .foregroundStyle(subtleColor)
+                }
+            }
+            .layoutPriority(1)
+
+            Spacer(minLength: sp(16))
+
+            raceContextBlock
+        }
+    }
+
+    /// Where and when — quieter than the result, and clearly attached to it.
+    @ViewBuilder
+    private var raceContextBlock: some View {
+        if !placeLine.isEmpty || !raceContextDate.isEmpty {
+            VStack(alignment: .trailing, spacing: sp(5)) {
+                if !placeLine.isEmpty {
+                    Text(placeLine.uppercased())
+                        .font(.etch(size: ts(22 * locationScale), weight: .semibold))
+                        .tracking(2.5)
+                        .foregroundStyle(inkColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                }
+                if !raceContextDate.isEmpty {
+                    Text(raceContextDate.uppercased())
+                        .font(.etch(size: ts(15 * dateScale), weight: .semibold))
+                        .tracking(2.5)
+                        .foregroundStyle(subtleColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                }
+            }
+            .multilineTextAlignment(.trailing)
+        }
+    }
+
+    /// Band B — one hairline across the content width. Structure, not decoration.
+    ///
+    /// The weight is in canvas points, and the canvas is 1000 wide for a sheet that prints at
+    /// twelve inches: a 1pt rule is 0.86 of a print point — a real hairline on paper, and
+    /// literally nothing on screen. The first render of this panel had no visible divider at all
+    /// because of it, in the app's own preview as much as in CI. 2.5 canvas points is ~2.2 print
+    /// points: still a hairline in the hand, and actually present in the picture.
+    private static let raceHairline: CGFloat = 2.5
+    /// The cell dividers are subordinate to the structural rule and read a register lighter.
+    private static let raceCellHairline: CGFloat = 1.5
+
+    private var raceRule: some View {
+        Rectangle()
+            .fill(subtleColor.opacity(0.32))
+            .frame(height: Self.raceHairline)
+    }
+
+    /// Band C — the supporting figures, all of equal weight.
+    private func raceStatRow(_ stats: [(metric: StatMetric, value: String)]) -> some View {
+        HStack(alignment: .center, spacing: 0) {
+            ForEach(Array(stats.enumerated()), id: \.offset) { index, item in
+                // Hairlines earn their place once the row is dense enough to need reading order.
+                // Between two figures they would be a divider looking for something to divide.
+                if index > 0 && stats.count >= 3 { raceStatDivider }
+                raceStat(item.metric, item.value)
+            }
+        }
+        // One or two figures stay centred rather than pinned to opposite margins, where they read
+        // as a comparison instead of a pair of facts. Four fill the width.
+        .frame(maxWidth: stats.count <= 2 ? sparseRaceStatWidth : .infinity)
+    }
+
+    /// The width a one- or two-figure supporting row is allowed to occupy — a share of the content
+    /// width, not a fixed number.
+    ///
+    /// As an absolute 620 it filled most of a 1000pt portrait footer and then huddled in the middle
+    /// third of a 1640pt landscape one, under a rule running the full width: the rule promised a
+    /// structure the row did not use. A proportion sits the same way on both sheets.
+    private var sparseRaceStatWidth: CGFloat {
+        (Self.canvasSize(orientation, placement, printAspect).width - 140) * 0.72
+    }
+
+    private var raceStatDivider: some View {
+        Rectangle()
+            .fill(subtleColor.opacity(0.26))
+            .frame(width: Self.raceCellHairline, height: raceStatValueHeight * 0.86)
+    }
+
+    private func raceStat(_ metric: StatMetric, _ value: String) -> some View {
+        VStack(spacing: sp(9)) {
+            raceStatValue(metric, value)
+                // Every value block is the same height, so the captions land on one line across
+                // the row whatever is in the cells above them. Without it the two-line coordinates
+                // push their own caption a line lower than its neighbours and the row stops
+                // reading as a row.
+                .frame(height: raceStatValueHeight)
+            if showStatLabels {
+                Text(metric.label)
+                    .font(.etch(size: ts(13 * statScale), weight: .semibold, face: dataFont.face))
+                    .tracking(2.2)
+                    .foregroundStyle(subtleColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Coordinates are two facts, not one nineteen-character string. Set on two lines they stay
+    /// legible in a quarter-width cell; forced onto one they scale down below their own caption,
+    /// which is what the old row did.
+    @ViewBuilder
+    private func raceStatValue(_ metric: StatMetric, _ value: String) -> some View {
+        if metric == .coordinates, let pair = coordinatePair {
+            VStack(spacing: sp(3)) {
+                Text(pair.latitude)
+                Text(pair.longitude)
+            }
+            .font(.etch(size: ts(23 * statScale), weight: .bold, face: dataFont.face))
+            .foregroundStyle(inkColor)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+        } else {
+            Text(value)
+                .font(.etch(size: ts(30 * statScale), weight: .bold, face: dataFont.face))
+                .foregroundStyle(inkColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.55)
+        }
+    }
+
+    /// The common height of every value block in the row — the tallest thing the row actually
+    /// holds, so a row without coordinates never carries their second line as dead space.
+    private var raceStatValueHeight: CGFloat {
+        let single = ts(30 * statScale) * 1.2
+        let carriesCoordinates = raceSupportingStats
+            .contains { $0.metric == .coordinates && coordinatePair != nil }
+        guard carriesCoordinates else { return single }
+        return max(single, ts(23 * statScale) * 2 * 1.2 + sp(3))
+    }
+
+    /// Band D — the weather, as a finishing line rather than a fifth statistic.
+    private func raceWeatherBand(_ weather: String) -> some View {
+        HStack(spacing: sp(16)) {
+            raceWeatherHairline
+            Text(weather.uppercased())
+                .font(.etch(size: ts(15), weight: .medium, face: dataFont.face))
+                .tracking(3.5)
+                .foregroundStyle(subtleColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .fixedSize(horizontal: true, vertical: false)
+            raceWeatherHairline
+        }
+        .frame(maxWidth: Self.raceWeatherBandWidth)
+    }
+
+    private static let raceWeatherBandWidth: CGFloat = 640
+
+    private var raceWeatherHairline: some View {
+        Rectangle()
+            .fill(subtleColor.opacity(0.24))
+            .frame(height: Self.raceCellHairline)
+    }
+
+    // MARK: What the race panel prints
+
+    /// The date, printed beside the place instead of in the masthead.
+    private var raceContextDate: String { dateLine }
+
+    /// The weather line, whether it was switched on as a finishing detail or chosen as a data
+    /// point. Either way it is composed once, here, in Band D — a long phrase dropped into a
+    /// quarter-width stat cell is exactly the look this panel exists to avoid.
+    private var raceWeatherLine: String? {
+        guard includeWeather || statSlots.contains(.weather) else { return nil }
+        return run.weatherLine()
+    }
+
+    /// Latitude and longitude as two separate strings, for the two-line cell.
+    private var coordinatePair: (latitude: String, longitude: String)? {
+        guard let lat = run.startLatitude, let lon = run.startLongitude else { return nil }
+        return (String(format: "%.3f° %@", abs(lat), lat >= 0 ? "N" : "S"),
+                String(format: "%.3f° %@", abs(lon), lon >= 0 ? "E" : "W"))
+    }
+
+    /// Up to four supporting figures.
+    ///
+    /// The only thing ever dropped is a value the panel already prints somewhere else — the place
+    /// and date are in Band A, the weather has Band D, the finish time is the headline. A metric
+    /// the customer chose that is not a duplicate is always laid out, never quietly deleted to make
+    /// the row fit; the fit is handled by type and spacing, and finally by the renderer's own
+    /// auto-fit.
+    private var raceSupportingStats: [(metric: StatMetric, value: String)] {
+        var seen: Set<StatMetric> = [heroMetric]
+        var out: [(metric: StatMetric, value: String)] = []
+        for item in resolvedStats where item.metric != .none {
+            guard !racePanelAlreadyShows(item.metric) else { continue }
+            guard seen.insert(item.metric).inserted else { continue }
+            out.append(item)
+        }
+        return Array(out.prefix(4))
+    }
+
+    private func racePanelAlreadyShows(_ metric: StatMetric) -> Bool {
+        switch metric {
+        case .place:   return !placeLine.isEmpty
+        case .date:    return !raceContextDate.isEmpty
+        case .weather: return raceWeatherLine != nil
+        default:       return false
+        }
     }
 
     /// Race pieces use the result as a true headline. On ordinary Nameplates every figure stays

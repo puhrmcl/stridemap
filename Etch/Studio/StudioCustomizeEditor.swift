@@ -103,11 +103,22 @@ struct StudioCustomizeEditor: View {
         return "Custom"
     }
 
+    /// Whether moving the data around the art can change this piece at all.
+    ///
+    /// A Nameplate composes masthead → art → foot in both orientations — it is the shape of the
+    /// product — so a data-position control on one would offer four choices that all render the
+    /// same sheet. Same rule as standalone weather: a control that cannot change the artwork does
+    /// not appear.
+    private var offersDataPosition: Bool {
+        config.family == .map
+            && config.orientation == .landscape
+            && config.mapLayout != .nameplate
+            && config.mapLayout != .fullBleed
+    }
+
     private var layoutSummary: String {
         if config.mapLayout == .fullBleed { return "Edge to edge" }
-        if config.orientation == .landscape {
-            return config.dataPlacement.name
-        }
+        if offersDataPosition { return config.dataPlacement.name }
         return config.mapInset ? "Bordered" : "Edge to edge"
     }
 
@@ -321,7 +332,7 @@ struct StudioCustomizeEditor: View {
                 .pickerStyle(.segmented)
             }
 
-            if config.orientation == .landscape {
+            if offersDataPosition {
                 StudioGroupLabel(text: "Data position")
                 Picker("Data position", selection: $config.dataPlacement) {
                     ForEach(StudioDataPlacement.allCases) { placement in

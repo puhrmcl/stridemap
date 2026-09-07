@@ -82,8 +82,8 @@ jobs:
       # check block that stopped running all produce a missing or short report, and each of those
       # has to be a red job. Printing "RESULT: FAIL" and exiting 0 is the failure mode this step
       # exists to prevent.
-      - name: Scope rule & reveal lifecycle (simulator)
-        id: scope_rule
+      - name: Behavioural checks (simulator)
+        id: behavioural_checks
         run: |
           set -o pipefail
           set -e
@@ -110,6 +110,10 @@ jobs:
           xcrun simctl install "$UDID" "$APP"
           xcrun simctl spawn "$UDID" defaults write com.nwagtech.etch didCompleteOnboarding -bool true
           xcrun simctl spawn "$UDID" defaults write com.nwagtech.etch didCompleteSetup -bool true
+          # Before the first launch, or the location prompt has already been raised by the time
+          # the visual step grants it and it sits over every screenshot that follows.
+          xcrun simctl privacy "$UDID" grant location com.nwagtech.etch || true
+          xcrun simctl privacy "$UDID" grant photos com.nwagtech.etch || true
 
           # Two checks, two launches.
           #
@@ -154,16 +158,19 @@ jobs:
           }
 
           FAILED=0
-          run_check scope-rule       scope-rule 0 60  || FAILED=1
-          run_check reveal-diagnostic home       1 120 || FAILED=1
+          run_check scope-rule       scope-rule   0 60  || FAILED=1
+          run_check smart-layout     smart-layout 0 60  || FAILED=1
+          run_check reveal-diagnostic home         1 120 || FAILED=1
 
           python3 - <<'PY' || FAILED=1
           import glob, sys
 
           problems = []
           reports = sorted(glob.glob("check-reports/*-report.txt"))
-          if len(reports) != 2:
-              problems.append("expected 2 reports, found %d: %s" % (len(reports), reports))
+          EXPECTED_REPORTS = 3
+          if len(reports) != EXPECTED_REPORTS:
+              problems.append("expected %d reports, found %d: %s"
+                              % (EXPECTED_REPORTS, len(reports), reports))
 
           def number(lines, label):
               for line in lines:
@@ -218,6 +225,60 @@ jobs:
             echo "::error::Behavioural checks failed — reports above and in the check-reports artifact."
             exit 1
           fi
+
+      # Screens whose correctness is a matter of looking at them. The preview *workflow* only runs
+      # on the default branch, so a Studio layout change could not be seen until after it merged;
+      # these come back as base64 in this job's log, which runs on `pull_request`.
+      - name: Studio visual review (simulator)
+        if: ${{ !cancelled() && steps.behavioural_checks.conclusion != 'skipped' }}
+        run: |
+          set -e
+          mkdir -p shots
+          # `head -1` before the grep used to take the "== Devices ==" header and find no UDID
+          # in it, so this step reported "no booted simulator" on a runner that had one.
+          UDID=$(xcrun simctl list devices booted | grep -oE "[0-9A-F-]{36}" | head -1 || true)
+          if [ -z "$UDID" ]; then
+            echo "No booted simulator — the checks step did not get far enough."
+            exit 0
+          fi
+
+          shoot () {
+            NAME="$1"; PREVIEW="$2"; ANCHOR="$3"; WAIT="$4"
+            xcrun simctl terminate "$UDID" com.nwagtech.etch 2>/dev/null || true
+            SIMCTL_CHILD_ETCH_PREVIEW="$PREVIEW" \
+            SIMCTL_CHILD_ETCH_PREVIEW_SCROLL="$ANCHOR" \
+              xcrun simctl launch "$UDID" com.nwagtech.etch >/dev/null
+            sleep "$WAIT"
+            xcrun simctl io "$UDID" screenshot "shots/$NAME.png" || true
+          }
+
+          # One scenario per shot — four sheets stacked on one scroll are too small in a
+          # screenshot to judge whether a caption is colliding with the value above it.
+          shoot race-wide-landscape  race-panel wide-landscape   30
+          shoot race-compact-portrait race-panel compact-portrait 30
+          shoot race-all-data        race-panel all-data         30
+          shoot race-sparse          race-panel sparse           30
+          # The two editor screens open the tray directly on the section being reviewed.
+          shoot studio-orientation   orientation ""              25
+          shoot studio-design        map-studio design           45
+          shoot studio-personalize   map-studio customize        45
+
+          for FILE in shots/*.png; do
+            [ -f "$FILE" ] || continue
+            NAME=$(basename "$FILE" .png)
+            sips -Z 900 "$FILE" --out "shots/small-$NAME.png" >/dev/null
+            echo "── BEGIN-B64 $NAME"
+            base64 -i "shots/small-$NAME.png"
+            echo "── END-B64 $NAME"
+          done
+
+      - name: Upload studio screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-screens
+          path: shots/*.png
+          if-no-files-found: warn
 
       # Preserve the verdict even when the step above fails — a red run is exactly when the
       # report is worth reading.
