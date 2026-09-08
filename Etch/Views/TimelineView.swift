@@ -47,6 +47,16 @@ struct TimelineView: View {
     /// The photograph the full-screen viewer is opened on, in the Gallery scope.
     @State private var openedPhoto: OpenedGalleryPhoto?
     @State private var showMemories = false
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var memoryDate = Date()
+    private static let memoriesAnchor = "timeline-memories"
+
+    private var offersMemories: Bool {
+        runs.scoped(to: ActivitySettings.resolvedScope(appModel.activityScope, in: runs))
+            .contains { !$0.photoReferences.isEmpty }
+    }
+
+    private var showsMemoryCard: Bool { offersMemories && (scope == .years || scope == .gallery) }
 
     private struct Derived {
         var ready = false
@@ -162,6 +172,7 @@ struct TimelineView: View {
     }
 
     private var newestID: AnyHashable? {
+        if showsMemoryCard { return AnyHashable(Self.memoriesAnchor) }
         switch scope {
         case .years:   return timelineYears.last.map { AnyHashable($0) }
         case .months:  return timelineMonths.last.map { AnyHashable($0.id) }
@@ -184,11 +195,22 @@ struct TimelineView: View {
                 } else {
                     ScrollViewReader { proxy in
                         ScrollView {
-                            switch scope {
-                            case .years: yearsContent
-                            case .months: monthsContent
-                            case .all: allContent
-                            case .gallery: galleryContent
+                            VStack(spacing: 0) {
+                                switch scope {
+                                case .years: yearsContent
+                                case .months: monthsContent
+                                case .all: allContent
+                                case .gallery: galleryContent
+                                }
+                                // History is oldest-first and opens at its recent end. Memories
+                                // belong here in the content, never between two sticky headers.
+                                if showsMemoryCard {
+                                    memoriesCard
+                                        .padding(.horizontal, 16)
+                                        .padding(.top, 8)
+                                        .padding(.bottom, 20)
+                                        .id(Self.memoriesAnchor)
+                                }
                             }
                         }
                         // The page opens at its foot — the most recent activity — in every
@@ -222,6 +244,18 @@ struct TimelineView: View {
                 }
             }
             .sheet(isPresented: $showMemories) { PhotoMemoriesView() }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { memoryDate = Date() }
+            }
+            .task {
+                while !Task.isCancelled {
+                    memoryDate = Date()
+                    let nextDay = Calendar.current.startOfDay(for: memoryDate).addingTimeInterval(26 * 3600)
+                    let midnight = Calendar.current.startOfDay(for: nextDay)
+                    do { try await Task.sleep(for: .seconds(max(1, midnight.timeIntervalSinceNow))) }
+                    catch { return }
+                }
+            }
             .navigationTitle("Timeline")
             .navigationBarTitleDisplayMode(.inline)
             .onChange(of: derivedKey, initial: true) { _, _ in rebuildDerived() }
@@ -240,15 +274,6 @@ struct TimelineView: View {
                         appModel.setFilter(RunFilter())
                     }
                     .padding(.horizontal, 20)
-                    HStack {
-                        Button { showMemories = true } label: {
-                            Label("Memories", systemImage: "clock.arrow.circlepath")
-                                .font(.etch(.subheadline, weight: .semibold))
-                        }
-                        Spacer()
-                        Text("On this day").font(.etch(.caption)).foregroundStyle(.secondary)
-                    }
-                    .padding(.horizontal, 20)
                     if embedded && !scopedRuns.isEmpty { scopePicker }
                 }
             }
@@ -256,6 +281,51 @@ struct TimelineView: View {
                 if !embedded && !scopedRuns.isEmpty { scopePicker }
             }
         }
+    }
+
+    private var memoriesCard: some View {
+        let activityScope = ActivitySettings.resolvedScope(appModel.activityScope, in: runs)
+        let memory = PhotoMemories.onThisDay(in: runs, scope: activityScope, now: memoryDate).first
+        return Button { showMemories = true } label: {
+            HStack(alignment: .center, spacing: 16) {
+                if let photo = memory?.cover {
+                    RunPhotoThumbnail(identifier: photo, size: 72)
+                        .accessibilityHidden(true)
+                } else {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 26, weight: .light))
+                        .foregroundStyle(Theme.accent)
+                        .frame(width: 56, height: 72)
+                        .accessibilityHidden(true)
+                }
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Memories").font(.etch(.headline))
+                    Text(memory?.title ?? "Your history, remembered")
+                        .font(.etch(.subheadline))
+                        .foregroundStyle(memory == nil ? Color.secondary : Theme.accent)
+                    Text(memory?.run.name ?? "Revisit photos from this day in past years.")
+                        .font(.etch(.caption))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 22))
+            .overlay {
+                RoundedRectangle(cornerRadius: 22)
+                    .strokeBorder(Theme.accent.opacity(0.16), lineWidth: 1)
+            }
+            .contentShape(.rect(cornerRadius: 22))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens your photo memories")
     }
 
     private func span(forVisible ids: Set<UUID>) -> String? {

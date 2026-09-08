@@ -197,6 +197,11 @@ struct PreviewHarnessView: View {
             } else {
                 switch screen {
                 case "home":            HomeView()
+                case "launch-line":     SplashView(previewLine: true)
+                case "launch-reduced":  SplashView(previewStatic: true)
+                case "timeline-large":
+                    NavigationStack { TimelineView(embedded: true) }
+                        .environment(\.dynamicTypeSize, .accessibility3)
                 // The whole shell rather than one surface — the only way CI can photograph the
                 // tab bar, since every other case renders a view directly and never sees it.
                 // "tabs@studio" opens the shell on that tab.
