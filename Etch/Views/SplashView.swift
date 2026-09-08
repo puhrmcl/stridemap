@@ -1,74 +1,60 @@
 import SwiftUI
 
-/// The brand splash shown briefly on launch.
-///
-/// The hard rule this screen has always had: its **first frame** must be pixel-identical to the
-/// system launch screen — same ground, same wordmark at its natural size, same centring — or the
-/// handoff shows and the logo appears twice. That rule is why this view had no animation at all.
-///
-/// It still holds, and the animation is built to respect it rather than around it: nothing moves
-/// until `settled` flips a beat after appearance, so the frame that replaces the launch screen is
-/// the launch screen. What follows is a single sheen drawn across the letterforms — light raking
-/// across an engraved surface, which is the one motion this brand can make without inventing a
-/// gesture. The mark itself never moves or resizes; only the light does.
-///
-/// Reduce Motion turns the sheen off and leaves the original static splash, which is the correct
-/// fallback because the static splash was never a compromise.
+/// The first frame uses the exact system-launch artwork. A fine line draws beneath the
+/// wordmark, then retracts into its blue period. One gesture, finished before RootView fades.
 struct SplashView: View {
-    /// The icon's own deep navy — one splash in both modes, seamless with the system launch
-    /// screen, which uses the same ground and the same wordmark. Sampled from the icon
-    /// artwork itself (#011133), so the three surfaces cannot drift apart: change the icon and
-    /// this number changes with it.
-    private static let ground = Theme.Brand.ink
-
+    /// Freeze the production drawing for CI screenshots; normal launches always animate.
+    var previewLine = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    /// False for the first beat, so the handoff frame is identical to the launch screen.
-    @State private var settled = false
-    /// Drives the sheen's travel, in multiples of the mark's width.
-    @State private var sweep: CGFloat = -1
+    @State private var drawn: CGFloat = 0
+    @State private var erased: CGFloat = 0
+    @State private var pulse: CGFloat = 0
 
     var body: some View {
         ZStack {
-            Self.ground.ignoresSafeArea()
-
-            // Natural size (240×180pt @3x asset), exactly as UILaunchScreen renders it.
+            Theme.Brand.ink.ignoresSafeArea()
             Image("LaunchLogo")
-                .overlay { if settled && !reduceMotion { sheen } }
+                .overlay {
+                    if !reduceMotion {
+                        GeometryReader { geometry in
+                            // Coordinates are normalized to the actual 720 x 335 launch asset.
+                            // Keep the original image at its natural size, matching UILaunchScreen.
+                            let width = geometry.size.width
+                            let height = geometry.size.height
+                            let dot = CGPoint(x: width * 0.96, y: height * 0.716)
+                            Path { path in
+                                path.move(to: CGPoint(x: width * 0.025, y: height * 0.89))
+                                path.addLine(to: CGPoint(x: dot.x - 8, y: height * 0.89))
+                                path.addQuadCurve(to: dot, control: CGPoint(x: dot.x, y: height * 0.89))
+                            }
+                            .trim(from: erased, to: drawn)
+                            .stroke(Theme.Brand.blue, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                            Circle()
+                                .fill(Theme.Brand.blue)
+                                .frame(width: width * 0.08, height: width * 0.08)
+                                .scaleEffect(1 + pulse * 0.24)
+                                .opacity(pulse)
+                                .position(dot)
+                        }
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                    }
+                }
                 .accessibilityLabel("Etch — Leave your mark")
         }
-        .task {
+        .task(id: reduceMotion) {
+            drawn = 0; erased = 0; pulse = 0
             guard !reduceMotion else { return }
-            // Long enough that the launch screen has certainly been replaced by this view before
-            // anything moves — the whole point of the delay.
-            try? await Task.sleep(for: .milliseconds(260))
-            settled = true
-            withAnimation(.easeInOut(duration: 0.95)) { sweep = 1 }
+            if previewLine { drawn = 1; return }
+            do {
+                try await Task.sleep(for: .milliseconds(180))
+                withAnimation(.easeInOut(duration: 0.42)) { drawn = 1 }
+                try await Task.sleep(for: .milliseconds(440))
+                withAnimation(.easeInOut(duration: 0.32)) { erased = 1 }
+                withAnimation(.easeOut(duration: 0.20).delay(0.20)) { pulse = 1 }
+                try await Task.sleep(for: .milliseconds(420))
+                withAnimation(.easeInOut(duration: 0.16)) { pulse = 0 }
+            } catch { return }
         }
-    }
-
-    /// A band of light travelling across the wordmark, clipped to the letterforms.
-    ///
-    /// Masked by the artwork itself so the sheen only ever touches ink — a highlight crossing the
-    /// navy around the mark would read as a screen wipe rather than as light on a surface. The
-    /// gradient is mostly clear with a soft centre so the leading and trailing edges never show
-    /// as hard lines.
-    private var sheen: some View {
-        GeometryReader { geo in
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0),
-                    .init(color: .white.opacity(0.55), location: 0.5),
-                    .init(color: .clear, location: 1)
-                ],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            )
-            .frame(width: geo.size.width * 0.55)
-            .offset(x: sweep * geo.size.width * 1.3)
-        }
-        .mask {
-            Image("LaunchLogo")
-        }
-        .allowsHitTesting(false)
     }
 }

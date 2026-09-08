@@ -36,6 +36,7 @@ struct RootView: View {
 
     /// The brand splash covers the app on launch, then fades away.
     @State private var showSplash = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var isReady: Bool {
         didCompleteOnboarding || healthKit.hasRequestedAuthorization || auth.isAuthenticated
@@ -57,9 +58,11 @@ struct RootView: View {
                 }
             }
             .task {
-                // Hold the logo briefly, then fade into the app.
-                try? await Task.sleep(nanoseconds: 1_300_000_000)
-                withAnimation(.easeInOut(duration: 0.5)) { showSplash = false }
+                // The signature finishes inside the existing launch budget. Reduced Motion
+                // gets a short static handoff, without waiting for an animation it cannot see.
+                do { try await Task.sleep(for: .milliseconds(reduceMotion ? 200 : 1300)) }
+                catch { return }
+                withAnimation(.easeInOut(duration: reduceMotion ? 0.15 : 0.35)) { showSplash = false }
             }
         }
     }
