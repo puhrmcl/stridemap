@@ -263,6 +263,8 @@ struct MapPrintRequest {
         }
     }
     var cityIndexHero: CityIndexHero = .none
+    var cityIndexTitle: String = "Places, remembered"
+    var cityIndexSubtitle: String = ""
     /// What the map hero stands on: the whole world's coastlines, the country most of the
     /// history lives in, or its state — each drawn from boundary geometry the app already
     /// embeds, in the piece's own ink, which is what keeps the hero printable where an Apple

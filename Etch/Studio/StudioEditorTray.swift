@@ -18,9 +18,9 @@ enum StudioTrayDetent: CaseIterable {
     /// a small phone still keeps the poster on screen.
     func height(in total: CGFloat) -> CGFloat {
         switch self {
-        case .collapsed: return 96
-        case .medium:    return max(240, total * 0.44)
-        case .expanded:  return max(320, total * 0.72)
+        case .collapsed: return min(96, total * 0.35)
+        case .medium:    return min(max(220, total * 0.44), total * 0.60)
+        case .expanded:  return min(max(280, total * 0.70), total * 0.78)
         }
     }
 
@@ -113,7 +113,15 @@ struct StudioEditorTray<Content: View>: View {
                     }
             )
             .onTapGesture { detent = detent == .collapsed ? .medium : .collapsed }
-            .accessibilityLabel("Resize controls")
+            .accessibilityLabel("Editor controls")
+            .accessibilityValue(detent == .collapsed ? "Collapsed" : detent == .medium ? "Editing" : "Expanded")
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: detent = detent.next
+                case .decrement: detent = detent.previous
+                @unknown default: break
+                }
+            }
             .accessibilityAddTraits(.isButton)
     }
 
@@ -171,10 +179,11 @@ struct StudioSectionPicker: View {
                             }
                         }
                     }
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, minHeight: 44)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityAddTraits(section == s ? .isSelected : [])
             }
         }
         .padding(.horizontal, 20)
@@ -215,6 +224,7 @@ struct StudioDrillRow: View {
                     .foregroundStyle(Color.secondary.opacity(0.55))
             }
             .padding(.vertical, 11)
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -283,7 +293,8 @@ struct StudioThumbCard<Picture: View>: View {
                 Text(title)
                     .font(.etch(size: 11, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(isSelected ? Theme.accent : .secondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
             }
             .frame(width: width)
         }

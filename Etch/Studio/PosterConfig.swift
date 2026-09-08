@@ -275,7 +275,7 @@ enum TextJustification: String, CaseIterable, Identifiable {
 /// The full editable recipe for a poster — the single source of truth the editor binds to, the
 /// renderer reads from, and a `SavedPoster` persists. Value type so the editor can diff it for
 /// re-renders and copy it in and out of storage cleanly.
-struct PosterConfig {
+struct PosterConfig: Equatable {
     var family: PosterFamily = .map
     /// The muted city map, not Apple's full-colour one. A new poster used to open on `.standard`,
     /// which is the most saturated treatment in the range and the same one Atlas was withdrawn
@@ -488,6 +488,7 @@ struct PosterConfig {
         // Nameplate sets them small and quiet under a rule, where three reads as a record of a day
         // and one reads as an unfinished row.
         c.dataSlots = [.elevationGain, .time]
+        c.mapInset = true
         // Gallery frames lead with a photograph, which is right until the run has none — then
         // Portfolio (a single frame) opened on an empty sheet and the product looked broken
         // rather than unfilled. With no photos the frames lead with the map, and the photograph

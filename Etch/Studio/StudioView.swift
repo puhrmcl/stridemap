@@ -45,8 +45,6 @@ struct StudioView: View {
 
     @State private var rendered: UIImage?
     @State private var isRendering = false
-    /// The text fields' debounced value — what the render key actually reads.
-    @State private var debouncedText = ""
     /// True when the last render came back nil, so the canvas can explain itself.
     @State private var renderFailed = false
 
@@ -58,26 +56,14 @@ struct StudioView: View {
     /// the new photo straight into that frame.
     @State private var pendingPhotoFrame: Int?
 
-    /// The curated pieces the gallery front door offers, and their renders.
-    @State private var picks: [StudioPick] = []
-    @State private var pickThumbs: [String: UIImage] = [:]
-
-    /// The navigation spine: the product chooser is the root; picking Map or Gallery pushes the
-    /// editor for that product. A saved poster or curated preset arrives with the product
-    /// already decided, so for those the *editor* is the root — the chooser was never part of
-    /// that visit, and it must not be where Back lands. (It used to be: a decided entry seeded
-    /// the path over a chooser root, and backing out of a Map Print dropped the customer on a
-    /// "choose one of five" page they never chose from, instead of back where they started.)
-    @State private var path: [PosterFamily]
-
-    /// True when the visit began with the product decided (a kept poster, a product tile's
-    /// preset) — the editor roots the stack and Done leaves Studio entirely.
-    private let enteredDecided: Bool
+    @State private var history = StudioEditHistory<PosterConfig>()
+    @State private var savedError = false
+    @State private var retryID = 0
+    @State private var renderedKey: PreviewKey?
 
     init(run: Run, poster: SavedPoster? = nil, preset: PosterConfig? = nil) {
         self.run = run
         self.existingPoster = poster
-        enteredDecided = poster != nil || preset != nil
         if let poster {
             let config = PosterConfig(poster: poster)
             _config = State(initialValue: config)
@@ -89,28 +75,11 @@ struct StudioView: View {
         } else {
             _config = State(initialValue: PosterConfig.makeDefault(for: run))
         }
-        _path = State(initialValue: [])
     }
 
     var body: some View {
-        NavigationStack(path: $path) {
-            rootScreen
-                .navigationDestination(for: PosterFamily.self) { family in
-                    editor(for: family)
-                }
-        }
-    }
-
-    @ViewBuilder private var rootScreen: some View {
-        if enteredDecided {
+        NavigationStack {
             editor(for: config.family)
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
-                }
-        } else {
-            productChooser
-                .navigationTitle("Studio")
-                .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
                 }
@@ -119,13 +88,7 @@ struct StudioView: View {
 
     // MARK: Editor
 
-    /// One product's editor. The family is decided before arriving here — every control belongs to
-    /// this product alone.
-    ///
-    /// The render tasks and every editor-owned sheet live *here*, on the pushed screen — not on
-    /// the navigation root. A pushed destination covers the root and SwiftUI cancels the covered
-    /// view's `task(id:)`s, so a root-attached render task goes quiet the moment the editor
-    /// appears and no edit ever re-renders the preview.
+    /// Direct entry keeps rendering, sheets and edits on the same visible workspace.
     private func editor(for family: PosterFamily) -> some View {
         GeometryReader { geo in
             VStack(spacing: 0) {
@@ -144,12 +107,13 @@ struct StudioView: View {
                             .padding(.bottom, 28)
                         }
                         .scrollBounceBehavior(.basedOnSize)
+                        .scrollDismissesKeyboard(.interactively)
                     }
                 }
             }
         }
         .background(Color(.systemGroupedBackground))
-        .navigationTitle(family == .map ? "Map Studio" : "Gallery Studio")
+        .navigationTitle(family == .map ? "Map Print" : "Gallery Print")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbarContent }
         .onAppear {
@@ -199,16 +163,12 @@ struct StudioView: View {
             )
         }
         .task(id: renderKey) { await renderPreview() }
-        // Debounce the free-text fields: commit them ~350ms after typing stops, so the preview
-        // re-renders once per edit rather than once per keystroke.
-        .task(id: liveText) {
-            let text = liveText
-            if !debouncedText.isEmpty || !text.isEmpty {
-                try? await Task.sleep(for: .milliseconds(350))
-            }
-            guard !Task.isCancelled else { return }
-            debouncedText = text
-        }
+        .onChange(of: config) { before, after in history.record(from: before, to: after) }
+        .alert("Couldn’t save this print", isPresented: $savedError) {
+            Button("Try again") { if savedPosterID == nil { saveAsNew() } else { updateSaved() } }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("Your design is still open. Try saving again before leaving Studio.") }
+
     }
 
     @ViewBuilder private var sectionContent: some View {
@@ -250,116 +210,21 @@ struct StudioView: View {
         withAnimation(.interpolatingSpring(stiffness: 320, damping: 30)) { detent = target }
     }
 
-    // MARK: The gallery — finished pieces, not a fork
-
-    /// Studio's front door: the activity already made into four or five finished pieces, each
-    /// buyable exactly as shown. Choosing one opens the editor *on* it, seeded, so refinement is
-    /// optional rather than required.
-    ///
-    /// This replaced a product fork ("What are we making?" — Map or Gallery), which asked the
-    /// customer to pick an abstraction before showing them anything they might want. Nobody walks
-    /// into a gallery and is asked which medium they intend to buy. The curator reads the
-    /// activity — a race leads with the marathon print, a summit with the contour journals — and
-    /// the two product families are simply present among the picks.
-    private var productChooser: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(run.name)
-                        .font(.etch(.title2, weight: .bold))
-                    Text("Etch has composed \(picks.count) finished directions from your activity. Choose the one that feels like yours.")
-                        .font(.etch(.subheadline))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 24)
-
-                ForEach(picks) { pick in
-                    pickCard(pick)
-                        .padding(.horizontal, 24)
-                }
-
-                Text("Made for you. Printed to order on archival paper — fine-art editions from \(PrintProduct.print.entryPrice.replacingOccurrences(of: "From ", with: "")), with framing available.")
-                    .font(.etch(.caption))
-                    .foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 2)
-                    .padding(.bottom, 24)
-            }
-            .padding(.top, 14)
-        }
-        .background(Color(.systemGroupedBackground))
-        .task { await renderPicks() }
-    }
-
-    private func pickCard(_ pick: StudioPick) -> some View {
-        Button {
-            config = pick.config
-            path.append(pick.config.family)
-        } label: {
-            VStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(pick.config.groundColor ?? pick.config.edition.ground)
-                    if let image = pickThumbs[pick.id] {
-                        Image(uiImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .transition(.opacity)
-                    } else {
-                        ProgressView()
-                            .tint(.secondary)
-                    }
-                }
-                .aspectRatio(pickAspect(pick), contentMode: .fit)
-                .clipShape(.rect(cornerRadius: 10))
-                .shadow(color: .black.opacity(0.16), radius: 14, y: 7)
-
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(pick.name)
-                            .font(.etch(.headline))
-                            .foregroundStyle(.primary)
-                        Text(pick.line)
-                            .font(.etch(.caption))
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.leading)
-                    }
-                    Spacer(minLength: 10)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                }
-                .padding(.horizontal, 2)
-            }
-            .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func pickAspect(_ pick: StudioPick) -> CGFloat {
-        let s = StudioComposition.nominalSize(pick.config.orientation, pick.config.dataPlacement)
-        return s.width / s.height
-    }
-
-    /// One render at a time, top to bottom — the reading order — never a thundering herd of
-    /// simultaneous map snapshots.
-    private func renderPicks() async {
-        if picks.isEmpty { picks = StudioCurator.picks(for: run) }
-        for pick in picks where pickThumbs[pick.id] == nil {
-            if Task.isCancelled { return }
-            var recipe = pick.config
-            recipe.outputSize = .poster
-            let image = await StudioRenderer.image(for: recipe.request(for: run), scale: 0.55)
-            if Task.isCancelled { return }
-            withAnimation(.easeIn(duration: 0.2)) { pickThumbs[pick.id] = image }
-        }
-    }
-
     // MARK: Toolbar
 
     @ToolbarContentBuilder private var toolbarContent: some ToolbarContent {
+        ToolbarItemGroup(placement: .topBarTrailing) {
+            Button { if let value = history.undo(config) { config = value } } label: {
+                Image(systemName: "arrow.uturn.backward")
+            }.disabled(!history.canUndo).accessibilityLabel("Undo edit")
+            Button { if let value = history.redo(config) { config = value } } label: {
+                Image(systemName: "arrow.uturn.forward")
+            }.disabled(!history.canRedo).accessibilityLabel("Redo edit")
+        }
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
+                Button { showExport = true } label: { Label("Share or export", systemImage: "square.and.arrow.up") }
+                    .disabled(!previewReady)
                 if savedPosterID == nil {
                     Button { saveAsNew() } label: { Label("Keep in Studio", systemImage: "bookmark") }
                 } else {
@@ -374,17 +239,15 @@ struct StudioView: View {
                     }
                 }
             } label: {
-                Image(systemName: savedPosterID == nil ? "bookmark" : "bookmark.fill")
+                Image(systemName: "ellipsis")
             }
-            .accessibilityLabel(savedPosterID == nil ? "Keep in Studio" : "Saved — options")
+            .accessibilityLabel("Print options")
         }
         ToolbarItem(placement: .topBarTrailing) {
-            Button { showExport = true } label: { Image(systemName: "square.and.arrow.up") }
-                .accessibilityLabel("Share or save the image")
-        }
-        ToolbarItem(placement: .topBarTrailing) {
-            Button { showPrints = true } label: { Image(systemName: "bag") }
-                .accessibilityLabel("Order a print")
+            Button("Print") { showPrints = true }
+                .fontWeight(.semibold)
+                .disabled(!previewReady)
+                .accessibilityLabel("Choose print size and finish")
         }
     }
 
@@ -410,55 +273,12 @@ struct StudioView: View {
         return s.width / s.height
     }
 
+    private var previewReady: Bool { rendered != nil && renderedKey == renderKey && !renderFailed }
+
     private var preview: some View {
-        VStack {
-            Spacer(minLength: 0)
-            Group {
-                if let rendered {
-                    Button { showFullScreenPreview = true } label: {
-                        Image(uiImage: rendered)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .clipShape(.rect(cornerRadius: 10))
-                            .shadow(color: .black.opacity(0.22), radius: 20, y: 10)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("View full screen")
-                } else {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(config.groundColor ?? config.edition.ground)
-                        .aspectRatio(previewAspect, contentMode: .fit)
-                        .overlay {
-                            VStack(spacing: 10) {
-                                if renderFailed && !isRendering {
-                                    // A nil render used to leave this panel blank indefinitely with
-                                    // a spinner that never resolved. Name the likely cause instead.
-                                    Image(systemName: "exclamationmark.triangle")
-                                        .font(.system(size: 22))
-                                        .foregroundStyle(.secondary)
-                                    Text("This activity can't be composed")
-                                        .font(.etch(.footnote, weight: .semibold))
-                                        .foregroundStyle(.secondary)
-                                    Text("It needs a recorded route. Try another activity, or a style without a map.")
-                                        .font(.caption2)
-                                        .foregroundStyle(.tertiary)
-                                        .multilineTextAlignment(.center)
-                                        .padding(.horizontal, 26)
-                                } else {
-                                    ProgressView().tint(config.edition.accent)
-                                    Text("Composing…")
-                                        .font(.etch(.footnote))
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                        .shadow(color: .black.opacity(0.12), radius: 16, y: 8)
-                }
-            }
-            .padding(.horizontal, 26)
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        StudioArtworkStage(image: rendered, aspect: previewAspect,
+                           updating: isRendering || (!previewReady && !renderFailed), failed: renderFailed,
+                           inspect: { showFullScreenPreview = true }, retry: { retryID += 1 })
     }
 
     // MARK: Action bar
@@ -496,6 +316,7 @@ struct StudioView: View {
             .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 14))
         }
         .buttonStyle(.plain)
+        .disabled(!previewReady)
     }
 
     // MARK: Gallery frame photo picking
@@ -559,13 +380,15 @@ struct StudioView: View {
         config.write(into: poster, run: run)
         modelContext.insert(poster)
         savedPosterID = poster.id
-        confirm("Kept in Studio")
+        do { try modelContext.save(); confirm("Kept in Studio") }
+        catch { savedError = true }
     }
 
     private func updateSaved() {
         guard let existing = linkedPoster else { saveAsNew(); return }
         config.write(into: existing, run: run)
-        confirm("Updated")
+        do { try modelContext.save(); confirm("Updated") }
+        catch { savedError = true }
     }
 
     private func removeSaved() {
@@ -587,47 +410,28 @@ struct StudioView: View {
 
     /// A compact signature of every render-affecting field — one `task(id:)` re-renders the preview
     /// when any of them changes.
-    private var renderKey: String {
-        [config.family.rawValue, config.mapStyle.rawValue,
-         config.mapLayout.rawValue, "\(config.mapPhotoCount)", "\(run.photoReferences.count)",
-         "\(config.textScale)",
-         "\(config.titleScale)|\(config.locationScale)|\(config.dateScale)|\(config.heroScale)|\(config.statScale)",
-         config.textJustification.rawValue,
-         config.galleryDesign.rawValue,
-         config.resolvedFrames.map(\.rawValue).joined(separator: ","),
-         config.resolvedPhotoPicks.map(String.init).joined(separator: ","),
-         "\(config.monochrome)", config.orientation.rawValue, config.dataPlacement.rawValue,
-         // Text fields use their *debounced* mirrors. Typing a title used to re-render the whole
-         // composition — and start a fresh map snapshot — on every keystroke.
-         config.font.rawValue, config.dataFont.rawValue, "\(config.showTitle)", debouncedText,
-         "\(config.showLocation)", "\(config.showDate)",
-         config.heroMetric.rawValue,
-         config.dataSlots.map(\.rawValue).joined(separator: ","),
-         "\(config.showStatLabels)",
-         "\(config.showElevation)", "\(config.showPace)", "\(config.includeWeather)",
-         config.outputSize.rawValue,
-         config.routeColor?.hexString ?? "-", config.textColor?.hexString ?? "-",
-         config.groundColor?.hexString ?? "-"
-        ].joined(separator: "|")
+    private struct PreviewKey: Equatable {
+        let config: PosterConfig
+        let photos: [String]
+        let revision: Date
+        let retry: Int
+    }
+    private var renderKey: PreviewKey {
+        PreviewKey(config: config, photos: run.photoReferences, revision: run.updatedAt, retry: retryID)
     }
 
-    /// The three free-text fields, as one value. Debounced into `debouncedText` so the preview
-    /// re-renders once the user pauses, not once per character.
-    private var liveText: String { [config.title, config.location, config.date].joined(separator: "\u{1F}") }
-
-    /// Preview render scale. The composition is authored 1000pt wide, so scale 1.5 gives a
-    /// 1500px-wide preview — comfortably sharp on any device at a quarter of the pixel work the
-    /// previous `scale: 2` cost. Print export is unaffected; it renders at its own scale.
-    private static let previewScale: CGFloat = 1.5
-
     private func renderPreview() async {
+        let key = renderKey
         isRendering = true
-        defer { isRendering = false }
-        let image = await StudioRenderer.image(for: config.request(for: run), scale: Self.previewScale)
-        guard !Task.isCancelled else { return }
-        rendered = image
-        // A nil render used to leave the canvas silently blank forever; say so instead.
-        renderFailed = (image == nil)
+        renderFailed = false
+        do { try await Task.sleep(for: .milliseconds(220)) }
+        catch { return }
+        let image = await StudioRenderer.image(for: key.config.request(for: run), scale: 1.5)
+        guard !Task.isCancelled, key == renderKey else { return }
+        renderedKey = key
+        isRendering = false
+        renderFailed = image == nil
+        if let image { rendered = image }
     }
 
     /// Appends newly picked library photos to this run (de-duplicated), which persists them on the

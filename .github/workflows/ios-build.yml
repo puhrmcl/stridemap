@@ -160,6 +160,7 @@ jobs:
           FAILED=0
           run_check scope-rule       scope-rule   0 60  || FAILED=1
           run_check photo-memory     photo-memory 0 60 || FAILED=1
+          run_check studio-quality   studio-quality 0 60 || FAILED=1
           run_check smart-layout     smart-layout 0 60  || FAILED=1
           run_check reveal-diagnostic home         1 120 || FAILED=1
 
@@ -168,7 +169,7 @@ jobs:
 
           problems = []
           reports = sorted(glob.glob("check-reports/*-report.txt"))
-          EXPECTED_REPORTS = 4
+          EXPECTED_REPORTS = 5
           if len(reports) != EXPECTED_REPORTS:
               problems.append("expected %d reports, found %d: %s"
                               % (EXPECTED_REPORTS, len(reports), reports))
@@ -263,6 +264,15 @@ jobs:
           shoot studio-orientation   orientation ""              25
           shoot studio-design        map-studio design           45
           shoot studio-personalize   map-studio customize        45
+          shoot studio-direct        studio-picks ""             30
+          shoot gallery-editor       gallery-studio:feature ""   30
+          shoot anthology-editor     wall-art:ridgeline ""       20
+          shoot lithograph-editor    city-index:country ""       20
+          shoot map-proof            studio-proof:map ""         30
+          shoot gallery-proof        studio-proof:gallery-landscape "" 30
+          shoot anthology-proof      studio-proof:anthology ""   20
+          shoot lithograph-proof     studio-proof:lithograph ""  20
+          shoot studio-accessibility studio-accessibility ""     30
 
           for FILE in shots/*.png; do
             [ -f "$FILE" ] || continue

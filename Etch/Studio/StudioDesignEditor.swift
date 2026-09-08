@@ -40,6 +40,7 @@ struct StudioVariantStrip: View {
                         title: variant.name,
                         isSelected: variant.matches(config),
                         width: cardWidth,
+                        aspect: config.orientation == .portrait ? 2.0 / 3.0 : 3.0 / 2.0,
                         action: {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 config = variant.apply(config)
@@ -51,7 +52,7 @@ struct StudioVariantStrip: View {
                             if let image = thumbnails[variant.id] {
                                 Image(uiImage: image)
                                     .resizable()
-                                    .aspectRatio(contentMode: .fill)
+                                    .aspectRatio(contentMode: .fit)
                                     .transition(.opacity)
                             } else {
                                 ProgressView().controlSize(.small)
@@ -71,7 +72,7 @@ struct StudioVariantStrip: View {
             renderedKey = refreshKey
         }
         // The current selection first, so the strip resolves where the eye already is.
-        let ordered = variants.sorted { a, _ in a.matches(config) }
+        let ordered = variants.filter { $0.matches(config) } + variants.filter { !$0.matches(config) }
         for variant in ordered {
             if Task.isCancelled { return }
             guard thumbnails[variant.id] == nil else { continue }
@@ -107,6 +108,11 @@ struct StudioDesignEditor: View {
     /// lived.
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
+            Picker("Print type", selection: $config.family) {
+                Text("Map").tag(PosterFamily.map)
+                Text("Gallery").tag(PosterFamily.gallery)
+            }.pickerStyle(.segmented)
+            orientation
             if config.family == .map {
                 layoutRow
                 mapMaterial
@@ -114,7 +120,6 @@ struct StudioDesignEditor: View {
                 template
             }
             look
-            orientation
         }
     }
 

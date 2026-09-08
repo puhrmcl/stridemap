@@ -40,14 +40,14 @@ enum StudioProduct: String, CaseIterable, Identifiable {
     /// One line, in the brand's voice — what the object *is*, never a spec.
     var line: String {
         switch self {
-        case .mapPoster:     return "One route, over real geography."
-        case .galleryPoster: return "Photos, map and elevation, composed."
+        case .mapPoster:     return "A route, a place, a lasting record."
+        case .galleryPoster: return "Your photographs and route, composed as one."
         case .photoWall:     return "Forty days, one frame."
         case .medalFrame:    return "The medal, and the day you earned it."
         case .yearInReview:  return "A year of it, bound."
         case .collections:   return "A state, a city, your races — bound."
-        case .wallArt:       return "Everything you've done, as one object."
-        case .lithograph:    return "Every city you've run, set as type."
+        case .wallArt:       return "A body of work, expressed in line and rhythm."
+        case .lithograph:    return "The places you return to, beautifully set in type."
         }
     }
 

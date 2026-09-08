@@ -153,6 +153,7 @@ enum MapPrintRenderer {
     /// Text-free abstract wall art, four ways — always full and balanced whether that's five runs
     /// or five hundred.
     private static func artImage(for request: MapPrintRequest, scale: CGFloat) -> UIImage? {
+        guard !(request.artStyle == .grid ? request.mapped : request.runs).isEmpty else { return nil }
         let size = request.posterNominalSize
         let format = UIGraphicsImageRendererFormat()
         format.scale = scale
@@ -232,23 +233,16 @@ enum MapPrintRenderer {
             meta.append(Format.distance(metres, decimals: 0).uppercased())
         }
 
-        // The serif matches the brand's editorial face (the system serif design, as the poster
-        // compositions use through .etchSerif).
-        let serifBase = UIFont.systemFont(ofSize: 41 * unit, weight: .regular)
-        let serif = serifBase.fontDescriptor.withDesign(.serif)
-            .map { UIFont(descriptor: $0, size: serifBase.pointSize) } ?? serifBase
-
-        let nameAttributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: 13 * unit, weight: .semibold),
-            .foregroundColor: ink.withAlphaComponent(0.6), .kern: 3.4 * unit,
-        ]
-        let titleAttributes: [NSAttributedString.Key: Any] = [
-            .font: serif, .foregroundColor: ink, .kern: 2.4 * unit,
-        ]
-        let metaAttributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: 13.5 * unit, weight: .semibold),
-            .foregroundColor: ink.withAlphaComponent(0.62), .kern: 2.6 * unit,
-        ]
+        let width = size.width * 0.84
+        let nameAttributes = StudioPrintLayout.fittedAttributes(name,
+            font: EtchType.uiFont(.text, size: 13 * unit, weight: .semibold),
+            color: ink.withAlphaComponent(0.70), tracking: 3.4 * unit, width: width)
+        let titleAttributes = StudioPrintLayout.fittedAttributes(title,
+            font: EtchType.uiFont(.editorial, size: 41 * unit),
+            color: ink, tracking: 1.2 * unit, width: width)
+        let metaAttributes = StudioPrintLayout.fittedAttributes(meta.joined(separator: "   ·   "),
+            font: EtchType.uiFont(.text, size: 13.5 * unit, weight: .semibold),
+            color: ink.withAlphaComponent(0.70), tracking: 2 * unit, width: width)
 
         // Measure the block, then centre it in the band.
         let gap = 13 * unit
@@ -317,10 +311,11 @@ enum MapPrintRenderer {
 
         let unit = size.width / 1000
         let ink = UIColor(request.artPalette.line).withAlphaComponent(0.55)
-        let font = UIFont.systemFont(ofSize: 14 * unit, weight: .semibold)
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: font, .foregroundColor: ink, .kern: 2.2 * unit
-        ]
+        let available = (request.artCaptionEdge == .left || request.artCaptionEdge == .right)
+            ? size.height * 0.86 : size.width * 0.86
+        let attributes = StudioPrintLayout.fittedAttributes(text as String,
+            font: EtchType.uiFont(.text, size: 14 * unit, weight: .semibold),
+            color: ink, tracking: 2.2 * unit, width: available)
         let drawn = text.size(withAttributes: attributes)
         let inset = size.width * 0.055
 
@@ -703,6 +698,7 @@ enum MapPrintRenderer {
     /// The count trails each name as a thin figure rather than a bar or a dot: the piece is a
     /// record, and a record is read, not measured.
     static func cityIndexImage(for request: MapPrintRequest, scale: CGFloat) -> UIImage? {
+        guard !StudioPrintLayout.cityEntries(in: request.runs).isEmpty else { return nil }
         let size = request.posterIndexSize
         let format = UIGraphicsImageRendererFormat()
         format.scale = scale
@@ -717,39 +713,49 @@ enum MapPrintRenderer {
         UIColor(palette.ground).setFill()
         UIBezierPath(rect: CGRect(origin: .zero, size: size)).fill()
 
-        var counts: [String: Int] = [:]
-        var metres: [String: Double] = [:]
-        for run in request.runs {
-            guard let city = run.city, !city.isEmpty else { continue }
-            counts[city, default: 0] += 1
-            metres[city, default: 0] += run.distance
-        }
-        let cities = counts.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
+        let entries = StudioPrintLayout.cityEntries(in: request.runs)
+        let cities = entries.map { (key: $0.name, value: $0.count) }
+        let metres = Dictionary(entries.map { ($0.name, $0.metres) }, uniquingKeysWith: +)
         guard !cities.isEmpty else { return }
 
         let ink = UIColor(palette.line)
-        let marginX = size.width * 0.10
-        var marginY = size.height * 0.11
-        var usableH = size.height - marginY * 2
+        let unit = size.width / 1000
+        let marginX = size.width * 0.09
         let usableW = size.width - marginX * 2
-
-        // The tour-poster layout: a hero across the top of the sheet — the cities as a dot map
-        // in the piece's own ink, or the buyer's photograph — with the list set beneath it the
-        // way a tour bill lists its dates. The hero takes the top 42%; the type keeps the rest.
-        if request.cityIndexHero != .none {
-            let heroRect = CGRect(x: 0, y: 0, width: size.width, height: size.height * 0.42)
-            drawCityIndexHero(request, in: heroRect, ink: ink, sheet: size)
-            marginY = size.height * 0.05
-            usableH = size.height - heroRect.height - marginY - size.height * 0.09
+        var listTop = size.height * 0.08
+        let title = request.cityIndexTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subtitle = request.cityIndexSubtitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !title.isEmpty {
+            let attributes = StudioPrintLayout.fittedAttributes(title,
+                font: EtchType.uiFont(.editorial, size: 48 * unit), color: ink,
+                tracking: 0, width: usableW)
+            (title as NSString).draw(at: CGPoint(x: marginX, y: listTop), withAttributes: attributes)
+            listTop += (title as NSString).size(withAttributes: attributes).height + 16 * unit
         }
-        let listTop = request.cityIndexHero == .none ? marginY : size.height * 0.42 + marginY
+        if !subtitle.isEmpty {
+            let attributes = StudioPrintLayout.fittedAttributes(subtitle,
+                font: EtchType.uiFont(.text, size: 17 * unit), color: ink.withAlphaComponent(0.70),
+                tracking: 1 * unit, width: usableW)
+            (subtitle as NSString).draw(at: CGPoint(x: marginX, y: listTop), withAttributes: attributes)
+            listTop += (subtitle as NSString).size(withAttributes: attributes).height + 18 * unit
+        }
+        if request.cityIndexHero != .none {
+            let heroRect = CGRect(x: marginX, y: listTop + 12 * unit,
+                                  width: usableW, height: size.height * 0.30)
+            drawCityIndexHero(request, in: heroRect, ink: ink, sheet: size)
+            listTop = heroRect.maxY + 32 * unit
+        } else { listTop += 16 * unit }
+        ink.withAlphaComponent(0.25).setFill()
+        UIRectFill(CGRect(x: marginX, y: listTop, width: usableW, height: unit))
+        listTop += 24 * unit
+        let usableH = max(1, size.height - listTop - size.height * 0.08)
 
         // Fit by search: the largest type size at which every city fits the sheet, in one
         // column when the list is short and in two or three when it is long. Auto-fitting is
         // what keeps ten cities monumental and two hundred still legible — the same promise
         // the Grid makes about run counts.
         func detail(for city: String, count: Int) -> String {
-            guard request.cityIndexTotals else { return "\(count)" }
+            guard request.cityIndexTotals else { return "" }
             let miles = Format.distance(metres[city] ?? 0, decimals: 0)
             return "\(count) · \(miles)"
         }
@@ -763,8 +769,8 @@ enum MapPrintRenderer {
         // not width, is what pinches. Nothing can overlap, because overlap was only ever a
         // constraint this search declined to apply.
         let referenceSize: CGFloat = 100
-        let referenceName = UIFont.systemFont(ofSize: referenceSize, weight: .semibold)
-        let referenceDetail = UIFont.systemFont(ofSize: referenceSize * 0.55, weight: .regular)
+        let referenceName = EtchType.uiFont(.display, size: referenceSize, weight: .semibold)
+        let referenceDetail = EtchType.uiFont(.text, size: referenceSize * 0.45)
         let widestAtReference = cities.map { city, count in
             (city.uppercased() as NSString).size(withAttributes: [.font: referenceName]).width
                 + referenceSize * 0.35
@@ -777,15 +783,15 @@ enum MapPrintRenderer {
             let rows = Int(ceil(Double(cities.count) / Double(columns)))
             let rowH = usableH / CGFloat(rows)
             let colW = (usableW - CGFloat(columns - 1) * usableW * 0.06) / CGFloat(columns)
-            let pointSize = min(rowH * 0.62, referenceSize * colW / widestAtReference)
+            let pointSize = min(76 * unit, rowH * 0.58, referenceSize * colW / widestAtReference)
             if best == nil || pointSize > best!.pointSize {
                 best = (columns, rows, rowH, colW, pointSize)
             }
         }
         guard let layout = best else { return }
 
-        let font = UIFont.systemFont(ofSize: layout.pointSize, weight: .semibold)
-        let countFont = UIFont.systemFont(ofSize: layout.pointSize * 0.55, weight: .regular)
+        let font = EtchType.uiFont(.display, size: layout.pointSize, weight: .semibold)
+        let countFont = EtchType.uiFont(.text, size: layout.pointSize * 0.45)
         for (i, entry) in cities.enumerated() {
             let column = i / layout.rows
             let row = i % layout.rows
@@ -794,11 +800,11 @@ enum MapPrintRenderer {
             let name = entry.key.uppercased() as NSString
             name.draw(at: CGPoint(x: x, y: y),
                       withAttributes: [.font: font, .foregroundColor: ink])
-            let nameW = name.size(withAttributes: [.font: font]).width
-            (detail(for: entry.key, count: entry.value) as NSString).draw(
-                at: CGPoint(x: x + nameW + layout.pointSize * 0.35, y: y + layout.pointSize * 0.34),
-                withAttributes: [.font: countFont,
-                                 .foregroundColor: ink.withAlphaComponent(0.45)])
+            let detailText = detail(for: entry.key, count: entry.value) as NSString
+            let detailWidth = detailText.size(withAttributes: [.font: countFont]).width
+            detailText.draw(at: CGPoint(x: x + layout.colW - detailWidth,
+                                       y: y + layout.pointSize * 0.34),
+                            withAttributes: [.font: countFont, .foregroundColor: ink.withAlphaComponent(0.68)])
         }
     }
 
@@ -830,9 +836,10 @@ enum MapPrintRenderer {
             var cityPoints: [String: (lat: Double, lon: Double, n: Int)] = [:]
             for run in request.runs {
                 guard let city = run.city, !city.isEmpty, let c = run.startCoordinate else { continue }
-                var entry = cityPoints[city] ?? (0, 0, 0)
+                let key = StudioPrintLayout.cityKey(for: run)
+                var entry = cityPoints[key] ?? (0, 0, 0)
                 entry.lat += c.latitude; entry.lon += c.longitude; entry.n += 1
-                cityPoints[city] = entry
+                cityPoints[key] = entry
             }
             guard !cityPoints.isEmpty else { break }
             let coords = cityPoints.mapValues { CLLocationCoordinate2D(latitude: $0.lat / Double($0.n),

@@ -225,6 +225,11 @@ struct PreviewHarnessView: View {
                 case "print-engine":    PrintEngineCheckView()
                 // The shared activity-scope rule's truth table, reported as pass/fail.
                 case "scope-rule":      ScopeRuleCheckView()
+                case "studio-quality":  StudioQualityCheckView()
+                case let name where name.hasPrefix("studio-proof"):
+                    if let subject { StudioPrintProofView(name: name, runs: allRuns, subject: subject) }
+                case "studio-accessibility":
+                    if let subject { StudioView(run: subject).environment(\.dynamicTypeSize, .accessibility3) }
                 case "photo-memory":    PhotoMemoryCheckView()
                 case "memories":        PhotoMemoriesView()
                 // The route-aware orientation rule and the race panel's composition decisions,
