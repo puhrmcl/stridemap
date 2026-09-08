@@ -5,6 +5,7 @@ import SwiftUI
 struct SplashView: View {
     /// Freeze the production drawing for CI screenshots; normal launches always animate.
     var previewLine = false
+    var previewStatic = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var drawn: CGFloat = 0
     @State private var erased: CGFloat = 0
@@ -15,7 +16,7 @@ struct SplashView: View {
             Theme.Brand.ink.ignoresSafeArea()
             Image("LaunchLogo")
                 .overlay {
-                    if !reduceMotion {
+                    if !reduceMotion && !previewStatic {
                         GeometryReader { geometry in
                             // Coordinates are normalized to the actual 720 x 335 launch asset.
                             // Keep the original image at its natural size, matching UILaunchScreen.
@@ -44,7 +45,7 @@ struct SplashView: View {
         }
         .task(id: reduceMotion) {
             drawn = 0; erased = 0; pulse = 0
-            guard !reduceMotion else { return }
+            guard !reduceMotion && !previewStatic else { return }
             if previewLine { drawn = 1; return }
             do {
                 try await Task.sleep(for: .milliseconds(180))

@@ -198,7 +198,7 @@ struct PreviewHarnessView: View {
                 switch screen {
                 case "home":            HomeView()
                 case "launch-line":     SplashView(previewLine: true)
-                case "launch-reduced":  SplashView().environment(\.accessibilityReduceMotion, true)
+                case "launch-reduced":  SplashView(previewStatic: true)
                 case "timeline-large":
                     NavigationStack { TimelineView(embedded: true) }
                         .environment(\.dynamicTypeSize, .accessibility3)
