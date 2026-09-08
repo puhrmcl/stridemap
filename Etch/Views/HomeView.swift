@@ -996,17 +996,16 @@ struct HomeView: View {
         // the header no longer needs; secondary information gets a secondary voice. It shrinks
         // rather than truncates: a number that reads "1,5…" is a defect, the same number a
         // shade smaller is not.
+        //
+        // Both totals, not distance alone. "3,382 mi etched" read as a single headline and left
+        // the activity count to the accessibility description, which is the one place most people
+        // never look — and how far you have gone and how many times you went are two different
+        // facts about a history. The unit follows Settings, so this is "km" for anyone who set it.
         ViewThatFits(in: .horizontal) {
-            // Distance leads because Etch is a visual record of ground covered, not an activity
-            // counter. The activity count remains available in the compact fallback/accessibility
-            // description and throughout Timeline/Profile.
-            Text(Format.distanceValue(derived.shownTotalDistance)
-                .formatted(.number.precision(.fractionLength(0))))
-                .font(.etch(.subheadline, weight: .semibold))
-            + Text(" \(UnitSystem.current.distanceSuffix) etched")
-                .font(.etch(.subheadline))
-                .foregroundStyle(.secondary)
+            metricsText(withNoun: true)
 
+            // Narrow widths drop the noun before they shrink the figures: the numbers are the
+            // content, and "1,119 · 3,382 mi" still reads as two totals.
             metricsText(withNoun: false)
         }
         .accessibilityElement(children: .combine)

@@ -255,6 +255,9 @@ jobs:
 
           # One scenario per shot — four sheets stacked on one scroll are too small in a
           # screenshot to judge whether a caption is colliding with the value above it.
+          # The Home totals pill: a constrained line whose width has caused trouble before, so a
+          # change to what it says gets looked at rather than assumed.
+          shoot home                 home ""                     25
           # Launch/Timeline polish: actual tab-shell layout and frozen production launch states.
           shoot timeline-memories    tabs timeline              15
           shoot timeline-large       timeline-large ""           10
