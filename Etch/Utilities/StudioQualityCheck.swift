@@ -54,7 +54,7 @@ struct StudioQualityCheckView: View {
         clock.record(from: 0, to: 1, at: start)
         clock.record(from: 1, to: 2, at: start.addingTimeInterval(-1))
         expect("Clock changes do not merge edits", clock.past == [0, 1])
-        let config = PosterConfig()
+        let config = PosterConfig.makeDefault(for: activity(city: "Portland", state: "Maine"))
         var changed = config; changed.mapInset.toggle()
         expect("Border change invalidates preview", changed != config)
         changed = config; changed.athleteName = "Jordan Avery"

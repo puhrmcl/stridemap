@@ -795,7 +795,7 @@ struct MapPrintView: View {
     }
 
     private func renderIfNeeded(_ cacheKey: RenderKey) async {
-        guard renderedKey != cacheKey else { return }
+        guard renderedKey != cacheKey else { isRendering = false; renderFailed = false; return }
         isRendering = true
         renderFailed = false
         do { try await Task.sleep(for: .milliseconds(250)) }

@@ -28,7 +28,19 @@ struct StudioVariantStrip: View {
     var cardWidth: CGFloat = 88
 
     @State private var thumbnails: [String: UIImage] = [:]
-    @State private var renderedKey: String = ""
+    private struct ThumbnailKey: Equatable {
+        let recipes: [PosterConfig]
+        let photos: [String]
+        let revision: Date
+        let variants: String
+    }
+    private var thumbnailKey: ThumbnailKey {
+        ThumbnailKey(recipes: variants.map { variant in
+            var recipe = variant.apply(config)
+            recipe.outputSize = .poster
+            return recipe
+        }, photos: run.photoReferences, revision: run.updatedAt, variants: refreshKey)
+    }
 
     private static let thumbnailScale: CGFloat = 0.3
 
@@ -63,14 +75,13 @@ struct StudioVariantStrip: View {
             }
             .padding(.vertical, 3)
         }
-        .task(id: refreshKey) { await render() }
+        .task(id: thumbnailKey) { await render() }
     }
 
     private func render() async {
-        if renderedKey != refreshKey {
-            thumbnails = [:]
-            renderedKey = refreshKey
-        }
+        thumbnails = [:]
+        do { try await Task.sleep(for: .milliseconds(250)) }
+        catch { return }
         // The current selection first, so the strip resolves where the eye already is.
         let ordered = variants.filter { $0.matches(config) } + variants.filter { !$0.matches(config) }
         for variant in ordered {
