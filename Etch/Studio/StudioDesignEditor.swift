@@ -28,7 +28,19 @@ struct StudioVariantStrip: View {
     var cardWidth: CGFloat = 88
 
     @State private var thumbnails: [String: UIImage] = [:]
-    @State private var renderedKey: String = ""
+    private struct ThumbnailKey: Equatable {
+        let recipes: [PosterConfig]
+        let photos: [String]
+        let revision: Date
+        let variants: String
+    }
+    private var thumbnailKey: ThumbnailKey {
+        ThumbnailKey(recipes: variants.map { variant in
+            var recipe = variant.apply(config)
+            recipe.outputSize = .poster
+            return recipe
+        }, photos: run.photoReferences, revision: run.updatedAt, variants: refreshKey)
+    }
 
     private static let thumbnailScale: CGFloat = 0.3
 
@@ -40,6 +52,7 @@ struct StudioVariantStrip: View {
                         title: variant.name,
                         isSelected: variant.matches(config),
                         width: cardWidth,
+                        aspect: config.orientation == .portrait ? 2.0 / 3.0 : 3.0 / 2.0,
                         action: {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 config = variant.apply(config)
@@ -51,7 +64,7 @@ struct StudioVariantStrip: View {
                             if let image = thumbnails[variant.id] {
                                 Image(uiImage: image)
                                     .resizable()
-                                    .aspectRatio(contentMode: .fill)
+                                    .aspectRatio(contentMode: .fit)
                                     .transition(.opacity)
                             } else {
                                 ProgressView().controlSize(.small)
@@ -62,16 +75,15 @@ struct StudioVariantStrip: View {
             }
             .padding(.vertical, 3)
         }
-        .task(id: refreshKey) { await render() }
+        .task(id: thumbnailKey) { await render() }
     }
 
     private func render() async {
-        if renderedKey != refreshKey {
-            thumbnails = [:]
-            renderedKey = refreshKey
-        }
+        thumbnails = [:]
+        do { try await Task.sleep(for: .milliseconds(250)) }
+        catch { return }
         // The current selection first, so the strip resolves where the eye already is.
-        let ordered = variants.sorted { a, _ in a.matches(config) }
+        let ordered = variants.filter { $0.matches(config) } + variants.filter { !$0.matches(config) }
         for variant in ordered {
             if Task.isCancelled { return }
             guard thumbnails[variant.id] == nil else { continue }
@@ -107,6 +119,11 @@ struct StudioDesignEditor: View {
     /// lived.
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
+            Picker("Print type", selection: $config.family) {
+                Text("Map").tag(PosterFamily.map)
+                Text("Gallery").tag(PosterFamily.gallery)
+            }.pickerStyle(.segmented)
+            orientation
             if config.family == .map {
                 layoutRow
                 mapMaterial
@@ -114,7 +131,6 @@ struct StudioDesignEditor: View {
                 template
             }
             look
-            orientation
         }
     }
 

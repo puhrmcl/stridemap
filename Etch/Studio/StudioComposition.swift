@@ -545,10 +545,13 @@ struct StudioComposition: View {
             // column came out around 1:3.3, and no photograph reads as a sliver that thin. The
             // hero runs wide, the pair beneath land near square; three frames, all of them
             // shapes a photo can actually live in.
-            VStack(spacing: g) {
-                galleryFrame(0, tiles).frame(maxHeight: .infinity)
-                HStack(spacing: g) { galleryFrame(1, tiles); galleryFrame(2, tiles) }
-                    .frame(height: galleryArtHeight * 0.42)
+            GeometryReader { geometry in
+                VStack(spacing: g) {
+                    galleryFrame(0, tiles).frame(maxHeight: .infinity)
+                    HStack(spacing: g) { galleryFrame(1, tiles); galleryFrame(2, tiles) }
+                        .frame(height: StudioPrintLayout.gallerySecondaryHeight(
+                            total: geometry.size.height, gutter: g, fraction: 0.38))
+                }
             }
         case .triptychWide:
             VStack(spacing: g) { galleryFrame(0, tiles); galleryFrame(1, tiles); galleryFrame(2, tiles) }
@@ -558,10 +561,13 @@ struct StudioComposition: View {
                 HStack(spacing: g) { galleryFrame(2, tiles); galleryFrame(3, tiles) }
             }
         case .feature:
-            VStack(spacing: g) {
-                galleryFrame(0, tiles).frame(maxHeight: .infinity)
-                HStack(spacing: g) { galleryFrame(1, tiles); galleryFrame(2, tiles); galleryFrame(3, tiles) }
-                    .frame(height: galleryArtHeight * 0.32)
+            GeometryReader { geometry in
+                VStack(spacing: g) {
+                    galleryFrame(0, tiles).frame(maxHeight: .infinity)
+                    HStack(spacing: g) { galleryFrame(1, tiles); galleryFrame(2, tiles); galleryFrame(3, tiles) }
+                        .frame(height: StudioPrintLayout.gallerySecondaryHeight(
+                            total: geometry.size.height, gutter: g, fraction: 0.28))
+                }
             }
         }
     }

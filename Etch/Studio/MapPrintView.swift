@@ -6,6 +6,7 @@ import PhotosUI
 /// a single state / city / country, choose orientation, and zoom / pan the frame before export.
 struct MapPrintView: View {
     let runs: [Run]
+    private let dedicatedProduct: Bool
     @Environment(\.dismiss) private var dismiss
 
     @State private var kind: MapPrintKind
@@ -49,8 +50,21 @@ struct MapPrintView: View {
     /// Aggregate prints: show the footer (title / stats / caption) or the map alone.
     @State private var showDetails = true
 
-    @State private var rendered: [String: UIImage] = [:]
-    @State private var rendering: Set<String> = []
+    @State private var rendered: UIImage?
+    @State private var renderedKey: RenderKey?
+    @State private var renderFailed = false
+    @State private var isRendering = false
+    @State private var retryID = 0
+    @State private var section: StudioSection = .design
+    @State private var detent: StudioTrayDetent = .medium
+    @State private var showFullScreenPreview = false
+    @State private var history = StudioEditHistory<Edit>()
+    @State private var styleThumbnails: [MapArtStyle: UIImage] = [:]
+    @State private var indexTitle = "Places, remembered"
+    @State private var indexSubtitle = ""
+    @State private var photoLoadFailed = false
+    @State private var photoRetry = 0
+    private struct PhotoLoadKey: Equatable { let item: PhotosPickerItem?; let retry: Int }
     @State private var showExport = false
     @State private var showPrints = false
     /// Cities drawn as the typographic index (printable) rather than pins on a map (screen-only).
@@ -72,9 +86,10 @@ struct MapPrintView: View {
     }
 
     init(runs: [Run], kind: MapPrintKind = .allRuns, artStyle: MapArtStyle = .grid,
-         cityIndex: Bool = false, indexHero: MapPrintRequest.CityIndexHero = .none,
+         cityIndex: Bool = false, indexHero: MapPrintRequest.CityIndexHero = .map,
          indexMapScope: MapPrintRequest.CityIndexMapScope = .world) {
         self.runs = runs
+        dedicatedProduct = kind.isArt || cityIndex
         _kind = State(initialValue: kind)
         // The Archive Collection opens the Anthology directly on a chosen style.
         _artStyle = State(initialValue: artStyle)
@@ -142,7 +157,7 @@ struct MapPrintView: View {
 
     /// The base request — a single place drawn as routes, or the aggregate for the kind.
     private var baseRequest: MapPrintRequest {
-        if kind.isArt {
+        if kind.isArt || (kind == .cities && cityIndexOn && focusName == nil) {
             return MapPrintRequest.make(kind: kind, runs: artFilteredRuns)
         }
         if let focusName, let place = focusPlaces.first(where: { $0.name == focusName }) {
@@ -190,6 +205,8 @@ struct MapPrintView: View {
         req.cityIndexMapScope = indexMapScope
         req.cityIndexPhoto = indexPhoto
         req.cityIndexTotals = indexTotals
+        req.cityIndexTitle = indexTitle
+        req.cityIndexSubtitle = indexSubtitle
         req.artCaptionEdge = captionEdge
         req.artCaptionShowsTitle = captionTitle
         req.artCaptionShowsSummary = captionSummary
@@ -211,10 +228,19 @@ struct MapPrintView: View {
         StateMetric.allCases.filter { stateMetrics.contains($0) }.map(\.rawValue).joined(separator: ",")
     }
 
-    private var currentKey: String {
-        "\(kind.rawValue)-\(focusName ?? "all")-\(orientation.rawValue)-\(artPalette.rawValue)-\(artStyle.rawValue)-\(artWeight.rawValue)-\(cityIndexOn)-" +
-        "\(artFilterLabel)-\(stateTitle)|\(stateMetricsKey)-\(statesUSAOnly)-\(showDetails)-\(captionEdge.rawValue)\(captionTitle)\(captionSummary)-\(plateEdge.rawValue)|\(plateTitle)|\(plateName)|\(plateYears)\(plateTotals)-\(indexHero.rawValue)\(indexMapScope.rawValue)\(indexTotals)\(indexPhotoStamp)-" +
-        String(format: "%.2f-%.2f-%.2f", zoom, panX, panY)
+    private struct RenderKey: Equatable {
+        let edit: Edit
+        let kind: MapPrintKind
+        let focus: String?
+        let cityIndex: Bool
+        let photoStamp: Int
+        let retry: Int
+        let revisions: [String]
+    }
+    private var currentKey: RenderKey {
+        RenderKey(edit: edit, kind: kind, focus: focusName, cityIndex: cityIndexOn,
+                  photoStamp: indexPhotoStamp, retry: retryID,
+                  revisions: runs.map { "\($0.id):\($0.updatedAt.timeIntervalSinceReferenceDate)" })
     }
 
     private var previewAspect: CGFloat {
@@ -233,25 +259,57 @@ struct MapPrintView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                preview
-                controls
+            GeometryReader { geometry in
+                VStack(spacing: 0) {
+                    preview
+                    StudioEditorTray(detent: $detent, availableHeight: geometry.size.height) {
+                        VStack(spacing: 0) {
+                            StudioSectionPicker(section: $section) { detent = .medium }
+                            ScrollView {
+                                controls.padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 28)
+                            }
+                            .scrollBounceBehavior(.basedOnSize)
+                            .scrollDismissesKeyboard(.interactively)
+                        }
+                    }
+                }
             }
             .background(Color(.systemGroupedBackground))
-            .navigationTitle("Full-Map Print")
+            .navigationTitle(kind.isArt ? "Anthology" : cityIndexOn ? "Lithograph" : "Map Print")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
-                // One bag, one destination: the shop. It carries the mockup wall, the format
-                // and finish pickers, the proof gate and both order paths — the same product
-                // page every piece buys through. This screen used to run its own size dialog
-                // and checkout beside it, which was a second, poorer shop.
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showPrints = true } label: { Image(systemName: "bag") }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button { if let value = history.undo(edit) { apply(value) } } label: {
+                        Image(systemName: "arrow.uturn.backward")
+                    }.disabled(!history.canUndo).accessibilityLabel("Undo edit")
+                    Button { if let value = history.redo(edit) { apply(value) } } label: {
+                        Image(systemName: "arrow.uturn.forward")
+                    }.disabled(!history.canRedo).accessibilityLabel("Redo edit")
                     Button { showExport = true } label: { Image(systemName: "square.and.arrow.up") }
+                        .disabled(!previewReady).accessibilityLabel("Share or export")
+                    Button("Print") { showPrints = true }
+                        .fontWeight(.semibold).disabled(!previewReady)
+                        .accessibilityLabel("Choose print size and finish")
                 }
+            }
+            .fullScreenCover(isPresented: $showFullScreenPreview) { ArtworkPreviewView(image: rendered) }
+            .onChange(of: edit) { before, after in history.record(from: before, to: after) }
+            .task(id: PhotoLoadKey(item: indexPhotoItem, retry: photoRetry)) {
+                indexPhoto = nil
+                photoLoadFailed = false
+                indexPhotoStamp += 1
+                guard let item = indexPhotoItem else { return }
+                do {
+                    guard let data = try await item.loadTransferable(type: Data.self),
+                          let image = UIImage(data: data) else {
+                        if !Task.isCancelled { photoLoadFailed = true }
+                        return
+                    }
+                    guard !Task.isCancelled, indexPhotoItem == item else { return }
+                    indexPhoto = image
+                    indexPhotoStamp += 1
+                } catch { if !Task.isCancelled { photoLoadFailed = true } }
             }
             .sheet(isPresented: $showExport) { MapPrintExportSheet(request: request) }
             // The shop, seeded with this piece: the render for the mockup and proof, and — when
@@ -264,7 +322,7 @@ struct MapPrintView: View {
                     : "anthology-\(orderRequest.artStyle.rawValue)"
                 PrintShopView(
                     subjectTitle: orderRequest.title,
-                    artwork: rendered[currentKey],
+                    artwork: rendered,
                     creationID: "\(piece)-\(UUID().uuidString)",
                     fileProducer: printSafe
                         ? { geometry in
@@ -276,6 +334,11 @@ struct MapPrintView: View {
             }
             .task(id: currentKey) { await renderIfNeeded(currentKey) }
             .onAppear {
+                if let anchor = ProcessInfo.processInfo.environment["ETCH_PREVIEW_SCROLL"],
+                   let selected = StudioSection(rawValue: anchor) {
+                    section = selected
+                    detent = .expanded
+                }
                 // CI photographs the nameplate via wall-art:<style>@plate — seeded text, bottom
                 // band. Inert without the harness variable, like the rest of the rig.
                 if ProcessInfo.processInfo.environment["ETCH_PREVIEW_SCROLL"] == "plate" {
@@ -284,165 +347,123 @@ struct MapPrintView: View {
                     plateName = "Jordan Avery"
                 }
             }
-            .onChange(of: kind) { focusName = nil; stateTitle = ""; artFilter = .all; statesUSAOnly = false; resetFrame() }
-            .onChange(of: focusName) { stateTitle = ""; resetFrame() }
+            .onChange(of: kind) { focusName = nil; stateTitle = ""; artFilter = .all; statesUSAOnly = false; resetFrame(); history = .init() }
+            .onChange(of: focusName) { stateTitle = ""; resetFrame(); history = .init() }
             // Each art style has its own default framing (Home Turf zooms to the home city), so
             // start fresh when switching rather than carrying over a prior zoom/pan.
             .onChange(of: artStyle) { resetFrame() }
         }
     }
 
-    // MARK: Preview (with drag-to-pan)
+    // MARK: Artwork preview
+
+    private var previewReady: Bool {
+        rendered != nil && renderedKey == currentKey && !renderFailed
+            && !(cityIndexOn && indexHero == .photo && indexPhoto == nil)
+    }
 
     private var preview: some View {
-        GeometryReader { geo in
-            VStack {
-                Spacer(minLength: 0)
-                Group {
-                    if let image = rendered[currentKey] {
-                        Image(uiImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .clipShape(.rect(cornerRadius: 10))
-                            .shadow(color: .black.opacity(0.22), radius: 20, y: 10)
-                    } else {
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Theme.Palette.bone)
-                            .aspectRatio(previewAspect, contentMode: .fit)
-                            .overlay {
-                                VStack(spacing: 10) {
-                                    ProgressView().tint(Theme.accent)
-                                    Text("Composing…")
-                                        .font(.etch(.footnote))
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            .shadow(color: .black.opacity(0.12), radius: 16, y: 8)
-                    }
-                }
-                .padding(.horizontal, 28)
-                Spacer(minLength: 0)
-            }
-            .frame(width: geo.size.width, height: geo.size.height)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 14)
-                    .onEnded { value in
-                        guard panRelevant, geo.size.width > 0, geo.size.height > 0 else { return }
-                        panX += Double(value.translation.width / geo.size.width)
-                        panY += Double(value.translation.height / geo.size.height)
-                    }
-            )
-        }
+        StudioArtworkStage(image: rendered, aspect: previewAspect,
+                           updating: isRendering, failed: renderFailed,
+                           inspect: { showFullScreenPreview = true }, retry: { retryID += 1 })
     }
 
     // MARK: Controls
 
     private var controls: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 10) {
-                kindMenu
-                if kind.supportsSinglePlace, !focusPlaces.isEmpty { placeMenu }
-            }
-            if kind.isArt {
-                // The old row was four identical dropdown chips — filter, style, palette,
-                // weight — scrolling sideways in a strip, every option hidden behind a tap and
-                // nothing saying which chip held what. The choices now wear their own shapes:
-                // styles are labeled tiles, palettes are the colours themselves, weight is a
-                // three-way segment, and only the filter — genuinely hierarchical — remains a
-                // menu. A control whose options are visible does not have to be explained.
-                artFilterMenu
-                styleStrip
-                paletteRow
-                HStack(spacing: 10) {
-                    plateMenu
-                    captionMenu
+        VStack(alignment: .leading, spacing: 20) {
+            switch section {
+            case .design:
+                if !dedicatedProduct {
+                    kindMenu
+                    if kind == .cities && focusName == nil {
+                        Picker("City print", selection: $cityIndexOn) {
+                            Text("Map").tag(false)
+                            Text("Lithograph").tag(true)
+                        }.pickerStyle(.segmented)
+                    }
                 }
-                if plateEdge != .hidden { plateFields }
-                Picker("Weight", selection: $artWeight) {
-                    ForEach(MapArtWeight.allCases) { Text($0.name).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 240)
-            }
-            if kind == .cities && focusName == nil {
-                // The pinned map is for the screen; the index is the printable form. A segmented
-                // pair rather than a toggle, because these are two different pieces, not one
-                // piece with an option.
-                Picker("Cities as", selection: $cityIndexOn) {
-                    Text("Map").tag(false)
-                    Text("Index").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 240)
-                if cityIndexOn {
-                    paletteRow
-                    // The tour-poster options: what crowns the sheet, and whether each city
-                    // carries its miles as well as its count.
-                    Picker("Hero", selection: $indexHero) {
+                StudioGroupLabel(text: "Paper orientation")
+                Picker("Orientation", selection: $orientation) {
+                    ForEach(StudioOrientation.allCases) { Text($0.name).tag($0) }
+                }.pickerStyle(.segmented)
+                if kind.isArt {
+                    StudioGroupLabel(text: "Composition")
+                    styleStrip
+                    Text(artStyle.descriptor).font(.etch(.caption)).foregroundStyle(.secondary)
+                } else if cityIndexOn {
+                    StudioGroupLabel(text: "Composition")
+                    Picker("Artwork", selection: $indexHero) {
                         ForEach(MapPrintRequest.CityIndexHero.allCases) { Text($0.name).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 280)
+                    }.pickerStyle(.segmented)
                     if indexHero == .map {
-                        // What the dots stand on — the world's coastlines, or the country or
-                        // state most of the history lives in, drawn from our own geometry.
-                        Picker("Map of", selection: $indexMapScope) {
+                        StudioGroupLabel(text: "Map extent")
+                        Picker("Map extent", selection: $indexMapScope) {
                             ForEach(MapPrintRequest.CityIndexMapScope.allCases) { Text($0.name).tag($0) }
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(maxWidth: 280)
+                        }.pickerStyle(.segmented)
                     }
-                    if indexHero == .photo {
-                        PhotosPicker(selection: $indexPhotoItem, matching: .images) {
-                            Label(indexPhoto == nil ? "Choose a photo" : "Change the photo",
-                                  systemImage: "photo")
-                                .font(.etch(.footnote, weight: .semibold))
-                                .foregroundStyle(Theme.accent)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
-                                .background(Theme.accent.opacity(0.10), in: .capsule)
-                        }
-                        .onChange(of: indexPhotoItem) { _, item in
-                            guard let item else { return }
-                            Task {
-                                if let data = try? await item.loadTransferable(type: Data.self),
-                                   let image = UIImage(data: data) {
-                                    indexPhoto = image
-                                    indexPhotoStamp += 1
-                                }
+                } else {
+                    if kind.supportsSinglePlace, !focusPlaces.isEmpty { placeMenu }
+                    if showsAggregateOptions { aggregateToggles }
+                }
+            case .content:
+                if kind.isArt || cityIndexOn {
+                    StudioGroupLabel(text: "Activities in this print")
+                    artFilterMenu
+                    if kind.isArt {
+                        StudioGroupLabel(text: "Title block")
+                        plateMenu
+                        if plateEdge != .hidden { plateFields }
+                    } else {
+                        StudioGroupLabel(text: "Title & dedication")
+                        TextField("Title (optional)", text: $indexTitle).textFieldStyle(.roundedBorder)
+                        TextField("Dedication or subtitle (optional)", text: $indexSubtitle).textFieldStyle(.roundedBorder)
+                        Toggle("Activity totals at each city", isOn: $indexTotals).tint(Theme.accent)
+                        if indexHero == .photo {
+                            PhotosPicker(selection: $indexPhotoItem, matching: .images) {
+                                Label(indexPhoto == nil ? "Choose a photograph" : "Replace photograph", systemImage: "photo")
+                                    .frame(minHeight: 44)
+                            }
+                            if photoLoadFailed {
+                                Text("This photo couldn’t be loaded.")
+                                    .font(.footnote).foregroundStyle(.secondary)
+                                Button("Try again") { photoRetry += 1 }
+                            } else if indexPhoto == nil {
+                                Text("Choose a photo to complete this composition.")
+                                    .font(.footnote).foregroundStyle(.secondary)
                             }
                         }
                     }
-                    Toggle("Miles at each city", isOn: $indexTotals)
-                        .toggleStyle(.switch)
-                        .tint(Theme.accent)
-                        .font(.etch(.subheadline))
-                        .frame(maxWidth: 280)
+                } else if isSingleState { stateControls }
+                else { Text(descriptorText).font(.subheadline).foregroundStyle(.secondary) }
+            case .customize:
+                if kind.isArt || cityIndexOn {
+                    StudioGroupLabel(text: "Paper & ink · \(artPalette.name)")
+                    paletteRow
+                }
+                if kind.isArt {
+                    StudioGroupLabel(text: "Line weight")
+                    Picker("Line weight", selection: $artWeight) {
+                        ForEach(MapArtWeight.allCases) { Text($0.name).tag($0) }
+                    }.pickerStyle(.segmented)
+                    StudioGroupLabel(text: "Margin caption")
+                    captionMenu
+                }
+                if zoomRelevant {
+                    StudioGroupLabel(text: "Framing")
+                    zoomPanRow
+                    HStack {
+                        Text("Horizontal").font(.caption)
+                        Slider(value: $panX, in: -1...1).accessibilityLabel("Horizontal position")
+                    }
+                    HStack {
+                        Text("Vertical").font(.caption)
+                        Slider(value: $panY, in: -1...1).accessibilityLabel("Vertical position")
+                    }
                 }
             }
-            if isSingleState { stateControls }
-
-            if showsAggregateOptions { aggregateToggles }
-
-            Text(descriptorText)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 340)
-
-            Picker("Orientation", selection: $orientation) {
-                ForEach(StudioOrientation.allCases) { Text($0.name).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 320)
-
-            if zoomRelevant { zoomPanRow }
         }
-        .padding(.vertical, 16)
-        .padding(.horizontal, 24)
-        .frame(maxWidth: .infinity)
-        .background(.regularMaterial)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// Toggles for the aggregate map prints: a clean USA-only states map, and a map-only mode that
@@ -560,37 +581,35 @@ struct MapPrintView: View {
     /// the chosen one ringed, the same selection language the Map Type sheet uses.
     private var styleStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
                 ForEach(MapArtStyle.allCases) { style in
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) { artStyle = style }
-                    } label: {
-                        VStack(spacing: 5) {
-                            Image(systemName: style.symbol)
-                                .font(.system(size: 18, weight: .semibold))
-                                .frame(height: 22)
-                            Text(style.name)
-                                .font(.etch(size: 11, weight: .semibold))
-                        }
-                        .foregroundStyle(artStyle == style ? Theme.accent : .secondary)
-                        .frame(width: 76)
-                        .padding(.vertical, 10)
-                        .background(
-                            artStyle == style ? Theme.accent.opacity(0.14) : Color.primary.opacity(0.05),
-                            in: .rect(cornerRadius: 12)
-                        )
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 12)
-                                .strokeBorder(artStyle == style ? Theme.accent : .clear, lineWidth: 1.5)
+                    StudioThumbCard(title: style.name, isSelected: artStyle == style, width: 92,
+                                    aspect: orientation == .portrait ? 2.0 / 3.0 : 3.0 / 2.0,
+                                    action: { artStyle = style }) {
+                        ZStack {
+                            artPalette.ground
+                            if let image = styleThumbnails[style] {
+                                Image(uiImage: image).resizable().scaledToFit()
+                            } else {
+                                Image(systemName: style.symbol).foregroundStyle(artPalette.line)
+                            }
                         }
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("\(style.name). \(style.descriptor)")
                 }
-            }
-            .padding(.horizontal, 24)
+            }.padding(.vertical, 3)
         }
-        .padding(.horizontal, -24)
+        .task(id: "\(artFilterLabel)-\(artPalette.rawValue)-\(orientation.rawValue)-\(artWeight.rawValue)") {
+            styleThumbnails = [:]
+            for style in MapArtStyle.allCases {
+                guard !Task.isCancelled else { return }
+                var sample = request
+                sample.artStyle = style
+                let image = await MapPrintRenderer.image(for: sample, scale: 0.18)
+                guard !Task.isCancelled else { return }
+                styleThumbnails[style] = image
+                await Task.yield()
+            }
+        }
     }
 
     /// The palettes as themselves: a swatch per palette, ground colour filled, line colour as the
@@ -610,8 +629,8 @@ struct MapPrintView: View {
                                 .fill(palette.line)
                                 .frame(width: 12, height: 12)
                         }
-                        .frame(width: 32, height: 32)
-                        .padding(3)
+                        .frame(width: 36, height: 36)
+                        .padding(5)
                         .overlay {
                             Circle().strokeBorder(
                                 artPalette == palette ? Theme.accent : .clear, lineWidth: 2
@@ -620,6 +639,7 @@ struct MapPrintView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(palette.name)
+                    .accessibilityAddTraits(artPalette == palette ? [.isSelected] : [])
                 }
             }
             .padding(.horizontal, 24)
@@ -774,14 +794,102 @@ struct MapPrintView: View {
         zoom = 1; panX = 0; panY = 0
     }
 
-    private func renderIfNeeded(_ cacheKey: String) async {
-        guard rendered[cacheKey] == nil, !rendering.contains(cacheKey) else { return }
-        rendering.insert(cacheKey)
-        defer { rendering.remove(cacheKey) }
-        if let image = await MapPrintRenderer.image(for: request, scale: 2) {
-            rendered[cacheKey] = image
-        }
+    private func renderIfNeeded(_ cacheKey: RenderKey) async {
+        guard renderedKey != cacheKey else { isRendering = false; renderFailed = false; return }
+        isRendering = true
+        renderFailed = false
+        do { try await Task.sleep(for: .milliseconds(250)) }
+        catch { return }
+        let value = request
+        let image = await MapPrintRenderer.image(for: value, scale: 1.5)
+        guard !Task.isCancelled, cacheKey == currentKey else { return }
+        isRendering = false
+        renderFailed = image == nil
+        if let image { rendered = image; renderedKey = cacheKey }
     }
 
+    private struct Edit: Equatable {
+        let orientation: StudioOrientation
+        let artPalette: MapArtPalette
+        let artStyle: MapArtStyle
+        let artWeight: MapArtWeight
+        let artFilter: ArtFilter
+        let captionEdge: ArtCaptionEdge
+        let captionTitle: Bool
+        let captionSummary: Bool
+        let plateEdge: ArtPlateEdge
+        let plateTitle: String
+        let plateName: String
+        let plateYears: Bool
+        let plateTotals: Bool
+        let stateTitle: String
+        let stateMetrics: Set<StateMetric>
+        let zoom: Double
+        let panX: Double
+        let panY: Double
+        let statesUSAOnly: Bool
+        let showDetails: Bool
+        let indexHero: MapPrintRequest.CityIndexHero
+        let indexMapScope: MapPrintRequest.CityIndexMapScope
+        let indexTotals: Bool
+        let indexPhotoItem: PhotosPickerItem?
+        let indexTitle: String
+        let indexSubtitle: String
+    }
+    private var edit: Edit {
+        Edit(orientation: orientation,
+             artPalette: artPalette,
+             artStyle: artStyle,
+             artWeight: artWeight,
+             artFilter: artFilter,
+             captionEdge: captionEdge,
+             captionTitle: captionTitle,
+             captionSummary: captionSummary,
+             plateEdge: plateEdge,
+             plateTitle: plateTitle,
+             plateName: plateName,
+             plateYears: plateYears,
+             plateTotals: plateTotals,
+             stateTitle: stateTitle,
+             stateMetrics: stateMetrics,
+             zoom: zoom,
+             panX: panX,
+             panY: panY,
+             statesUSAOnly: statesUSAOnly,
+             showDetails: showDetails,
+             indexHero: indexHero,
+             indexMapScope: indexMapScope,
+             indexTotals: indexTotals,
+             indexPhotoItem: indexPhotoItem,
+             indexTitle: indexTitle,
+             indexSubtitle: indexSubtitle)
+    }
+    private func apply(_ value: Edit) {
+        orientation = value.orientation
+        artPalette = value.artPalette
+        artStyle = value.artStyle
+        artWeight = value.artWeight
+        artFilter = value.artFilter
+        captionEdge = value.captionEdge
+        captionTitle = value.captionTitle
+        captionSummary = value.captionSummary
+        plateEdge = value.plateEdge
+        plateTitle = value.plateTitle
+        plateName = value.plateName
+        plateYears = value.plateYears
+        plateTotals = value.plateTotals
+        stateTitle = value.stateTitle
+        stateMetrics = value.stateMetrics
+        zoom = value.zoom
+        panX = value.panX
+        panY = value.panY
+        statesUSAOnly = value.statesUSAOnly
+        showDetails = value.showDetails
+        indexHero = value.indexHero
+        indexMapScope = value.indexMapScope
+        indexTotals = value.indexTotals
+        indexPhotoItem = value.indexPhotoItem
+        indexTitle = value.indexTitle
+        indexSubtitle = value.indexSubtitle
+    }
 }
-
