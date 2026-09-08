@@ -35,6 +35,10 @@ struct RunDetailView: View {
     @State private var photoSelection: PhotoSelection?
     @State private var draggingPhoto: String?
     @State private var isFindingPhotos = false
+    @State private var showPhotoReview = false
+    @State private var showPhotoMap = false
+    @State private var photoSaveError = false
+    @State private var removedPhoto: (id: String, index: Int)?
     @State private var showStudio = false
     /// The recipe Studio opens on when entered from the moment card; nil = the plain default.
     @State private var studioPreset: PosterConfig?
@@ -138,13 +142,16 @@ struct RunDetailView: View {
             .onChange(of: pickerItems) { _, items in addPicked(items) }
             .fullScreenCover(item: $photoSelection) { selection in
                 RunPhotoViewer(
-                    identifiers: run.photoReferences,
-                    selection: selection.id,
-                    isCoverPhoto: { $0 == run.photoReferences.first },
-                    onDelete: deletePhoto,
-                    onSetCover: setDefaultPhoto
+                    photos: run.photoReferences.map { GalleryPhoto(photoID: $0, run: run) },
+                    selection: GalleryPhoto(photoID: selection.id, run: run).id
                 )
             }
+            .alert("Couldn’t save photo changes", isPresented: $photoSaveError) {
+                Button("Retry") { savePhotoChanges() }
+                Button("OK", role: .cancel) {}
+            } message: { Text("Your changes are still on this screen. Try saving again before leaving.") }
+            .sheet(isPresented: $showPhotoReview) { PhotoReviewView(run: run) }
+            .sheet(isPresented: $showPhotoMap) { ActivityPhotoMap(run: run) }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -772,10 +779,41 @@ struct RunDetailView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Photos").font(.etch(.headline))
+                if !run.photoReferences.isEmpty || !run.rejectedPhotoReferences.isEmpty {
+                    Button("Manage") { showPhotoReview = true }
+                        .font(.etch(.subheadline))
+                }
                 Spacer()
                 if isFindingPhotos { ProgressView().controlSize(.small) }
             }
 
+            if let removedPhoto {
+                HStack {
+                    Text("Removed from activity").font(.caption)
+                    Spacer()
+                    Button("Undo") {
+                        run.restorePhoto(removedPhoto.id, at: removedPhoto.index)
+                        self.removedPhoto = nil
+                        savePhotoChanges()
+                    }
+                    Button {
+                        self.removedPhoto = nil
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityLabel("Dismiss undo")
+                }
+                // An offer, not a status line. Without an expiry it sat on the photo section for
+                // the rest of the session, still offering to undo a removal made ten minutes and
+                // three activities ago.
+                .task(id: removedPhoto.id) {
+                    try? await Task.sleep(for: .seconds(12))
+                    guard !Task.isCancelled else { return }
+                    self.removedPhoto = nil
+                }
+            }
             if run.photoReferences.isEmpty {
                 HStack(spacing: 10) {
                     addPhotosButton {
@@ -837,7 +875,7 @@ struct RunDetailView: View {
                                     Button(role: .destructive) {
                                         deletePhoto(identifier)
                                     } label: {
-                                        Label("Remove", systemImage: "trash")
+                                        Label("Not part of this activity", systemImage: "minus.circle")
                                     }
                                 }
                         }
@@ -850,6 +888,10 @@ struct RunDetailView: View {
                         }
                     }
                 }
+                Button { showPhotoMap = true } label: {
+                    Label("View photos on map", systemImage: "map")
+                }
+                .font(.etch(.subheadline, weight: .semibold))
                 if run.photoReferences.count > 1 {
                     Text("Drag to reorder — the first photo is the cover.")
                         .font(.caption2)
@@ -871,12 +913,8 @@ struct RunDetailView: View {
 
     private func addIdentifiers(_ ids: [String]) {
         guard !ids.isEmpty else { return }
-        var refs = run.photoReferences
-        for id in ids where !refs.contains(id) { refs.append(id) }
-        guard refs.count != run.photoReferences.count else { return }
-        run.photoReferences = refs
-        run.updatedAt = Date()
-        try? context.save()
+        run.attachPhotos(ids, manually: true)
+        savePhotoChanges()
     }
 
     private func addPicked(_ items: [PhotosPickerItem]) {
@@ -885,9 +923,9 @@ struct RunDetailView: View {
     }
 
     private func deletePhoto(_ identifier: String) {
-        run.photoReferences.removeAll { $0 == identifier }
-        run.updatedAt = Date()
-        try? context.save()
+        guard let index = run.rejectPhoto(identifier) else { return }
+        removedPhoto = (identifier, index)
+        savePhotoChanges()
     }
 
     /// Makes a photo the run's cover by moving it to the front of `photoReferences`.
@@ -903,7 +941,7 @@ struct RunDetailView: View {
         refs.insert(identifier, at: 0)
         run.photoReferences = refs
         run.updatedAt = Date()
-        try? context.save()
+        savePhotoChanges()
     }
 
     private var photoScanKey: String { "photoScan-\(run.id.uuidString)" }
@@ -912,7 +950,9 @@ struct RunDetailView: View {
     private func autoMatchPhotosIfNeeded() async {
         guard PhotoLibrary.isAuthorized,
               !UserDefaults.standard.bool(forKey: photoScanKey) else { return }
-        addIdentifiers(PhotoLibrary.matchingIdentifiers(for: run))
+        if run.attachPhotos(PhotoLibrary.matchingIdentifiers(for: run), manually: false) {
+            savePhotoChanges()
+        }
         UserDefaults.standard.set(true, forKey: photoScanKey)
     }
 
@@ -921,8 +961,14 @@ struct RunDetailView: View {
         isFindingPhotos = true
         defer { isFindingPhotos = false }
         guard await PhotoLibrary.requestAuthorization() else { return }
-        addIdentifiers(PhotoLibrary.matchingIdentifiers(for: run))
+        if run.attachPhotos(PhotoLibrary.matchingIdentifiers(for: run), manually: false) {
+            savePhotoChanges()
+        }
         UserDefaults.standard.set(true, forKey: photoScanKey)
+    }
+
+    private func savePhotoChanges() {
+        do { try context.save() } catch { photoSaveError = true }
     }
 
     /// Subtle provenance line — where the workout originated. Deliberately quiet.

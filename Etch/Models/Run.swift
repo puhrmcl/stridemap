@@ -169,8 +169,13 @@ final class Run {
     var finishPlace: String = ""
     var isFavorite: Bool
     var tags: [String]
-    /// Reserved for a future photos feature — stored as opaque references.
+    /// Photo-library identifiers, ordered with the user's cover first.
     var photoReferences: [String]
+    /// Per-activity corrections survive bulk and single-activity rescans. Defaults allow stores
+    /// created before photo curation to migrate without treating existing photos as rejected.
+    var rejectedPhotoReferences: [String] = []
+    var memoryHiddenPhotoReferences: [String] = []
+    var isHiddenFromMemories: Bool = false
 
     // MARK: Cached geometry
 

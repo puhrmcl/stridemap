@@ -159,6 +159,7 @@ jobs:
 
           FAILED=0
           run_check scope-rule       scope-rule   0 60  || FAILED=1
+          run_check photo-memory     photo-memory 0 60 || FAILED=1
           run_check smart-layout     smart-layout 0 60  || FAILED=1
           run_check reveal-diagnostic home         1 120 || FAILED=1
 
@@ -167,7 +168,7 @@ jobs:
 
           problems = []
           reports = sorted(glob.glob("check-reports/*-report.txt"))
-          EXPECTED_REPORTS = 3
+          EXPECTED_REPORTS = 4
           if len(reports) != EXPECTED_REPORTS:
               problems.append("expected %d reports, found %d: %s"
                               % (EXPECTED_REPORTS, len(reports), reports))

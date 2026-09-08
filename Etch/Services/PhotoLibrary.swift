@@ -60,7 +60,7 @@ enum PhotoLibrary {
                 result.append(asset.localIdentifier)
             }
         }
-        return result
+        return result.filter { !run.rejectedPhotoReferences.contains($0) }
     }
 
     /// Whether a coordinate falls within the run's bounding box, expanded by ~600 m.
@@ -139,10 +139,30 @@ enum PhotoLibrary {
             }
             i += 1
         }
-        return result
+        return result.filter { !run.rejectedPhotoReferences.contains($0) }
     }
 
     // MARK: Image loading
+
+    struct LocatedPhoto: Identifiable {
+        let id: String
+        let coordinate: CLLocationCoordinate2D
+    }
+
+    /// Actual photo GPS only. An activity association is not evidence of a photo's coordinates.
+    /// Assets outside limited access or deleted from Photos simply have no available location.
+    static func locatedPhotos(for identifiers: [String]) -> [LocatedPhoto] {
+        guard isAuthorized, !identifiers.isEmpty else { return [] }
+        let assets = PHAsset.fetchAssets(withLocalIdentifiers: identifiers, options: nil)
+        var locations: [String: CLLocationCoordinate2D] = [:]
+        assets.enumerateObjects { asset, _, _ in
+            guard let location = asset.location, CLLocationCoordinate2DIsValid(location.coordinate) else { return }
+            locations[asset.localIdentifier] = location.coordinate
+        }
+        return identifiers.compactMap { id in
+            locations[id].map { LocatedPhoto(id: id, coordinate: $0) }
+        }
+    }
 
     /// True while CI is photographing a screen. The harness seeds photo references that point at
     /// nothing, and the first `PHAsset` fetch against an undetermined authorization puts the
@@ -190,15 +210,50 @@ enum PhotoLibrary {
         guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject
         else { return nil }
 
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .highQualityFormat   // single callback
+        options.isNetworkAccessAllowed = true
+        options.resizeMode = .fast
+        return await requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFill,
+                                  options: options, timeout: thumbnailTimeout)
+    }
+
+    /// How long a thumbnail and a full-resolution load may take before the reader is told the
+    /// photo is unavailable. Generous enough for a real iCloud download on a slow connection,
+    /// finite enough that a stalled one cannot own the screen.
+    private static let thumbnailTimeout: Double = 15
+    private static let fullImageTimeout: Double = 45
+
+    /// Resolves a Photos image request with a deadline, and cancels the request if it elapses.
+    ///
+    /// `requestImage` with `isNetworkAccessAllowed` can wait indefinitely on an iCloud asset that
+    /// is never going to arrive — aeroplane mode, a revoked share, iCloud storage full. In that
+    /// state Photos calls the result handler *never*, so the `withCheckedContinuation` around it
+    /// never resumes, the `.task` awaiting it never finishes, and the view keeps its spinner for
+    /// the rest of the session with no way out but force-quitting. A deadline turns that into
+    /// "Photo unavailable", which is both true and escapable, and cancelling the request stops the
+    /// abandoned download from costing battery and data.
+    ///
+    /// The result box also makes the bridge safe against a second callback. `.highQualityFormat`
+    /// is documented as single-delivery, but a `CheckedContinuation` resumed twice is a hard trap,
+    /// and the cost of being wrong about a framework's callback contract should not be a crash.
+    private static func requestImage(for asset: PHAsset, targetSize: CGSize,
+                                     contentMode: PHImageContentMode,
+                                     options: PHImageRequestOptions,
+                                     timeout: Double) async -> UIImage? {
+        let box = ImageResultBox()
         return await withCheckedContinuation { (continuation: CheckedContinuation<UIImage?, Never>) in
-            let options = PHImageRequestOptions()
-            options.deliveryMode = .highQualityFormat   // single callback
-            options.isNetworkAccessAllowed = true
-            options.resizeMode = .fast
-            PHImageManager.default().requestImage(
-                for: asset, targetSize: targetSize, contentMode: .aspectFill, options: options
+            box.attach(continuation)
+            let request = PHImageManager.default().requestImage(
+                for: asset, targetSize: targetSize, contentMode: contentMode, options: options
             ) { image, _ in
-                continuation.resume(returning: image)
+                box.resume(with: image)
+            }
+            Task {
+                try? await Task.sleep(for: .seconds(timeout))
+                guard !box.isResolved else { return }
+                PHImageManager.default().cancelImageRequest(request)
+                box.resume(with: nil)
             }
         }
     }
@@ -225,16 +280,38 @@ enum PhotoLibrary {
         guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject
         else { return nil }
 
-        return await withCheckedContinuation { (continuation: CheckedContinuation<UIImage?, Never>) in
-            let options = PHImageRequestOptions()
-            options.deliveryMode = .highQualityFormat
-            options.isNetworkAccessAllowed = true    // fetch from iCloud if needed
-            options.resizeMode = .none
-            PHImageManager.default().requestImage(
-                for: asset, targetSize: PHImageManagerMaximumSize, contentMode: .default, options: options
-            ) { image, _ in
-                continuation.resume(returning: image)
-            }
-        }
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .highQualityFormat
+        options.isNetworkAccessAllowed = true    // fetch from iCloud if needed
+        options.resizeMode = .none
+        return await requestImage(for: asset, targetSize: PHImageManagerMaximumSize,
+                                  contentMode: .default, options: options,
+                                  timeout: fullImageTimeout)
+    }
+}
+
+/// Holds an image request's continuation and guarantees it resumes exactly once — whether Photos
+/// answers, answers twice, or never answers at all.
+private final class ImageResultBox: @unchecked Sendable {
+    private var continuation: CheckedContinuation<UIImage?, Never>?
+    private var resumed = false
+    private let lock = NSLock()
+
+    var isResolved: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return resumed
+    }
+
+    func attach(_ continuation: CheckedContinuation<UIImage?, Never>) {
+        lock.lock(); defer { lock.unlock() }
+        self.continuation = continuation
+    }
+
+    func resume(with image: UIImage?) {
+        lock.lock(); defer { lock.unlock() }
+        guard !resumed else { return }
+        resumed = true
+        continuation?.resume(returning: image)
+        continuation = nil
     }
 }

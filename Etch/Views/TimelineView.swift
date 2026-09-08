@@ -46,6 +46,7 @@ struct TimelineView: View {
     @State private var scrollTarget: String?
     /// The photograph the full-screen viewer is opened on, in the Gallery scope.
     @State private var openedPhoto: OpenedGalleryPhoto?
+    @State private var showMemories = false
 
     private struct Derived {
         var ready = false
@@ -220,6 +221,7 @@ struct TimelineView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showMemories) { PhotoMemoriesView() }
             .navigationTitle("Timeline")
             .navigationBarTitleDisplayMode(.inline)
             .onChange(of: derivedKey, initial: true) { _, _ in rebuildDerived() }
@@ -228,17 +230,23 @@ struct TimelineView: View {
             }
             .fullScreenCover(item: $openedPhoto) { selection in
                 RunPhotoViewer(
-                    identifiers: photos.map(\.photoID),
-                    selection: selection.id,
-                    isCoverPhoto: { id in owner(of: id)?.photoReferences.first == id },
-                    onDelete: deletePhoto,
-                    onSetCover: setCover
+                    photos: photos,
+                    selection: selection.id
                 )
             }
             .safeAreaInset(edge: .top) {
                 VStack(spacing: 8) {
                     EtchFilterChip(filter: appModel.filter) {
                         appModel.setFilter(RunFilter())
+                    }
+                    .padding(.horizontal, 20)
+                    HStack {
+                        Button { showMemories = true } label: {
+                            Label("Memories", systemImage: "clock.arrow.circlepath")
+                                .font(.etch(.subheadline, weight: .semibold))
+                        }
+                        Spacer()
+                        Text("On this day").font(.etch(.caption)).foregroundStyle(.secondary)
                     }
                     .padding(.horizontal, 20)
                     if embedded && !scopedRuns.isEmpty { scopePicker }
@@ -385,7 +393,7 @@ struct TimelineView: View {
                 ForEach(photoMonths) { month in
                     Section {
                         ForEach(month.photos) { photo in
-                            Button { openedPhoto = OpenedGalleryPhoto(id: photo.photoID) } label: {
+                            Button { openedPhoto = OpenedGalleryPhoto(id: photo.id) } label: {
                                 GalleryTile(identifier: photo.photoID)
                             }
                             .buttonStyle(.plain)
@@ -414,28 +422,6 @@ struct TimelineView: View {
         .padding(.top, 18)
         .padding(.bottom, 8)
         .background(.bar)
-    }
-
-    private func owner(of photoID: String) -> Run? {
-        runs.first { $0.photoReferences.contains(photoID) }
-    }
-
-    private func deletePhoto(_ photoID: String) {
-        guard let run = owner(of: photoID) else { return }
-        run.photoReferences.removeAll { $0 == photoID }
-        run.updatedAt = Date()
-        try? context.save()
-    }
-
-    private func setCover(_ photoID: String) {
-        guard let run = owner(of: photoID),
-              let index = run.photoReferences.firstIndex(of: photoID), index != 0 else { return }
-        var refs = run.photoReferences
-        refs.remove(at: index)
-        refs.insert(photoID, at: 0)
-        run.photoReferences = refs
-        run.updatedAt = Date()
-        try? context.save()
     }
 
     private func photoTile(_ run: Run, corner: CGFloat, height: CGFloat? = nil,

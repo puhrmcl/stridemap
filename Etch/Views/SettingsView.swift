@@ -280,16 +280,13 @@ struct SettingsView: View {
         let assets = PhotoLibrary.allImageAssets()
         var processed = 0
         for run in runs {
-            let ids = PhotoLibrary.match(run: run, in: assets)
-            if !ids.isEmpty {
-                var refs = run.photoReferences
-                let before = refs.count
-                for id in ids where !refs.contains(id) { refs.append(id) }
-                if refs.count != before {
-                    run.photoReferences = refs
-                    run.updatedAt = Date()
-                }
-            }
+            // Through `attachPhotos`, not a second copy of it. `match` already drops this
+            // activity's rejected assets, so the old inline append was correct — but it was
+            // correct by relying on the filter one call away, with no guard of its own. A
+            // correction that survives rescanning is the promise this feature makes; the bulk
+            // scan is the likeliest place to test it and was the only path that could not
+            // enforce it itself.
+            run.attachPhotos(PhotoLibrary.match(run: run, in: assets), manually: false)
             UserDefaults.standard.set(true, forKey: "photoScan-\(run.id.uuidString)")
             processed += 1
             photoProgress = (processed, runs.count)
