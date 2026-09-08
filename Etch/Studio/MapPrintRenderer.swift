@@ -210,7 +210,9 @@ enum MapPrintRenderer {
     private static func drawArtPlate(_ request: MapPrintRequest, runs: [Run],
                                      size: CGSize, band: CGFloat) {
         guard request.artPlateEdge != .hidden, band > 0 else { return }
-        let unit = size.width / 1000
+        // A landscape sheet is wider but its title band is shorter. Scale to both axes so
+        // the full name/title/metadata block keeps breathing room inside its own band.
+        let unit = min(size.width / 1000, band / 180)
         let ink = UIColor(request.artPalette.line)
 
         let title = (request.artPlateTitle.isEmpty ? request.title : request.artPlateTitle)

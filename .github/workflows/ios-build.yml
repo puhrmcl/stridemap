@@ -279,6 +279,7 @@ jobs:
           shoot map-proof            studio-proof:map ""         30
           shoot gallery-proof        studio-proof:gallery-landscape "" 30
           shoot anthology-proof      studio-proof:anthology ""   20
+          shoot anthology-landscape  studio-proof:anthology-landscape "" 20
           shoot lithograph-proof     studio-proof:lithograph ""  20
           shoot studio-accessibility studio-accessibility ""     30
 
