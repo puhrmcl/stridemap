@@ -4,7 +4,7 @@ import UIKit
 /// Exercises production history and composition rules on the PR's simulator build.
 @MainActor
 struct StudioQualityCheckView: View {
-    static let expectedChecks = 29
+    static let expectedChecks = 34
     @State private var report = "Checking Studio…"
 
     var body: some View {
@@ -95,6 +95,32 @@ struct StudioQualityCheckView: View {
         index.cityIndex = true
         let lithograph = await MapPrintRenderer.image(for: index, scale: 0.1)
         expect("Lithograph renders at its paper proportions", lithograph != nil && lithograph?.size == index.posterIndexSize)
+        // Contour panels. Both of these rendered as bare paper on device: one throttled batch out
+        // of sixteen failed the whole elevation field, and a valley-floor course fell under a 1 m
+        // relief floor. Neither said anything — the sheet just arrived empty.
+        var gapped = [Double](repeating: 0, count: 9)
+        var knownSamples = [Bool](repeating: true, count: 9)
+        gapped[0] = 100; gapped[1] = 110; gapped[2] = 120     // north row, fetched
+        knownSamples[3] = false; knownSamples[4] = false; knownSamples[5] = false  // middle row lost
+        gapped[6] = 140; gapped[7] = 150; gapped[8] = 160     // south row, fetched
+        ElevationService.fillGaps(&gapped, known: knownSamples, rows: 3, cols: 3)
+        expect("A lost batch is filled from the terrain around it",
+               gapped[3] == 100 && gapped[4] == 110 && gapped[5] == 120)
+        expect("Filling a gap leaves the fetched samples alone",
+               gapped[0] == 100 && gapped[8] == 160)
+        expect("No sample is left at sea level after filling",
+               !gapped.contains(0))
+
+        func field(_ relief: Double) -> ElevationField {
+            let values = (0..<16).map { Double($0 % 4) / 3 * relief }
+            return ElevationField(rows: 4, cols: 4, values: values,
+                                  minElevation: values.min() ?? 0, maxElevation: values.max() ?? 0)
+        }
+        expect("A gentle course still traces contours",
+               !ContourExtractor.segments(for: field(0.6)).isEmpty)
+        expect("Genuinely flat ground traces nothing",
+               ContourExtractor.segments(for: field(0.05)).isEmpty)
+
         let passed = lines.count == Self.expectedChecks && !lines.contains { $0.hasPrefix("FAIL") }
         let complete = (["studio-quality \(AppInfo.changeTag)"] + lines + [
             "EXPECTED_CHECKS: \(Self.expectedChecks)", "RAN_CHECKS: \(lines.count)",

@@ -12,7 +12,11 @@ enum ContourExtractor {
     /// elevation. Returns all segments flattened; density naturally follows the terrain's relief.
     static func segments(for field: ElevationField, levelCount: Int = 22) -> [Segment] {
         let span = field.maxElevation - field.minElevation
-        guard span > 1, field.rows > 1, field.cols > 1 else { return [] }
+        // The levels are spaced across whatever relief the field actually has, so a gentle course
+        // draws gentle contours rather than none. The old 1 m floor silently blanked the panel for
+        // valley-floor courses — a marathon across Mesa is real terrain, just quiet terrain. Below
+        // a quarter of a metre there is genuinely nothing to trace and the sheet is honest empty.
+        guard span > 0.25, field.rows > 1, field.cols > 1 else { return [] }
 
         var result: [Segment] = []
         let stepX = 1.0 / Double(field.cols - 1)

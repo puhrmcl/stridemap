@@ -427,10 +427,22 @@ enum PosterMap {
         let lonMin = region.center.longitude - region.span.longitudeDelta / 2
         let lonMax = region.center.longitude + region.span.longitudeDelta / 2
 
+        // 30 × 30, not 40 × 40. The grid is fetched 100 points to a request, so 40² was sixteen
+        // requests against a free keyless API for a single panel — enough to get throttled, and
+        // a throttled batch is what put bare paper on the sheet. 900 samples is nine requests and
+        // the difference at 22 contour levels is not visible on a printed sheet.
         guard let field = await ElevationService.field(
-            latMin: latMin, latMax: latMax, lonMin: lonMin, lonMax: lonMax, rows: 40, cols: 40
-        ) else { return nil }
+            latMin: latMin, latMax: latMax, lonMin: lonMin, lonMax: lonMax, rows: 30, cols: 30
+        ) else {
+            NSLog("ETCHDIAG contour: no elevation field for %@ — panel falls back to bare ground",
+                  run.name)
+            return nil
+        }
         let segments = ContourExtractor.segments(for: field)
+        if segments.isEmpty {
+            NSLog("ETCHDIAG contour: field spans %.1f m over %@ — no contour levels crossed",
+                  field.maxElevation - field.minElevation, run.name)
+        }
 
         let format = UIGraphicsImageRendererFormat()
         format.scale = 2

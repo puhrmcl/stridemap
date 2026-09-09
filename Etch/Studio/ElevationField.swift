@@ -53,9 +53,13 @@ enum ElevationService {
         }
 
         var values = [Double](repeating: 0, count: coords.count)
-        // Three at a time, not five: sixteen batches in bursts of five was tripping the API's
-        // rate limit on weak connections, and one nulled batch blanks the whole contour panel —
-        // which is how the Contour style rendered as bare paper on device.
+        // Which samples actually came back. A batch that fails leaves its span unknown rather
+        // than zero: a zeroed sample is a 370 m cliff next to Mesa, and marching squares would
+        // trace that cliff as the only contour on the sheet.
+        var known = [Bool](repeating: false, count: coords.count)
+
+        // Three at a time, not five: bursts of five were tripping the API's rate limit on weak
+        // connections.
         let maxConcurrent = 3
         var waveStart = 0
         while waveStart < batches.count {
@@ -71,10 +75,30 @@ enum ElevationService {
                 return collected
             }
             for (start, elevations) in waveResults {
-                guard let elevations else { return nil }
-                for (offset, value) in elevations.enumerated() { values[start + offset] = value }
+                guard let elevations else { continue }
+                for (offset, value) in elevations.enumerated() {
+                    values[start + offset] = value
+                    known[start + offset] = true
+                }
             }
             waveStart += maxConcurrent
+        }
+
+        // One bad batch used to fail the whole field, and the caller's only fallback is bare
+        // paper — so a single throttled request out of eleven threw away a thousand good
+        // samples and rendered the Contour style as a blank sheet. That is the defect this
+        // guard replaces: fill the gaps from the terrain around them instead.
+        let missing = known.filter { !$0 }.count
+        if missing > 0 {
+            NSLog("ETCHDIAG contour: %d of %d elevation samples missing", missing, coords.count)
+        }
+        // A quarter of the grid absent is no longer terrain, it is a guess. Fail honestly there.
+        guard missing * 4 <= coords.count else {
+            NSLog("ETCHDIAG contour: too many samples missing; no field")
+            return nil
+        }
+        if missing > 0 {
+            fillGaps(&values, known: known, rows: rows, cols: cols)
         }
 
         let minE = values.min() ?? 0
@@ -181,6 +205,29 @@ enum ElevationService {
     /// One request of ≤100 coordinates, retried with a growing pause — a contour field is
     /// sixteen of these and a single dead batch blanks the whole panel, so each one gets a
     /// real chance to ride out a rate-limit blip or a weak-signal timeout before giving up.
+    /// Fills unknown samples from the nearest known sample in the same column.
+    ///
+    /// A failed batch is a contiguous run of the row-major grid, so the hole is a band of rows.
+    /// Walking each column to the nearest known neighbour above, then below, extrudes the terrain
+    /// through the gap: not the real ground, but continuous with it, which is what the contour
+    /// tracer needs. The alternative — leaving zeros — draws a sea-level cliff across the sheet.
+    static func fillGaps(_ values: inout [Double], known: [Bool], rows: Int, cols: Int) {
+        for col in 0..<cols {
+            // Downward pass: carry the last known value forward.
+            var carried: Double?
+            for row in 0..<rows {
+                let i = row * cols + col
+                if known[i] { carried = values[i] } else if let carried { values[i] = carried }
+            }
+            // Upward pass: anything still unfilled sat above every known sample in this column.
+            carried = nil
+            for row in stride(from: rows - 1, through: 0, by: -1) {
+                let i = row * cols + col
+                if known[i] { carried = values[i] } else if let carried, values[i] == 0 { values[i] = carried }
+            }
+        }
+    }
+
     private static func fetchBatch(_ coords: [(lat: Double, lon: Double)]) async -> [Double]? {
         let lats = coords.map { String(format: "%.5f", $0.lat) }.joined(separator: ",")
         let lons = coords.map { String(format: "%.5f", $0.lon) }.joined(separator: ",")
@@ -191,16 +238,27 @@ enum ElevationService {
         ]
         guard let url = components?.url else { return nil }
 
+        // A bounded request. `URLSession.shared` defaults to a 60-second resource timeout, and
+        // nine of those in series behind a stalled connection is long enough that the reader has
+        // put the phone down before the panel resolves either way.
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+
         let pauses: [UInt64] = [400_000_000, 1_200_000_000, 2_500_000_000]
         for attempt in 0...pauses.count {
             do {
-                let (data, response) = try await URLSession.shared.data(from: url)
+                let (data, response) = try await URLSession.shared.data(for: request)
                 guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
                     if attempt < pauses.count { try? await Task.sleep(nanoseconds: pauses[attempt]); continue }
                     return nil
                 }
                 let decoded = try JSONDecoder().decode(Response.self, from: data)
-                guard decoded.elevation.count == coords.count else { return nil }
+                // A short array is a bad response, not a verdict on the terrain — retry it like
+                // any other failure rather than failing the batch outright.
+                guard decoded.elevation.count == coords.count else {
+                    if attempt < pauses.count { try? await Task.sleep(nanoseconds: pauses[attempt]); continue }
+                    return nil
+                }
                 return decoded.elevation.map { $0 ?? 0 }   // null (void/water) → sea level
             } catch {
                 if attempt < pauses.count { try? await Task.sleep(nanoseconds: pauses[attempt]); continue }
