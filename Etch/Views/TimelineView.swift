@@ -285,7 +285,7 @@ struct TimelineView: View {
 
     private var memoriesCard: some View {
         let activityScope = ActivitySettings.resolvedScope(appModel.activityScope, in: runs)
-        let memory = PhotoMemories.onThisDay(in: runs, scope: activityScope, now: memoryDate).first
+        let memory = PhotoMemories.discover(in: runs, scope: activityScope, now: memoryDate).memories.first
         return Button { showMemories = true } label: {
             HStack(alignment: .center, spacing: 16) {
                 if let photo = memory?.cover {
@@ -303,7 +303,7 @@ struct TimelineView: View {
                     Text(memory?.title ?? "Your history, remembered")
                         .font(.etch(.subheadline))
                         .foregroundStyle(memory == nil ? Color.secondary : Theme.accent)
-                    Text(memory?.run.name ?? "Revisit photos from this day in past years.")
+                    Text(memory?.run.name ?? "Rediscover photos, activities and familiar places.")
                         .font(.etch(.caption))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

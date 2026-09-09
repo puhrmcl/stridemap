@@ -682,7 +682,9 @@ struct StudioComposition: View {
                     }
                 case .map:
                     if edition.usesImagePanel, let panelImage {
-                        Image(uiImage: panelImage).resizable().scaledToFill()
+                        Image(uiImage: panelImage).resizable().scaledToFit()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(groundColor)
                     } else {
                         ZStack {
                             groundColor

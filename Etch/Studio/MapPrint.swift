@@ -319,7 +319,16 @@ struct MapPrintRequest {
     var showFooter: Bool = true
 
     /// The title shown, honouring a user edit.
-    var displayTitle: String { (titleOverride?.isEmpty == false ? titleOverride : nil) ?? title }
+    var displayTitle: String {
+        if cityIndex, !cityIndexTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return cityIndexTitle
+        }
+        if kind.isArt, artPlateEdge != .hidden,
+           !artPlateTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return artPlateTitle
+        }
+        return (titleOverride?.isEmpty == false ? titleOverride : nil) ?? title
+    }
 
     /// Full-bleed state poster size (map fills the page; metrics float over the bottom).
     var statePosterSize: CGSize {

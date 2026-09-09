@@ -1,12 +1,13 @@
 import SwiftUI
 import SwiftData
+import CoreLocation
 
 /// Executes the production association/memory functions, including a disk-store reopen.
 /// No photo permission or real user images are needed for these fixtures.
 @MainActor
 struct PhotoMemoryCheckView: View {
     @State private var report = "Running photo memory checks…"
-    private static let expectedChecks = 31
+    private static let expectedChecks = 61
 
     var body: some View {
         ScrollView { Text(report).font(.system(.caption, design: .monospaced)).padding() }
@@ -100,6 +101,69 @@ struct PhotoMemoryCheckView: View {
         pacific.timeZone = TimeZone(identifier: "America/Los_Angeles")!
         let nearMidnight = fixture(date(2025, 9, 8, 1))
         check("Calendar timezone controls the remembered date", PhotoMemories.onThisDay(in: [nearMidnight], scope: .all, now: now, calendar: pacific).count == 1)
+
+        func discover(_ activities: [Run], at day: Date? = nil, scope: ActivityScope = .all, limit: Int = 8) -> PhotoMemories.Collection {
+            PhotoMemories.discover(in: activities, scope: scope, now: day ?? now, calendar: calendar, limit: limit)
+        }
+        let exactOld = fixture(date(2022))
+        let close = fixture(date(2023, 9, 9))
+        let monthly = fixture(date(2024, 9, 20))
+        let distant = fixture(date(2025, 3, 1))
+        check("Discovery searches all anniversary years", discover([run, exactOld, close]).memories.map(\.run.id) == [run.id, exactOld.id])
+        check("Week fallback is labelled honestly", discover([close, monthly]).match == .week)
+        check("Month fallback follows empty week", discover([monthly, distant]).match == .month)
+        check("Other history prevents a dead end", discover([distant]).match == .history)
+        check("Week window includes three days", discover([fixture(date(2025, 9, 10))]).match == .week)
+        check("Week window excludes four days", discover([fixture(date(2025, 9, 11))]).match == .month)
+        check("Week fallback crosses the year boundary", discover([fixture(date(2024, 12, 31))], at: date(2026, 1, 2)).match == .week)
+        check("Leap date is never relabelled an exact anniversary", discover([leap], at: date(2025, 2, 28)).match == .month)
+        let noPhoto = fixture(date(2025)); noPhoto.photoReferences = []
+        check("Activity alone becomes a memory", discover([noPhoto]).memories.first?.run.id == noPhoto.id)
+        check("Wider photos take priority over a photoless anniversary", discover([noPhoto, monthly]).match == .month)
+        let recent = fixture(date(2026, 8, 1))
+        check("New users can revisit earlier this year", discover([recent]).memories.first?.yearsAgo == 0)
+        check("Today and future activities stay out", discover([fixture(now), fixture(date(2027))]).memories.isEmpty)
+        check("Empty scope stays honest during fallback", discover([distant], scope: .hikes).memories.isEmpty)
+        distant.isHiddenFromMemories = true
+        check("Widening never restores dismissed memories", discover([distant]).memories.isEmpty)
+        distant.isHiddenFromMemories = false; distant.isHidden = true
+        check("Widening never restores hidden activities", discover([distant]).memories.isEmpty)
+        distant.isHidden = false
+        defaults.set(false, forKey: "includeRuns")
+        check("Widening respects disabled types", discover([distant]).memories.isEmpty)
+        defaults.set(true, forKey: "includeRuns")
+        let corrected = fixture(date(2025))
+        corrected.rejectPhoto("cover"); corrected.setPhotoHiddenFromMemories("second", hidden: true)
+        check("Fallback route never exposes corrected photos", discover([corrected]).memories.first?.cover == nil)
+        check("Discovery respects its result limit", discover([run, exactOld], limit: 1).memories.count == 1)
+        check("Zero result limit is safe", discover([run], limit: 0).memories.isEmpty)
+
+        let local = fixture(date(2023)); local.startLatitude = 0; local.startLongitude = 0
+        let localOld = fixture(date(2021)); localOld.startLatitude = 0.1; localOld.startLongitude = 0
+        let far = fixture(date(2025)); far.startLatitude = 1; far.startLongitude = 0
+        let fix = CLLocation(coordinate: CLLocationCoordinate2D(latitude: 0, longitude: 0), altitude: 0,
+                             horizontalAccuracy: 100, verticalAccuracy: -1, timestamp: now)
+        func nearby(_ activities: [Run], fix point: CLLocation? = nil, scope: ActivityScope = .all) -> [PhotoMemory] {
+            PhotoMemories.nearby(in: activities, scope: scope, location: point ?? fix, now: now, calendar: calendar)
+        }
+        check("Nearby spans years and excludes distant starts", nearby([localOld, far, local]).map(\.run.id) == [local.id, localOld.id])
+        check("Zero coordinates are a valid location", nearby([local]).count == 1)
+        check("Unknown start is not invented", nearby([fixture(date(2024))]).isEmpty)
+        local.photoReferences = []
+        check("Nearby also remembers activities without photos", nearby([local]).first?.cover == nil && nearby([local]).count == 1)
+        check("Nearby respects explicit activity scope", nearby([local], scope: .hikes).isEmpty)
+        local.isHiddenFromMemories = true
+        check("Nearby respects memory dismissal", nearby([local]).isEmpty)
+        local.isHiddenFromMemories = false; local.isHidden = true
+        check("Nearby respects hidden activities", nearby([local]).isEmpty)
+        local.isHidden = false; local.excludedFromTotals = true
+        check("Counting exclusions do not erase nearby memories", nearby([local]).count == 1)
+        let stale = CLLocation(coordinate: fix.coordinate, altitude: 0, horizontalAccuracy: 100, verticalAccuracy: -1, timestamp: now.addingTimeInterval(-301))
+        check("Stale location is rejected", nearby([local], fix: stale).isEmpty)
+        let inaccurate = CLLocation(coordinate: fix.coordinate, altitude: 0, horizontalAccuracy: 5001, verticalAccuracy: -1, timestamp: now)
+        check("Inaccurate location is rejected", nearby([local], fix: inaccurate).isEmpty)
+        local.startLatitude = 91
+        check("Invalid stored coordinates are rejected", nearby([local]).isEmpty)
 
         do {
             check("Corrections survive a disk store reopen", try persistenceCheck(date: date(2025)))

@@ -67,6 +67,7 @@ struct MapPrintView: View {
     private struct PhotoLoadKey: Equatable { let item: PhotosPickerItem?; let retry: Int }
     @State private var showExport = false
     @State private var showPrints = false
+    @State private var showPrintableVersion = false
     /// Cities drawn as the typographic index (printable) rather than pins on a map (screen-only).
     @State private var cityIndexOn = false
     /// The index's tour-poster hero and per-city totals.
@@ -288,9 +289,11 @@ struct MapPrintView: View {
                     }.disabled(!history.canRedo).accessibilityLabel("Redo edit")
                     Button { showExport = true } label: { Image(systemName: "square.and.arrow.up") }
                         .disabled(!previewReady).accessibilityLabel("Share or export")
-                    Button("Print") { showPrints = true }
+                    Button(printSafe ? "Print" : "Make Print") {
+                        if printSafe { showPrints = true } else { showPrintableVersion = true }
+                    }
                         .fontWeight(.semibold).disabled(!previewReady)
-                        .accessibilityLabel("Choose print size and finish")
+                        .accessibilityLabel(printSafe ? "Choose print size and finish" : "Create a printable Anthology")
                 }
             }
             .fullScreenCover(isPresented: $showFullScreenPreview) { ArtworkPreviewView(image: rendered) }
@@ -311,6 +314,9 @@ struct MapPrintView: View {
                     indexPhotoStamp += 1
                 } catch { if !Task.isCancelled { photoLoadFailed = true } }
             }
+            .sheet(isPresented: $showPrintableVersion) {
+                MapPrintView(runs: baseRequest.runs, kind: .artMap)
+            }
             .sheet(isPresented: $showExport) { MapPrintExportSheet(request: request) }
             // The shop, seeded with this piece: the render for the mockup and proof, and — when
             // the composition is our own ink (printSafe) — a producer that renders the real
@@ -321,7 +327,7 @@ struct MapPrintView: View {
                 let piece = orderRequest.cityIndex ? "cityindex"
                     : "anthology-\(orderRequest.artStyle.rawValue)"
                 PrintShopView(
-                    subjectTitle: orderRequest.title,
+                    subjectTitle: orderRequest.displayTitle,
                     artwork: rendered,
                     creationID: "\(piece)-\(UUID().uuidString)",
                     fileProducer: printSafe
@@ -372,6 +378,12 @@ struct MapPrintView: View {
 
     private var controls: some View {
         VStack(alignment: .leading, spacing: 20) {
+            if !printSafe {
+                Text("This map is for viewing and sharing").font(.etch(.headline))
+                Text("Make a printable Anthology from these activities. You’ll choose its composition and review the artwork before ordering.")
+                    .font(.etch(.subheadline)).foregroundStyle(.secondary)
+                Button("Create an Anthology") { showPrintableVersion = true }.frame(minHeight: 44)
+            }
             switch section {
             case .design:
                 if !dedicatedProduct {
@@ -396,6 +408,20 @@ struct MapPrintView: View {
                     Picker("Artwork", selection: $indexHero) {
                         ForEach(MapPrintRequest.CityIndexHero.allCases) { Text($0.name).tag($0) }
                     }.pickerStyle(.segmented)
+                    if indexHero == .photo {
+                        PhotosPicker(selection: $indexPhotoItem, matching: .images) {
+                            Label(indexPhoto == nil ? "Choose a photograph" : "Replace photograph", systemImage: "photo")
+                                .frame(minHeight: 44)
+                        }
+                        if photoLoadFailed {
+                            Text("This photo couldn’t be loaded.")
+                                .font(.footnote).foregroundStyle(.secondary)
+                            Button("Try again") { photoRetry += 1 }
+                        } else if indexPhoto == nil {
+                            Text("Choose a photo to complete this composition.")
+                                .font(.footnote).foregroundStyle(.secondary)
+                        }
+                    }
                     if indexHero == .map {
                         StudioGroupLabel(text: "Map extent")
                         Picker("Map extent", selection: $indexMapScope) {
@@ -419,20 +445,7 @@ struct MapPrintView: View {
                         TextField("Title (optional)", text: $indexTitle).textFieldStyle(.roundedBorder)
                         TextField("Dedication or subtitle (optional)", text: $indexSubtitle).textFieldStyle(.roundedBorder)
                         Toggle("Activity totals at each city", isOn: $indexTotals).tint(Theme.accent)
-                        if indexHero == .photo {
-                            PhotosPicker(selection: $indexPhotoItem, matching: .images) {
-                                Label(indexPhoto == nil ? "Choose a photograph" : "Replace photograph", systemImage: "photo")
-                                    .frame(minHeight: 44)
-                            }
-                            if photoLoadFailed {
-                                Text("This photo couldn’t be loaded.")
-                                    .font(.footnote).foregroundStyle(.secondary)
-                                Button("Try again") { photoRetry += 1 }
-                            } else if indexPhoto == nil {
-                                Text("Choose a photo to complete this composition.")
-                                    .font(.footnote).foregroundStyle(.secondary)
-                            }
-                        }
+
                     }
                 } else if isSingleState { stateControls }
                 else { Text(descriptorText).font(.subheadline).foregroundStyle(.secondary) }

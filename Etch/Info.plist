@@ -47,7 +47,7 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Etch shows your position on the map so you can see where you've run.</string>
+	<string>Etch uses your location to show your position on the map and, when you ask, find past activities nearby.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>Etch reads your running workouts and GPS routes from Apple Health to map every run you've taken.</string>
 	<key>NSHealthUpdateUsageDescription</key>

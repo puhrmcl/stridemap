@@ -153,40 +153,40 @@ enum StudioSection: String, CaseIterable, Identifiable {
 /// between three workspaces, and a segmented control reads as picking one *value* out of three.
 struct StudioSectionPicker: View {
     @Binding var section: StudioSection
-    /// Raising the tray when a section is tapped from collapsed — tapping a section is a request
-    /// to work in it.
     var onSelect: () -> Void
-
-    @Namespace private var underline
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(StudioSection.allCases) { s in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) { section = s }
-                    onSelect()
-                } label: {
-                    VStack(spacing: 6) {
-                        Text(s.name)
-                            .font(.etch(.subheadline,
-                                        weight: section == s ? .semibold : .regular))
-                            .foregroundStyle(section == s ? Theme.accent : Color.secondary)
-                        ZStack {
-                            Capsule().fill(.clear).frame(height: 2)
-                            if section == s {
-                                Capsule().fill(Theme.accent).frame(height: 2)
-                                    .matchedGeometryEffect(id: "underline", in: underline)
-                            }
-                        }
+        if typeSize.isAccessibilitySize {
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) { tabs(expands: false) }
+                    .onChange(of: section) { _, selected in
+                        withAnimation { proxy.scrollTo(selected, anchor: .center) }
                     }
-                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .onAppear { proxy.scrollTo(section, anchor: .center) }
+            }
+        } else { tabs(expands: true) }
+    }
+
+    private func tabs(expands: Bool) -> some View {
+        HStack(spacing: expands ? 0 : 24) {
+            ForEach(StudioSection.allCases) { item in
+                Button { section = item; onSelect() } label: {
+                    VStack(spacing: 6) {
+                        Text(item.name)
+                            .font(.etch(.subheadline, weight: section == item ? .semibold : .regular))
+                            .fixedSize(horizontal: true, vertical: false)
+                            .foregroundStyle(section == item ? Theme.accent : Color.secondary)
+                        Capsule().fill(section == item ? Theme.accent : .clear).frame(height: 2)
+                    }
+                    .frame(maxWidth: expands ? .infinity : nil, minHeight: 44)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityAddTraits(section == s ? .isSelected : [])
+                .id(item)
+                .accessibilityAddTraits(section == item ? .isSelected : [])
             }
-        }
-        .padding(.horizontal, 20)
+        }.padding(.horizontal, 20)
     }
 }
 

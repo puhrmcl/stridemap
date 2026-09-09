@@ -4,7 +4,7 @@ import UIKit
 /// Exercises production history and composition rules on the PR's simulator build.
 @MainActor
 struct StudioQualityCheckView: View {
-    static let expectedChecks = 34
+    static let expectedChecks = 40
     @State private var report = "Checking Studio…"
 
     var body: some View {
@@ -120,6 +120,20 @@ struct StudioQualityCheckView: View {
                !ContourExtractor.segments(for: field(0.6)).isEmpty)
         expect("Genuinely flat ground traces nothing",
                ContourExtractor.segments(for: field(0.05)).isEmpty)
+
+        var source = StudioRenderer.Request(run: maine, edition: .atlas, layout: .gallery)
+        source.galleryCellsRaw = ["photo", "route"]
+        expect("Photo and route Gallery needs no map provider", !source.needsMapPanel && source.printReady)
+        source.galleryCellsRaw = ["photo", "map"]
+        expect("A map tile requires print cartography", source.needsMapPanel)
+        source.galleryCellsRaw = []
+        expect("Legacy Gallery plans conservatively require a map", source.needsMapPanel)
+        source.galleryCellsRaw = ["unknown"]
+        expect("Invalid Gallery plans do not bypass the map guard", source.needsMapPanel)
+        source.layout = .classic; source.galleryCellsRaw = ["photo"]
+        expect("Map product always requires its map panel", source.needsMapPanel)
+        source.edition = .minimal
+        expect("No Map composition remains available", !source.needsMapPanel && source.printReady)
 
         let passed = lines.count == Self.expectedChecks && !lines.contains { $0.hasPrefix("FAIL") }
         let complete = (["studio-quality \(AppInfo.changeTag)"] + lines + [
