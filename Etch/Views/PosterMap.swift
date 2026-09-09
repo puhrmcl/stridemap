@@ -98,15 +98,12 @@ enum PosterMap {
         // every keystroke in a text field — and each render used to start a fresh MKMapSnapshotter.
         // The panel only depends on the run, the edition, the size and the route tint, so cache it:
         // typing a title now costs one snapshot, not one per character.
-        // A strict render neither reads nor writes the cache. The key covers the run, size,
-        // edition and route tint — not *where the map came from* — so a preview that fell back to
-        // Apple would otherwise be handed straight back to a print asking for our cartography,
-        // and the guard would pass while shipping the thing it exists to prevent. Print panels are
-        // rendered once per order, so there is nothing to save here anyway.
+        // Separate source namespaces prevent a display-only Apple fallback from ever being
+        // reused by Studio's strict preview or a physical print. Both can cache their own source.
         let paper = groundOverride ?? edition.ground
-        let key = panelKey("studio", run: run, size: size, edition: edition,
+        let key = panelKey(requireOwnCartography ? "studio-print-source" : "studio", run: run, size: size, edition: edition,
                            route: routeOverride, ground: paper)
-        if !requireOwnCartography, let cached = panelCache.object(forKey: key) { return cached }
+        if let cached = panelCache.object(forKey: key) { return cached }
 
         // Etch's own cartography first, when the basemap is live and this edition has an
         // OpenStreetMap equivalent — that is the panel the poster may actually be sold as. Apple
@@ -129,7 +126,7 @@ enum PosterMap {
                 edition: edition, route: routeOverride, isRace: run.isRace,
                 project: { own.frame.point(for: $0, in: size) }
             ), paper: paper, line: EtchCartography.printAttribution(for: edition))
-            if !requireOwnCartography { panelCache.setObject(finished, forKey: key) }
+            panelCache.setObject(finished, forKey: key)
             return finished
         }
 

@@ -80,6 +80,17 @@ enum StudioRenderer {
         var textJustificationRaw: String = TextJustification.automatic.rawValue
         /// The print shape the artwork is composed into (2:3 primary, 4:5 secondary).
         var printAspect: PrintAspect = .twoThree
+
+        /// Photo/route-only Gallery designs do not depend on a basemap merely because their
+        /// palette comes from a map edition. Invalid/legacy plans remain conservative.
+        var needsMapPanel: Bool {
+            guard edition.mapKind != nil else { return false }
+            guard layout == .gallery else { return true }
+            guard !galleryCellsRaw.isEmpty else { return true }
+            let cells = galleryCellsRaw.compactMap(GalleryTileKind.init(rawValue:))
+            return cells.isEmpty || cells.contains(.map)
+        }
+        @MainActor var printReady: Bool { !needsMapPanel || EtchMapSnapshotter.isAvailable }
     }
 
     /// The largest print size this device can render at an acceptable DPI. Anything bigger has to
@@ -94,13 +105,11 @@ enum StudioRenderer {
 
     /// The map / contour art panel image. Nil for photo and paper editions.
     ///
-    /// `requireOwnCartography` refuses the Apple fallback. A screen preview is happy to show an
-    /// Apple panel when our tiles are unreachable — the poster still exists, it just can't be
-    /// sold. A *print* must not: falling back silently there would upload an Apple-derived sheet
-    /// to the print lab, which is the exact licensing line the whole basemap exists to stay on
-    /// the right side of. So the print path asks for our cartography or nothing.
+    /// Studio previews and physical prints request the same strict cartography source.
+    /// Display-only callers may still explicitly permit a fallback in PosterMap.
     static func panelImage(for request: Request, panelPixelWidth: CGFloat,
                            requireOwnCartography: Bool = false) async -> UIImage? {
+        if request.edition.mapKind != nil && !request.needsMapPanel { return nil }
         // Full Bleed runs the map across the entire sheet, so its panel is snapshotted at the
         // canvas shape rather than the square art panel — no stretch, no crop surprise.
         let panelSize = request.mapLayoutRaw == MapLayout.fullBleed.rawValue && request.layout == .classic
@@ -204,10 +213,12 @@ enum StudioRenderer {
     /// Renders the composition at the given `ImageRenderer` scale.
     static func image(for request: Request, scale: CGFloat) async -> UIImage? {
         let pixelWidth = StudioComposition.width * scale
-        async let panelTask = panelImage(for: request, panelPixelWidth: pixelWidth)
+        async let panelTask = panelImage(for: request, panelPixelWidth: pixelWidth,
+                                       requireOwnCartography: request.needsMapPanel)
         async let photosTask = photoImages(for: request, panelPixelWidth: pixelWidth)
         async let profileTask = elevationProfile(for: request)
         let (panelRaw, photoPack, profile) = await (panelTask, photosTask, profileTask)
+        if request.needsMapPanel && panelRaw == nil { return nil }
         var panel = panelRaw
         var photos = photoPack.0
         let focuses = photoPack.1
@@ -510,7 +521,7 @@ enum StudioRenderer {
         let pixelHeight = Int((canvas.height * scale).rounded())
 
         let built = try await buildComposition(for: request, scale: scale,
-                                               requireOwnCartography: request.edition.mapKind != nil)
+                                               requireOwnCartography: request.needsMapPanel)
         let ground = request.groundColor ?? request.edition.ground
 
         // A finish that covers part of the sheet — the poster hanger's wooden strips — reserves a
@@ -584,7 +595,7 @@ enum StudioRenderer {
         // A map edition whose panel came back nil under a strict render means our tiles could not
         // supply it. Refusing here is the whole point: the alternative is an order that looks
         // fine and ships someone else's map data.
-        if requireOwnCartography, request.edition.mapKind != nil, panel == nil {
+        if requireOwnCartography, request.needsMapPanel, panel == nil {
             throw PrintError.cartographyUnavailable
         }
         var photos = photoPack.0

@@ -99,6 +99,15 @@ struct StudioView: View {
                             .padding(.bottom, 2)
                         ScrollView {
                             VStack(alignment: .leading, spacing: 20) {
+                                if renderFailed && config.request(for: run).needsMapPanel {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("The map couldn’t load for this print.").font(.headline)
+                                        Text("Retry above, or keep the route and photographs with a clean paper background.")
+                                            .font(.subheadline).foregroundStyle(.secondary)
+                                        Button("Use No Map") { config.mapStyle = .none }
+                                            .frame(minHeight: 44)
+                                    }
+                                }
                                 sectionContent
                                 orderRow
                             }

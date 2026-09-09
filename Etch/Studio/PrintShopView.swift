@@ -277,7 +277,7 @@ struct PrintShopView: View {
             return
         }
 
-        guard let renderRequest, renderRequest.edition.printReady else { return }
+        guard let renderRequest, renderRequest.printReady else { return }
         Task {
             do {
                 let cart: ShopifyStorefront.Cart
@@ -357,7 +357,7 @@ struct PrintShopView: View {
             return
         }
 
-        guard let renderRequest, renderRequest.edition.printReady else { return }
+        guard let renderRequest, renderRequest.printReady else { return }
         isAddingToBag = true
         Task {
             defer { isAddingToBag = false }
@@ -908,11 +908,11 @@ struct PrintShopView: View {
             // sitting between them and the button.
 
             if canOrderHere {
-                if let edition = renderRequest?.edition, !edition.printReady {
+                if let request = renderRequest, !request.printReady {
                     // Apple-snapshot editions are licensed for screens, not merchandise. Honest
                     // gate rather than a failed order; lifts when our own cartography lands.
-                    unavailableNote("This style is coming to print",
-                                    detail: "Map styles are being remade with our own cartography for print. Contour, paper, and photo styles are ready to order today.")
+                    unavailableNote("This map is temporarily unavailable",
+                                    detail: "Return to the editor to retry, or choose No Map to keep your route, photographs and text without a basemap.")
                 } else if isMedal || size.deviceRenderable {
                     // The proof comes first: nothing can be ordered or bagged until the customer
                     // has looked at the sheet full screen and approved it.
