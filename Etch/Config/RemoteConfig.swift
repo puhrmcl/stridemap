@@ -218,7 +218,17 @@ enum RemoteConfigService {
 
     /// Fetches the current document and adopts it. Silent on failure — the app keeps whatever
     /// it already had.
-    static func refresh() async {
+    @MainActor private static var refreshTask: Task<Void, Never>?
+
+    @MainActor static func refresh() async {
+        if let refreshTask { await refreshTask.value; return }
+        let task = Task { await fetchCurrent() }
+        refreshTask = task
+        await task.value
+        refreshTask = nil
+    }
+
+    private static func fetchCurrent() async {
         let endpoint = CommerceConfig.workerBase.appendingPathComponent("config")
         var request = URLRequest(url: endpoint)
         request.timeoutInterval = 10

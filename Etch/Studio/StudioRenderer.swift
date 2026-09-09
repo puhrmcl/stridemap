@@ -110,6 +110,13 @@ enum StudioRenderer {
     static func panelImage(for request: Request, panelPixelWidth: CGFloat,
                            requireOwnCartography: Bool = false) async -> UIImage? {
         if request.edition.mapKind != nil && !request.needsMapPanel { return nil }
+        // A fresh install starts with basemapReady=false. Await the operational config rather
+        // than treating the app-launch fetch race as a failed background. Concurrent renders
+        // share the same refresh task.
+        if request.needsMapPanel && !EtchMapSnapshotter.isAvailable {
+            await RemoteConfigService.refresh()
+            guard !Task.isCancelled else { return nil }
+        }
         // Full Bleed runs the map across the entire sheet, so its panel is snapshotted at the
         // canvas shape rather than the square art panel — no stretch, no crop surprise.
         let panelSize = request.mapLayoutRaw == MapLayout.fullBleed.rawValue && request.layout == .classic

@@ -289,11 +289,11 @@ struct MapPrintView: View {
                     }.disabled(!history.canRedo).accessibilityLabel("Redo edit")
                     Button { showExport = true } label: { Image(systemName: "square.and.arrow.up") }
                         .disabled(!previewReady).accessibilityLabel("Share or export")
-                    Button(printSafe ? "Print" : "Make Print") {
+                    Button(printSafe ? "Order" : "Create Artwork") {
                         if printSafe { showPrints = true } else { showPrintableVersion = true }
                     }
                         .fontWeight(.semibold).disabled(!previewReady)
-                        .accessibilityLabel(printSafe ? "Choose print size and finish" : "Create a printable Anthology")
+                        .accessibilityLabel(printSafe ? "Order artwork: choose size and finish" : "Create a printable Anthology")
                 }
             }
             .fullScreenCover(isPresented: $showFullScreenPreview) { ArtworkPreviewView(image: rendered) }
