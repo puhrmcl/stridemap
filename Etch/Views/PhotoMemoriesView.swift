@@ -11,6 +11,7 @@ struct PhotoMemoriesView: View {
     @State private var now = Date()
     @State private var selectedRun: Run?
     @State private var saveError = false
+    @State private var showNearby = false
     @StateObject private var location = MemoryLocationProvider()
 
     private var scope: ActivityScope { ActivitySettings.resolvedScope(appModel.activityScope, in: runs) }
@@ -26,19 +27,28 @@ struct PhotoMemoriesView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 24) {
-                    Text(collection.heading).font(.etch(.largeTitle, weight: .bold))
-                    Text(collection.detail).font(.subheadline).foregroundStyle(.secondary)
+                    Picker("Memory discovery", selection: $showNearby) {
+                        Text("By date").tag(false)
+                        Text("Near you").tag(true)
+                    }.pickerStyle(.segmented)
+                    if !showNearby {
+                        Text(collection.heading).font(.etch(.largeTitle, weight: .bold))
+                        Text(collection.detail).font(.subheadline).foregroundStyle(.secondary)
+                    }
                     Menu {
                         Picker("Activity", selection: $appModel.activityScope) {
                             ForEach(ActivitySettings.visibleScopes) { value in Text(value.label).tag(value) }
                         }
                     } label: { Label(scope.label, systemImage: "line.3.horizontal.decrease") }
+                    if showNearby {
+                        nearbySection
+                    } else {
                     if collection.memories.isEmpty {
                         ContentUnavailableView("More memories ahead", systemImage: "clock.arrow.circlepath",
                             description: Text("No past activities are available for this activity type. Try All Activities, or add an activity to your history."))
                     }
                     ForEach(collection.memories) { memory in memoryCard(memory) }
-                    nearbySection
+                    }
                     if !hidden.isEmpty {
                         DisclosureGroup("Hidden memories (\(hidden.count))") {
                             ForEach(hidden) { run in
@@ -60,7 +70,10 @@ struct PhotoMemoriesView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
             .navigationDestination(item: $selectedRun) { RunDetailView(run: $0) }
-            .onAppear { now = Date() }
+            .onAppear {
+                now = Date()
+                if ProcessInfo.processInfo.environment["ETCH_PREVIEW_SCROLL"] == "nearby" { showNearby = true }
+            }
             .onChange(of: scenePhase) { _, phase in if phase == .active { now = Date() } }
             .task {
                 while !Task.isCancelled {
@@ -81,7 +94,6 @@ struct PhotoMemoriesView: View {
 
     private var nearbySection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Divider().padding(.vertical, 8)
             Label("Near you", systemImage: "location").font(.etch(.title2, weight: .bold))
             Text("Rediscover activities that started within 25 km of where you are now, across your history.")
                 .font(.subheadline).foregroundStyle(.secondary)
@@ -92,10 +104,13 @@ struct PhotoMemoriesView: View {
             if location.isLoading { ProgressView("Finding your location…") }
             if let message = location.message { Text(message).font(.subheadline).foregroundStyle(.secondary) }
             if location.denied {
-                Button("Open Settings") { if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) } }
+                Button("Open Settings") { if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) } }.frame(minHeight: 44)
             }
-            if location.location != nil && nearby.isEmpty {
-                Text("No past activities found within 25 km. Your date memories are still above.")
+            if let fix = location.location, abs(fix.timestamp.timeIntervalSinceNow) > 300 {
+                Text("Refresh your location to find memories near you now.")
+                    .font(.subheadline).foregroundStyle(.secondary)
+            } else if location.location != nil && nearby.isEmpty {
+                Text("No past activities found within 25 km. Explore By date for more memories.")
                     .font(.subheadline).foregroundStyle(.secondary)
             }
             ForEach(nearby) { memory in memoryCard(memory) }
