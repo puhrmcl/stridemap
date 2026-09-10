@@ -3,6 +3,27 @@ import SwiftUI
 import CoreLocation
 import MapLibre
 
+/// Per-style failure state. Explicit retries and expired cooldowns permit a fresh attempt.
+struct MapSnapshotRetryState {
+    private(set) var failures = 0
+    private(set) var generation = 0
+    private var failedAt: Date?
+    mutating func allowsAttempt(at now: Date = Date()) -> Bool {
+        guard failures >= 3, let failedAt else { return true }
+        guard now.timeIntervalSince(failedAt) >= 45 else { return false }
+        failures = 2
+        self.failedAt = nil
+        return true
+    }
+    mutating func failed(at now: Date = Date()) {
+        failures += 1
+        if failures >= 3 { failedAt = now }
+    }
+    mutating func reset() {
+        failures = 0; failedAt = nil; generation += 1
+    }
+}
+
 /// Renders the map panel from Etch's own basemap instead of Apple's.
 ///
 /// `MKMapSnapshotter` produces a beautiful image the business cannot sell. This produces the same
@@ -39,48 +60,15 @@ enum EtchMapSnapshotter {
     /// tiles come back empty, the blank check below catches the bare panel, and the edition
     /// falls back to Apple display-only — the same honest degrade as a basemap outage.
     static func canRender(_ edition: StudioEdition) -> Bool {
-        guard isAvailable, !isTripped, edition.mapKind != nil else { return false }
+        guard isAvailable, edition.mapKind != nil,
+              retryStates[edition.id, default: MapSnapshotRetryState()].allowsAttempt() else { return false }
         return true
     }
 
-    // MARK: The blank-map circuit breaker
-
-    /// Consecutive renders that came back with nothing on them.
-    private static var blankRuns = 0
-    /// When the breaker last tripped — the clock the cool-down runs on.
-    private static var trippedAt: Date?
-
-    /// After this many, pause the attempts.
-    ///
-    /// One blank render is ambiguous — a route across open water or featureless desert genuinely
-    /// has no features to draw, and falling back to Apple for that single poster is the right
-    /// answer anyway. Three coming back blank is the network or the worker having a moment.
-    private static let blankLimit = 3
-
-    /// How long a trip pauses attempts before one probe is let through.
-    ///
-    /// The breaker used to hold for the whole session, and that was a commerce bug wearing a
-    /// performance fix's clothes: a few tile fetches failing on one bar of signal tripped it,
-    /// and from then on every map edition rendered Apple and refused checkout — even after the
-    /// train left the tunnel. Half-open instead: after the cool-down the next render is a real
-    /// attempt; success resets everything, another blank re-arms the pause.
-    private static let coolDown: TimeInterval = 45
-
-    private static var isTripped: Bool {
-        guard blankRuns >= blankLimit else { return false }
-        guard let at = trippedAt else { return false }
-        if Date().timeIntervalSince(at) >= coolDown {
-            blankRuns = blankLimit - 1
-            trippedAt = nil
-            return false
-        }
-        return true
-    }
-
-    /// A render came back with nothing on it (or failed outright).
-    private static func noteBlank() {
-        blankRuns += 1
-        if blankRuns >= blankLimit { trippedAt = Date() }
+    // An unavailable imagery style must not suspend streets or terrain.
+    private static var retryStates: [StudioEdition.ID: MapSnapshotRetryState] = [:]
+    static func retry(_ edition: StudioEdition) {
+        retryStates[edition.id, default: MapSnapshotRetryState()].reset()
     }
 
     /// Whether a snapshot has nothing on it but its own background.
@@ -249,6 +237,7 @@ enum EtchMapSnapshotter {
         // snapshotter has nothing of its own to stamp.
         options.showsLogo = false
 
+        let generation = retryStates[edition.id, default: MapSnapshotRetryState()].generation
         let snapshotter = MLNMapSnapshotter(options: options)
         let image: UIImage? = await withCheckedContinuation { continuation in
             snapshotter.start { snapshot, error in
@@ -258,21 +247,17 @@ enum EtchMapSnapshotter {
                 continuation.resume(returning: snapshot?.image)
             }
         }
-        guard let image else {
-            noteBlank()
-            return nil
-        }
-        // A returned image is not yet a map. Prove something drew on it before handing back a
-        // panel this poster could be *sold* on the strength of.
-        guard !isBlank(image) else {
-            noteBlank()
-            if blankRuns >= blankLimit {
-                NSLog("basemap: %d blank renders — pausing %ds before retrying", blankLimit, Int(coolDown))
+        guard let image, !isBlank(image) else {
+            // Ignore failures from work that preceded a user's explicit retry.
+            if retryStates[edition.id, default: MapSnapshotRetryState()].generation == generation {
+                retryStates[edition.id, default: MapSnapshotRetryState()].failed()
             }
+            NSLog("basemap: unavailable panel for %@", edition.id.rawValue)
             return nil
         }
-        blankRuns = 0
-        trippedAt = nil
+        if retryStates[edition.id, default: MapSnapshotRetryState()].generation == generation {
+            retryStates[edition.id, default: MapSnapshotRetryState()].reset()
+        }
         return Snapshot(image: image, frame: frame)
     }
 

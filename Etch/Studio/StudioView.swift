@@ -253,10 +253,10 @@ struct StudioView: View {
             .accessibilityLabel("Print options")
         }
         ToolbarItem(placement: .topBarTrailing) {
-            Button("Print") { showPrints = true }
+            Button("Order") { showPrints = true }
                 .fontWeight(.semibold)
                 .disabled(!previewReady)
-                .accessibilityLabel("Choose print size and finish")
+                .accessibilityLabel("Order artwork: choose size and finish")
         }
     }
 
@@ -287,7 +287,10 @@ struct StudioView: View {
     private var preview: some View {
         StudioArtworkStage(image: rendered, aspect: previewAspect,
                            updating: isRendering || (!previewReady && !renderFailed), failed: renderFailed,
-                           inspect: { showFullScreenPreview = true }, retry: { retryID += 1 })
+                           inspect: { showFullScreenPreview = true }, retry: {
+                               EtchMapSnapshotter.retry(config.request(for: run).edition)
+                               retryID += 1
+                           })
     }
 
     // MARK: Action bar

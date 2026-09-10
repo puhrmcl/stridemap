@@ -4,7 +4,7 @@ import UIKit
 /// Exercises production history and composition rules on the PR's simulator build.
 @MainActor
 struct StudioQualityCheckView: View {
-    static let expectedChecks = 40
+    static let expectedChecks = 47
     @State private var report = "Checking Studio…"
 
     var body: some View {
@@ -134,6 +134,20 @@ struct StudioQualityCheckView: View {
         expect("Map product always requires its map panel", source.needsMapPanel)
         source.edition = .minimal
         expect("No Map composition remains available", !source.needsMapPanel && source.printReady)
+
+        var retry = MapSnapshotRetryState()
+        expect("Fresh map style can render", retry.allowsAttempt(at: start))
+        retry.failed(at: start); retry.failed(at: start); retry.failed(at: start)
+        expect("Repeated failures pause automatic retries", !retry.allowsAttempt(at: start.addingTimeInterval(44)))
+        var independent = MapSnapshotRetryState()
+        expect("Another map style remains available", independent.allowsAttempt(at: start))
+        expect("Cooldown permits a recovery probe", retry.allowsAttempt(at: start.addingTimeInterval(45)))
+        retry.failed(at: start.addingTimeInterval(45))
+        expect("Failed recovery probe pauses again", !retry.allowsAttempt(at: start.addingTimeInterval(46)))
+        let failedGeneration = retry.generation
+        retry.reset()
+        expect("Explicit retry immediately clears the pause", retry.allowsAttempt(at: start.addingTimeInterval(46)))
+        expect("Explicit retry invalidates older failures", retry.generation != failedGeneration && retry.failures == 0)
 
         let passed = lines.count == Self.expectedChecks && !lines.contains { $0.hasPrefix("FAIL") }
         let complete = (["studio-quality \(AppInfo.changeTag)"] + lines + [
