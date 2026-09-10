@@ -4,7 +4,7 @@ import UIKit
 /// Exercises production history and composition rules on the PR's simulator build.
 @MainActor
 struct StudioQualityCheckView: View {
-    static let expectedChecks = 52
+    static let expectedChecks = 55
     @State private var report = "Checking Studio…"
 
     var body: some View {
@@ -159,6 +159,24 @@ struct StudioQualityCheckView: View {
         expect("External tile redirects are not silently adopted",
                PrintTileSource.source(from: ["tiles": ["https://example.org/{z}/{x}/{y}"], "minzoom": 0, "maxzoom": 15]) == nil)
         expect("Existing tile queries remain intact", PrintTileSource.versioned(tile + "?a=1").contains("?a=1&etchRevision="))
+
+        let mapStyles = StudioEdition.all.filter { $0.mapKind != nil && $0.id != .satellite }
+        func layer(_ id: String, edition: StudioEdition) -> [String: Any]? {
+            guard let data = EtchCartography.styleJSON(for: edition),
+                  let style = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+                  let layers = style["layers"] as? [[String: Any]] else { return nil }
+            return layers.first { $0["id"] as? String == id }
+        }
+        expect("Every vector edition fills only water polygons", mapStyles.allSatisfy {
+            layer("water", edition: $0)?["filter"] as? [String] == ["==", "$type", "Polygon"]
+        })
+        expect("Every vector edition strokes waterways separately", mapStyles.allSatisfy {
+            layer("waterways", edition: $0)?["filter"] as? [String] == ["==", "$type", "LineString"]
+                && layer("waterways", edition: $0)?["type"] as? String == "line"
+        })
+        expect("Building labels cannot become filled geometry", mapStyles.allSatisfy {
+            layer("buildings", edition: $0)?["filter"] as? [String] == ["==", "$type", "Polygon"]
+        })
 
         let passed = lines.count == Self.expectedChecks && !lines.contains { $0.hasPrefix("FAIL") }
         let complete = (["studio-quality \(AppInfo.changeTag)"] + lines + [
