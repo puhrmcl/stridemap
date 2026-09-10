@@ -227,13 +227,29 @@ enum EtchCartography {
                 "type": "fill",
                 "source": "etch",
                 "source-layer": "water",
+                // Protomaps mixes polygons, lines and label points in this source. Filling an
+                // open waterway can close it into a triangle across the map.
+                "filter": ["==", "$type", "Polygon"],
                 "paint": ["fill-color": palette.water]
+            ],
+            [
+                "id": "waterways",
+                "type": "line",
+                "source": "etch",
+                "source-layer": "water",
+                "filter": ["==", "$type", "LineString"],
+                "layout": ["line-cap": "round", "line-join": "round"],
+                "paint": [
+                    "line-color": palette.water,
+                    "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.2, 12, 0.6, 16, 1.2]
+                ]
             ],
             [
                 "id": "buildings",
                 "type": "fill",
                 "source": "etch",
                 "source-layer": "buildings",
+                "filter": ["==", "$type", "Polygon"],
                 // Buildings only at close zooms: at city scale they merge into a grey wash that
                 // fights the route, and at street scale they are the texture that says "here".
                 "minzoom": 14,
@@ -282,10 +298,10 @@ enum EtchCartography {
                 "type": "fill",
                 "source": "etch",
                 "source-layer": "landuse",
-                "filter": ["in", "kind",
+                "filter": ["all", ["==", "$type", "Polygon"], ["in", "kind",
                            "park", "forest", "wood", "grass", "meadow", "garden", "cemetery",
                            "golf_course", "nature_reserve", "protected_area", "village_green",
-                           "recreation_ground", "allotments", "zoo"],
+                           "recreation_ground", "allotments", "zoo"]],
                 "paint": ["fill-color": park]
             ], at: 1)
         }
