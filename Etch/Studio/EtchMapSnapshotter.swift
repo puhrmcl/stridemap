@@ -228,7 +228,7 @@ enum EtchMapSnapshotter {
         #if DEBUG
         probeOnce()
         #endif
-        guard let styleURL = styleFile(for: edition, ground: ground) else { return nil }
+        guard let styleURL = await styleFile(for: edition, ground: ground) else { return nil }
 
         let frame = Frame.fitting(coordinates, aspect: Double(size.width / size.height))
         let options = MLNMapSnapshotOptions(styleURL: styleURL,
@@ -253,7 +253,9 @@ enum EtchMapSnapshotter {
                 if let error { NSLog("basemap snapshot failed: %@", error.localizedDescription) }
                 let detail = error.map { value in
                     let e = value as NSError
-                    return "\(e.domain) code \(e.code)"
+                    let detail = e.localizedDescription.replacingOccurrences(
+                        of: #"https?://[^\s]+"#, with: "[resource]", options: .regularExpression)
+                    return "\(e.domain) code \(e.code): \(detail.prefix(400))"
                 }
                 continuation.resume(returning: (snapshot?.image, detail))
             }
@@ -317,11 +319,22 @@ enum EtchMapSnapshotter {
     /// alone would serve the first paper's map for the second one's poster.
     private static var styleFiles: [String: URL] = [:]
 
-    private static func styleFile(for edition: StudioEdition, ground: Color?) -> URL? {
-        let key = "\(edition.id.rawValue)-\(ground?.hexString ?? "authored")"
+    private static func styleFile(for edition: StudioEdition, ground: Color?) async -> URL? {
+        let key = "\(PrintTileSource.revision)-\(edition.id.rawValue)-\(ground?.hexString ?? "authored")"
         if let existing = styleFiles[key],
            FileManager.default.fileExists(atPath: existing.path) { return existing }
-        guard let data = EtchCartography.styleJSON(for: edition, ground: ground) else { return nil }
+        guard let authored = EtchCartography.styleJSON(for: edition, ground: ground),
+              var style = (try? JSONSerialization.jsonObject(with: authored)) as? [String: Any] else { return nil }
+        if edition.id != .satellite {
+            guard let source = await PrintTileSource.resolve() else {
+                diagnosticResults[edition.id] = "Could not resolve versioned map tile metadata"
+                return nil
+            }
+            var sources = style["sources"] as? [String: Any] ?? [:]
+            sources["etch"] = source
+            style["sources"] = sources
+        }
+        guard let data = try? JSONSerialization.data(withJSONObject: style) else { return nil }
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("etch-style-\(key).json")
         guard (try? data.write(to: url, options: .atomic)) != nil else { return nil }

@@ -4,7 +4,7 @@ import UIKit
 /// Exercises production history and composition rules on the PR's simulator build.
 @MainActor
 struct StudioQualityCheckView: View {
-    static let expectedChecks = 47
+    static let expectedChecks = 52
     @State private var report = "Checking Studio…"
 
     var body: some View {
@@ -148,6 +148,17 @@ struct StudioQualityCheckView: View {
         retry.reset()
         expect("Explicit retry immediately clears the pause", retry.allowsAttempt(at: start.addingTimeInterval(46)))
         expect("Explicit retry invalidates older failures", retry.generation != failedGeneration && retry.failures == 0)
+
+        let tile = CommerceConfig.workerBase.absoluteString + "/tiles/{z}/{x}/{y}.mvt"
+        let resolved = PrintTileSource.source(from: ["tiles": [tile], "minzoom": 0, "maxzoom": 15, "scheme": "xyz"])
+        expect("Print tiles preserve placeholders and gain a new cache identity",
+               (resolved?["tiles"] as? [String])?.first == tile + "?etchRevision=" + PrintTileSource.revision)
+        expect("Print tiles preserve served zoom limits", resolved?["maxzoom"] as? Int == 15)
+        expect("Malformed metadata cannot become a print source",
+               PrintTileSource.source(from: ["tiles": [tile], "minzoom": 16, "maxzoom": 15]) == nil)
+        expect("External tile redirects are not silently adopted",
+               PrintTileSource.source(from: ["tiles": ["https://example.org/{z}/{x}/{y}"], "minzoom": 0, "maxzoom": 15]) == nil)
+        expect("Existing tile queries remain intact", PrintTileSource.versioned(tile + "?a=1").contains("?a=1&etchRevision="))
 
         let passed = lines.count == Self.expectedChecks && !lines.contains { $0.hasPrefix("FAIL") }
         let complete = (["studio-quality \(AppInfo.changeTag)"] + lines + [
