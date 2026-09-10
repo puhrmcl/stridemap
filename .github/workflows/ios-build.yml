@@ -264,6 +264,7 @@ jobs:
           shoot memories-expanded    memories ""                15
           shoot timeline-memories    tabs timeline              15
           shoot timeline-large       timeline-large ""           10
+          shoot launch-dot           launch-dot ""               5
           shoot launch-line          launch-line ""              5
           shoot launch-reduced       launch-reduced ""           5
           shoot race-wide-landscape  race-panel wide-landscape   30

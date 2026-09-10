@@ -66,6 +66,10 @@ enum EtchMapSnapshotter {
     }
 
     // An unavailable imagery style must not suspend streets or terrain.
+    private static var diagnosticResults: [StudioEdition.ID: String] = [:]
+    static func diagnostic(for edition: StudioEdition) -> String {
+        diagnosticResults[edition.id] ?? "No snapshot result; check configuration and route points"
+    }
     private static var retryStates: [StudioEdition.ID: MapSnapshotRetryState] = [:]
     static func retry(_ edition: StudioEdition) {
         retryStates[edition.id, default: MapSnapshotRetryState()].reset()
@@ -239,15 +243,23 @@ enum EtchMapSnapshotter {
 
         let generation = retryStates[edition.id, default: MapSnapshotRetryState()].generation
         let snapshotter = MLNMapSnapshotter(options: options)
-        let image: UIImage? = await withCheckedContinuation { continuation in
+        // Keep the asynchronous renderer alive until its callback completes, including under
+        // Release lifetime optimization. This is defensive; a device diagnostic is still needed.
+        defer { withExtendedLifetime(snapshotter) {} }
+        let (image, failure): (UIImage?, String?) = await withCheckedContinuation { continuation in
             snapshotter.start { snapshot, error in
                 // NSLog, not print: the unified log is what CI can read back from a simulator,
                 // and a fallback in a screenshot is only diagnosable with its reason beside it.
                 if let error { NSLog("basemap snapshot failed: %@", error.localizedDescription) }
-                continuation.resume(returning: snapshot?.image)
+                let detail = error.map { value in
+                    let e = value as NSError
+                    return "\(e.domain) code \(e.code)"
+                }
+                continuation.resume(returning: (snapshot?.image, detail))
             }
         }
         guard let image, !isBlank(image) else {
+            diagnosticResults[edition.id] = failure ?? (image == nil ? "Renderer returned no image" : "Map data drew an empty background")
             // Ignore failures from work that preceded a user's explicit retry.
             if retryStates[edition.id, default: MapSnapshotRetryState()].generation == generation {
                 retryStates[edition.id, default: MapSnapshotRetryState()].failed()
@@ -258,6 +270,7 @@ enum EtchMapSnapshotter {
         if retryStates[edition.id, default: MapSnapshotRetryState()].generation == generation {
             retryStates[edition.id, default: MapSnapshotRetryState()].reset()
         }
+        diagnosticResults[edition.id] = "Snapshot rendered successfully"
         return Snapshot(image: image, frame: frame)
     }
 

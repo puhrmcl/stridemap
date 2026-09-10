@@ -47,6 +47,9 @@ struct StudioView: View {
     @State private var isRendering = false
     /// True when the last render came back nil, so the canvas can explain itself.
     @State private var renderFailed = false
+    @State private var mapDiagnostic: String?
+    @State private var diagnosingMap = false
+    @State private var diagnosticCopied = false
 
     /// Which data element the metric picker is open for.
     @State private var editingSlot: StudioContentTarget?
@@ -104,6 +107,27 @@ struct StudioView: View {
                                         Text("The map couldn’t load for this print.").font(.headline)
                                         Text("Retry above, or keep the route and photographs with a clean paper background.")
                                             .font(.subheadline).foregroundStyle(.secondary)
+                                        Button(diagnosingMap ? "Checking map service…" : "Check map connection") {
+                                            diagnosingMap = true
+                                            mapDiagnostic = nil
+                                            diagnosticCopied = false
+                                            let request = config.request(for: run)
+                                            let count = run.coordinates.count
+                                            let enabled = EtchMapSnapshotter.isAvailable
+                                            let renderer = EtchMapSnapshotter.diagnostic(for: request.edition)
+                                            Task {
+                                                mapDiagnostic = await MapBackgroundDiagnostic.report(
+                                                    edition: request.edition.id.rawValue, coordinateCount: count, enabled: enabled, renderer: renderer)
+                                                diagnosingMap = false
+                                            }
+                                        }.disabled(diagnosingMap).frame(minHeight: 44)
+                                        if let mapDiagnostic {
+                                            Text(mapDiagnostic).font(.caption.monospaced()).textSelection(.enabled)
+                                            Button(diagnosticCopied ? "Copied" : "Copy diagnostics") {
+                                                UIPasteboard.general.string = mapDiagnostic
+                                                diagnosticCopied = true
+                                            }.frame(minHeight: 44)
+                                        }
                                         Button("Use No Map") { config.mapStyle = .none }
                                             .frame(minHeight: 44)
                                     }
