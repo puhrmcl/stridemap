@@ -52,6 +52,7 @@ struct TimelineView: View {
     /// The photograph the full-screen viewer is opened on, in the Gallery scope.
     @State private var openedPhoto: OpenedGalleryPhoto?
     @State private var showMemories = false
+    @State private var showFilters = false
     private struct Derived {
         var ready = false
         var scopedRuns: [Run] = []
@@ -63,6 +64,7 @@ struct TimelineView: View {
         var photoActivities: [GalleryActivity] = []
         var photos: [GalleryPhoto] = []
         var datesByID: [UUID: Date] = [:]
+        var activityIDByPhoto: [String: UUID] = [:]
     }
 
     @State private var derived = Derived()
@@ -112,6 +114,7 @@ struct TimelineView: View {
         next.reversedRuns = scoped.reversed()
         next.photoActivities = GalleryIndex.activities(in: scoped)
         next.photos = next.photoActivities.flatMap(\.photos)
+        for photo in next.photos { next.activityIDByPhoto[photo.id] = photo.run.id }
 
         var byYear: [Int: [Run]] = [:]
         var dates: [UUID: Date] = [:]
@@ -124,6 +127,7 @@ struct TimelineView: View {
         next.datesByID = dates
 
         derived = next
+        if scope == .gallery && next.photos.isEmpty { visibleSpan.wrappedValue = nil }
     }
 
     private var scopedRuns: [Run] { derived.scopedRuns }
@@ -208,11 +212,18 @@ struct TimelineView: View {
                             await landOnNewest(proxy, force: true)
                         }
                         .onScrollTargetVisibilityChange(idType: UUID.self) { ids in
+                            guard scope != .gallery else { return }
                             let next = scope == .years ? nil : span(forVisible: Set(ids))
                             if next != visibleSpan.wrappedValue { visibleSpan.wrappedValue = next }
                         }
-                        .onChange(of: scope) { _, new in
-                            if new == .gallery { visibleSpan.wrappedValue = nil }
+                        .onScrollTargetVisibilityChange(idType: String.self) { ids in
+                            guard scope == .gallery else { return }
+                            let activities = Set(ids.compactMap { derived.activityIDByPhoto[$0] })
+                            let next = span(forVisible: activities)
+                            if next != visibleSpan.wrappedValue { visibleSpan.wrappedValue = next }
+                        }
+                        .onChange(of: scope) { _, _ in
+                            visibleSpan.wrappedValue = nil
                         }
                         .task(id: scrollTarget) {
                             guard let target = scrollTarget else { return }
@@ -225,6 +236,7 @@ struct TimelineView: View {
                 }
             }
             .sheet(isPresented: $showMemories) { PhotoMemoriesView() }
+            .sheet(isPresented: $showFilters) { FilterView() }
             .navigationTitle("Timeline")
             .navigationBarTitleDisplayMode(.inline)
             .onChange(of: derivedKey, initial: true) { _, _ in rebuildDerived() }
@@ -242,7 +254,6 @@ struct TimelineView: View {
                     if showsPageHeader {
                         EtchPageHeader("Timeline", subtitle: visibleSpan.wrappedValue ?? headerSubtitle)
                     }
-                    memoriesLink
                     scopePicker
                     if appModel.filter.isActive {
                         EtchFilterChip(filter: appModel.filter) {
@@ -255,46 +266,39 @@ struct TimelineView: View {
                 .background { Color(.systemBackground).ignoresSafeArea(edges: .top) }
                 .overlay(alignment: .bottom) { Divider() }
             }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                timelineActions
+            }
         }
     }
 
-    /// A featured destination across Timeline, independent of browsing mode or photo availability.
-    private var memoriesLink: some View {
-        Button { showMemories = true } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "clock.arrow.circlepath")
-                    .font(.system(size: 25, weight: .medium))
-                    .foregroundStyle(Theme.accent)
-                    .frame(width: 48, height: 48)
-                    .background(Theme.accent.opacity(0.12), in: .circle)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Memories").font(.etch(.title3, weight: .semibold))
-                    Text("Your days. Your places. Rediscovered.")
-                        .font(.etch(.caption))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
+    /// Persistent actions sit near the tab bar, leaving the header for dates and browsing.
+    private var timelineActions: some View {
+        HStack(spacing: 16) {
+            Button { showMemories = true } label: {
+                Label("Memories", systemImage: "clock.arrow.circlepath")
+                    .frame(minHeight: 44)
+                    .contentShape(.rect)
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 18))
-            .overlay {
-                RoundedRectangle(cornerRadius: 18)
-                    .strokeBorder(Theme.accent.opacity(0.18), lineWidth: 1)
+            .accessibilityHint("Rediscover activities by date or nearby location")
+            Spacer(minLength: 8)
+            Button { showFilters = true } label: {
+                Label(appModel.filter.isActive ? "Filtered" : "Filters",
+                      systemImage: appModel.filter.isActive
+                        ? "line.3.horizontal.decrease.circle.fill"
+                        : "line.3.horizontal.decrease.circle")
+                    .frame(minHeight: 44)
+                    .contentShape(.rect)
             }
-            .contentShape(.rect)
+            .accessibilityHint("Filter activities and photos by date, type and location")
         }
+        .font(.etch(.subheadline, weight: .semibold))
         .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Opens memories by date or nearby location")
+        .foregroundStyle(Theme.accent)
         .padding(.horizontal, 20)
-        .padding(.top, 8)
+        .padding(.vertical, 4)
+        .background(Color(.systemBackground))
+        .overlay(alignment: .top) { Divider() }
     }
 
     private func span(forVisible ids: Set<UUID>) -> String? {
@@ -439,6 +443,7 @@ struct TimelineView: View {
                     }
                 }
             }
+            .scrollTargetLayout()
             .padding(.top, 2)
         }
     }

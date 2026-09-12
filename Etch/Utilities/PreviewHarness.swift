@@ -185,6 +185,7 @@ enum PreviewHarness {
 /// that a simulator has no data for.
 struct PreviewHarnessView: View {
     @Environment(\.modelContext) private var context
+    @State private var timelineSpan: String?
     @State private var subject: Run?
     @State private var ready = false
 
@@ -203,7 +204,7 @@ struct PreviewHarnessView: View {
                 case "launch-line":     SplashView(previewLine: true)
                 case "launch-reduced":  SplashView(previewStatic: true)
                 case "timeline-large":
-                    NavigationStack { TimelineView(embedded: true, showsPageHeader: true) }
+                    NavigationStack { TimelineView(embedded: true, visibleSpan: $timelineSpan, showsPageHeader: true) }
                         .environment(\.dynamicTypeSize, .accessibility3)
                 // The whole shell rather than one surface — the only way CI can photograph the
                 // tab bar, since every other case renders a view directly and never sees it.
@@ -214,7 +215,7 @@ struct PreviewHarnessView: View {
                 // arrangements ever get photographed.
                 case let name where name.hasPrefix("timeline"):
                     NavigationStack {
-                        TimelineView(embedded: true, scope: timelineScope(from: name), showsPageHeader: true)
+                        TimelineView(embedded: true, visibleSpan: $timelineSpan, scope: timelineScope(from: name), showsPageHeader: true)
                     }
                 // Milestones, including the Meaning Engine's "Etch noticed" section — the only
                 // way CI can photograph what the engine actually decided to say.
