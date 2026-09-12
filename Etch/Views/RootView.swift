@@ -58,11 +58,11 @@ struct RootView: View {
                 }
             }
             .task {
-                // The signature finishes inside the existing launch budget. Reduced Motion
+                // Let the signature settle before the handoff. Reduced Motion
                 // gets a short static handoff, without waiting for an animation it cannot see.
-                do { try await Task.sleep(for: .milliseconds(reduceMotion ? 200 : 1300)) }
+                do { try await Task.sleep(for: .milliseconds(reduceMotion ? 200 : SplashView.presentationMilliseconds)) }
                 catch { return }
-                withAnimation(.easeInOut(duration: reduceMotion ? 0.15 : 0.35)) { showSplash = false }
+                withAnimation(.easeInOut(duration: reduceMotion ? 0.15 : 0.40)) { showSplash = false }
             }
         }
     }
