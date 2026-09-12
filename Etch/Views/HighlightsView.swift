@@ -11,6 +11,12 @@ struct HighlightsView: View {
     @Environment(AppModel.self) private var appModel
     /// The activity pushed onto this tab's own stack — see `focus(_:)`.
     @State private var pushedRun: Run?
+    @State private var showMemories = false
+    @State private var nearbyMemories = false
+    @State private var selectedInsight: MeaningEngine.Insight?
+    @State private var recordsExpanded = false
+    @State private var memoryDate = Date()
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dismiss) private var dismiss
     @Query private var runs: [Run]
 
@@ -62,6 +68,7 @@ struct HighlightsView: View {
         var breakdown: [(scope: ActivityScope, stats: RunStatistics)] = []
         var locatedCount = 0
         var meaningInsights: [MeaningEngine.Insight] = []
+        var memories: [PhotoMemory] = []
         /// Identifies the exact located set the reach tiles describe — see `reachKey`.
         var reachSignature = 0
     }
@@ -134,6 +141,7 @@ struct HighlightsView: View {
         }
         next.reachSignature = reachHasher.finalize()
         next.meaningInsights = MeaningEngine(runs: typed).insights(limit: 3)
+        next.memories = PhotoMemories.discover(in: runs, scope: scope, now: memoryDate, limit: 3).memories
         if scope == .all {
             next.breakdown = breakdownScopes.compactMap { s in
                 let subset = RunStatistics(runs.scoped(to: s))
@@ -150,23 +158,31 @@ struct HighlightsView: View {
         NavRoot(embedded) {
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(spacing: 24) {
-                        // With more than one activity type, offer the switcher; a single type just
-                        // shows its own achievements with no chooser.
+                    LazyVStack(alignment: .leading, spacing: 28) {
                         if !isSingleActivity { scopeSwitcher }
-                        if !derived.meaningInsights.isEmpty { meaningSection }
-                        if scope == .all {
-                            // The bigger story: combined reach, a per-discipline hub, and recaps.
-                            reachSection
-                            breakdownSection
-                            recapsSection
-                        } else {
-                            // One discipline's deep dive: its records, bests, and recaps.
-                            reachSection
-                            superlativesSection
-                            personalBestsSection
-                            recapsSection
+                        featuredStory
+                        memoriesSection
+                        if derived.meaningInsights.count > 1 { meaningSection }
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Achievements").font(.etch(.title2, weight: .bold))
+                            if scopedRuns.isEmpty {
+                                Text("No activities in this selection. Adjust your filters or activity type to explore your achievements.")
+                                    .font(.etch(.subheadline)).foregroundStyle(.secondary)
+                            } else if scope == .all {
+                                breakdownSection
+                            } else {
+                                DisclosureGroup("Records & personal bests", isExpanded: $recordsExpanded) {
+                                    VStack(spacing: 20) {
+                                        superlativesSection
+                                        personalBestsSection
+                                    }.padding(.top, 16)
+                                }
+                                .font(.etch(.headline))
+                                .tint(Theme.accent)
+                            }
                         }
+                        reachSection
+                        recapsSection
                     }
                     .padding(20)
                     // The whole content is the anchor, scrolled to its own top edge. Nothing on
@@ -183,6 +199,22 @@ struct HighlightsView: View {
                 }
                 // The one place this page's data is built. Everything else reads values.
                 .onChange(of: derivedKey, initial: true) { _, _ in rebuildDerived() }
+                .sheet(isPresented: $showMemories) { PhotoMemoriesView(nearby: nearbyMemories) }
+                .sheet(item: $selectedInsight) { insight in insightDetails(insight) }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active { memoryDate = Date(); rebuildDerived() }
+                }
+                .task {
+                    while !Task.isCancelled {
+                        let current = Date()
+                        let midnight = Calendar.current.date(byAdding: .day, value: 1,
+                            to: Calendar.current.startOfDay(for: current)) ?? current.addingTimeInterval(86400)
+                        do { try await Task.sleep(for: .seconds(max(1, midnight.timeIntervalSince(current)))) }
+                        catch { return }
+                        memoryDate = Date()
+                        rebuildDerived()
+                    }
+                }
                 .navigationTitle("Milestones")
                 .navigationDestination(item: $pushedRun) { run in
                     RunDetailView(run: run)
@@ -286,6 +318,82 @@ struct HighlightsView: View {
         withAnimation(Theme.gentle) { appModel.activityScope = newValue }
     }
 
+    // MARK: Stories and memories
+
+    @ViewBuilder
+    private var featuredStory: some View {
+        if let insight = derived.meaningInsights.first {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Your story").font(.etch(.title2, weight: .bold))
+                Button {
+                    selectedInsight = insight
+                } label: {
+                    VStack(spacing: 0) {
+                        if let run = insight.run {
+                            if !run.isHiddenFromMemories && !run.memoryPhotoReferences.isEmpty {
+                                MemoryCover(identifiers: run.memoryPhotoReferences, run: run)
+                                    .accessibilityHidden(true)
+                            } else {
+                                MemoryRoute(run: run).accessibilityHidden(true)
+                            }
+                        }
+                        MeaningCard(insight: insight, featured: true)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var memoriesSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Memories").font(.etch(.title2, weight: .bold))
+                Spacer()
+                Button("Explore all") { nearbyMemories = false; showMemories = true }
+                    .font(.etch(.subheadline, weight: .semibold))
+                    .frame(minHeight: 44)
+            }
+            Text("Rediscover days, photos and familiar places.")
+                .font(.etch(.subheadline)).foregroundStyle(.secondary)
+            if derived.memories.isEmpty {
+                Button { nearbyMemories = false; showMemories = true } label: {
+                    Label("Explore your history", systemImage: "clock.arrow.circlepath")
+                        .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 18))
+                }.buttonStyle(.plain)
+            } else {
+                ScrollView(.horizontal) {
+                    LazyHStack(alignment: .top, spacing: 14) {
+                        ForEach(derived.memories) { memory in
+                            Button { pushedRun = memory.run } label: {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    MemoryCover(identifiers: memory.run.memoryPhotoReferences, run: memory.run)
+                                        .accessibilityHidden(true)
+                                    Text(memory.title).font(.etch(.headline))
+                                    Text(memory.run.name).font(.etch(.subheadline))
+                                    Text(Format.date(memory.run.startDate))
+                                        .font(.etch(.caption)).foregroundStyle(.secondary)
+                                }
+                                .frame(width: 270, alignment: .leading)
+                                .contentShape(.rect)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityHint("Opens this activity")
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
+            }
+            Button { nearbyMemories = true; showMemories = true } label: {
+                Label("Find memories near you", systemImage: "location")
+                    .frame(minHeight: 44)
+            }
+            .accessibilityHint("Opens nearby discovery; location is requested only when you choose to find memories")
+        }
+    }
+
     // MARK: Meaning
 
     private var meaningSection: some View {
@@ -299,14 +407,46 @@ struct HighlightsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            ForEach(Array(derived.meaningInsights.enumerated()), id: \.element.id) { index, insight in
+            ForEach(Array(derived.meaningInsights.dropFirst()), id: \.id) { insight in
                 Button {
-                    if let run = insight.run { pushedRun = run }
+                    selectedInsight = insight
                 } label: {
-                    MeaningCard(insight: insight, featured: index == 0)
+                    MeaningCard(insight: insight, featured: false)
                 }
                 .buttonStyle(.plain)
-                .disabled(insight.run == nil)
+            }
+        }
+    }
+
+    private func insightDetails(_ insight: MeaningEngine.Insight) -> some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text(insight.title).font(.etch(.largeTitle, weight: .bold))
+                    Text(insight.story).font(.etch(.body))
+                    Text("Behind this insight").font(.etch(.headline))
+                    ForEach(Array(insight.evidence.enumerated()), id: \.offset) { _, evidence in
+                        Label(evidence, systemImage: "checkmark.circle")
+                            .font(.etch(.subheadline))
+                    }
+                    if insight.claimWorld == .open {
+                        Text("Based on the activity history currently in Etch.")
+                            .font(.etch(.caption)).foregroundStyle(.secondary)
+                    }
+                    if let run = insight.run {
+                        NavigationLink { RunDetailView(run: run) } label: {
+                            Label("View activity", systemImage: "arrow.up.right")
+                                .frame(minHeight: 44)
+                        }
+                    }
+                }.padding(20)
+            }
+            .navigationTitle("Etch noticed")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { selectedInsight = nil }
+                }
             }
         }
     }
@@ -339,7 +479,7 @@ struct HighlightsView: View {
                     }
                 }
                 Spacer(minLength: 4)
-                if insight.run != nil {
+                Group {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.tertiary)
