@@ -197,6 +197,8 @@ struct PreviewHarnessView: View {
             } else {
                 switch screen {
                 case "home":            HomeView()
+                case "launch-settled":  SplashView(previewSettled: true)
+                case "launch-motion":   SplashView()
                 case "launch-dot":      SplashView(previewDot: true)
                 case "launch-line":     SplashView(previewLine: true)
                 case "launch-reduced":  SplashView(previewStatic: true)
