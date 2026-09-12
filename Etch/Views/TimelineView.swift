@@ -14,6 +14,8 @@ struct TimelineView: View {
     /// without you having to recognise a photograph. Timeline has the same problem and the same
     /// answer. Nil while nothing is measured, so the header can fall back to its summary.
     var visibleSpan: Binding<String?> = .constant(nil)
+    var showsPageHeader = false
+    var headerSubtitle: String?
     @Environment(AppModel.self) private var appModel
     /// The activity pushed onto this tab's own stack — see `open(_:)`.
     @State private var pushedRun: Run?
@@ -25,7 +27,10 @@ struct TimelineView: View {
     /// harness cannot tap a segmented control, so without this Gallery and All are unverifiable.
     init(embedded: Bool = false,
          visibleSpan: Binding<String?> = .constant(nil),
-         scope: Scope = .years) {
+         scope: Scope = .years,
+         showsPageHeader: Bool = false, headerSubtitle: String? = nil) {
+        self.showsPageHeader = showsPageHeader
+        self.headerSubtitle = headerSubtitle
         self.embedded = embedded
         self.visibleSpan = visibleSpan
         _scope = State(initialValue: scope)
@@ -47,17 +52,6 @@ struct TimelineView: View {
     /// The photograph the full-screen viewer is opened on, in the Gallery scope.
     @State private var openedPhoto: OpenedGalleryPhoto?
     @State private var showMemories = false
-    @Environment(\.scenePhase) private var scenePhase
-    @State private var memoryDate = Date()
-    private static let memoriesAnchor = "timeline-memories"
-
-    private var offersMemories: Bool {
-        runs.scoped(to: ActivitySettings.resolvedScope(appModel.activityScope, in: runs))
-            .contains { !$0.photoReferences.isEmpty }
-    }
-
-    private var showsMemoryCard: Bool { offersMemories && (scope == .years || scope == .gallery) }
-
     private struct Derived {
         var ready = false
         var scopedRuns: [Run] = []
@@ -68,7 +62,6 @@ struct TimelineView: View {
         var reversedRuns: [Run] = []
         var photoMonths: [GalleryMonth] = []
         var photos: [GalleryPhoto] = []
-        var hasPhotos = false
         var datesByID: [UUID: Date] = [:]
     }
 
@@ -119,7 +112,6 @@ struct TimelineView: View {
         next.reversedRuns = scoped.reversed()
         next.photoMonths = GalleryIndex.months(in: scoped)
         next.photos = next.photoMonths.flatMap(\.photos)
-        next.hasPhotos = scoped.contains { !$0.photoReferences.isEmpty }
 
         var byYear: [Int: [Run]] = [:]
         var dates: [UUID: Date] = [:]
@@ -140,11 +132,6 @@ struct TimelineView: View {
     private var timelineRuns: [Run] { derived.reversedRuns }
     private var photoMonths: [GalleryMonth] { derived.photoMonths }
     private var photos: [GalleryPhoto] { derived.photos }
-    private var hasPhotos: Bool { derived.hasPhotos }
-    private var availableScopes: [Scope] {
-        hasPhotos ? Scope.allCases : Scope.allCases.filter { $0 != .gallery }
-    }
-
     @State private var landedScope: Scope?
 
     @MainActor
@@ -172,7 +159,6 @@ struct TimelineView: View {
     }
 
     private var newestID: AnyHashable? {
-        if showsMemoryCard { return AnyHashable(Self.memoriesAnchor) }
         switch scope {
         case .years:   return timelineYears.last.map { AnyHashable($0) }
         case .months:  return timelineMonths.last.map { AnyHashable($0.id) }
@@ -186,11 +172,15 @@ struct TimelineView: View {
             Group {
                 if !derived.ready {
                     Color.clear
+                } else if scope == .gallery && photos.isEmpty {
+                    galleryContent
                 } else if scopedRuns.isEmpty {
                     ContentUnavailableView(
                         "Nothing here yet",
                         systemImage: "calendar",
-                        description: Text("Sync your activities to build your timeline.")
+                        description: Text(appModel.filter.isActive
+                            ? "No activities match these filters."
+                            : "No activities in this scope yet.")
                     )
                 } else {
                     ScrollViewReader { proxy in
@@ -201,15 +191,6 @@ struct TimelineView: View {
                                 case .months: monthsContent
                                 case .all: allContent
                                 case .gallery: galleryContent
-                                }
-                                // History is oldest-first and opens at its recent end. Memories
-                                // belong here in the content, never between two sticky headers.
-                                if showsMemoryCard {
-                                    memoriesCard
-                                        .padding(.horizontal, 16)
-                                        .padding(.top, 8)
-                                        .padding(.bottom, 20)
-                                        .id(Self.memoriesAnchor)
                                 }
                             }
                         }
@@ -244,18 +225,6 @@ struct TimelineView: View {
                 }
             }
             .sheet(isPresented: $showMemories) { PhotoMemoriesView() }
-            .onChange(of: scenePhase) { _, phase in
-                if phase == .active { memoryDate = Date() }
-            }
-            .task {
-                while !Task.isCancelled {
-                    memoryDate = Date()
-                    let nextDay = Calendar.current.startOfDay(for: memoryDate).addingTimeInterval(26 * 3600)
-                    let midnight = Calendar.current.startOfDay(for: nextDay)
-                    do { try await Task.sleep(for: .seconds(max(1, midnight.timeIntervalSinceNow))) }
-                    catch { return }
-                }
-            }
             .navigationTitle("Timeline")
             .navigationBarTitleDisplayMode(.inline)
             .onChange(of: derivedKey, initial: true) { _, _ in rebuildDerived() }
@@ -268,64 +237,58 @@ struct TimelineView: View {
                     selection: selection.id
                 )
             }
-            .safeAreaInset(edge: .top) {
-                VStack(spacing: 8) {
-                    EtchFilterChip(filter: appModel.filter) {
-                        appModel.setFilter(RunFilter())
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 0) {
+                    if showsPageHeader {
+                        EtchPageHeader("Timeline", subtitle: visibleSpan.wrappedValue ?? headerSubtitle)
                     }
-                    .padding(.horizontal, 20)
-                    if embedded && !scopedRuns.isEmpty { scopePicker }
+                    scopePicker
+                    if appModel.filter.isActive {
+                        EtchFilterChip(filter: appModel.filter) {
+                            appModel.setFilter(RunFilter())
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 10)
+                    }
+                    if scope == .gallery { memoriesLink }
                 }
-            }
-            .safeAreaInset(edge: .bottom) {
-                if !embedded && !scopedRuns.isEmpty { scopePicker }
+                .background { Color(.systemBackground).ignoresSafeArea(edges: .top) }
+                .overlay(alignment: .bottom) { Divider() }
             }
         }
     }
 
-    private var memoriesCard: some View {
-        let activityScope = ActivitySettings.resolvedScope(appModel.activityScope, in: runs)
-        let memory = PhotoMemories.discover(in: runs, scope: activityScope, now: memoryDate).memories.first
-        return Button { showMemories = true } label: {
-            HStack(alignment: .center, spacing: 16) {
-                if let photo = memory?.cover {
-                    RunPhotoThumbnail(identifier: photo, size: 72)
-                        .accessibilityHidden(true)
-                } else {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.system(size: 26, weight: .light))
-                        .foregroundStyle(Theme.accent)
-                        .frame(width: 56, height: 72)
-                        .accessibilityHidden(true)
-                }
-                VStack(alignment: .leading, spacing: 5) {
+    /// Memories are a destination within Gallery and stay reachable without matching photos.
+    private var memoriesLink: some View {
+        Button { showMemories = true } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.title3)
+                    .foregroundStyle(Theme.accent)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
                     Text("Memories").font(.etch(.headline))
-                    Text(memory?.title ?? "Your history, remembered")
-                        .font(.etch(.subheadline))
-                        .foregroundStyle(memory == nil ? Color.secondary : Theme.accent)
-                    Text(memory?.run.name ?? "Rediscover photos, activities and familiar places.")
+                    Text("Rediscover days and familiar places")
                         .font(.etch(.caption))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .accessibilityHidden(true)
             }
-            .padding(18)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 22))
-            .overlay {
-                RoundedRectangle(cornerRadius: 22)
-                    .strokeBorder(Theme.accent.opacity(0.16), lineWidth: 1)
-            }
-            .contentShape(.rect(cornerRadius: 22))
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 16))
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityHint("Opens your photo memories")
+        .accessibilityHint("Opens memories by date or nearby location")
+        .padding(.horizontal, 20)
+        .padding(.bottom, 12)
     }
 
     private func span(forVisible ids: Set<UUID>) -> String? {
@@ -362,15 +325,11 @@ struct TimelineView: View {
 
     private var scopePicker: some View {
         Picker("View", selection: $scope.animation(.easeInOut(duration: 0.25))) {
-            ForEach(availableScopes) { Text($0.rawValue).tag($0) }
+            ForEach(Scope.allCases) { Text($0.rawValue).tag($0) }
         }
         .pickerStyle(.segmented)
-        .padding(.horizontal, availableScopes.count > 3 ? 20 : 44)
+        .padding(.horizontal, 20)
         .padding(.vertical, 10)
-        .background(.ultraThinMaterial)
-        .onChange(of: hasPhotos) { _, has in
-            if !has, scope == .gallery { scope = .all }
-        }
     }
 
     private var yearsContent: some View {

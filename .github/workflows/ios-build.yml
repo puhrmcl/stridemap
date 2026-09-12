@@ -263,7 +263,9 @@ jobs:
           shoot memories-nearby      memories nearby            15
           shoot memories-expanded    memories ""                15
           shoot timeline-memories    tabs timeline              15
+          shoot timeline-gallery     timeline:gallery ""        10
           shoot timeline-large       timeline-large ""           10
+          shoot launch-settled       launch-settled ""           5
           shoot launch-dot           launch-dot ""               5
           shoot launch-line          launch-line ""              5
           shoot launch-reduced       launch-reduced ""           5
@@ -285,6 +287,17 @@ jobs:
           shoot anthology-landscape  studio-proof:anthology-landscape "" 20
           shoot lithograph-proof     studio-proof:lithograph ""  20
           shoot studio-accessibility studio-accessibility ""     30
+
+          # Record the actual launch motion as well as the frozen review frames.
+          xcrun simctl terminate "$UDID" com.nwagtech.etch 2>/dev/null || true
+          xcrun simctl io "$UDID" recordVideo --codec=h264 shots/launch-emergence.mp4 &
+          RECORD_PID=$!
+          sleep 1
+          SIMCTL_CHILD_ETCH_PREVIEW=launch-motion SIMCTL_CHILD_ETCH_PREVIEW_SCROLL="" \
+            xcrun simctl launch "$UDID" com.nwagtech.etch >/dev/null
+          sleep 3
+          kill -INT "$RECORD_PID" 2>/dev/null || true
+          wait "$RECORD_PID" || true
 
           for FILE in shots/*.png; do
             [ -f "$FILE" ] || continue

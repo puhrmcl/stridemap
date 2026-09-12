@@ -69,6 +69,18 @@ final class AppModel {
     private(set) var reselectedTab: EtchTab = .map
     private(set) var reselectCount = 0
 
+    /// The brand mark returns to the route map, even from a place overview or a sheet.
+    private(set) var homeMapRequest = 0
+
+    func goToHomeMap() {
+        finishReveal()
+        selectedRunID = nil
+        stackedRunIDs = nil
+        presentedSurface = nil
+        selectedTab = .map
+        homeMapRequest &+= 1
+    }
+
     func reselect(_ tab: EtchTab) {
         reselectedTab = tab
         reselectCount += 1

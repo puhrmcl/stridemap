@@ -184,29 +184,8 @@ struct TimelineTab: View {
 
     var body: some View {
         NavigationStack {
-            TimelineView(embedded: true, visibleSpan: $visibleSpan)
-                // Header only. Timeline supplies its own Years / Months / All directly beneath,
-                // and that is the page's single scope control.
-                //
-                // It was briefly two: History / Achievements here, and Years / Months / All at
-                // the foot. Apple Photos — the model this page follows — has exactly one, docked
-                // at the bottom because Photos has no tab bar. Etch does, so the control comes up
-                // here instead, and Achievements stops being half of a segmented control it was
-                // never parallel to. Years, Months and All are three arrangements of one thing;
-                // Achievements is a different thing.
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    // The span while scrolling, the summary otherwise — Photos shows where you
-                    // are when there is a where, and what you have when there isn't.
-                    //
-                    // Nothing else lives up here. The gallery was briefly a glyph in this corner
-                    // opening a full-screen cover, which made the photographs a side door off the
-                    // page instead of one of its views. They are a fourth segment in the control
-                    // below now, beside Years, Months and All, where the other three arrangements
-                    // of the same history already are.
-                    EtchPageHeader("Timeline", subtitle: visibleSpan ?? summary)
-                        .padding(.bottom, 8)
-                        .background(.bar)
-                }
+            TimelineView(embedded: true, visibleSpan: $visibleSpan,
+                         showsPageHeader: true, headerSubtitle: summary)
                 .toolbar(.hidden, for: .navigationBar)
         }
     }

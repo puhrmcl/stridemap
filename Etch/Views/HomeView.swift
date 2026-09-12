@@ -537,6 +537,13 @@ struct HomeView: View {
         // is in flight. A reveal clears a conflicting filter on its way in, and refitting to the
         // whole set here would issue a camera command *after* the focus and throw it away, which
         // is precisely how "search finds it, the map goes somewhere else" happened.
+        .onChange(of: appModel.homeMapRequest) {
+            showLocations = false
+            isolatedRunID = nil
+            selectedPlaceLabel = nil
+            selectedStateName = nil
+            appModel.fit(visibleRuns)
+        }
         .onChange(of: appModel.filter) {
             guard Reveal.allowsCameraRefit(request: appModel.revealRequest) else { return }
             if !isOverviewMode { appModel.fit(visibleRuns) }
@@ -857,7 +864,13 @@ struct HomeView: View {
     /// without a second floating container to say it.
     private var wordmark: some View {
         HStack(spacing: 7) {
-            EtchWordmark(height: EtchHeaderMetrics.mark)
+            Button { appModel.goToHomeMap() } label: {
+                EtchWordmark(height: EtchHeaderMetrics.mark)
+                    .frame(minHeight: 44)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Go to Map")
             if sync.isSyncing {
                 ProgressView()
                     .controlSize(.mini)
