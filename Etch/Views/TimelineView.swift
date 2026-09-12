@@ -51,7 +51,6 @@ struct TimelineView: View {
     @State private var scrollTarget: String?
     /// The photograph the full-screen viewer is opened on, in the Gallery scope.
     @State private var openedPhoto: OpenedGalleryPhoto?
-    @State private var showMemories = false
     @State private var showFilters = false
     private struct Derived {
         var ready = false
@@ -235,7 +234,6 @@ struct TimelineView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showMemories) { PhotoMemoriesView() }
             .sheet(isPresented: $showFilters) { FilterView() }
             .navigationTitle("Timeline")
             .navigationBarTitleDisplayMode(.inline)
@@ -275,12 +273,6 @@ struct TimelineView: View {
     /// Persistent actions sit near the tab bar, leaving the header for dates and browsing.
     private var timelineActions: some View {
         HStack(spacing: 16) {
-            Button { showMemories = true } label: {
-                Label("Memories", systemImage: "clock.arrow.circlepath")
-                    .frame(minHeight: 44)
-                    .contentShape(.rect)
-            }
-            .accessibilityHint("Rediscover activities by date or nearby location")
             Spacer(minLength: 8)
             Button { showFilters = true } label: {
                 Label(appModel.filter.isActive ? "Filtered" : "Filters",

@@ -12,6 +12,10 @@ struct PhotoMemoriesView: View {
     @State private var selectedRun: Run?
     @State private var saveError = false
     @State private var showNearby = false
+
+    init(nearby: Bool = false) {
+        _showNearby = State(initialValue: nearby)
+    }
     @StateObject private var location = MemoryLocationProvider()
 
     private var scope: ActivityScope { ActivitySettings.resolvedScope(appModel.activityScope, in: runs) }
@@ -151,7 +155,7 @@ struct PhotoMemoriesView: View {
     private func save() { do { try context.save() } catch { saveError = true } }
 }
 
-private struct MemoryCover: View {
+struct MemoryCover: View {
     let identifiers: [String]
     let run: Run
     @State private var image: UIImage?
@@ -178,7 +182,7 @@ private struct MemoryCover: View {
     }
 }
 
-private struct MemoryRoute: View {
+struct MemoryRoute: View {
     let run: Run
     var body: some View {
         ZStack {
