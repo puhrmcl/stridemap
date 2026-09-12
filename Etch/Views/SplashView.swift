@@ -2,6 +2,9 @@ import SwiftUI
 
 /// The letters grow out of the period, then settle into the exact authored wordmark.
 struct SplashView: View {
+    /// Includes a short settled hold before RootView fades into the app.
+    static let presentationMilliseconds = 1950
+
     /// Frozen production states for the screenshot harness.
     var previewLine = false
     var previewStatic = false
@@ -55,13 +58,15 @@ struct SplashView: View {
             if previewSettled { emergence = 1; return }
             if previewLine { emergence = 0.45; bloom = 1.45; return }
             do {
-                try await Task.sleep(for: .milliseconds(90))
-                withAnimation(.easeOut(duration: 0.20)) { bloom = 2.3 }
-                try await Task.sleep(for: .milliseconds(170))
-                withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: 0.72)) {
+                try await Task.sleep(for: .milliseconds(120))
+                withAnimation(.easeInOut(duration: 0.32)) { bloom = 2.0 }
+                try await Task.sleep(for: .milliseconds(320))
+                withAnimation(.timingCurve(0.42, 0, 0.22, 1, duration: 1.20)) {
+                    // One curve moves the letters and settles the dot together. Starting with
+                    // zero velocity avoids the old sudden launch and separate spring snap.
                     emergence = 1
+                    bloom = 1
                 }
-                withAnimation(.spring(response: 0.50, dampingFraction: 0.88)) { bloom = 1 }
             } catch { return }
         }
     }

@@ -60,7 +60,7 @@ struct TimelineView: View {
         var years: [Int] = []
         var runsByYear: [Int: [Run]] = [:]
         var reversedRuns: [Run] = []
-        var photoMonths: [GalleryMonth] = []
+        var photoActivities: [GalleryActivity] = []
         var photos: [GalleryPhoto] = []
         var datesByID: [UUID: Date] = [:]
     }
@@ -110,8 +110,8 @@ struct TimelineView: View {
         }
         next.years = stats.years.reversed()
         next.reversedRuns = scoped.reversed()
-        next.photoMonths = GalleryIndex.months(in: scoped)
-        next.photos = next.photoMonths.flatMap(\.photos)
+        next.photoActivities = GalleryIndex.activities(in: scoped)
+        next.photos = next.photoActivities.flatMap(\.photos)
 
         var byYear: [Int: [Run]] = [:]
         var dates: [UUID: Date] = [:]
@@ -130,7 +130,7 @@ struct TimelineView: View {
     private var timelineMonths: [RunStatistics.MonthGroup] { derived.months }
     private var timelineYears: [Int] { derived.years }
     private var timelineRuns: [Run] { derived.reversedRuns }
-    private var photoMonths: [GalleryMonth] { derived.photoMonths }
+    private var photoActivities: [GalleryActivity] { derived.photoActivities }
     private var photos: [GalleryPhoto] { derived.photos }
     @State private var landedScope: Scope?
 
@@ -242,6 +242,7 @@ struct TimelineView: View {
                     if showsPageHeader {
                         EtchPageHeader("Timeline", subtitle: visibleSpan.wrappedValue ?? headerSubtitle)
                     }
+                    memoriesLink
                     scopePicker
                     if appModel.filter.isActive {
                         EtchFilterChip(filter: appModel.filter) {
@@ -250,7 +251,6 @@ struct TimelineView: View {
                         .padding(.horizontal, 20)
                         .padding(.bottom, 10)
                     }
-                    if scope == .gallery { memoriesLink }
                 }
                 .background { Color(.systemBackground).ignoresSafeArea(edges: .top) }
                 .overlay(alignment: .bottom) { Divider() }
@@ -258,17 +258,19 @@ struct TimelineView: View {
         }
     }
 
-    /// Memories are a destination within Gallery and stay reachable without matching photos.
+    /// A featured destination across Timeline, independent of browsing mode or photo availability.
     private var memoriesLink: some View {
         Button { showMemories = true } label: {
             HStack(spacing: 12) {
                 Image(systemName: "clock.arrow.circlepath")
-                    .font(.title3)
+                    .font(.system(size: 25, weight: .medium))
                     .foregroundStyle(Theme.accent)
+                    .frame(width: 48, height: 48)
+                    .background(Theme.accent.opacity(0.12), in: .circle)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Memories").font(.etch(.headline))
-                    Text("Rediscover days and familiar places")
+                    Text("Memories").font(.etch(.title3, weight: .semibold))
+                    Text("Your days. Your places. Rediscovered.")
                         .font(.etch(.caption))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -281,14 +283,18 @@ struct TimelineView: View {
             }
             .padding(14)
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 16))
+            .background(Theme.accent.opacity(0.08), in: .rect(cornerRadius: 18))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18)
+                    .strokeBorder(Theme.accent.opacity(0.18), lineWidth: 1)
+            }
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityHint("Opens memories by date or nearby location")
         .padding(.horizontal, 20)
-        .padding(.bottom, 12)
+        .padding(.top, 8)
     }
 
     private func span(forVisible ids: Set<UUID>) -> String? {
@@ -419,9 +425,9 @@ struct TimelineView: View {
         } else {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 5),
                       spacing: 2, pinnedViews: [.sectionHeaders]) {
-                ForEach(photoMonths) { month in
+                ForEach(photoActivities) { activity in
                     Section {
-                        ForEach(month.photos) { photo in
+                        ForEach(activity.photos) { photo in
                             Button { openedPhoto = OpenedGalleryPhoto(id: photo.id) } label: {
                                 GalleryTile(identifier: photo.photoID)
                             }
@@ -429,7 +435,7 @@ struct TimelineView: View {
                             .id(photo.id)
                         }
                     } header: {
-                        galleryHeader(month)
+                        galleryHeader(activity)
                     }
                 }
             }
@@ -437,20 +443,35 @@ struct TimelineView: View {
         }
     }
 
-    private func galleryHeader(_ month: GalleryMonth) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(month.title)
-                .font(.etch(.headline, weight: .semibold))
-            Spacer(minLength: 0)
-            Text("\(month.photos.count)")
-                .font(.etch(.footnote, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
+    private func galleryHeader(_ activity: GalleryActivity) -> some View {
+        Button { open(activity.run) } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(activity.run.name)
+                        .font(.etch(.headline, weight: .semibold))
+                        .multilineTextAlignment(.leading)
+                    Text(activity.run.startDate.formatted(date: .abbreviated, time: .shortened))
+                        .font(.etch(.caption))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                Text(activity.photos.count == 1 ? "1 photo" : "\(activity.photos.count) photos")
+                    .font(.etch(.caption))
+                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Theme.accent)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: 44)
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 10)
+            .background(Color(.systemBackground))
+            .contentShape(.rect)
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 18)
-        .padding(.bottom, 8)
-        .background(.bar)
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens this activity")
     }
 
     private func photoTile(_ run: Run, corner: CGFloat, height: CGFloat? = nil,

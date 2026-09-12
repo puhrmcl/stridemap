@@ -2,14 +2,8 @@ import SwiftUI
 
 /// Every photograph attached to every activity, indexed for the Timeline's Gallery scope.
 ///
-/// Etch has always held these pictures and never had a place to look at them: they were reachable
-/// one activity at a time, eight thumbnails behind a tap on a run — a filing cabinet, not a
-/// gallery. Someone who has been running for six years has a few thousand photographs in here
-/// taken at the far ends of their own map, and no way to see them as a body of work.
-///
-/// Gallery is a fourth arrangement of the same history, which is why it lives beside Years, Months
-/// and All rather than behind a corner button. Apple Photos' own grouping: months oldest at the
-/// top, the newest photograph as the last tile on the page.
+/// Groups follow activity chronology, oldest first, opening at the newest activity.
+/// Each activity keeps its own cover/photo order and its own identity, even when names repeat.
 
 /// One photograph, and the activity it belongs to.
 struct GalleryPhoto: Identifiable {
@@ -21,32 +15,21 @@ struct GalleryPhoto: Identifiable {
     var date: Date { run.startDate }
 }
 
-struct GalleryMonth: Identifiable {
-    let start: Date
+struct GalleryActivity: Identifiable {
+    let run: Run
     let photos: [GalleryPhoto]
-    var id: Date { start }
-    var title: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = Calendar.current.isDate(start, equalTo: .now, toGranularity: .year)
-            ? "MMMM" : "MMMM yyyy"
-        return formatter.string(from: start)
-    }
+    var id: UUID { run.id }
 }
 
 enum GalleryIndex {
-    /// Every photograph in the given activities, oldest first, grouped into the month its
-    /// activity happened in.
-    static func months(in runs: [Run]) -> [GalleryMonth] {
-        let calendar = Calendar.current
-        var photos: [GalleryPhoto] = []
-        for run in runs {
-            for id in run.photoReferences { photos.append(GalleryPhoto(photoID: id, run: run)) }
+    static func activities(in runs: [Run]) -> [GalleryActivity] {
+        runs.sorted {
+            if $0.startDate == $1.startDate { return $0.id.uuidString < $1.id.uuidString }
+            return $0.startDate < $1.startDate
+        }.compactMap { run in
+            let photos = run.photoReferences.map { GalleryPhoto(photoID: $0, run: run) }
+            return photos.isEmpty ? nil : GalleryActivity(run: run, photos: photos)
         }
-        photos.sort { $0.date < $1.date }
-        let grouped = Dictionary(grouping: photos) { photo -> Date in
-            calendar.date(from: calendar.dateComponents([.year, .month], from: photo.date)) ?? photo.date
-        }
-        return grouped.keys.sorted().map { GalleryMonth(start: $0, photos: grouped[$0] ?? []) }
     }
 }
 
