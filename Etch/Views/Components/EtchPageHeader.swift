@@ -26,6 +26,7 @@ struct EtchPageHeader<Trailing: View>: View {
     /// action that belongs to this page rather than to the app.
     @ViewBuilder var trailing: () -> Trailing
 
+    @Environment(AppModel.self) private var appModel
     @State private var showProfile = false
     @AppStorage("profileImageData") private var profileImageData: Data?
 
@@ -38,7 +39,13 @@ struct EtchPageHeader<Trailing: View>: View {
 
     var body: some View {
         EtchCenteredRow {
-            EtchWordmark(height: EtchHeaderMetrics.mark)
+            Button { appModel.goToHomeMap() } label: {
+                EtchWordmark(height: EtchHeaderMetrics.mark)
+                    .frame(minHeight: 44)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Go to Map")
         } center: {
             // The title sits on the row's centre line, at the size and in the slot the map's
             // totals occupy. That is the whole idea: four tabs, one row, and the only thing that

@@ -471,7 +471,16 @@ struct StudioHomeView: View {
             // tagline treatment belongs only to the home variant (whose toolbar mark is small).
             if !isHome {
                 VStack(alignment: .leading, spacing: 8) {
-                    EtchWordmark(height: Self.mastheadMarkHeight * 0.85)
+                    Button {
+                        appModel.goToHomeMap()
+                        dismiss()
+                    } label: {
+                        EtchWordmark(height: Self.mastheadMarkHeight * 0.85)
+                            .frame(minHeight: 44)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Go to Map")
                     Text("Turn any ride, run, hike or race into gallery-grade art.")
                         .font(.etch(.subheadline))
                         .foregroundStyle(.secondary)

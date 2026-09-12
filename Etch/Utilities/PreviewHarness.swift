@@ -203,7 +203,7 @@ struct PreviewHarnessView: View {
                 case "launch-line":     SplashView(previewLine: true)
                 case "launch-reduced":  SplashView(previewStatic: true)
                 case "timeline-large":
-                    NavigationStack { TimelineView(embedded: true) }
+                    NavigationStack { TimelineView(embedded: true, showsPageHeader: true) }
                         .environment(\.dynamicTypeSize, .accessibility3)
                 // The whole shell rather than one surface — the only way CI can photograph the
                 // tab bar, since every other case renders a view directly and never sees it.
@@ -214,7 +214,7 @@ struct PreviewHarnessView: View {
                 // arrangements ever get photographed.
                 case let name where name.hasPrefix("timeline"):
                     NavigationStack {
-                        TimelineView(embedded: true, scope: timelineScope(from: name))
+                        TimelineView(embedded: true, scope: timelineScope(from: name), showsPageHeader: true)
                     }
                 // Milestones, including the Meaning Engine's "Etch noticed" section — the only
                 // way CI can photograph what the engine actually decided to say.

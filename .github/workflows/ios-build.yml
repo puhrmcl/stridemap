@@ -263,6 +263,7 @@ jobs:
           shoot memories-nearby      memories nearby            15
           shoot memories-expanded    memories ""                15
           shoot timeline-memories    tabs timeline              15
+          shoot timeline-gallery     timeline:gallery ""        10
           shoot timeline-large       timeline-large ""           10
           shoot launch-settled       launch-settled ""           5
           shoot launch-dot           launch-dot ""               5
