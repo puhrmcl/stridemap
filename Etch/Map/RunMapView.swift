@@ -61,6 +61,8 @@ struct RunMapView: UIViewRepresentable {
     /// off the route, or the floating chip's ✕). Written by the map, cleared by either side.
     var isolatedRun: Binding<UUID?>? = nil
     var opensAtWorld = false
+    /// Changes only when crossing between globe and regional zoom.
+    var worldOverview: Binding<Bool>? = nil
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -249,6 +251,7 @@ struct RunMapView: UIViewRepresentable {
         /// Whether the map has framed the runs once on first appearance.
         var didInitialFrame = false
         var userMovedMap = false
+        var lastWorldOverview: Bool?
         /// The `contentRevision` the overlays/clusters were last built for. Compared as a single
         /// integer on every representable update so pure re-layouts (e.g. the search sheet dragging,
         /// which re-evaluates the parent's body every frame) skip the overlay/cluster rebuild
@@ -764,6 +767,21 @@ struct RunMapView: UIViewRepresentable {
 
         /// Redraw the heatmap whenever the viewport changes so the glow stays registered to
         /// the map as the user pans and zooms.
+        func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
+            updateWorldOverview(mapView)
+        }
+
+        private func updateWorldOverview(_ mapView: MKMapView) {
+            guard let binding = parent.worldOverview else { return }
+            let previous = lastWorldOverview ?? binding.wrappedValue
+            // Hysteresis keeps a pinch around the boundary from flickering the summary.
+            let distance = mapView.camera.centerCoordinateDistance
+            let overview = previous ? distance >= 12_000_000 : distance >= 14_000_000
+            guard lastWorldOverview != overview else { return }
+            lastWorldOverview = overview
+            DispatchQueue.main.async { binding.wrappedValue = overview }
+        }
+
         func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
             let recognizers = (mapView.subviews.first?.gestureRecognizers ?? []) + (mapView.gestureRecognizers ?? [])
             if recognizers.contains(where: { $0.state == .began || $0.state == .changed }) {
@@ -773,6 +791,7 @@ struct RunMapView: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+            updateWorldOverview(mapView)
             parent.centerBox?.coordinate = mapView.centerCoordinate
             parent.centerBox?.camera = mapView.camera.copy() as? MKMapCamera
             // ~6.6 km of latitude in view or less: close enough that tilting into 3D shows real
@@ -853,7 +872,7 @@ struct RunMapView: UIViewRepresentable {
                     latitude: points.reduce(0) { $0 + $1.latitude } / Double(points.count),
                     longitude: points.reduce(0) { $0 + $1.longitude } / Double(points.count))
             map?.setCamera(MKMapCamera(lookingAtCenter: center,
-                fromDistance: 22_000_000, pitch: 0, heading: 0), animated: false)
+                fromDistance: 26_000_000, pitch: 0, heading: 0), animated: false)
         }
 
         /// Frames the full set of runs — used when entering the history view so the entire
