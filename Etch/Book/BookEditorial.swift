@@ -90,10 +90,13 @@ extension BookPageView {
     func locator(_ run: Run?, height: CGFloat = 104, tint: Color? = nil) -> some View {
         if let run, run.coordinates.count > 1 {
             VStack(alignment: .leading, spacing: 9) {
+                // Given an open width, RouteShape aspect-fits and centres itself inside it, which
+                // left the line floating away from the place label set beneath it. Constraining
+                // the width and aligning that box left keeps the locator on the column's edge.
                 RouteShape(coordinates: run.coordinates)
                     .stroke(tint ?? ink.opacity(0.4),
                             style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
-                    .frame(height: height)
+                    .frame(width: height * 1.45, height: height)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if let place = placeLine(run) {
                     Text(place.uppercased())

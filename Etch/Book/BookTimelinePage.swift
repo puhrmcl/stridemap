@@ -76,6 +76,22 @@ extension BookPageView {
 
         return ZStack(alignment: .topLeading) {
 
+            // Leaders first, so the activity strokes draw over them rather than under: an
+            // annotation that crosses in front of the data reads as part of the chart.
+            ForEach(Array(chips.enumerated()), id: \.element.id) { index, _ in
+                let slot = chips.count == 1
+                    ? size.width / 2
+                    : size.width * (CGFloat(index) + 0.5) / CGFloat(chips.count)
+                let target = chipDates.indices.contains(index) ? x(for: chipDates[index]) : slot
+                // Staggered elbows. At one shared height the five horizontal runs joined up into
+                // a continuous rule across the page that read as an axis the chart does not have.
+                let fraction = 0.26 + 0.13 * Double(index % 4)
+                TimelineLeader(from: CGPoint(x: slot, y: chipHeight),
+                               to: CGPoint(x: target, y: axisY),
+                               elbowFraction: fraction)
+                    .stroke(ink.opacity(0.22), style: StrokeStyle(lineWidth: 1, dash: [3, 4]))
+            }
+
             // Every activity, as a stroke scaled by distance.
             ForEach(runs, id: \.id) { run in
                 let height = max(3, CGFloat(run.distance / maxDistance) * maxStroke)
@@ -103,17 +119,11 @@ extension BookPageView {
                 .position(x: x(for: tick), y: axisY + 16)
             }
 
-            // Photographs, evenly spaced so they cannot collide, each leading back to its date.
+            // Photographs, evenly spaced so they cannot collide.
             ForEach(Array(chips.enumerated()), id: \.element.id) { index, chip in
                 let slot = chips.count == 1
                     ? size.width / 2
                     : size.width * (CGFloat(index) + 0.5) / CGFloat(chips.count)
-                let target = chipDates.indices.contains(index) ? x(for: chipDates[index]) : slot
-
-                TimelineLeader(from: CGPoint(x: slot, y: chipHeight),
-                               to: CGPoint(x: target, y: axisY))
-                    .stroke(ink.opacity(0.28), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
-
                 bleedPhoto(chip.image)
                     .frame(width: chipHeight * 1.28, height: chipHeight)
                     .position(x: slot, y: chipHeight / 2)
@@ -194,10 +204,13 @@ extension BookPageView {
 struct TimelineLeader: Shape {
     let from: CGPoint
     let to: CGPoint
+    /// How far down the drop the horizontal run sits. Staggered by the caller so several
+    /// leaders never merge into one continuous rule across the page.
+    var elbowFraction: Double = 0.45
 
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        let elbow = from.y + (to.y - from.y) * 0.45
+        let elbow = from.y + (to.y - from.y) * elbowFraction
         path.move(to: from)
         path.addLine(to: CGPoint(x: from.x, y: elbow))
         path.addLine(to: CGPoint(x: to.x, y: elbow))

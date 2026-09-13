@@ -94,18 +94,18 @@ extension BookPageView {
                 deck(BookCaption.feature(lead, within: chapter))
             }
 
-            // One flexible gap, above the data. Two Spacers split the slack evenly and left the
-            // locator stranded in a void of its own; the column reads better as prose at the top
-            // and the numbers anchored to the foot.
-            Spacer(minLength: 24)
-
+            // The whole block sits under the kicker with the slack below it, the way a magazine
+            // sidebar is set. Putting the flexible gap in the middle instead left a dead band
+            // between the caption and the numbers that read as an unfinished column.
             factRail(chapterFacts(chapter))
+                .padding(.top, 40)
 
             locator(lead)
-                .padding(.top, 26)
+                .padding(.top, 30)
+
+            Spacer(minLength: 16)
 
             folio(pageNumber)
-                .padding(.top, 20)
         }
         .padding(.horizontal, 50)
         .padding(.vertical, margin - 8)
