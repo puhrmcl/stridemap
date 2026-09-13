@@ -841,7 +841,7 @@ struct RunMapView: UIViewRepresentable {
                 )
                 map.setRegion(region, animated: true)
             case .world:
-                showWorld(runs: runs)
+                showWorld(runs: runs, animated: !UIAccessibility.isReduceMotionEnabled)
             case .userLocation:
                 let coordinate = map.userLocation.coordinate
                 guard CLLocationCoordinate2DIsValid(coordinate),
@@ -855,8 +855,8 @@ struct RunMapView: UIViewRepresentable {
         }
 
         /// The busiest coarse region avoids averaging far-apart trips into an empty ocean.
-        /// No animation or delayed retry: the map is immediately owned by the user's gestures.
-        func showWorld(runs: [Run]) {
+        /// Launch framing stays still; the explicit globe control uses the native camera animation.
+        func showWorld(runs: [Run], animated: Bool = false) {
             let coordinates = runs.compactMap(\.startCoordinate).filter {
                 CLLocationCoordinate2DIsValid($0) && !($0.latitude == 0 && $0.longitude == 0)
             }
@@ -872,7 +872,7 @@ struct RunMapView: UIViewRepresentable {
                     latitude: points.reduce(0) { $0 + $1.latitude } / Double(points.count),
                     longitude: points.reduce(0) { $0 + $1.longitude } / Double(points.count))
             map?.setCamera(MKMapCamera(lookingAtCenter: center,
-                fromDistance: 26_000_000, pitch: 0, heading: 0), animated: false)
+                fromDistance: 26_000_000, pitch: 0, heading: 0), animated: animated)
         }
 
         /// Frames the full set of runs — used when entering the history view so the entire

@@ -219,6 +219,12 @@ struct PreviewHarnessView: View {
                     }
                 // Milestones, including the Meaning Engine's "Etch noticed" section — the only
                 // way CI can photograph what the engine actually decided to say.
+                case "add-library":
+                    NavigationStack { AddRaceView(eventID: "mesa") }
+                case "event-selection":
+                    NavigationStack {
+                        EventLibrarySelection(event: RaceCatalog.event(id: "boston")!, year: 2026, onSelect: { _ in })
+                    }
                 case "event-library":
                     NavigationStack {
                         ScrollView {

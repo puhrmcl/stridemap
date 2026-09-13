@@ -263,6 +263,8 @@ jobs:
           shoot memories-nearby      memories nearby            15
           shoot memories-expanded    memories ""                15
           shoot timeline-memories    tabs timeline              15
+          shoot add-library         add-library ""             20
+          shoot event-selection     event-selection ""         20
           shoot event-library       event-library ""           20
           shoot milestones-story    milestones ""              20
           shoot milestones-shell    tabs achievements          20
