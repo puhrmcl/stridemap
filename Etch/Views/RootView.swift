@@ -36,6 +36,7 @@ struct RootView: View {
 
     /// The brand splash covers the app on launch, then fades away.
     @State private var showSplash = true
+    @State private var worldReveal: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var isReady: Bool {
@@ -53,6 +54,21 @@ struct RootView: View {
                 content
                 if showSplash {
                     SplashView()
+                        .mask {
+                            GeometryReader { geometry in
+                                let logo = UIImage(named: "LaunchLogo")?.size ?? .zero
+                                let diameter = hypot(geometry.size.width, geometry.size.height) * 2.5
+                                ZStack {
+                                    Rectangle()
+                                    Circle()
+                                        .frame(width: diameter * worldReveal, height: diameter * worldReveal)
+                                        .position(x: geometry.size.width / 2 + logo.width * 0.46,
+                                                  y: geometry.size.height / 2 + logo.height * 0.216)
+                                        .blendMode(.destinationOut)
+                                }.compositingGroup()
+                            }
+                        }
+                        .allowsHitTesting(worldReveal == 0)
                         .transition(.opacity)
                         .zIndex(1)
                 }
@@ -62,7 +78,15 @@ struct RootView: View {
                 // gets a short static handoff, without waiting for an animation it cannot see.
                 do { try await Task.sleep(for: .milliseconds(reduceMotion ? 200 : SplashView.presentationMilliseconds)) }
                 catch { return }
-                withAnimation(.easeInOut(duration: reduceMotion ? 0.15 : 0.40)) { showSplash = false }
+                if !reduceMotion && isReady && didCompleteSetup && appModel.selectedTab == .map {
+                    // The period opens onto the real, already interactive globe. No camera tour.
+                    withAnimation(.easeInOut(duration: 0.85)) { worldReveal = 1 }
+                    do { try await Task.sleep(for: .milliseconds(850)) }
+                    catch { return }
+                    showSplash = false
+                } else {
+                    withAnimation(.easeInOut(duration: reduceMotion ? 0.15 : 0.40)) { showSplash = false }
+                }
             }
         }
     }

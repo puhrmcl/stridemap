@@ -62,7 +62,10 @@ struct HomeView: View {
     @Query(sort: \Run.startDate, order: .reverse) private var allRuns: [Run]
 
     @AppStorage("mapStyle") private var mapStyleRaw = MapStyleOption.standard.rawValue
-    private var mapStyle: MapStyleOption { MapStyleOption(rawValue: mapStyleRaw) ?? .standard }
+    @State private var worldStyle = true
+    private var mapStyle: MapStyleOption {
+        worldStyle ? .hybrid : (MapStyleOption(rawValue: mapStyleRaw) ?? .standard)
+    }
     /// When off, the route map hides the start pins and shows only the mapped lines.
     @AppStorage("showMapPins") private var showPins = true
 
@@ -223,6 +226,7 @@ struct HomeView: View {
         var runStartPoints: [RunMapPoint] = []
         var shownTotalRuns = 0
         var shownTotalDistance = 0.0
+        var geographySummary = ""
     }
 
     @State private var derived = Derived()
@@ -261,6 +265,7 @@ struct HomeView: View {
         next.years = stats.years
         next.shownTotalRuns = counting.totalRuns
         next.shownTotalDistance = counting.totalDistanceMeters
+        next.geographySummary = "\(stats.travelPlaces.count) cities · \(stats.states.count) states · \(stats.countries.count) countries"
 
         var located = 0
         var points: [RunMapPoint] = []
@@ -416,7 +421,8 @@ struct HomeView: View {
                 centerBox: centerBox,
                 zoomedInFor3D: $mapZoomedIn,
                 contentRevision: appModel.mapContentRevision,
-                isolatedRun: $isolatedRunID
+                isolatedRun: $isolatedRunID,
+                opensAtWorld: true
             )
             .opacity(showLocations ? 0 : 1)
             .allowsHitTesting(!showLocations)
@@ -608,12 +614,22 @@ struct HomeView: View {
             // The fade-with-sheet lives in a child that observes the live height, so the totals pill
             // fades smoothly as the page expands without re-running HomeView's body every frame.
             SheetFade(metrics: sheetMetrics, maxHeight: sheetMaxHeight) {
+                VStack(spacing: 0) {
                 topBar
                     // Outer padding plus the pill's interior lands the mark exactly `side` from
                     // the screen edge — the same place every other tab puts it.
                     .padding(.horizontal, EtchHeaderMetrics.pillOuter)
                     .padding(.top, EtchHeaderMetrics.top - 9)   // less the pill's own vertical padding
                     .mapChromeAppearance(mapStyle)
+                if !showLocations {
+                    Text(derived.geographySummary.isEmpty ? "Your world, etched." : derived.geographySummary)
+                        .font(.etch(.caption, weight: .semibold))
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(.regularMaterial, in: .capsule)
+                        .padding(.top, 6)
+                        .accessibilityLabel("Places in your selected history. " + derived.geographySummary)
+                }
+                }
             }
         }
         // The docked Apple Maps-style search sheet plus the floating map controls that track its
@@ -701,6 +717,7 @@ struct HomeView: View {
         // rather than pushing the whole screen up when the search field is focused.
         .ignoresSafeArea(.keyboard, edges: .bottom)
         // A light tactile tick when the base map type changes from the Map Type picker.
+        .onChange(of: mapStyleRaw) { _, _ in worldStyle = false }
         .sensoryFeedback(.selection, trigger: mapStyleRaw)
         // A selection tick when the activity type or view actually changes.
         .sensoryFeedback(.selection, trigger: appModel.activityScope)
@@ -1664,6 +1681,25 @@ struct HomeView: View {
     /// two-control pill Apple uses.
     private var actionCapsule: some View {
         VStack(spacing: 0) {
+            Button {
+                appModel.finishReveal()
+                appModel.selectedRunID = nil
+                appModel.stackedRunIDs = nil
+                showLocations = false
+                isolatedRunID = nil
+                is3D = false
+                worldStyle = true
+                appModel.command = MapCameraCommand(target: .world)
+            } label: {
+                VStack(spacing: 2) {
+                    Image(systemName: "globe.americas").font(.system(size: 20, weight: .medium))
+                    Text("World").font(.system(size: 10, weight: .semibold))
+                }.frame(width: MapControl.size, height: MapControl.size)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Show your world")
+            capsuleDivider
+
             capsuleButton(systemName: "map", isActive: showMapStyleMenu) {
                 withAnimation(Theme.spring) { showMapStyleMenu.toggle() }
             }
@@ -1788,7 +1824,7 @@ struct HomeView: View {
     private func mapModeTile(_ style: MapStyleOption) -> some View {
         let selected = mapStyle == style
         return Button {
-            withAnimation(Theme.gentle) { mapStyleRaw = style.rawValue }
+            withAnimation(Theme.gentle) { worldStyle = false; mapStyleRaw = style.rawValue }
         } label: {
             VStack(spacing: 8) {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)

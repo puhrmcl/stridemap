@@ -22,32 +22,9 @@ final class AppModel {
     private(set) var mapContentRevision = 0
     func bumpMapContent() { mapContentRevision &+= 1 }
 
-    /// Which of the four destinations is showing.
-    ///
-    /// Held here rather than as `@State` inside the tab view so any surface can move the app —
-    /// Studio's masthead button reaches the map by selecting a tab, not by presenting one. Its
-    /// predecessor, `studioIsHome`, did the opposite: it asked which half of the app you wanted
-    /// and hid the other behind a modal. Persisted, because the tab you were on is a place, and
-    /// returning to the app should return you to it.
-    ///
-    /// The stored value is checked against `destinations` rather than merely parsed. `.bag` is
-    /// still a valid `EtchTab` — Studio's header button and the search prompts use it — but it is
-    /// no longer a bar item, so anyone whose last session ended on the Bag would have been
-    /// restored to a tab the `TabView` no longer contains, and met a blank screen on upgrade.
-    var selectedTab: EtchTab = AppModel.restoredTab {
-        didSet {
-            // `.search` is a tool you pass through, never somewhere to be restored to.
-            guard selectedTab != .search else { return }
-            UserDefaults.standard.set(selectedTab.rawValue, forKey: "etchSelectedTab")
-        }
-    }
-
-    /// The tab to open on, healed against the bar as it exists today.
-    private static var restoredTab: EtchTab {
-        let stored = EtchTab(rawValue: UserDefaults.standard.string(forKey: "etchSelectedTab") ?? "")
-        guard let stored, EtchTab.destinations.contains(stored) else { return .map }
-        return stored
-    }
+    /// A fresh process opens on the globe. Background/foreground transitions keep this model
+    /// and its selected destination, so returning to an active session never resets navigation.
+    var selectedTab: EtchTab = .map
 
     /// Which full-screen surface (if any) is presented over the map.
     enum Surface: String, Identifiable {
