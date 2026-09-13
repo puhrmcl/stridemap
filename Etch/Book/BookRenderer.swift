@@ -107,11 +107,23 @@ enum BookRenderer {
         case .timeline:         side = preview ? 300 : 700
         default:                side = preview ? 600 : 1500
         }
+        // Full-bleed pages get the editorial sentence; the gallery's grid keeps the short
+        // tracked label, which is the right register for a tile and the wrong one for a plate.
+        let editorial: Bool
+        switch spec {
+        case .plate, .opening: editorial = true
+        default:               editorial = false
+        }
         for pick in picks {
             let image = await PhotoLibrary.image(for: pick.reference,
                                                  targetSize: CGSize(width: side, height: side))
-            let caption = pick.run.map { "\($0.name) · \(formatter.string(from: $0.startDate))" }
-                ?? "From the library"
+            let caption: String
+            if editorial {
+                caption = BookCaption.plate(pick.run)
+            } else {
+                caption = pick.run.map { "\($0.name) · \(formatter.string(from: $0.startDate))" }
+                    ?? "From the library"
+            }
             photos.append(BookPagePhoto(image: image, caption: caption))
         }
         return photos

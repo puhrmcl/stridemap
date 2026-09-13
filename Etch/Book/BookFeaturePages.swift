@@ -20,11 +20,18 @@ extension BookPageView {
             bleedPhoto(photos.first?.image)
                 .frame(width: BookCatalog.pageSize.width, height: BookCatalog.pageSize.height)
             footScrim(height: 430)
-            VStack(alignment: .leading, spacing: 18) {
-                kicker(plan.subject.kind == .year ? "The year in pictures" : "In pictures")
-                headline(plan.subject.title.uppercased(), size: 62, color: ground)
-                    .tracking(6)
-                deck(openingDeck, size: 17, color: ground.opacity(0.85))
+            VStack(alignment: .leading, spacing: 16) {
+                // The kicker is bone here, not accent: brand blue on a dark scrim over an
+                // unknown photograph is the one place in the book where contrast cannot be
+                // guaranteed. The accent keeps its voice as the rule above it.
+                Rectangle().fill(accent).frame(width: 46, height: 2)
+                Text((plan.subject.kind == .year ? "The year in pictures" : "In pictures").uppercased())
+                    .font(.etch(size: 10.5, weight: .semibold))
+                    .tracking(4.5)
+                    .foregroundStyle(ground.opacity(0.82))
+                headline(plan.subject.title.uppercased(), size: 84, color: ground)
+                    .tracking(7)
+                deck(openingDeck, size: 17, color: ground.opacity(0.88))
                     .frame(maxWidth: 620, alignment: .leading)
             }
             .padding(.horizontal, margin)
@@ -87,16 +94,18 @@ extension BookPageView {
                 deck(BookCaption.feature(lead, within: chapter))
             }
 
-            Spacer(minLength: 26)
+            // One flexible gap, above the data. Two Spacers split the slack evenly and left the
+            // locator stranded in a void of its own; the column reads better as prose at the top
+            // and the numbers anchored to the foot.
+            Spacer(minLength: 24)
 
             factRail(chapterFacts(chapter))
 
-            Spacer(minLength: 26)
-
             locator(lead)
+                .padding(.top, 26)
 
             folio(pageNumber)
-                .padding(.top, 22)
+                .padding(.top, 20)
         }
         .padding(.horizontal, 50)
         .padding(.vertical, margin - 8)

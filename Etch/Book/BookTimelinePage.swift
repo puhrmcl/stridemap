@@ -80,8 +80,8 @@ extension BookPageView {
             ForEach(runs, id: \.id) { run in
                 let height = max(3, CGFloat(run.distance / maxDistance) * maxStroke)
                 Rectangle()
-                    .fill(run.isRace ? accent : ink.opacity(0.32))
-                    .frame(width: run.isRace ? 2.4 : 1.4, height: height)
+                    .fill(run.isRace ? accent : ink.opacity(0.45))
+                    .frame(width: run.isRace ? 2.6 : 1.7, height: height)
                     .position(x: x(for: run.startDate), y: axisY - height / 2)
             }
 
