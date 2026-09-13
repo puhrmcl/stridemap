@@ -75,7 +75,10 @@ struct PhotoMemory: Identifiable {
         case .nearby: return "Back in this area"
         }
     }
-    var cover: String? { run.memoryPhotoReferences.first }
+    /// Display-only exclusions keep shared library assets from repeating across memory cards.
+    var usedPhotoIDs: Set<String> = []
+    var photoReferences: [String] { run.memoryPhotoReferences.filter { !usedPhotoIDs.contains($0) } }
+    var cover: String? { photoReferences.first }
 }
 
 enum PhotoMemories {
@@ -150,11 +153,14 @@ extension PhotoMemories {
         let tiers: [(PhotoMemory.Match, [Run])] = [(.day, exact), (.week, week), (.month, month), (.history, eligible)]
         for photosOnly in [true, false] {
             for (match, candidates) in tiers {
-                let selected = candidates.filter { !photosOnly || !$0.memoryPhotoReferences.isEmpty }
+                let photoCandidates = candidates.filter { !photosOnly || !$0.memoryPhotoReferences.isEmpty }
+                // An exact-date collection includes its photo-less years too. Wider fallback
+                // still prioritizes photos when there are no anniversary photos at all.
+                let selected = match == .day && !photoCandidates.isEmpty ? candidates : photoCandidates
                 if !selected.isEmpty {
-                    return Collection(match: match, memories: selected.prefix(max(0, limit)).map {
+                    return Collection(match: match, memories: distinctArtwork(selected.map {
                         PhotoMemory(run: $0, yearsAgo: max(0, (current.year ?? 0) - calendar.component(.year, from: $0.startDate)), match: match)
-                    })
+                    }, limit: limit))
                 }
             }
         }
@@ -168,13 +174,30 @@ extension PhotoMemories {
         guard location.horizontalAccuracy >= 0, location.horizontalAccuracy <= 5_000,
               abs(location.timestamp.timeIntervalSince(now)) <= 300, radius > 0,
               CLLocationCoordinate2DIsValid(location.coordinate) else { return [] }
-        return runs.scoped(to: scope).filter { run in
+        let candidates = runs.scoped(to: scope).filter { run in
             guard !run.isHiddenFromMemories, run.startDate < calendar.startOfDay(for: now),
                   let coordinate = run.startCoordinate, CLLocationCoordinate2DIsValid(coordinate) else { return false }
             return location.distance(from: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)) <= radius
         }.sorted { $0.startDate == $1.startDate ? $0.id.uuidString < $1.id.uuidString : $0.startDate > $1.startDate }
-            .prefix(max(0, limit)).map {
+            .map {
                 PhotoMemory(run: $0, yearsAgo: max(0, calendar.component(.year, from: now) - calendar.component(.year, from: $0.startDate)), match: .nearby)
             }
+        return distinctArtwork(candidates, limit: limit)
     }
+
+    private static func distinctArtwork(_ memories: [PhotoMemory], limit: Int) -> [PhotoMemory] {
+        var seenActivities = Set<UUID>()
+        var reservedPhotos = Set<String>()
+        var result: [PhotoMemory] = []
+        for var memory in memories where seenActivities.insert(memory.id).inserted {
+            guard result.count < max(0, limit) else { break }
+            memory.usedPhotoIDs = reservedPhotos
+            // Reserve every candidate, including load fallbacks, so an unavailable first photo
+            // cannot cause a later card to display the same fallback asset.
+            reservedPhotos.formUnion(memory.photoReferences)
+            result.append(memory)
+        }
+        return result
+    }
+
 }

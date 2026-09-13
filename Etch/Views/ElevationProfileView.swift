@@ -1,16 +1,14 @@
 import SwiftUI
 
-/// A filled elevation-over-distance chart for a route. Prefers the source's recorded altitude
-/// stream (exact and instant); falls back to terrain sampled along the path (Open-Meteo, cached)
-/// only when the run carries none. Elevation is the story of a hike, so hike/ride detail leads with
-/// it — the climb, and the low and high points, the way AllTrails does. The terrain fallback needs
-/// one network fetch (then cached), so it fails quietly to a short note when offline.
+/// Shared by every activity type. Recorded altitude takes priority over an explicitly labelled
+/// terrain estimate; a missing route never masquerades as a flat elevation profile.
 struct ElevationProfileView: View {
     let run: Run
 
     @State private var samples: [Double] = []
     @State private var phase: Phase = .loading
-    private enum Phase { case loading, loaded, failed }
+    @State private var estimated = false
+    private enum Phase { case loading, loaded, failed, unavailable }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -23,15 +21,21 @@ struct ElevationProfileView: View {
                     .fill(Color.secondary.opacity(0.12))
                     .frame(height: 130)
                     .overlay { ProgressView() }
+            case .unavailable:
+                Text("No elevation profile was recorded for this activity.")
+                    .font(.footnote).foregroundStyle(.secondary)
             case .failed:
                 HStack(spacing: 8) {
                     Image(systemName: "wifi.slash").foregroundStyle(.tertiary)
-                    Text("Elevation profile needs a connection — it'll load next time you're online.")
+                    Text("Elevation profile couldn’t load. Try again when you have a connection.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+                Button("Try again") { Task { await load() } }
             case .loaded:
+                Text(estimated ? "Estimated terrain elevation" : "Recorded elevation")
+                    .font(.caption).foregroundStyle(.secondary)
                 chart
                 stats
             }
@@ -115,15 +119,18 @@ struct ElevationProfileView: View {
         // instant (no network). Fall back to terrain sampled along the route (cached) only when
         // the source carried no elevation stream.
         let recorded = run.elevationSeries
-        if recorded.count > 1 {
+        estimated = false
+        if recorded.count > 1 && recorded.allSatisfy({ $0.isFinite }) {
             samples = recorded
             phase = .loaded
             return
         }
         phase = .loading
         let coords = run.coordinates
-        guard coords.count > 1 else { phase = .failed; return }
-        if let profile = await ElevationService.routeProfile(for: coords), profile.count > 1 {
+        guard !run.isIndoor, coords.count > 1 else { phase = .unavailable; return }
+        if let profile = await ElevationService.routeProfile(for: coords), profile.count > 1, profile.allSatisfy({ $0.isFinite }) {
+            guard !Task.isCancelled else { return }
+            estimated = true
             samples = profile
             phase = .loaded
         } else {

@@ -7,7 +7,7 @@ import CoreLocation
 @MainActor
 struct PhotoMemoryCheckView: View {
     @State private var report = "Running photo memory checks…"
-    private static let expectedChecks = 61
+    private static let expectedChecks = 69
 
     var body: some View {
         ScrollView { Text(report).font(.system(.caption, design: .monospaced)).padding() }
@@ -164,6 +164,35 @@ struct PhotoMemoryCheckView: View {
         check("Inaccurate location is rejected", nearby([local], fix: inaccurate).isEmpty)
         local.startLatitude = 91
         check("Invalid stored coordinates are rejected", nearby([local]).isEmpty)
+
+        let sharedA = fixture(date(2025, 9, 7, 15))
+        let sharedB = fixture(date(2025, 9, 7, 8))
+        let sharedCards = discover([sharedB, sharedA]).memories
+        check("Shared photo keeps distinct activities without repeating artwork",
+              sharedCards.count == 2 && sharedCards[0].cover == "cover" && sharedCards[1].cover == nil)
+        sharedB.photoReferences.append("unique")
+        let alternatives = discover([sharedB, sharedA]).memories
+        check("Shared photo uses a unique alternative", alternatives.last?.cover == "unique")
+        check("Memory presentation never edits source attachments",
+              sharedA.photoReferences == ["cover", "second"] && sharedB.photoReferences == ["cover", "second", "unique"])
+        check("Repeated activity IDs collapse before the result limit",
+              discover([sharedA, sharedA, sharedB], limit: 2).memories.map(\.id) == [sharedA.id, sharedB.id])
+        let photolessYear = fixture(date(2020)); photolessYear.photoReferences = []
+        check("Exact anniversaries retain years without photos",
+              discover([sharedA, photolessYear]).memories.map(\.id) == [sharedA.id, photolessYear.id])
+        let manyYears = (2010...2025).map { fixture(date($0)) }
+        check("Explore all retains more than eight anniversary years",
+              discover(manyYears, limit: Int.max).memories.count == 16)
+        sharedA.startLatitude = 0; sharedA.startLongitude = 0
+        sharedB.startLatitude = 0; sharedB.startLongitude = 0
+        check("Nearby uses the same distinct photo policy", nearby([sharedA, sharedB]).map(\.cover) == ["cover", "unique"])
+        let meaning = MeaningEngine(runs: [sharedA, sharedB, photolessYear])
+        let allInsights = meaning.insights(limit: 100)
+        let storyInsights = meaning.insights(limit: 100, excludingKinds: [.personalBest, .record])
+        check("Story excludes records without losing non-record insights",
+              allInsights.contains { $0.kind == .personalBest || $0.kind == .record }
+              && !storyInsights.isEmpty
+              && storyInsights.map(\.title) == allInsights.filter { $0.kind != .personalBest && $0.kind != .record }.map(\.title))
 
         do {
             check("Corrections survive a disk store reopen", try persistenceCheck(date: date(2025)))

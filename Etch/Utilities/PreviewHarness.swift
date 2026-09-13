@@ -294,6 +294,14 @@ struct PreviewHarnessView: View {
                 case let name where name.hasPrefix("gallery-studio"):
                     studio(family: .gallery, design: designVariant(from: name))
                 case "detail":          detail
+                case "activity-photos":
+                    if let run = allRuns.first(where: { $0.photoReferences.count >= 3 }) {
+                        PhotoReviewView(run: run)
+                    }
+                case "activity-elevation":
+                    if let subject {
+                        ScrollView { ElevationProfileView(run: subject).padding() }
+                    }
                 case "gift":            NavigationStack { GiftCardView() }
                 // The share-photo chooser, rendered directly rather than raised as a sheet —
                 // CI photographs a screen, not a tap sequence.

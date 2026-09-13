@@ -19,11 +19,11 @@ struct PhotoMemoriesView: View {
     @StateObject private var location = MemoryLocationProvider()
 
     private var scope: ActivityScope { ActivitySettings.resolvedScope(appModel.activityScope, in: runs) }
-    private var collection: PhotoMemories.Collection { PhotoMemories.discover(in: runs, scope: scope, now: now) }
+    private var collection: PhotoMemories.Collection { PhotoMemories.discover(in: runs, scope: scope, now: now, limit: Int.max) }
     private var hidden: [Run] { runs.scoped(to: scope).filter(\.isHiddenFromMemories) }
     private var nearby: [PhotoMemory] {
         guard let fix = location.location else { return [] }
-        return PhotoMemories.nearby(in: runs, scope: scope, location: fix)
+        return PhotoMemories.nearby(in: runs, scope: scope, location: fix, limit: Int.max)
     }
 
     var body: some View {
@@ -128,13 +128,13 @@ struct PhotoMemoriesView: View {
             Button { selectedRun = memory.run } label: {
                 VStack(alignment: .leading, spacing: 12) {
                     if memory.cover != nil {
-                        MemoryCover(identifiers: memory.run.memoryPhotoReferences, run: memory.run)
+                        MemoryCover(identifiers: memory.photoReferences, run: memory.run)
                     } else {
                         MemoryRoute(run: memory.run)
                     }
                     Text(memory.title).font(.etch(.title2, weight: .bold))
                     Text(memory.run.name).font(.etch(.headline))
-                    Text("\(Format.date(memory.run.startDate)) · \(Format.distance(memory.run.distance))")
+                    Text("\(Format.date(memory.run.startDate)) · \(memory.run.startDate.formatted(date: .omitted, time: .shortened)) · \(Format.distance(memory.run.distance))")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }.frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
             }.buttonStyle(.plain)
