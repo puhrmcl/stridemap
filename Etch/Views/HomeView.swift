@@ -81,6 +81,7 @@ struct HomeView: View {
     /// True while the map is zoomed close enough for 3D content to be worth offering — gates the
     /// floating 3D button. Written by the map only when the threshold is crossed.
     @State private var mapZoomedIn = false
+    @State private var worldOverview = true
     /// The activity the map is isolated to (long-press on a route or pin); nil = everything.
     /// The map writes it, the floating chip names it, and either side can clear it.
     @State private var isolatedRunID: UUID?
@@ -422,7 +423,8 @@ struct HomeView: View {
                 zoomedInFor3D: $mapZoomedIn,
                 contentRevision: appModel.mapContentRevision,
                 isolatedRun: $isolatedRunID,
-                opensAtWorld: true
+                opensAtWorld: true,
+                worldOverview: $worldOverview
             )
             .opacity(showLocations ? 0 : 1)
             .allowsHitTesting(!showLocations)
@@ -627,6 +629,10 @@ struct HomeView: View {
                         .padding(.horizontal, 14).padding(.vertical, 8)
                         .background(.regularMaterial, in: .capsule)
                         .padding(.top, 6)
+                        .opacity(worldOverview ? 1 : 0)
+                        .animation(.easeInOut(duration: reduceMotion ? 0.15 : 0.3), value: worldOverview)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(!worldOverview)
                         .accessibilityLabel("Places in your selected history. " + derived.geographySummary)
                 }
                 }
@@ -1691,10 +1697,9 @@ struct HomeView: View {
                 worldStyle = true
                 appModel.command = MapCameraCommand(target: .world)
             } label: {
-                VStack(spacing: 2) {
-                    Image(systemName: "globe.americas").font(.system(size: 20, weight: .medium))
-                    Text("World").font(.system(size: 10, weight: .semibold))
-                }.frame(width: MapControl.size, height: MapControl.size)
+                Image(systemName: "globe.americas")
+                    .font(.system(size: 20, weight: .medium))
+                    .frame(width: MapControl.size, height: MapControl.size)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Show your world")
