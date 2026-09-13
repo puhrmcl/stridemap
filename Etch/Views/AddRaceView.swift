@@ -63,6 +63,7 @@ struct AddRaceView: View {
     var body: some View {
         Form {
             eventSection
+            Section { EventLibraryOverview(event: event, year: year) }
             upcomingSection
             resultSection
             if event.discipline.hasFinisherFields { finisherSection }
