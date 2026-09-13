@@ -188,9 +188,7 @@ struct MemoryRoute: View {
         ZStack {
             Theme.accent.opacity(0.08)
             if run.hasRoute {
-                RouteShape(coordinates: run.coordinates)
-                    .stroke(Theme.accent, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-                    .padding(30)
+                RouteMapTile(run: run)
             } else {
                 Label("\(Format.distance(run.distance)) remembered", systemImage: "clock.arrow.circlepath")
                     .font(.etch(.title3)).foregroundStyle(Theme.accent)

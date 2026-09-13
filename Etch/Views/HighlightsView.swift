@@ -69,6 +69,7 @@ struct HighlightsView: View {
         var locatedCount = 0
         var meaningInsights: [MeaningEngine.Insight] = []
         var memories: [PhotoMemory] = []
+        var storyRun: Run?
         /// Identifies the exact located set the reach tiles describe — see `reachKey`.
         var reachSignature = 0
     }
@@ -141,6 +142,16 @@ struct HighlightsView: View {
         }
         next.reachSignature = reachHasher.finalize()
         next.meaningInsights = MeaningEngine(runs: typed).insights(limit: 3)
+        let storyHistory = typed.filter { !$0.isHiddenFromMemories }.sorted {
+            $0.startDate == $1.startDate ? $0.id.uuidString < $1.id.uuidString : $0.startDate > $1.startDate
+        }
+        let associated = next.meaningInsights.first?.run
+        if let associated, !associated.isHiddenFromMemories, !associated.memoryPhotoReferences.isEmpty {
+            next.storyRun = associated
+        } else {
+            next.storyRun = storyHistory.first { !$0.memoryPhotoReferences.isEmpty }
+                ?? storyHistory.first { $0.hasRoute } ?? storyHistory.first
+        }
         next.memories = PhotoMemories.discover(in: runs, scope: scope, now: memoryDate, limit: 3).memories
         if scope == .all {
             next.breakdown = breakdownScopes.compactMap { s in
@@ -181,7 +192,6 @@ struct HighlightsView: View {
                                 .tint(Theme.accent)
                             }
                         }
-                        reachSection
                         recapsSection
                     }
                     .padding(20)
@@ -320,28 +330,55 @@ struct HighlightsView: View {
 
     // MARK: Stories and memories
 
-    @ViewBuilder
     private var featuredStory: some View {
-        if let insight = derived.meaningInsights.first {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Your story").font(.etch(.title2, weight: .bold))
-                Button {
-                    selectedInsight = insight
-                } label: {
-                    VStack(spacing: 0) {
-                        if let run = insight.run {
-                            if !run.isHiddenFromMemories && !run.memoryPhotoReferences.isEmpty {
-                                MemoryCover(identifiers: run.memoryPhotoReferences, run: run)
-                                    .accessibilityHidden(true)
-                            } else {
-                                MemoryRoute(run: run).accessibilityHidden(true)
-                            }
-                        }
-                        MeaningCard(insight: insight, featured: true)
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Your story").font(.etch(.title2, weight: .bold))
+            VStack(alignment: .leading, spacing: 0) {
+                if let run = derived.storyRun {
+                    Button { pushedRun = run } label: {
+                        VStack(alignment: .leading, spacing: 10) {
+                            StoryArtwork(run: run).id(run.id)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(run.name).font(.etch(.headline))
+                                Text("From your history · \(Format.date(run.startDate))")
+                                    .font(.etch(.caption)).foregroundStyle(.secondary)
+                            }.padding(.horizontal, 18).padding(.bottom, 16)
+                        }.contentShape(.rect)
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens the activity pictured here")
                 }
-                .buttonStyle(.plain)
+                if let insight = derived.meaningInsights.first {
+                    Button { selectedInsight = insight } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Label("Etch noticed", systemImage: insight.symbol)
+                                    .font(.etch(.caption, weight: .semibold)).foregroundStyle(Theme.accent)
+                                Spacer()
+                                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Text(insight.title).font(.etch(.title3, weight: .semibold))
+                            Text(insight.story).font(.etch(.subheadline)).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(.rect)
+                    }.buttonStyle(.plain)
+                }
             }
+            .background(Color(.secondarySystemBackground))
+            .clipShape(.rect(cornerRadius: 24))
+            if appModel.filter.isActive {
+                Text("Stats below reflect your current filters.")
+                    .font(.etch(.caption)).foregroundStyle(.secondary)
+            }
+            HStack {
+                Label("\(derived.totalRuns.formatted()) activities", systemImage: scope.icon)
+                Spacer()
+                Text("\(derived.years.count) \(derived.years.count == 1 ? "year" : "years")")
+            }
+            .font(.etch(.subheadline, weight: .semibold))
+            .foregroundStyle(.secondary)
+            reachSection
         }
     }
 
@@ -500,26 +537,23 @@ struct HighlightsView: View {
 
     private var reachSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Places you’ve etched")
-                .font(.etch(.title2, weight: .bold))
-
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 NavigationLink {
                     CitiesListView(places: derived.travelPlaces)
                 } label: {
                     // Match the Cities map / list, which cluster by place (travelPlaces), not the
                     // raw distinct-city-name set.
-                    StatTile(value: derived.travelPlaces.count.formatted(), label: "Cities", systemName: "building.2", accent: true)
+                    StoryStat(value: derived.travelPlaces.count.formatted(), label: "Cities", systemName: "building.2", accent: true)
                 }
                 .buttonStyle(.plain)
                 NavigationLink {
                     StatesView()
                 } label: {
-                    StatTile(value: reachStateValue, label: "States", systemName: "map")
+                    StoryStat(value: reachStateValue, label: "States", systemName: "map")
                 }
                 .buttonStyle(.plain)
-                StatTile(value: reachCountryValue, label: "Countries", systemName: "globe")
-                StatTile(
+                StoryStat(value: reachCountryValue, label: "Countries", systemName: "globe")
+                StoryStat(
                     value: Format.distanceValue(derived.totalDistance).formatted(.number.precision(.fractionLength(0))),
                     label: "Total \(UnitSystem.current.distanceSuffix)",
                     systemName: scope.icon,
@@ -528,17 +562,17 @@ struct HighlightsView: View {
                 // For climbing disciplines (hikes, rides) elevation is a headline metric, not an
                 // afterthought — surface total ascent and the average per outing.
                 if scopeClimbs {
-                    StatTile(value: climbValue(derived.totalElevation), label: "Total climb",
+                    StoryStat(value: climbValue(derived.totalElevation), label: "Total climb",
                              systemName: "mountain.2", accent: true)
-                    StatTile(value: climbValue(averageClimb), label: "Avg climb",
+                    StoryStat(value: climbValue(averageClimb), label: "Avg climb",
                              systemName: "arrow.up.forward")
                 }
                 // Speed is a headline metric for rides (pace suits runs) — surface average and,
                 // when a source recorded it, top speed.
                 if scope == .rides {
-                    StatTile(value: averageSpeedValue, label: "Avg speed", systemName: "speedometer", accent: true)
+                    StoryStat(value: averageSpeedValue, label: "Avg speed", systemName: "speedometer", accent: true)
                     if let top = topSpeedValue {
-                        StatTile(value: top, label: "Top speed", systemName: "gauge.high")
+                        StoryStat(value: top, label: "Top speed", systemName: "gauge.high")
                     }
                 }
             }
@@ -757,5 +791,67 @@ struct HighlightsView: View {
             appModel.select(run)
             appModel.presentedSurface = nil
         }
+    }
+}
+
+/// A photograph and its own map share one composition. Map snapshots are cached by the existing
+/// route tile renderer; no live map participates in scrolling or commerce rendering.
+private struct StoryArtwork: View {
+    let run: Run
+    @State private var photograph: UIImage?
+
+    var body: some View {
+        Color(.secondarySystemBackground)
+            .frame(height: 220)
+            .overlay {
+                if let photograph {
+                    Image(uiImage: photograph).resizable().scaledToFill()
+                } else {
+                    RouteMapTile(run: run)
+                }
+            }
+            .clipped()
+            .overlay(alignment: .bottomTrailing) {
+                if photograph != nil && run.hasRoute {
+                    RouteMapTile(run: run)
+                        .frame(width: 104, height: 104)
+                        .clipShape(.rect(cornerRadius: 16))
+                        .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(.white.opacity(0.8), lineWidth: 2) }
+                        .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
+                        .padding(12)
+                }
+            }
+            .accessibilityHidden(true)
+            .task(id: run.memoryPhotoReferences) {
+                photograph = nil
+                for identifier in run.memoryPhotoReferences {
+                    let loaded = await PhotoLibrary.image(for: identifier, targetSize: CGSize(width: 1000, height: 660))
+                    guard !Task.isCancelled else { return }
+                    if let loaded { photograph = loaded; break }
+                }
+            }
+    }
+}
+
+private struct StoryStat: View {
+    let value: String
+    let label: String
+    let systemName: String
+    var accent = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(label, systemImage: systemName)
+                .font(.etch(.caption, weight: .semibold))
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.system(.title2, design: .rounded, weight: .semibold))
+                .foregroundStyle(accent ? Theme.accent : Color.primary)
+                .monospacedDigit()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 18))
+        .accessibilityElement(children: .combine)
     }
 }
