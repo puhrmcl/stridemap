@@ -26,11 +26,12 @@ struct RootView: View {
     @AppStorage("includeHikes") private var includeHikes = true
     @AppStorage("includeRides") private var includeRides = true
     @AppStorage("includeWalks") private var includeWalks = false
+    @AppStorage("includePaddles") private var includePaddles = true
 
     private var allActivitiesOff: Bool {
         // Touch each AppStorage so a Settings toggle re-renders the root; the check itself
         // is the shared definition so rides cannot be left out of "everything off".
-        _ = (includeRuns, includeHikes, includeRides, includeWalks)
+        _ = (includeRuns, includeHikes, includeRides, includeWalks, includePaddles)
         return ActivitySettings.allOff
     }
 
@@ -122,6 +123,7 @@ struct RootView: View {
         .onChange(of: includeHikes) { _, _ in appModel.bumpMapContent() }
         .onChange(of: includeRides) { _, _ in appModel.bumpMapContent() }
         .onChange(of: includeWalks) { _, _ in appModel.bumpMapContent() }
+        .onChange(of: includePaddles) { _, _ in appModel.bumpMapContent() }
         .task(id: isReady) {
             guard isReady else { return }
             // Import on every launch, then keep observing for new workouts. This used to run

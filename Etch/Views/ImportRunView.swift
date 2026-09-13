@@ -38,7 +38,7 @@ struct ImportRunView: View {
 
     /// The type that will be used — the override, or Etch's auto-detection.
     private var resolvedType: ActivityType { activityOverride ?? activity.activityType }
-    private var typeChoices: [ActivityType] { [.run, .hike, .ride, .walk] }
+    private var typeChoices: [ActivityType] { [.run, .hike, .ride, .walk, .paddle] }
 
     private var hasRoute: Bool { !activity.coordinates.isEmpty }
     private var trimmedTitle: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }

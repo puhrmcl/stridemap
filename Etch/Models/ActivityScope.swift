@@ -3,7 +3,7 @@ import SwiftUI
 /// Which activity type the app is currently showing. `all` blends every imported type; the others
 /// narrow to one. Drives the totals-pill selector and every run-consuming surface.
 enum ActivityScope: String, CaseIterable, Identifiable {
-    case all, runs, hikes, rides, walks
+    case all, runs, hikes, rides, walks, paddles
     var id: String { rawValue }
 
     /// The single type this scope narrows to; nil for `all`.
@@ -14,6 +14,7 @@ enum ActivityScope: String, CaseIterable, Identifiable {
         case .hikes: return .hike
         case .rides: return .ride
         case .walks: return .walk
+        case .paddles: return .paddle
         }
     }
 
@@ -25,6 +26,7 @@ enum ActivityScope: String, CaseIterable, Identifiable {
         case .hikes: return "Hikes"
         case .rides: return "Rides"
         case .walks: return "Walks"
+        case .paddles: return "Paddling"
         }
     }
 
@@ -36,6 +38,7 @@ enum ActivityScope: String, CaseIterable, Identifiable {
         case .hikes: return "hikes"
         case .rides: return "rides"
         case .walks: return "walks"
+        case .paddles: return "paddles"
         }
     }
 
@@ -46,6 +49,7 @@ enum ActivityScope: String, CaseIterable, Identifiable {
         case .hikes: return "figure.hiking"
         case .rides: return "figure.outdoor.cycle"
         case .walks: return "figure.walk"
+        case .paddles: return "oar.2.crossed"
         }
     }
 
@@ -57,6 +61,7 @@ enum ActivityScope: String, CaseIterable, Identifiable {
         case .hikes: return "hike"
         case .rides: return "ride"
         case .walks: return "walk"
+        case .paddles: return "paddle"
         }
     }
 
@@ -92,24 +97,29 @@ enum ActivityScope: String, CaseIterable, Identifiable {
     }
 }
 
-/// Per-activity visibility. Runs are the base and always shown; hikes and walks can each be turned
-/// off so someone who only cares about running never sees the rest. Hikes are on by default (a
-/// deliberate import); walks are off by default because Apple Watch auto-logs many short walks.
+/// Per-activity visibility. Runs are the base and always shown; the rest can each be turned off so
+/// someone who only cares about running never sees them. Hikes, rides and paddling are on by
+/// default (each is a deliberate, explicitly started activity); walks are off by default because
+/// Apple Watch auto-logs many short ones.
 enum ActivitySettings {
     /// Defaults to `true` when the key was never written — the positive default for runs, hikes & rides.
     static var includeRuns: Bool { UserDefaults.standard.object(forKey: "includeRuns") as? Bool ?? true }
     static var includeHikes: Bool { UserDefaults.standard.object(forKey: "includeHikes") as? Bool ?? true }
     static var includeRides: Bool { UserDefaults.standard.object(forKey: "includeRides") as? Bool ?? true }
     static var includeWalks: Bool { UserDefaults.standard.bool(forKey: "includeWalks") }
+    static var includePaddles: Bool { UserDefaults.standard.object(forKey: "includePaddles") as? Bool ?? true }
 
     /// True when every activity type is turned off — the app has nothing to show and prompts setup.
-    static var allOff: Bool { !includeRuns && !includeHikes && !includeRides && !includeWalks }
+    static var allOff: Bool {
+        !includeRuns && !includeHikes && !includeRides && !includeWalks && !includePaddles
+    }
 
-    /// The four toggles as one comparable value, for views that cache work derived from them.
+    /// The toggles as one comparable value, for views that cache work derived from them.
     /// `UserDefaults` is not observable, so a view holding a cached result needs the settings in
     /// its cache key or a toggle in Settings leaves a stale page behind it.
     static var mask: Int {
-        (includeRuns ? 1 : 0) | (includeHikes ? 2 : 0) | (includeRides ? 4 : 0) | (includeWalks ? 8 : 0)
+        (includeRuns ? 1 : 0) | (includeHikes ? 2 : 0) | (includeRides ? 4 : 0)
+            | (includeWalks ? 8 : 0) | (includePaddles ? 16 : 0)
     }
 
     /// Whether a given scope is currently visible. `all` stays available as long as anything is on.
@@ -120,6 +130,7 @@ enum ActivitySettings {
         case .hikes: return includeHikes
         case .rides: return includeRides
         case .walks: return includeWalks
+        case .paddles: return includePaddles
         }
     }
 
@@ -128,15 +139,16 @@ enum ActivitySettings {
     /// The scope-shaped overload above answers "may this selector option be chosen?"; this one
     /// answers "may this activity be shown at all?", which is what admitting a single activity —
     /// a search result, a reveal — actually needs.
-    /// Types outside the four toggles (ski, swim, row, other) are never filtered out by
+    /// Types outside the toggles (ski, swim, row, other) are never filtered out by
     /// `scoped(to:)` either — this has to agree with it exactly, or a reveal would reject an
     /// activity the map is perfectly happy to draw.
     static func isVisible(_ type: ActivityType) -> Bool {
         switch type {
-        case .run:  return includeRuns
-        case .hike: return includeHikes
-        case .ride: return includeRides
-        case .walk: return includeWalks
+        case .run:    return includeRuns
+        case .hike:   return includeHikes
+        case .ride:   return includeRides
+        case .walk:   return includeWalks
+        case .paddle: return includePaddles
         case .ski, .swim, .row, .other: return true
         }
     }
@@ -160,7 +172,7 @@ enum ActivitySettings {
 
     /// The activity types this history actually contains, among those enabled in Settings.
     static func populatedScopes(in runs: [Run]) -> [ActivityScope] {
-        [.runs, .hikes, .rides, .walks].filter { isVisible($0) && !runs.scoped(to: $0).isEmpty }
+        [.runs, .hikes, .rides, .walks, .paddles].filter { isVisible($0) && !runs.scoped(to: $0).isEmpty }
     }
 
     /// The scope a surface should actually present and count, given the reader's selection.
@@ -199,6 +211,7 @@ extension Sequence where Element == Run {
         let includeHikes = ActivitySettings.includeHikes
         let includeRides = ActivitySettings.includeRides
         let includeWalks = ActivitySettings.includeWalks
+        let includePaddles = ActivitySettings.includePaddles
         return filter { run in
             if run.isHidden { return false }
             let type = run.activityType
@@ -206,12 +219,14 @@ extension Sequence where Element == Run {
             if type == .hike && !includeHikes { return false }
             if type == .ride && !includeRides { return false }
             if type == .walk && !includeWalks { return false }
+            if type == .paddle && !includePaddles { return false }
             switch scope {
             case .all:   return true
             case .runs:  return type == .run
             case .hikes: return type == .hike
             case .rides: return type == .ride
             case .walks: return type == .walk
+            case .paddles: return type == .paddle
             }
         }
     }

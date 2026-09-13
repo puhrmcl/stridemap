@@ -30,7 +30,7 @@ enum ImportMethod: String {
 /// The normalized kind of activity, parsed from every source even while the UI filters to
 /// running. Keeps the importer honest about future walking/hiking/cycling support without
 /// hard-coding "run" into the parsers.
-enum ActivityType: String {
+enum ActivityType: String, CaseIterable {
     case run
     case walk
     case hike
@@ -38,6 +38,7 @@ enum ActivityType: String {
     case ski
     case swim
     case row
+    case paddle    // canoe / kayak / stand-up paddleboard — HealthKit's `paddleSports`
     case other
 
     /// Fuzzy-maps a provider's free-text sport label (GPX `<type>`, TCX `Sport=`, Strava
@@ -51,6 +52,11 @@ enum ActivityType: String {
         if s.contains("ski") { return .ski }
         if s.contains("swim") { return .swim }
         if s.contains("row") { return .row }
+        // Paddling arrives under many names: Apple Health's `paddleSports`, Strava's `Kayaking`,
+        // `Canoeing` and `StandUpPaddling`, and free-text "SUP" / "paddleboard" from file imports.
+        // `paddl` covers paddle, paddling and paddleboard in one; bare "sup" only as the whole
+        // label, since it is a substring of ordinary words a provider might use.
+        if s.contains("paddl") || s.contains("kayak") || s.contains("canoe") || s == "sup" { return .paddle }
         return .other
     }
 
@@ -66,6 +72,7 @@ enum ActivityType: String {
         case .ski:   return "Ski"
         case .swim:  return "Swim"
         case .row:   return "Row"
+        case .paddle: return "Paddle"
         case .other: return "Activity"
         }
     }
@@ -80,6 +87,7 @@ enum ActivityType: String {
         case .ski:   return "figure.skiing.downhill"
         case .swim:  return "figure.pool.swim"
         case .row:   return "figure.rower"
+        case .paddle: return "oar.2.crossed"
         case .other: return "figure.mixed.cardio"
         }
     }

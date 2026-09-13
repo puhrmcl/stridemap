@@ -12,10 +12,13 @@ struct SetupView: View {
     @AppStorage("includeHikes") private var includeHikes = true
     @AppStorage("includeRides") private var includeRides = true
     @AppStorage("includeWalks") private var includeWalks = false
+    @AppStorage("includePaddles") private var includePaddles = true
     @AppStorage("didCompleteSetup") private var didCompleteSetup = false
 
     private var ground: Color { scheme == .dark ? Theme.Palette.ink : Theme.Palette.bone }
-    private var allOff: Bool { !includeRuns && !includeHikes && !includeRides && !includeWalks }
+    private var allOff: Bool {
+        !includeRuns && !includeHikes && !includeRides && !includeWalks && !includePaddles
+    }
 
     var body: some View {
         ZStack {
@@ -60,6 +63,8 @@ struct SetupView: View {
                 toggleRow("Rides", "figure.outdoor.cycle", $includeRides)
                 rowDivider
                 toggleRow("Walks", "figure.walk", $includeWalks)
+                rowDivider
+                toggleRow("Paddling", "oar.2.crossed", $includePaddles)
             }
             .background(.regularMaterial, in: .rect(cornerRadius: 18))
         }

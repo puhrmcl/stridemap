@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Proves the shared activity-scope rule and the reveal lifecycle, on a simulator, in CI.
 ///
@@ -35,7 +36,7 @@ struct ScopeRuleCheckView: View {
     /// How many assertions this screen is supposed to make. Written into the report and checked
     /// by the workflow, so a check that stops running — an early return, a block that throws, a
     /// case someone deleted — fails the job instead of producing a shorter all-green report.
-    static let expectedChecks = 26
+    static let expectedChecks = 37
 
     @State private var results: [Result] = []
     @State private var running = true
@@ -109,14 +110,15 @@ struct ScopeRuleCheckView: View {
     /// only ever runs in a throwaway simulator, but leaving a reader's settings rewritten would be
     /// unacceptable even there.
     private func withTypes(runs: Bool = true, hikes: Bool = true, rides: Bool = true,
-                           walks: Bool = false, _ body: () -> Void) {
+                           walks: Bool = false, paddles: Bool = true, _ body: () -> Void) {
         let defaults = UserDefaults.standard
-        let previous = ["includeRuns", "includeHikes", "includeRides", "includeWalks"]
+        let previous = ["includeRuns", "includeHikes", "includeRides", "includeWalks", "includePaddles"]
             .map { ($0, defaults.object(forKey: $0)) }
         defaults.set(runs, forKey: "includeRuns")
         defaults.set(hikes, forKey: "includeHikes")
         defaults.set(rides, forKey: "includeRides")
         defaults.set(walks, forKey: "includeWalks")
+        defaults.set(paddles, forKey: "includePaddles")
         body()
         for (key, value) in previous {
             if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
@@ -188,6 +190,8 @@ struct ScopeRuleCheckView: View {
                    "kept out of totals, not out of the app")
         }
 
+        out += paddlingChecks()
+        out += symbolChecks()
         out += revealChecks()
 
         // The count is itself an assertion, so an on-screen run is as honest as the report.
@@ -200,6 +204,106 @@ struct ScopeRuleCheckView: View {
         results = out
         running = false
         writeReport(out)
+    }
+
+    // MARK: Paddling
+
+    /// Paddling is the first activity type added after the original four, so it is also the first
+    /// test of whether the scope rule generalises. Everything here is the same machinery the other
+    /// types go through — a new case that silently skipped one of these would look fine on screen.
+    private func paddlingChecks() -> [Result] {
+        var out: [Result] = []
+
+        func expect(_ name: String, _ actual: some Equatable, _ wanted: some Equatable, _ note: String) {
+            let passed = "\(actual)" == "\(wanted)"
+            out.append(Result(name: name, passed: passed,
+                              detail: passed ? note : "expected \(wanted), got \(actual) — \(note)"))
+        }
+
+        // Every label a provider is known to hand us for the same sport. Apple Health reports one
+        // umbrella type; Strava splits it three ways; file imports carry free text.
+        let labels = ["paddleSports", "Kayaking", "Canoeing", "StandUpPaddling",
+                      "Stand Up Paddleboarding", "paddling", "SUP"]
+        // Compared as sorted rawValues: a Set's description has no defined order, so asserting on
+        // one would pass or fail by chance.
+        let parsed = Set(labels.map { ActivityType.parse($0).rawValue }).sorted()
+        expect("Every paddling label parses to .paddle",
+               parsed, ["paddle"],
+               "Health's paddleSports, Strava's three sport types and free text all land on one type")
+
+        // The sport label written at import must classify back to the same type, or RunDetailView
+        // reports the activity as reclassified and the provenance line contradicts itself.
+        expect("The written sport label round-trips",
+               ActivityType.parse(ActivityType.paddle.rawValue.capitalized), ActivityType.paddle,
+               "HealthKitProvider stores rawValue.capitalized as sportType")
+
+        // Words that merely contain the letters must not be captured.
+        expect("Unrelated labels are not captured as paddling",
+               ["Supported Run", "Rowing", "Support"].map { ActivityType.parse($0).rawValue },
+               ["run", "row", "other"],
+               "bare \"sup\" only matches as a whole label, so \"Support\" stays unclassified")
+
+        let mixedWater = [activity(.run), activity(.paddle)]
+
+        withTypes(paddles: true) {
+            expect("Paddling populates its own scope",
+                   ActivitySettings.populatedScopes(in: mixedWater),
+                   [ActivityScope.runs, ActivityScope.paddles],
+                   "a paddle is not folded into runs or rides")
+
+            expect("Explicit Paddling selection is obeyed",
+                   ActivitySettings.resolvedScope(.paddles, in: mixedWater), ActivityScope.paddles,
+                   "two populated types → the selection is simply obeyed")
+
+            expect("A paddle is revealable when enabled",
+                   Reveal.isRevealable(activity(.paddle)), true,
+                   "search must be able to reach it like any other enabled type")
+        }
+
+        withTypes(paddles: false) {
+            expect("Disabled paddling heals to All",
+                   ActivitySettings.resolvedScope(.paddles, in: mixedWater), ActivityScope.all,
+                   "turning the type off must not strand the stored scope on it")
+
+            expect("A disabled paddle is filtered out everywhere",
+                   mixedWater.scoped(to: .all).count, 1,
+                   "scoped(to:) and isVisible(_ type:) have to agree, or a reveal targets an undrawn activity")
+
+            expect("A disabled paddle is not revealable",
+                   Reveal.isRevealable(activity(.paddle)), false,
+                   "the agreement above, checked from the reveal side")
+        }
+
+        return out
+    }
+
+    // MARK: Symbols
+
+    /// Every icon name actually resolves. `Image(systemName:)` draws nothing at all for a name that
+    /// does not exist — no crash, no warning, just a blank space where the activity's glyph should
+    /// be — so a mistyped or unavailable symbol is invisible to every other check in this file and
+    /// to the screenshot review. This is the only thing that catches it.
+    private func symbolChecks() -> [Result] {
+        var out: [Result] = []
+
+        func check(_ name: String, _ symbols: [(String, String)], _ note: String) {
+            let missing = symbols.filter { UIImage(systemName: $0.1) == nil }
+            let passed = missing.isEmpty
+            let listed = missing.map { "\($0.0)=\($0.1)" }.joined(separator: ", ")
+            out.append(Result(name: name, passed: passed,
+                              detail: passed ? "\(symbols.count) symbols resolve — \(note)"
+                                             : "unavailable on this OS: \(listed)"))
+        }
+
+        check("Every scope icon is a real SF Symbol",
+              ActivityScope.allCases.map { ($0.rawValue, $0.icon) },
+              "the activity selector and the Milestones breakdown rows")
+
+        check("Every activity-type icon is a real SF Symbol",
+              ActivityType.allCases.map { ($0.rawValue, $0.detailIcon) },
+              "run detail, import pickers, route thumbnails and map annotations")
+
+        return out
     }
 
     // MARK: The reveal lifecycle

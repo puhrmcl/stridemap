@@ -1039,7 +1039,7 @@ private struct EditRunSheet: View {
     /// Run/Hike/Ride/Walk, plus the current type if it's something else (Ski, Swim, …) so the
     /// picker always shows a valid selection.
     private var typeChoices: [ActivityType] {
-        var base: [ActivityType] = [.run, .hike, .ride, .walk]
+        var base: [ActivityType] = [.run, .hike, .ride, .walk, .paddle]
         if !base.contains(type) { base.append(type) }
         return base
     }

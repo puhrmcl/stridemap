@@ -29,7 +29,7 @@ struct PhotoMemoryCheckView: View {
             calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour))!
         }
         let defaults = UserDefaults.standard
-        let keys = ["includeRuns", "includeHikes", "includeRides", "includeWalks"]
+        let keys = ["includeRuns", "includeHikes", "includeRides", "includeWalks", "includePaddles"]
         let saved = keys.map { defaults.object(forKey: $0) }
         defer {
             for (key, value) in zip(keys, saved) {
