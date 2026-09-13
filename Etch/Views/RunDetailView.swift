@@ -25,12 +25,6 @@ struct RunDetailView: View {
     /// What, specifically, makes this run a milestone — shown on the badge.
     private var milestoneDescriptors: [String] { peerStats.milestoneLabels(for: run) }
 
-    /// Elevation is the headline metric for hikes and rides, so their detail leads with a route
-    /// elevation profile. Runs/walks keep the elevation-gain figure in the metric grid.
-    private var showsElevationProfile: Bool {
-        run.hasRoute && !run.isIndoor && (run.activityType == .hike || run.activityType == .ride)
-    }
-
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var photoSelection: PhotoSelection?
     @State private var draggingPhoto: String?
@@ -82,9 +76,7 @@ struct RunDetailView: View {
                         LookAroundButton(coordinate: coordinate)
                     }
 
-                    if showsElevationProfile {
-                        ElevationProfileView(run: run)
-                    }
+                    ElevationProfileView(run: run)
 
                     metrics
 
@@ -368,16 +360,41 @@ struct RunDetailView: View {
     /// nav bar) so the run name and place have room to be read instead of truncating to
     /// "Ni…/Brec…" in the cramped leading toolbar slot.
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 12) {
             if isMilestone { milestoneBadge }
-            Text(run.name)
-                .font(.etch(.title2, weight: .bold))
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-            if !run.placeLabel.isEmpty {
-                Text(run.placeLabel)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            HStack(alignment: .center, spacing: 14) {
+                Button { showPhotoReview = true } label: {
+                    Group {
+                        if let cover = run.photoReferences.first {
+                            RunPhotoThumbnail(identifier: cover, size: 72)
+                        } else {
+                            Image(systemName: "photo.badge.plus")
+                                .font(.title2)
+                                .frame(width: 72, height: 72)
+                                .background(Theme.accent.opacity(0.12), in: .rect(cornerRadius: 12))
+                        }
+                    }
+                    .overlay(alignment: .bottomTrailing) {
+                        if !run.photoReferences.isEmpty {
+                            Text("\(run.photoReferences.count)")
+                                .font(.caption2.weight(.semibold)).foregroundStyle(.white)
+                                .padding(.horizontal, 6).padding(.vertical, 3)
+                                .background(.black.opacity(0.65), in: .capsule).padding(4)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(run.photoReferences.isEmpty ? "Add activity photos" : "Activity photos, \(run.photoReferences.count) attached")
+                .accessibilityHint("Opens photos to view, add, or remove")
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(run.name)
+                        .font(.etch(.title2, weight: .bold))
+                        .fixedSize(horizontal: false, vertical: true)
+                    if !run.placeLabel.isEmpty {
+                        Text(run.placeLabel).font(.subheadline).foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

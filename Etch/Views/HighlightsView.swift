@@ -141,7 +141,7 @@ struct HighlightsView: View {
             reachHasher.combine(run.startLongitude)
         }
         next.reachSignature = reachHasher.finalize()
-        next.meaningInsights = MeaningEngine(runs: typed).insights(limit: 3)
+        next.meaningInsights = MeaningEngine(runs: typed).insights(limit: 3, excludingKinds: [.personalBest, .record])
         let storyHistory = typed.filter { !$0.isHiddenFromMemories }.sorted {
             $0.startDate == $1.startDate ? $0.id.uuidString < $1.id.uuidString : $0.startDate > $1.startDate
         }
@@ -333,6 +333,18 @@ struct HighlightsView: View {
     private var featuredStory: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Your story").font(.etch(.title2, weight: .bold))
+            if appModel.filter.isActive {
+                Text("Stats below reflect your current filters.")
+                    .font(.etch(.caption)).foregroundStyle(.secondary)
+            }
+            HStack {
+                Label("\(derived.totalRuns.formatted()) activities", systemImage: scope.icon)
+                Spacer()
+                Text("\(derived.years.count) \(derived.years.count == 1 ? "year" : "years")")
+            }
+            .font(.etch(.subheadline, weight: .semibold))
+            .foregroundStyle(.secondary)
+            reachSection
             VStack(alignment: .leading, spacing: 0) {
                 if let run = derived.storyRun {
                     Button { pushedRun = run } label: {
@@ -367,18 +379,6 @@ struct HighlightsView: View {
             }
             .background(Color(.secondarySystemBackground))
             .clipShape(.rect(cornerRadius: 24))
-            if appModel.filter.isActive {
-                Text("Stats below reflect your current filters.")
-                    .font(.etch(.caption)).foregroundStyle(.secondary)
-            }
-            HStack {
-                Label("\(derived.totalRuns.formatted()) activities", systemImage: scope.icon)
-                Spacer()
-                Text("\(derived.years.count) \(derived.years.count == 1 ? "year" : "years")")
-            }
-            .font(.etch(.subheadline, weight: .semibold))
-            .foregroundStyle(.secondary)
-            reachSection
         }
     }
 
@@ -406,7 +406,7 @@ struct HighlightsView: View {
                         ForEach(derived.memories) { memory in
                             Button { pushedRun = memory.run } label: {
                                 VStack(alignment: .leading, spacing: 10) {
-                                    MemoryCover(identifiers: memory.run.memoryPhotoReferences, run: memory.run)
+                                    MemoryCover(identifiers: memory.photoReferences, run: memory.run)
                                         .accessibilityHidden(true)
                                     Text(memory.title).font(.etch(.headline))
                                     Text(memory.run.name).font(.etch(.subheadline))

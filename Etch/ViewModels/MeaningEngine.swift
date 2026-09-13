@@ -122,7 +122,7 @@ struct MeaningEngine {
 
 
     /// The strongest moments in this history, deduplicated and ranked.
-    func insights(limit: Int = 12) -> [Insight] {
+    func insights(limit: Int = 12, excludingKinds: Set<Kind> = []) -> [Insight] {
         guard !chronological.isEmpty else { return [] }
         var candidates: [Insight] = []
         candidates += firsts()
@@ -138,6 +138,7 @@ struct MeaningEngine {
         // repeating the exact same claim if multiple detectors reach it.
         var seen = Set<String>()
         let unique = candidates.filter { insight in
+            guard !excludingKinds.contains(insight.kind) else { return false }
             let key = "\(insight.run?.id.uuidString ?? "history")|\(insight.title)"
             return seen.insert(key).inserted
         }

@@ -266,6 +266,9 @@ jobs:
           shoot add-library         add-library ""             20
           shoot event-selection     event-selection ""         20
           shoot event-library       event-library ""           20
+          shoot activity-detail     detail ""                  15
+          shoot activity-photos     activity-photos ""         10
+          shoot activity-elevation  activity-elevation ""      10
           shoot milestones-story    milestones ""              20
           shoot milestones-shell    tabs achievements          20
           # The book's picture-led pages. No book page had ever been photographed by CI before
