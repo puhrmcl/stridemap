@@ -129,8 +129,12 @@ struct BookPlan {
     static func make(subject: BookSubject, lens: BookLens = .everything,
                      runs: [Run], curation: BookCuration = BookCuration()) -> BookPlan {
         let calendar = Calendar.current
-        let selected = runs.filter { subject.matches($0) && lens.matches($0) }
-            .sorted { $0.startDate < $1.startDate }
+        // Activities the reader took out of this book leave everything the book derives —
+        // chapters, the index, the totals, the timeline. `history` below stays whole, so
+        // lifetime claims ("the 1,000th mile") remain measured against the real record.
+        let selected = runs.filter {
+            subject.matches($0) && lens.matches($0) && curation.includesActivity($0)
+        }.sorted { $0.startDate < $1.startDate }
         let story = StoryEngine.story(selected: selected, history: runs)
 
         let months = Set(selected.map { ChapterSpan.month.start(of: $0.startDate, calendar) })

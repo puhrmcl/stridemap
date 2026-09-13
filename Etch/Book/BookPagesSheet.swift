@@ -16,6 +16,16 @@ struct BookPagesSheet: View {
 
     private var hasChanges: Bool { opening.map { $0 != curation } ?? false }
 
+    /// Pages that can be switched off at all, and how many are currently printing — a reader
+    /// who has hidden six months should be able to see that at a glance rather than by
+    /// scrolling the whole contents looking for grey rows.
+    private var hideableKeys: [String] {
+        fullPlan.pages.indices.compactMap { fullPlan.hideKey(at: $0) }
+    }
+    private var hiddenCount: Int {
+        Set(hideableKeys).filter(curation.hiddenPages.contains).count
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -23,6 +33,13 @@ struct BookPagesSheet: View {
                     ForEach(Array(fullPlan.pages.enumerated()), id: \.offset) { index, spec in
                         if !isBlank(spec) { row(index: index, spec: spec) }
                     }
+                } header: {
+                    Text(hiddenCount == 0
+                         ? "Every page is printing"
+                         : "\(hiddenCount) page\(hiddenCount == 1 ? "" : "s") hidden")
+                        .font(.etch(.footnote, weight: .semibold))
+                        .foregroundStyle(hiddenCount == 0 ? .secondary : Theme.accent)
+                        .textCase(nil)
                 } footer: {
                     Text("The cover, title, record and closing always print — a book keeps its spine. Hidden pages are replanned away; blank leaves fill to the binder's minimum.")
                 }
@@ -31,6 +48,10 @@ struct BookPagesSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Show all") { curation.hiddenPages.removeAll() }
+                        .disabled(hiddenCount == 0)
+                }
             }
             .safeAreaInset(edge: .bottom) { republishBar }
             .onAppear { if opening == nil { opening = curation } }
