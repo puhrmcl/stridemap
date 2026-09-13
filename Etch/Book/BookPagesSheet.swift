@@ -71,11 +71,14 @@ struct BookPagesSheet: View {
         switch spec {
         case .cover:                    return "Cover"
         case .title:                    return "Title page"
+        case .opening:                  return "Opening picture"
         case .stats:                    return "Statistics"
         case .marks:                    return "The Marks"
         case .map:                      return "The Map"
+        case .timeline:                 return "The Span"
         case .chapter(let start):       return chapterName(start)
-        case .chapterPhotos(let start): return "\(chapterName(start)) — in pictures"
+        case .feature(let start, _):    return chapterName(start)
+        case .plate:                    return "Full-page picture"
         case .race(let index):
             return "Race — \(fullPlan.run(at: index)?.name ?? "")"
         case .gallery:                  return "In Pictures"

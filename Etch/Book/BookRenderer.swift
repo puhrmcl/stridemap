@@ -22,7 +22,8 @@ enum BookRenderer {
         let photos = await pagePhotos(plan: plan, spec: spec, preview: preview)
         return autoreleasepool {
             let renderer = ImageRenderer(content: BookPageView(plan: plan, spec: spec,
-                                                               photo: photo, photos: photos))
+                                                               photo: photo, photos: photos,
+                                                               pageNumber: index + 1))
             renderer.scale = scale
             return renderer.uiImage
         }
@@ -63,8 +64,27 @@ enum BookRenderer {
                                    preview: Bool) async -> [BookPagePhoto] {
         let picks: [(run: Run?, reference: String)]
         switch spec {
-        case .chapterPhotos(let start):
-            picks = photoPicks(from: plan.chapterRuns(start), cap: 6, curation: plan.curation)
+        case .opening:
+            // The book's first image. Skips whatever the cover already used, so the reader does
+            // not meet the same photograph twice before page three.
+            picks = Array(heroPicks(plan: plan).prefix(1))
+        case .plate:
+            // Deliberately not the opening's picture: the plate is a second look at the span,
+            // taken from the middle of the pool.
+            let pool = heroPicks(plan: plan)
+            picks = pool.count > 1 ? [pool[pool.count / 2]] : Array(pool.prefix(1))
+        case .feature(let start, _):
+            // The chapter's lead activity carries the page when it has a picture of its own;
+            // otherwise the chapter's first photographed activity does.
+            let chapter = plan.chapterRuns(start)
+            let lead = plan.story.marquee(in: chapter)
+            if let lead, let reference = lead.photoReferences.first(where: plan.curation.includes) {
+                picks = [(lead, reference)]
+            } else {
+                picks = photoPicks(from: chapter, cap: 1, curation: plan.curation)
+            }
+        case .timeline:
+            picks = photoPicks(from: plan.runs, cap: 5, curation: plan.curation)
         case .gallery:
             // The reader's own additions join the span-wide gallery after the activity
             // photographs — inside the same cap, thinning the activity picks to make room.
@@ -77,7 +97,16 @@ enum BookRenderer {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d"
         var photos: [BookPagePhoto] = []
-        let side: CGFloat = preview ? 600 : 1500
+        // Sized to the slot: a full-bleed plate is four times the area of a gallery tile and a
+        // timeline chip is a thumbnail. Asking print size for everything is what previously put
+        // hundreds of transient megabytes through a hundred-page preview.
+        let side: CGFloat
+        switch spec {
+        case .opening, .plate:  side = preview ? 1000 : 2400
+        case .feature:          side = preview ? 800 : 2000
+        case .timeline:         side = preview ? 300 : 700
+        default:                side = preview ? 600 : 1500
+        }
         for pick in picks {
             let image = await PhotoLibrary.image(for: pick.reference,
                                                  targetSize: CGSize(width: side, height: side))
@@ -86,6 +115,21 @@ enum BookRenderer {
             photos.append(BookPagePhoto(image: image, caption: caption))
         }
         return photos
+    }
+
+    /// The pool the full-bleed pages draw from, best first: a race's photograph, then the
+    /// span's, with whatever the cover already used removed so the opening never repeats it.
+    private static func heroPicks(plan: BookPlan) -> [(run: Run?, reference: String)] {
+        let used = plan.curation.coverStyle == .photo ? plan.curation.coverPhotoRef : nil
+        // `photoPicks` returns the pool in date order whatever order it is handed, so the
+        // race-first preference has to be applied after it rather than by pre-sorting the runs.
+        let pool = photoPicks(from: plan.runs, cap: 12, curation: plan.curation)
+            .filter { $0.reference != used }
+        var picks = pool.filter { $0.run?.isRace == true } + pool.filter { $0.run?.isRace != true }
+        if picks.isEmpty {
+            picks = plan.curation.extraPhotoIDs.filter { $0 != used }.map { (Run?.none, $0) }
+        }
+        return picks
     }
 
     /// Which photographs a page shows: one per activity first, in date order, so the page

@@ -268,6 +268,13 @@ jobs:
           shoot event-library       event-library ""           20
           shoot milestones-story    milestones ""              20
           shoot milestones-shell    tabs achievements          20
+          # The book's picture-led pages. No book page had ever been photographed by CI before
+          # the editorial redesign, so no printed layout in this project had ever been reviewed
+          # visually. Each anchor renders a real BookPageView at print aspect.
+          shoot book-opening        yearbook opening           35
+          shoot book-feature        yearbook feature           35
+          shoot book-timeline       yearbook timeline          35
+          shoot book-plate          yearbook plate             35
           shoot timeline-gallery     timeline:gallery ""        10
           shoot timeline-large       timeline-large ""           10
           shoot launch-settled       launch-settled ""           5

@@ -521,7 +521,8 @@ struct BookStudioView: View {
             switch (anchor, spec) {
             case ("marks", .marks), ("map", .map), ("review", .review), ("closing", .closing),
                  ("stats", .stats), ("race", .race(_)), ("index", .index(_)),
-                 ("month", .chapter(_)), ("photos", .chapterPhotos(_)),
+                 ("month", .chapter(_)), ("feature", .feature(_, _)),
+                 ("opening", .opening), ("plate", .plate), ("timeline", .timeline),
                  ("gallery", .gallery), ("numbers", .numbers),
                  ("years", .years), ("resume", .raceHistory), ("atlas", .atlas),
                  ("cities", .cities), ("cover-grid", .cover), ("cover-photo", .cover):
