@@ -10,16 +10,27 @@ import MapKit
 enum BookPageSpec {
     case cover
     case title
+    /// The book's first interior image — a full-bleed photograph carrying the subject and one
+    /// honest sentence about the span. See `docs/book-editorial-redesign.md`.
+    case opening
     case stats
     /// The achievements spread — what stood out, phrased by the StoryEngine.
     case marks
     /// THE MAP — the year's geography: states tinted by mileage, cities dotted, races starred.
     case map
+    /// THE SPAN — every activity on one axis, photographs pinned to their dates, the marks
+    /// called out beneath. Where the weight of the year actually sat.
+    case timeline
     /// A month, or a whole year when the subject spans too many months to give each one a page.
+    /// Used for chapters with no photographs, where routes honestly are the story.
     case chapter(start: Date)
-    /// The pictures side of a chapter's two-page spread — the same month's photographs,
-    /// facing its routes and numbers. Exists only when the chapter's activities carry photos.
-    case chapterPhotos(start: Date)
+    /// A chapter that carries photographs: the picture-led treatment. One page, not two — the
+    /// hero bleeds across three-fifths of the sheet and the numbers sit beside it. `mirrored`
+    /// flips the image to the right so consecutive chapters never compose identically.
+    case feature(start: Date, mirrored: Bool)
+    /// One photograph, full-bleed, one sentence, no data. The page that lets the dense ones
+    /// breathe.
+    case plate
     case race(runIndex: Int)
     /// The span-wide photo gallery — "IN PICTURES", near the back with the review.
     case gallery
@@ -118,14 +129,28 @@ struct BookPlan {
     static func make(subject: BookSubject, lens: BookLens = .everything,
                      runs: [Run], curation: BookCuration = BookCuration()) -> BookPlan {
         let calendar = Calendar.current
-        let selected = runs.filter { subject.matches($0) && lens.matches($0) }
-            .sorted { $0.startDate < $1.startDate }
+        // Activities the reader took out of this book leave everything the book derives —
+        // chapters, the index, the totals, the timeline. `history` below stays whole, so
+        // lifetime claims ("the 1,000th mile") remain measured against the real record.
+        let selected = runs.filter {
+            subject.matches($0) && lens.matches($0) && curation.includesActivity($0)
+        }.sorted { $0.startDate < $1.startDate }
         let story = StoryEngine.story(selected: selected, history: runs)
 
         let months = Set(selected.map { ChapterSpan.month.start(of: $0.startDate, calendar) })
         let span: ChapterSpan = months.count <= chapterBudget ? .month : .year
 
-        var pages: [BookPageSpec] = [.cover, .title, .stats]
+        // Does the span have pictures at all? The picture-led pages are simply not emitted for
+        // a photograph-free history — an empty frame is worse than an honest page of routes.
+        let photoCount = selected.reduce(0) {
+            $0 + $1.photoReferences.filter(curation.includes).count
+        } + curation.extraPhotoIDs.count
+
+        var pages: [BookPageSpec] = [.cover, .title]
+        // The opening image comes before the totals: the book should look like something before
+        // it starts counting.
+        if photoCount >= 1 { pages.append(.opening) }
+        pages.append(.stats)
 
         // The marks page earns its place; two cards on a spread designed for six reads thin.
         if story.marks.count >= 3 { pages.append(.marks) }
@@ -137,18 +162,27 @@ struct BookPlan {
         let touchedStates = selected.compactMap { PlaceNames.canonicalState($0.state) }
         if touchedStates.contains(where: boundaryNames.contains) { pages.append(.map) }
 
+        // Where, then when. The spine needs at least a handful of activities across more than one
+        // day before it has a shape worth drawing.
+        let activeDays = Set(selected.map { calendar.startOfDay(for: $0.startDate) })
+        if selected.count >= 5 && activeDays.count >= 2 { pages.append(.timeline) }
+
         let byChapter = Dictionary(grouping: selected) { span.start(of: $0.startDate, calendar) }
         var racesUsed = 0
+        var featureIndex = 0
         for start in byChapter.keys.sorted() {
-            pages.append(.chapter(start: start))
             let chapterRuns = byChapter[start] ?? []
-            // A chapter whose activities carry photographs becomes a two-page spread: the
-            // routes and numbers on one page, the pictures facing them on the next. A photo
-            // the reader excluded doesn't hold a page open.
-            if chapterRuns.contains(where: { run in
+            // A chapter whose activities carry photographs takes the picture-led treatment: one
+            // page with the hero bleeding across it, rather than the old two-page split of routes
+            // facing pictures. A photo the reader excluded doesn't qualify a chapter.
+            let hasPhotos = chapterRuns.contains { run in
                 run.photoReferences.contains(where: curation.includes)
-            }) {
-                pages.append(.chapterPhotos(start: start))
+            }
+            if hasPhotos {
+                pages.append(.feature(start: start, mirrored: featureIndex.isMultiple(of: 2) == false))
+                featureIndex += 1
+            } else {
+                pages.append(.chapter(start: start))
             }
             let chapterRaces = chapterRuns.filter(\.isRace)
             for race in chapterRaces where racesUsed < raceBudget {
@@ -160,12 +194,13 @@ struct BookPlan {
         }
 
         // The span in pictures — one editorial gallery when there's enough material for one.
-        let includedCount = selected.reduce(0) {
-            $0 + $1.photoReferences.filter(curation.includes).count
-        } + curation.extraPhotoIDs.count
-        if includedCount >= 3 {
+        if photoCount >= 3 {
             pages.append(.gallery)
         }
+
+        // A single full-bleed plate before the back matter — the breath between the gallery and
+        // the ledger. Only once there are enough pictures that one can be spared for it.
+        if photoCount >= 4 { pages.append(.plate) }
 
         // The ledger of derived insight, then the emotional summary it sets up.
         pages.append(.numbers)
@@ -229,8 +264,13 @@ struct BookPlan {
         case .stats:                     return "stats"
         case .marks:                     return "marks"
         case .map:                       return "map"
+        case .opening:                   return "opening"
+        case .timeline:                  return "timeline"
+        case .plate:                     return "plate"
+        // A chapter keeps one key whichever treatment it takes, so adding or removing a
+        // photograph never resurrects a chapter the reader hid.
         case .chapter(let start):        return "chapter:\(Int(start.timeIntervalSince1970))"
-        case .chapterPhotos(let start):  return "chapterPhotos:\(Int(start.timeIntervalSince1970))"
+        case .feature(let start, _):     return "chapter:\(Int(start.timeIntervalSince1970))"
         case .race(let index):
             guard runs.indices.contains(index) else { return nil }
             return "race:\(runs[index].id.uuidString)"

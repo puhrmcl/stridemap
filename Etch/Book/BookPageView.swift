@@ -9,9 +9,12 @@ struct BookPageView: View {
     let spec: BookPageSpec
     /// A race page's cover photo, loaded by the renderer; nil composes the page photo-free.
     var photo: UIImage? = nil
-    /// The photographs a picture page shows (chapter spreads, the gallery), loaded by the
+    /// The photographs a picture page shows (features, plates, the gallery), loaded by the
     /// renderer with their captions already phrased.
     var photos: [BookPagePhoto] = []
+    /// This page's folio number, supplied by the renderer. Nil prints no folio — which is what
+    /// covers and blank leaves want.
+    var pageNumber: Int? = nil
 
     // Internal, not private: the page families live across files now (BookStoryPages holds the
     // marks/review/index/quiet pages) and all of them speak this one vocabulary.
@@ -31,11 +34,14 @@ struct BookPageView: View {
             switch spec {
             case .cover:                    coverPage
             case .title:                    titlePage
+            case .opening:                  openingPage
             case .stats:                    statsPage
             case .marks:                    marksPage
             case .map:                      mapPage
+            case .timeline:                 timelinePage
             case .chapter(let start):       chapterPage(start)
-            case .chapterPhotos(let start): chapterPhotosPage(start, photos: photos)
+            case .feature(let start, let mirrored): featurePage(start, mirrored: mirrored)
+            case .plate:                    platePage
             case .race(let index):          racePage(index)
             case .gallery:                  galleryPage
             case .numbers:                  numbersPage

@@ -38,9 +38,17 @@ struct BookPhotoSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    Text("Tap a photo to take it out of the book or put it back. Touch and hold to put one on the cover.")
-                        .font(.etch(.footnote))
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Tap a photo to take it out of the book or put it back. Touch and hold to put one on the cover.")
+                            .font(.etch(.footnote))
+                            .foregroundStyle(.secondary)
+                        // The count, stated. Excluded photographs still show in the grid (dimmed),
+                        // so without this line there is nothing that says how many are actually
+                        // going to print.
+                        Text("\(includedCount) photo\(includedCount == 1 ? "" : "s") in the book")
+                            .font(.etch(.footnote, weight: .semibold))
+                            .foregroundStyle(curation.excludedRefs.isEmpty ? .secondary : Theme.accent)
+                    }
 
                     duplicatesBanner
 
@@ -70,6 +78,12 @@ struct BookPhotoSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Include all") {
+                        withAnimation(.easeInOut(duration: 0.2)) { curation.excludedRefs.removeAll() }
+                    }
+                    .disabled(curation.excludedRefs.isEmpty)
+                }
             }
             .safeAreaInset(edge: .bottom) { republishBar }
             .onAppear { if opening == nil { opening = curation } }

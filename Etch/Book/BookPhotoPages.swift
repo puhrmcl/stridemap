@@ -9,34 +9,14 @@ struct BookPagePhoto: Identifiable {
     let caption: String
 }
 
-/// The photograph pages — the month's picture side of its spread, and the span-wide gallery.
-/// Photos are the book's memory; the routes say what happened, the pictures say what it felt
-/// like, and the two never share a page: a month with photographs becomes a two-page spread,
-/// routes and numbers on one side, pictures on the other.
+/// The span-wide gallery — the one page in the book where photographs are deliberately set as a
+/// grid, because a contact sheet of the whole year is a legitimate editorial form when it is a
+/// *choice* rather than the only treatment available.
+///
+/// The old rule this file used to state — "the two never share a page", routes on one side and
+/// pictures on the other — is gone. Chapters with photographs now take the picture-led feature in
+/// `BookFeaturePages`, where the photograph and its numbers finally sit together.
 extension BookPageView {
-
-    // MARK: The month's pictures — the second page of a chapter spread
-
-    /// Faces the chapter page: same header vocabulary, the month named again so the spread
-    /// reads as one piece, and the month's photographs in a collage sized to their count.
-    func chapterPhotosPage(_ start: Date, photos: [BookPagePhoto]) -> some View {
-        VStack(alignment: .leading, spacing: 26) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(chapterName(start).uppercased())
-                        .font(.etchSerif(size: 44, weight: .regular)).tracking(2)
-                        .foregroundStyle(ink)
-                    Spacer()
-                    Text("IN PICTURES")
-                        .font(.etch(size: 13, weight: .semibold)).tracking(4)
-                        .foregroundStyle(accent)
-                }
-                Rectangle().fill(subtle.opacity(0.35)).frame(height: 1.5)
-            }
-            photoCollage(photos, columns: photos.count <= 1 ? 1 : photos.count <= 4 ? 2 : 3)
-        }
-        .padding(margin)
-    }
 
     // MARK: The gallery — the whole span in pictures
 

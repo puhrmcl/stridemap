@@ -54,6 +54,7 @@ struct BookStudioView: View {
     @State private var curationVersion = 0
     @State private var showPhotoSheet = false
     @State private var showPagesSheet = false
+    @State private var showActivitiesSheet = false
 
     private var canOrder: Bool {
         PrintOrderService.isConfigured && EtchConfig.current.ordering.enabled && !plan.runs.isEmpty
@@ -132,6 +133,13 @@ struct BookStudioView: View {
                     .accessibilityLabel("Show or hide the book's pages")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
+                    Button { showActivitiesSheet = true } label: {
+                        Image(systemName: "figure.run.circle")
+                    }
+                    .disabled(subjects.isEmpty || isExporting || orderPhase != nil)
+                    .accessibilityLabel("Choose the book's activities")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button { showPhotoSheet = true } label: {
                         Image(systemName: "photo.on.rectangle.angled")
                     }
@@ -144,12 +152,25 @@ struct BookStudioView: View {
                     curationVersion += 1
                 }
             }
+            .sheet(isPresented: $showActivitiesSheet) {
+                // Built with no activity exclusions applied, so an excluded activity stays
+                // listed and can come back — the same contract the pages sheet keeps.
+                BookActivitiesSheet(fullPlan: {
+                    var complete = curation
+                    complete.excludedRunIDs = []
+                    return BookPlan.make(subject: resolvedSubject, lens: resolvedLens,
+                                         runs: allRuns, curation: complete)
+                }(), curation: $curation) {
+                    curationVersion += 1
+                }
+            }
             .sheet(isPresented: $showPagesSheet) {
                 // The complete table of contents — hidden pages included, so each can come
                 // back individually. Built without the hiding applied, once, on open.
                 BookPagesSheet(fullPlan: {
                     var complete = curation
                     complete.hiddenPages = []
+                    complete.excludedRunIDs = []
                     return BookPlan.make(subject: resolvedSubject, lens: resolvedLens,
                                          runs: allRuns, curation: complete)
                 }(), curation: $curation) {
@@ -521,7 +542,8 @@ struct BookStudioView: View {
             switch (anchor, spec) {
             case ("marks", .marks), ("map", .map), ("review", .review), ("closing", .closing),
                  ("stats", .stats), ("race", .race(_)), ("index", .index(_)),
-                 ("month", .chapter(_)), ("photos", .chapterPhotos(_)),
+                 ("month", .chapter(_)), ("feature", .feature(_, _)),
+                 ("opening", .opening), ("plate", .plate), ("timeline", .timeline),
                  ("gallery", .gallery), ("numbers", .numbers),
                  ("years", .years), ("resume", .raceHistory), ("atlas", .atlas),
                  ("cities", .cities), ("cover-grid", .cover), ("cover-photo", .cover):

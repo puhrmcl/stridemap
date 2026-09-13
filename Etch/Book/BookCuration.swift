@@ -18,6 +18,13 @@ struct BookCuration: Codable, Equatable {
     /// (the finish-line shot a friend took). They join the span-wide gallery.
     var extraPhotoIDs: [String] = []
 
+    /// Activities the reader took OUT of this book. Book-scoped and non-destructive: unlike
+    /// `Run.isHidden`, which hides an activity everywhere in the app, this only says "not in
+    /// this book" — the test run, the duplicate import, the day that isn't part of the story.
+    /// An excluded activity leaves the chapters, the index, the totals and the timeline; it
+    /// still counts toward lifetime claims, which are measured against the whole history.
+    var excludedRunIDs: Set<UUID> = []
+
     /// Which treatment the cover wears.
     var coverStyle: CoverStyle = .route
 
@@ -51,6 +58,12 @@ struct BookCuration: Codable, Equatable {
     /// Whether a reference survived curation.
     func includes(_ reference: String) -> Bool { !excludedRefs.contains(reference) }
 
+    /// Whether an activity survived curation. Deliberately not an `includes` overload: the
+    /// reference form is passed as a bare method value in several places
+    /// (`photoReferences.filter(curation.includes)`), and an overload set makes that
+    /// resolution fragile for no gain.
+    func includesActivity(_ run: Run) -> Bool { !excludedRunIDs.contains(run.id) }
+
     // Tolerant decoding: fields added after a version shipped read as their defaults from
     // older stored JSON instead of failing the whole document back to a blank curation.
     init() {}
@@ -61,6 +74,7 @@ struct BookCuration: Codable, Equatable {
         coverStyle = try container.decodeIfPresent(CoverStyle.self, forKey: .coverStyle) ?? .route
         coverPhotoRef = try container.decodeIfPresent(String.self, forKey: .coverPhotoRef)
         hiddenPages = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenPages) ?? []
+        excludedRunIDs = try container.decodeIfPresent(Set<UUID>.self, forKey: .excludedRunIDs) ?? []
     }
 
     // MARK: Storage
