@@ -20,6 +20,7 @@ struct MapCameraCommand: Equatable {
         case region(latitude: Double, longitude: Double, spanDegrees: Double)
         /// Recenter on the user's current location (the blue dot).
         case userLocation
+        case world
     }
     var id = UUID()
     var target: Target

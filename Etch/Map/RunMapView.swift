@@ -15,6 +15,7 @@ enum RouteRenderStyle: Equatable {
 /// can update it on every pan without invalidating SwiftUI views; readers pull the latest on demand.
 final class MapCenterBox {
     var coordinate: CLLocationCoordinate2D?
+    var camera: MKMapCamera?
 }
 
 /// High-performance route map. Wraps `MKMapView` so thousands of polylines render
@@ -59,6 +60,7 @@ struct RunMapView: UIViewRepresentable {
     /// every other route and pin disappears until the isolation is dismissed (a tap anywhere
     /// off the route, or the floating chip's ✕). Written by the map, cleared by either side.
     var isolatedRun: Binding<UUID?>? = nil
+    var opensAtWorld = false
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -90,7 +92,7 @@ struct RunMapView: UIViewRepresentable {
             right: 8
         )
 
-        map.preferredConfiguration = mapStyle.configuration()
+        map.preferredConfiguration = mapStyle.configuration(elevated: opensAtWorld || is3D)
         map.overrideUserInterfaceStyle = mapStyle.forcedInterfaceStyle
         context.coordinator.appliedStyle = mapStyle
 
@@ -115,6 +117,12 @@ struct RunMapView: UIViewRepresentable {
         map.addGestureRecognizer(press)
 
         context.coordinator.map = map
+        if let saved = centerBox?.camera {
+            map.setCamera(saved, animated: false)
+            context.coordinator.didInitialFrame = true
+        } else if opensAtWorld {
+            context.coordinator.showWorld(runs: runs)
+        }
 
         // A transparent overlay that carries the History heatmap image (hidden otherwise). It
         // sits above the map tiles but ignores touches so map gestures still work.
@@ -145,7 +153,7 @@ struct RunMapView: UIViewRepresentable {
         if context.coordinator.appliedStyle != mapStyle || context.coordinator.appliedIs3D != is3D {
             context.coordinator.appliedStyle = mapStyle
             context.coordinator.appliedIs3D = is3D
-            map.preferredConfiguration = mapStyle.configuration(elevated: is3D)
+            map.preferredConfiguration = mapStyle.configuration(elevated: opensAtWorld || is3D)
             map.pointOfInterestFilter = mapStyle.pointsOfInterest
             map.overrideUserInterfaceStyle = mapStyle.forcedInterfaceStyle
             context.coordinator.applyWash(to: map, style: mapStyle)
@@ -209,7 +217,13 @@ struct RunMapView: UIViewRepresentable {
         if runs.contains(where: { $0.hasRoute }),
            !context.coordinator.didInitialFrame || (renderChanged && renderStyle == .history) {
             context.coordinator.didInitialFrame = true
-            context.coordinator.frameAll(runs: runs)
+            if renderChanged && renderStyle == .history {
+                context.coordinator.frameAll(runs: runs)
+            } else if opensAtWorld && !context.coordinator.userMovedMap && command == nil {
+                context.coordinator.showWorld(runs: runs)
+            } else if !opensAtWorld {
+                context.coordinator.frameAll(runs: runs)
+            }
         }
 
         if let command, command.id != context.coordinator.lastCommandID {
@@ -234,6 +248,7 @@ struct RunMapView: UIViewRepresentable {
         var appliedShowPins: Bool?
         /// Whether the map has framed the runs once on first appearance.
         var didInitialFrame = false
+        var userMovedMap = false
         /// The `contentRevision` the overlays/clusters were last built for. Compared as a single
         /// integer on every representable update so pure re-layouts (e.g. the search sheet dragging,
         /// which re-evaluates the parent's body every frame) skip the overlay/cluster rebuild
@@ -749,8 +764,17 @@ struct RunMapView: UIViewRepresentable {
 
         /// Redraw the heatmap whenever the viewport changes so the glow stays registered to
         /// the map as the user pans and zooms.
+        func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
+            let recognizers = (mapView.subviews.first?.gestureRecognizers ?? []) + (mapView.gestureRecognizers ?? [])
+            if recognizers.contains(where: { $0.state == .began || $0.state == .changed }) {
+                userMovedMap = true
+                didInitialFrame = true
+            }
+        }
+
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
             parent.centerBox?.coordinate = mapView.centerCoordinate
+            parent.centerBox?.camera = mapView.camera.copy() as? MKMapCamera
             // ~6.6 km of latitude in view or less: close enough that tilting into 3D shows real
             // buildings/terrain rather than a skewed flat map. Only a crossing writes the binding.
             if let binding = parent.zoomedInFor3D {
@@ -782,6 +806,7 @@ struct RunMapView: UIViewRepresentable {
 
         func apply(_ command: MapCameraCommand, runs: [Run]) {
             guard let map else { return }
+            didInitialFrame = true
             switch command.target {
             case .fit(let ids):
                 let subset = runs.filter { ids.contains($0.id) }
@@ -796,6 +821,8 @@ struct RunMapView: UIViewRepresentable {
                     span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span)
                 )
                 map.setRegion(region, animated: true)
+            case .world:
+                showWorld(runs: runs)
             case .userLocation:
                 let coordinate = map.userLocation.coordinate
                 guard CLLocationCoordinate2DIsValid(coordinate),
@@ -806,6 +833,27 @@ struct RunMapView: UIViewRepresentable {
                 )
                 map.setRegion(region, animated: true)
             }
+        }
+
+        /// The busiest coarse region avoids averaging far-apart trips into an empty ocean.
+        /// No animation or delayed retry: the map is immediately owned by the user's gestures.
+        func showWorld(runs: [Run]) {
+            let coordinates = runs.compactMap(\.startCoordinate).filter {
+                CLLocationCoordinate2DIsValid($0) && !($0.latitude == 0 && $0.longitude == 0)
+            }
+            let regions = Dictionary(grouping: coordinates) {
+                "\(Int(floor($0.latitude / 30)))|\(Int(floor($0.longitude / 30)))"
+            }
+            let key = regions.keys.sorted().max {
+                (regions[$0]?.count ?? 0) < (regions[$1]?.count ?? 0)
+            }
+            let points = key.flatMap { regions[$0] } ?? []
+            let center = points.isEmpty ? CLLocationCoordinate2D(latitude: 20, longitude: 0)
+                : CLLocationCoordinate2D(
+                    latitude: points.reduce(0) { $0 + $1.latitude } / Double(points.count),
+                    longitude: points.reduce(0) { $0 + $1.longitude } / Double(points.count))
+            map?.setCamera(MKMapCamera(lookingAtCenter: center,
+                fromDistance: 22_000_000, pitch: 0, heading: 0), animated: false)
         }
 
         /// Frames the full set of runs — used when entering the history view so the entire
