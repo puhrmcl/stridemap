@@ -23,7 +23,7 @@ struct PhotoReviewView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     Text(run.name).font(.etch(.headline))
-                    Text("Tap a photo to view it. Use Select to remove unwanted matches. Your originals stay in Apple Photos, and removed matches stay removed when Etch scans again.")
+                    Text("Tap a photo to view it, or touch and hold it to remove it. Use Select to remove several at once. Your originals stay in Apple Photos, and removed matches stay removed when Etch scans again.")
                         .font(.subheadline).foregroundStyle(.secondary)
                     Picker("Photos", selection: $showingRemoved) {
                         Text("Attached (\(run.photoReferences.count))").tag(false)
@@ -61,11 +61,8 @@ struct PhotoReviewView: View {
                             .buttonStyle(.plain)
                             .accessibilityLabel("Photo \((identifiers.firstIndex(of: id) ?? 0) + 1)")
                             .accessibilityAddTraits(selected.contains(id) ? .isSelected : [])
+                            .contextMenu { tileMenu(id) }
                         }
-                    }
-                    if !showingRemoved, !selected.isEmpty {
-                        Button("Hide selected from Memories") { setMemoryVisibility(hidden: true) }
-                        Button("Show selected in Memories") { setMemoryVisibility(hidden: false) }
                     }
                 }
                 .padding(20)
@@ -79,6 +76,14 @@ struct PhotoReviewView: View {
                     }
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    // Culling twenty near-identical frames one tap at a time is the case this
+                    // screen actually gets used for, so selecting the lot is one control.
+                    if isSelecting {
+                        Button(selected.count == identifiers.count ? "None" : "All") {
+                            selected = selected.count == identifiers.count ? [] : Set(identifiers)
+                        }
+                        .disabled(identifiers.isEmpty)
+                    }
                     if !showingRemoved {
                         Button(isSelecting ? "Cancel" : "Select") {
                             isSelecting.toggle()
@@ -113,20 +118,48 @@ struct PhotoReviewView: View {
                                 save()
                             }
                         }
-                        Button(showingRemoved ? "Restore selected (\(selected.count))" : "Not part of this activity (\(selected.count))") {
-                            if showingRemoved {
-                                run.attachPhotos(identifiers.filter { selected.contains($0) }, manually: true)
-                            } else {
-                                lastRemoved = run.photoReferences.enumerated().compactMap { index, id in
-                                    selected.contains(id) ? (id: id, index: index) : nil
+                        // Only while selecting: a long-press removal raises this bar for its
+                        // Undo, and a disabled "Remove 0" sitting under it is noise.
+                        if isSelecting {
+                            HStack(spacing: 10) {
+                                // "Not part of this activity" described the consequence accurately
+                                // and read as a statement rather than a control. The primary action
+                                // on a culling screen should say what it does, in one word.
+                                Button(role: showingRemoved ? nil : .destructive) {
+                                    if showingRemoved {
+                                        restore(identifiers.filter { selected.contains($0) })
+                                    } else {
+                                        remove(identifiers.filter { selected.contains($0) })
+                                    }
+                                } label: {
+                                    Text(showingRemoved
+                                         ? "Restore \(selected.count)"
+                                         : "Remove \(selected.count)")
+                                        .frame(maxWidth: .infinity)
                                 }
-                                for item in lastRemoved { run.rejectPhoto(item.id) }
+                                .buttonStyle(.borderedProminent)
+                                .disabled(selected.isEmpty)
+
+                                // These used to sit inline beneath the grid, which on an activity
+                                // with twenty photographs meant scrolling past all of them to
+                                // reach the controls for the ones just selected.
+                                if !showingRemoved {
+                                    Menu {
+                                        Button("Hide from Memories", systemImage: "eye.slash") {
+                                            setMemoryVisibility(hidden: true)
+                                        }
+                                        Button("Show in Memories", systemImage: "eye") {
+                                            setMemoryVisibility(hidden: false)
+                                        }
+                                    } label: {
+                                        Label("More", systemImage: "ellipsis.circle")
+                                            .labelStyle(.iconOnly)
+                                            .font(.title3)
+                                    }
+                                    .disabled(selected.isEmpty)
+                                }
                             }
-                            selected = []
-                            save()
                         }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(selected.isEmpty)
                     }
                     .padding().frame(maxWidth: .infinity).background(.bar)
                 }
@@ -136,6 +169,50 @@ struct PhotoReviewView: View {
                 Button("OK", role: .cancel) {}
             }
         }
+    }
+
+    /// The per-photo menu. This is the change that matters: removing one photograph used to cost
+    /// a mode switch, a tap, a scroll to the foot of twenty thumbnails and a fourth tap. Here it
+    /// is a long press and a tap, from the ordinary browsing state, and the Undo bar still
+    /// appears — so a slip costs nothing.
+    @ViewBuilder
+    private func tileMenu(_ id: String) -> some View {
+        if showingRemoved {
+            Button("Restore to Activity", systemImage: "arrow.uturn.backward") { restore([id]) }
+        } else {
+            Button("View", systemImage: "eye") { preview = PhotoPreview(id: id) }
+            if run.memoryHiddenPhotoReferences.contains(id) {
+                Button("Show in Memories", systemImage: "eye") {
+                    run.setPhotoHiddenFromMemories(id, hidden: false); save()
+                }
+            } else {
+                Button("Hide from Memories", systemImage: "eye.slash") {
+                    run.setPhotoHiddenFromMemories(id, hidden: true); save()
+                }
+            }
+            Divider()
+            Button("Remove from Activity", systemImage: "minus.circle", role: .destructive) {
+                remove([id])
+            }
+        }
+    }
+
+    /// Detaches photographs, remembering where each sat so Undo can put it back in place. The
+    /// original in Apple Photos is never touched.
+    private func remove(_ ids: [String]) {
+        let removing = Set(ids)
+        lastRemoved = run.photoReferences.enumerated().compactMap { index, id in
+            removing.contains(id) ? (id: id, index: index) : nil
+        }
+        for item in lastRemoved { run.rejectPhoto(item.id) }
+        selected.subtract(removing)
+        save()
+    }
+
+    private func restore(_ ids: [String]) {
+        run.attachPhotos(ids, manually: true)
+        selected.subtract(Set(ids))
+        save()
     }
 
     private func setMemoryVisibility(hidden: Bool) {
