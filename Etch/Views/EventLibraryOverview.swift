@@ -14,9 +14,7 @@ struct EventLibraryOverview: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            if expanded {
-                Text(event.name).font(.etch(.largeTitle, weight: .bold))
-            }
+            Text(event.name).font(.etch(expanded ? .largeTitle : .title2, weight: .bold))
             mapPreview
             Label(courseLabel, systemImage: coordinates.count > 1 ? "point.topleft.down.to.point.bottomright.curvepath" : "mappin")
                 .font(.etch(.caption)).foregroundStyle(.secondary)
@@ -147,6 +145,74 @@ extension RaceEvent {
         case "mesa", "mesa-half": return URL(string: "https://mesamarathon.com/register")
         case "chicago": return URL(string: "https://www.chicagomarathon.com/apply/")
         default: return nil
+        }
+    }
+}
+
+/// Browsing an event opens its detail before changing the add form's selection.
+struct EventLibraryBrowser: View {
+    let year: Int
+    let onSelect: (RaceEvent) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+    private var searchText: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private func matches(_ event: RaceEvent) -> Bool {
+        searchText.isEmpty || "\(event.name) \(event.city) \(event.state ?? "") \(event.country)"
+            .localizedCaseInsensitiveContains(searchText)
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(RaceCatalog.grouped(), id: \.discipline) { group in
+                    let events = group.events.filter { matches($0) }
+                    if !events.isEmpty {
+                        Section(group.discipline.title) {
+                            ForEach(events) { event in
+                                NavigationLink {
+                                    EventLibrarySelection(event: event, year: year, onSelect: onSelect)
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Label(event.name, systemImage: event.discipline.icon)
+                                        Text(event.summary).font(.caption).foregroundStyle(.secondary)
+                                    }.padding(.vertical, 6)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .searchable(text: $query, prompt: "Event or place")
+            .overlay {
+                if !RaceCatalog.events.contains(where: { matches($0) }) {
+                    ContentUnavailableView.search(text: query)
+                }
+            }
+            .navigationTitle("Event library")
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
+        }
+    }
+}
+
+struct EventLibrarySelection: View {
+    let event: RaceEvent
+    let year: Int
+    let onSelect: (RaceEvent) -> Void
+
+    var body: some View {
+        ScrollView {
+            EventLibraryOverview(event: event, year: year, expanded: true).padding(20)
+        }
+        .navigationTitle("Event details")
+        .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .bottom) {
+            Button { onSelect(event) } label: {
+                Text("Use this event").font(.headline)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.borderedProminent)
+            .padding()
+            .background(.regularMaterial)
         }
     }
 }

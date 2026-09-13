@@ -15,6 +15,11 @@ struct AddRaceView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var eventID: String = RaceCatalog.events.first?.id ?? ""
+    @State private var showEventBrowser = false
+
+    init(eventID: String? = nil) {
+        _eventID = State(initialValue: eventID ?? RaceCatalog.events.first?.id ?? "")
+    }
     @State private var date = Date()
     @State private var hours = 4
     @State private var minutes = 0
@@ -63,7 +68,10 @@ struct AddRaceView: View {
     var body: some View {
         Form {
             eventSection
-            Section { EventLibraryOverview(event: event, year: year) }
+            Section("Selected event") {
+                EventLibraryOverview(event: event, year: year).id("\(event.id)-\(year)")
+            }
+            dateSection
             upcomingSection
             resultSection
             if event.discipline.hasFinisherFields { finisherSection }
@@ -80,6 +88,12 @@ struct AddRaceView: View {
                 Button("Add") { add() }
                     .fontWeight(.semibold)
                     .disabled(finishSeconds <= 0)
+            }
+        }
+        .sheet(isPresented: $showEventBrowser) {
+            EventLibraryBrowser(year: year) { selected in
+                eventID = selected.id
+                showEventBrowser = false
             }
         }
         .onAppear(perform: syncDefaults)
@@ -107,24 +121,32 @@ struct AddRaceView: View {
 
     private var eventSection: some View {
         Section {
-            Picker("Event", selection: $eventID) {
-                ForEach(RaceCatalog.grouped(), id: \.discipline) { group in
-                    Section(group.discipline.title) {
-                        ForEach(group.events) { event in
-                            Label(event.name, systemImage: event.discipline.icon).tag(event.id)
-                        }
-                    }
-                }
+            Button { showEventBrowser = true } label: {
+                HStack(spacing: 12) {
+                    Label(event.name, systemImage: event.discipline.icon)
+                        .foregroundStyle(.primary)
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                }.frame(minHeight: 44).contentShape(.rect)
             }
+            .buttonStyle(.plain)
+            .accessibilityHint("Browse events and preview their courses")
+        } header: {
+            Text("Choose from library")
+        }
+    }
+
+    private var dateSection: some View {
+        Section {
             DatePicker("Date", selection: $date, displayedComponents: .date)
             if !isOnTypicalDate {
                 Button("Use \(typicalDateLabel)") { date = event.lastOccurrence() }
                     .font(.subheadline)
             }
         } header: {
-            Text("Event")
+            Text("Your activity date")
         } footer: {
-            Text(event.summary)
+            Text("Choose the date you took part. The library’s usual date may differ from the organizer’s published date.")
         }
     }
 
