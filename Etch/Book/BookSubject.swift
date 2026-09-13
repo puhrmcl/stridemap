@@ -154,6 +154,7 @@ enum BookLens: Hashable, Identifiable {
             case .ski:  return "Ski Days"
             case .swim: return "Swims"
             case .row:  return "Rows"
+            case .paddle: return "Paddles"
             case .other: return "Other"
             }
         }
@@ -170,6 +171,7 @@ enum BookLens: Hashable, Identifiable {
         case .ski:  return "A YEAR ON SNOW"
         case .swim: return "A YEAR IN THE WATER"
         case .row:  return "A YEAR ON THE WATER"
+        case .paddle: return "A YEAR OF PADDLING"
         case .other: return nil
         }
     }

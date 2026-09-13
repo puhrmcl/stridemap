@@ -16,6 +16,7 @@ struct SettingsView: View {
     @AppStorage("includeHikes") private var includeHikes = true
     @AppStorage("includeRides") private var includeRides = true
     @AppStorage("includeWalks") private var includeWalks = false
+    @AppStorage("includePaddles") private var includePaddles = true
 
     @State private var exportURL: URL?
     @State private var showDeleteConfirm = false
@@ -132,6 +133,12 @@ struct SettingsView: View {
                 Label("Walks", systemImage: "figure.walk")
             }
             .onChange(of: includeWalks) { _, on in
+                if on { Task { await sync.sync() } }
+            }
+            Toggle(isOn: $includePaddles) {
+                Label("Paddling", systemImage: "oar.2.crossed")
+            }
+            .onChange(of: includePaddles) { _, on in
                 if on { Task { await sync.sync() } }
             }
             NavigationLink {

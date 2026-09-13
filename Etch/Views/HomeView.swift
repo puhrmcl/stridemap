@@ -1173,6 +1173,7 @@ struct HomeView: View {
         case .hikes: return "Hikes"
         case .rides: return "Rides"
         case .walks: return "Walks"
+        case .paddles: return "Paddling"
         }
     }
 

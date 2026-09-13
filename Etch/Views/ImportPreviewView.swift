@@ -182,7 +182,7 @@ struct ImportPreviewView: View {
     /// Run/Hike/Ride/Walk, plus the current type if it's something else, so the menu always shows
     /// a valid selection.
     private func typeChoices(including current: ActivityType) -> [ActivityType] {
-        var base: [ActivityType] = [.run, .hike, .ride, .walk]
+        var base: [ActivityType] = [.run, .hike, .ride, .walk, .paddle]
         if !base.contains(current) { base.append(current) }
         return base
     }

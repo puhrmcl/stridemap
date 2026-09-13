@@ -133,7 +133,9 @@ final class HealthKitProvider: ActivityProvider {
     /// walking only when opted in (Apple Watch auto-logs many short walks, so it's off by default).
     /// Every type Etch can import, regardless of what's switched on — so a reset clears the
     /// anchors of types that happen to be off right now too.
-    private static let allImportableTypes: [HKWorkoutActivityType] = [.running, .hiking, .cycling, .walking]
+    private static let allImportableTypes: [HKWorkoutActivityType] = [
+        .running, .hiking, .cycling, .walking, .paddleSports
+    ]
 
     private static var importedWorkoutTypes: [HKWorkoutActivityType] {
         var types: [HKWorkoutActivityType] = []
@@ -141,6 +143,7 @@ final class HealthKitProvider: ActivityProvider {
         if ActivitySettings.includeHikes { types.append(.hiking) }
         if ActivitySettings.includeRides { types.append(.cycling) }
         if ActivitySettings.includeWalks { types.append(.walking) }
+        if ActivitySettings.includePaddles { types.append(.paddleSports) }
         return types
     }
 
@@ -333,15 +336,19 @@ final class HealthKitProvider: ActivityProvider {
 
     // MARK: Mapping
 
-    /// Maps a HealthKit workout type to our normalized activity type. We import running and
-    /// hiking; anything else (shouldn't occur given the query) falls back to run.
+    /// Maps a HealthKit workout type to our normalized activity type. Anything outside the
+    /// imported set (shouldn't occur given the query) falls back to run.
+    ///
+    /// `paddleSports` is Apple's single umbrella for canoeing, kayaking and stand-up paddleboarding
+    /// — Health does not separate them, so neither do we.
     private static func activityType(for type: HKWorkoutActivityType) -> ActivityType {
         switch type {
-        case .running: return .run
-        case .hiking:  return .hike
-        case .cycling: return .ride
-        case .walking: return .walk
-        default:       return .run
+        case .running:      return .run
+        case .hiking:       return .hike
+        case .cycling:      return .ride
+        case .walking:      return .walk
+        case .paddleSports: return .paddle
+        default:            return .run
         }
     }
 
