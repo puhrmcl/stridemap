@@ -15,6 +15,8 @@ struct HighlightsView: View {
     @State private var nearbyMemories = false
     @State private var selectedInsight: MeaningEngine.Insight?
     @State private var recordsExpanded = false
+    @State private var yearsExpanded = false
+    @State private var selectedStory: DailyStoryEngine.Story?
     @State private var memoryDate = Date()
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dismiss) private var dismiss
@@ -69,7 +71,7 @@ struct HighlightsView: View {
         var locatedCount = 0
         var meaningInsights: [MeaningEngine.Insight] = []
         var memories: [PhotoMemory] = []
-        var storyRun: Run?
+        var dailyStories: [DailyStoryEngine.Story] = []
         /// Identifies the exact located set the reach tiles describe — see `reachKey`.
         var reachSignature = 0
     }
@@ -142,16 +144,7 @@ struct HighlightsView: View {
         }
         next.reachSignature = reachHasher.finalize()
         next.meaningInsights = MeaningEngine(runs: typed).insights(limit: 3, excludingKinds: [.personalBest, .record])
-        let storyHistory = typed.filter { !$0.isHiddenFromMemories }.sorted {
-            $0.startDate == $1.startDate ? $0.id.uuidString < $1.id.uuidString : $0.startDate > $1.startDate
-        }
-        let associated = next.meaningInsights.first?.run
-        if let associated, !associated.isHiddenFromMemories, !associated.memoryPhotoReferences.isEmpty {
-            next.storyRun = associated
-        } else {
-            next.storyRun = storyHistory.first { !$0.memoryPhotoReferences.isEmpty }
-                ?? storyHistory.first { $0.hasRoute } ?? storyHistory.first
-        }
+        next.dailyStories = DailyStoryEngine.stories(in: runs, scope: scope, now: memoryDate)
         next.memories = PhotoMemories.discover(in: runs, scope: scope, now: memoryDate, limit: 3).memories
         if scope == .all {
             next.breakdown = breakdownScopes.compactMap { s in
@@ -172,8 +165,9 @@ struct HighlightsView: View {
                     LazyVStack(alignment: .leading, spacing: 28) {
                         if !isSingleActivity { scopeSwitcher }
                         featuredStory
+                        dailySection
                         memoriesSection
-                        if derived.meaningInsights.count > 1 { meaningSection }
+                        meaningSection
                         VStack(alignment: .leading, spacing: 14) {
                             Text("Achievements").font(.etch(.title2, weight: .bold))
                             if scopedRuns.isEmpty {
@@ -192,7 +186,11 @@ struct HighlightsView: View {
                                 .tint(Theme.accent)
                             }
                         }
-                        recapsSection
+                        DisclosureGroup("Your years", isExpanded: $yearsExpanded) {
+                            recapsSection.padding(.top, 12)
+                        }
+                        .font(.etch(.headline))
+                        .tint(Theme.accent)
                     }
                     .padding(20)
                     // The whole content is the anchor, scrolled to its own top edge. Nothing on
@@ -210,6 +208,7 @@ struct HighlightsView: View {
                 // The one place this page's data is built. Everything else reads values.
                 .onChange(of: derivedKey, initial: true) { _, _ in rebuildDerived() }
                 .sheet(isPresented: $showMemories) { PhotoMemoriesView(nearby: nearbyMemories) }
+                .sheet(item: $selectedStory) { story in dailyStoryDetails(story) }
                 .sheet(item: $selectedInsight) { insight in insightDetails(insight) }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active { memoryDate = Date(); rebuildDerived() }
@@ -331,55 +330,91 @@ struct HighlightsView: View {
     // MARK: Stories and memories
 
     private var featuredStory: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Your story").font(.etch(.title2, weight: .bold))
-            if appModel.filter.isActive {
-                Text("Stats below reflect your current filters.")
-                    .font(.etch(.caption)).foregroundStyle(.secondary)
-            }
-            HStack {
-                Label("\(derived.totalRuns.formatted()) activities", systemImage: scope.icon)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Your story").font(.etch(.title2, weight: .bold))
                 Spacer()
                 Text("\(derived.years.count) \(derived.years.count == 1 ? "year" : "years")")
+                    .font(.etch(.caption)).foregroundStyle(.secondary)
             }
-            .font(.etch(.subheadline, weight: .semibold))
-            .foregroundStyle(.secondary)
             reachSection
-            VStack(alignment: .leading, spacing: 0) {
-                if let run = derived.storyRun {
-                    Button { pushedRun = run } label: {
-                        VStack(alignment: .leading, spacing: 10) {
-                            StoryArtwork(run: run).id(run.id)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(run.name).font(.etch(.headline))
-                                Text("From your history · \(Format.date(run.startDate))")
-                                    .font(.etch(.caption)).foregroundStyle(.secondary)
-                            }.padding(.horizontal, 18).padding(.bottom, 16)
-                        }.contentShape(.rect)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityHint("Opens the activity pictured here")
-                }
-                if let insight = derived.meaningInsights.first {
-                    Button { selectedInsight = insight } label: {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Label("Etch noticed", systemImage: insight.symbol)
-                                    .font(.etch(.caption, weight: .semibold)).foregroundStyle(Theme.accent)
-                                Spacer()
-                                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
-                            }
-                            Text(insight.title).font(.etch(.title3, weight: .semibold))
-                            Text(insight.story).font(.etch(.subheadline)).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(.rect)
-                    }.buttonStyle(.plain)
-                }
+            if appModel.filter.isActive {
+                Text("Totals reflect your filters. Stories and memories draw from your full \(scope == .all ? "activity" : scope.countNoun) history.")
+                    .font(.etch(.caption)).foregroundStyle(.secondary)
             }
-            .background(Color(.secondarySystemBackground))
-            .clipShape(.rect(cornerRadius: 24))
         }
+    }
+
+    private var dailyStory: DailyStoryEngine.Story? {
+        guard !derived.dailyStories.isEmpty else { return nil }
+        let day = Calendar.current.ordinality(of: .day, in: .era, for: memoryDate) ?? 0
+        return derived.dailyStories[day % derived.dailyStories.count]
+    }
+
+    private var dailySection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("A little perspective").font(.etch(.title2, weight: .bold))
+                Spacer()
+                Text(memoryDate.formatted(.dateTime.month(.abbreviated).day()))
+                    .font(.etch(.caption)).foregroundStyle(.secondary)
+            }
+            if let story = dailyStory {
+                Button { selectedStory = story } label: {
+                    VStack(alignment: .leading, spacing: 0) {
+                        StoryArtwork(run: story.run).id(story.run.id)
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(story.eyebrow).font(.etch(.caption, weight: .semibold)).tracking(1.4)
+                                .foregroundStyle(Theme.accent)
+                            Text(story.title).font(.etch(.title, weight: .bold))
+                            Text(story.message).font(.etch(.subheadline)).foregroundStyle(.secondary)
+                            if !story.marks.isEmpty { StoryMarks(marks: story.marks) }
+                            HStack {
+                                Text("See the story").font(.etch(.subheadline, weight: .semibold))
+                                Spacer()
+                                Image(systemName: "arrow.up.right")
+                            }.foregroundStyle(Theme.accent).padding(.top, 4)
+                        }.padding(20)
+                    }
+                    .foregroundStyle(.primary)
+                    .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 24))
+                    .clipShape(.rect(cornerRadius: 24))
+                    .contentShape(.rect)
+                }.buttonStyle(.plain)
+            } else if let memory = derived.memories.first {
+                Button { pushedRun = memory.run } label: {
+                    VStack(alignment: .leading, spacing: 0) {
+                        StoryArtwork(run: memory.run).id(memory.run.id)
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(memory.title).font(.etch(.title2, weight: .bold))
+                            Text("\(memory.run.name) · \(Format.date(memory.run.startDate))")
+                                .font(.etch(.subheadline)).foregroundStyle(.secondary)
+                            Text("What would you want to remember about this day?")
+                                .font(.etch(.body))
+                            Label("Revisit this activity", systemImage: "arrow.up.right")
+                                .font(.etch(.subheadline, weight: .semibold)).foregroundStyle(Theme.accent)
+                        }.padding(20)
+                    }.foregroundStyle(.primary)
+                        .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 24))
+                        .clipShape(.rect(cornerRadius: 24))
+                }.buttonStyle(.plain)
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    Image(systemName: "sparkles").font(.title).foregroundStyle(Theme.accent)
+                    Text("Every story starts somewhere.").font(.etch(.title2, weight: .bold))
+                    Text("Your activities will bring photos, familiar places and patterns here. Start with a day you want to remember.")
+                        .font(.etch(.subheadline)).foregroundStyle(.secondary)
+                    Button("Explore Timeline") { appModel.selectedTab = .timeline }
+                        .frame(minHeight: 44)
+                }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 24))
+            }
+        }
+    }
+
+    private var memoryPreviews: [PhotoMemory] {
+        let featuredID = dailyStory?.run.id ?? derived.memories.first?.id
+        return derived.memories.filter { $0.id != featuredID }
     }
 
     private var memoriesSection: some View {
@@ -391,9 +426,9 @@ struct HighlightsView: View {
                     .font(.etch(.subheadline, weight: .semibold))
                     .frame(minHeight: 44)
             }
-            Text("Rediscover days, photos and familiar places.")
+            Text("A date. A place. A feeling worth keeping.")
                 .font(.etch(.subheadline)).foregroundStyle(.secondary)
-            if derived.memories.isEmpty {
+            if memoryPreviews.isEmpty {
                 Button { nearbyMemories = false; showMemories = true } label: {
                     Label("Explore your history", systemImage: "clock.arrow.circlepath")
                         .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
@@ -403,7 +438,7 @@ struct HighlightsView: View {
             } else {
                 ScrollView(.horizontal) {
                     LazyHStack(alignment: .top, spacing: 14) {
-                        ForEach(derived.memories) { memory in
+                        ForEach(memoryPreviews) { memory in
                             Button { pushedRun = memory.run } label: {
                                 VStack(alignment: .leading, spacing: 10) {
                                     MemoryCover(identifiers: memory.photoReferences, run: memory.run)
@@ -434,24 +469,62 @@ struct HighlightsView: View {
     // MARK: Meaning
 
     private var meaningSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Etch noticed")
-                    .font(.etch(.title2, weight: .bold))
-                Spacer()
-                Text("From your history")
-                    .font(.etch(.caption))
-                    .foregroundStyle(.secondary)
-            }
-
-            ForEach(Array(derived.meaningInsights.dropFirst()), id: \.id) { insight in
-                Button {
-                    selectedInsight = insight
-                } label: {
-                    MeaningCard(insight: insight, featured: false)
+        VStack(alignment: .leading, spacing: 14) {
+            if !derived.meaningInsights.isEmpty || derived.dailyStories.count > 1 {
+                Text("Worth noticing").font(.etch(.title2, weight: .bold))
+                ForEach(derived.dailyStories.filter { $0.id != dailyStory?.id }) { story in
+                    Button { selectedStory = story } label: {
+                        HStack(alignment: .top, spacing: 14) {
+                            Image(systemName: story.symbol).font(.title3).foregroundStyle(Theme.accent)
+                                .frame(width: 28)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(story.title).font(.etch(.headline))
+                                Text(story.message).font(.etch(.subheadline)).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
+                        }.padding(18).foregroundStyle(.primary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 20))
+                    }.buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                ForEach(Array(derived.meaningInsights.prefix(derived.dailyStories.count > 1 ? 1 : 2)), id: \.id) { insight in
+                    Button { selectedInsight = insight } label: {
+                        MeaningCard(insight: insight, featured: false)
+                    }.buttonStyle(.plain)
+                }
             }
+        }
+    }
+
+    private func dailyStoryDetails(_ story: DailyStoryEngine.Story) -> some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    StoryArtwork(run: story.run).clipShape(.rect(cornerRadius: 22))
+                    Text(story.title).font(.etch(.largeTitle, weight: .bold))
+                    Text(story.message).font(.etch(.body))
+                    if !story.marks.isEmpty { StoryMarks(marks: story.marks) }
+                    Text("Make it yours").font(.etch(.title3, weight: .semibold))
+                    Text(story.prompt).font(.etch(.body)).foregroundStyle(.secondary)
+                    NavigationLink { RunDetailView(run: story.run) } label: {
+                        Label("Revisit \(story.run.name)", systemImage: "arrow.up.right")
+                            .frame(minHeight: 44)
+                    }
+                    Text("Behind the story").font(.etch(.headline))
+                    ForEach(Array(story.evidence.enumerated()), id: \.offset) { _, line in
+                        Text(line).font(.etch(.subheadline)).foregroundStyle(.secondary)
+                    }
+                    Text("Based on your selected activity history in Etch. Hidden activities and activities excluded from totals or Memories are left out.")
+                        .font(.etch(.caption)).foregroundStyle(.secondary)
+                    ShareLink(item: story.shareText) {
+                        Label("Share this insight", systemImage: "square.and.arrow.up")
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }.buttonStyle(.bordered)
+                }.padding(20)
+            }
+            .navigationTitle("Your story").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { selectedStory = nil } } }
         }
     }
 
@@ -459,8 +532,14 @@ struct HighlightsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    if let run = insight.run, !run.isHiddenFromMemories {
+                        StoryArtwork(run: run).clipShape(.rect(cornerRadius: 22))
+                    }
                     Text(insight.title).font(.etch(.largeTitle, weight: .bold))
                     Text(insight.story).font(.etch(.body))
+                    ShareLink(item: "\(insight.title)\n\n\(insight.story)\n\nFrom my activity history in Etch.") {
+                        Label("Share this insight", systemImage: "square.and.arrow.up").frame(minHeight: 44)
+                    }
                     Text("Behind this insight").font(.etch(.headline))
                     ForEach(Array(insight.evidence.enumerated()), id: \.offset) { _, evidence in
                         Label(evidence, systemImage: "checkmark.circle")
@@ -536,47 +615,53 @@ struct HighlightsView: View {
     // MARK: Reach (shared, scopes with the selection)
 
     private var reachSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                NavigationLink {
-                    CitiesListView(places: derived.travelPlaces)
-                } label: {
-                    // Match the Cities map / list, which cluster by place (travelPlaces), not the
-                    // raw distinct-city-name set.
-                    StoryStat(value: derived.travelPlaces.count.formatted(), label: "Cities", systemName: "building.2", accent: true)
-                }
-                .buttonStyle(.plain)
-                NavigationLink {
-                    StatesView()
-                } label: {
-                    StoryStat(value: reachStateValue, label: "States", systemName: "map")
-                }
-                .buttonStyle(.plain)
-                StoryStat(value: reachCountryValue, label: "Countries", systemName: "globe")
-                StoryStat(
-                    value: Format.distanceValue(derived.totalDistance).formatted(.number.precision(.fractionLength(0))),
-                    label: "Total \(UnitSystem.current.distanceSuffix)",
-                    systemName: scope.icon,
-                    accent: true
-                )
-                // For climbing disciplines (hikes, rides) elevation is a headline metric, not an
-                // afterthought — surface total ascent and the average per outing.
-                if scopeClimbs {
-                    StoryStat(value: climbValue(derived.totalElevation), label: "Total climb",
-                             systemName: "mountain.2", accent: true)
-                    StoryStat(value: climbValue(averageClimb), label: "Avg climb",
-                             systemName: "arrow.up.forward")
-                }
-                // Speed is a headline metric for rides (pace suits runs) — surface average and,
-                // when a source recorded it, top speed.
-                if scope == .rides {
-                    StoryStat(value: averageSpeedValue, label: "Avg speed", systemName: "speedometer", accent: true)
-                    if let top = topSpeedValue {
-                        StoryStat(value: top, label: "Top speed", systemName: "gauge.high")
-                    }
-                }
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top, spacing: 16) {
+                summaryValue(derived.totalRuns.formatted(), label: "Activities")
+                summaryValue(Format.distanceValue(derived.totalDistance).formatted(.number.precision(.fractionLength(0))),
+                             label: "Total \(UnitSystem.current.distanceSuffix)")
             }
-        }
+            Divider()
+            HStack(alignment: .top, spacing: 12) {
+                NavigationLink { CitiesListView(places: derived.travelPlaces) } label: {
+                    placeValue(derived.travelPlaces.count.formatted(), label: "Cities")
+                }.buttonStyle(.plain)
+                NavigationLink { StatesView() } label: {
+                    placeValue(reachStateValue, label: "States")
+                }.buttonStyle(.plain)
+                placeValue(reachCountryValue, label: "Countries")
+            }
+            if scopeClimbs {
+                DisclosureGroup("Climb & movement") {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        StoryStat(value: climbValue(derived.totalElevation), label: "Total climb", systemName: "mountain.2")
+                        StoryStat(value: climbValue(averageClimb), label: "Avg climb", systemName: "arrow.up.forward")
+                        if scope == .rides {
+                            StoryStat(value: averageSpeedValue, label: "Avg speed", systemName: "speedometer")
+                            if let top = topSpeedValue { StoryStat(value: top, label: "Top speed", systemName: "gauge.high") }
+                        }
+                    }.padding(.top, 12)
+                }.font(.etch(.subheadline)).tint(Theme.accent)
+            }
+        }.padding(20)
+            .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 24))
+    }
+
+    private func summaryValue(_ value: String, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(value).font(.system(.largeTitle, design: .rounded, weight: .semibold))
+                .monospacedDigit().minimumScaleFactor(0.6).lineLimit(1)
+            Text(label).font(.etch(.caption)).foregroundStyle(.secondary)
+        }.frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+    }
+
+    private func placeValue(_ value: String, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(value).font(.system(.title3, design: .rounded, weight: .semibold)).foregroundStyle(Theme.accent)
+            Text(label).font(.etch(.caption)).foregroundStyle(.secondary)
+        }.frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: 44).accessibilityElement(children: .combine)
     }
 
     /// The States / Countries tile values: the GPS-attributed count once computed, falling back to
@@ -745,9 +830,6 @@ struct HighlightsView: View {
 
     private var recapsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Your years")
-                .font(.etch(.title3, weight: .bold))
-
             ForEach(derived.years, id: \.self) { year in
                 NavigationLink {
                     YearInReviewView(year: year)
@@ -806,8 +888,16 @@ private struct StoryArtwork: View {
             .overlay {
                 if let photograph {
                     Image(uiImage: photograph).resizable().scaledToFill()
-                } else {
+                } else if run.hasRoute {
                     RouteMapTile(run: run)
+                } else {
+                    VStack(spacing: 12) {
+                        Image(systemName: "figure.walk").font(.largeTitle).foregroundStyle(Theme.accent)
+                        Text(run.placeLabel.isEmpty ? Format.date(run.startDate) : run.placeLabel)
+                            .font(.etch(.headline))
+                        Text("\(Format.distance(run.distance)) · \(Format.date(run.startDate))")
+                            .font(.etch(.caption)).foregroundStyle(.secondary)
+                    }.padding(20)
                 }
             }
             .clipped()
@@ -853,5 +943,31 @@ private struct StoryStat: View {
         .padding(16)
         .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 18))
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// A compact count chart with its complete values available to VoiceOver.
+private struct StoryMarks: View {
+    let marks: [DailyStoryEngine.Mark]
+    private var maximum: Int { max(1, marks.map(\.value).max() ?? 1) }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(marks.count == 8 ? "Active days · last 8 complete weeks" : "Active days · by weekday")
+                .font(.etch(.caption)).foregroundStyle(.secondary)
+            HStack(alignment: .bottom, spacing: 8) {
+                ForEach(Array(marks.enumerated()), id: \.offset) { index, mark in
+                    VStack(spacing: 5) {
+                        Text("\(mark.value)").font(.caption2).foregroundStyle(.secondary)
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(mark.value == 0 ? Color.secondary.opacity(0.15) : Theme.accent.opacity(0.85))
+                            .frame(height: max(4, 44 * Double(mark.value) / Double(maximum)))
+                        Text(marks.count == 8 ? "\(index + 1)" : String(mark.label.prefix(2)))
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }.frame(maxWidth: .infinity, alignment: .bottom)
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(marks.map { "\($0.label): \($0.value) active days" }.joined(separator: "; "))
     }
 }
