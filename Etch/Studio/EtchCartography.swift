@@ -128,8 +128,8 @@ enum EtchCartography {
     static func printAttribution(for edition: StudioEdition) -> String {
         switch edition.id {
         case .satellite: return "Imagery: USGS · USDA NAIP"
-        case .terrain:   return "\(attribution) · Elevation: USGS, NASA"
-        default:         return attribution
+        case .terrain:   return "\(attribution) · openstreetmap.org/copyright · Elevation: USGS, NASA"
+        default:         return "\(attribution) · openstreetmap.org/copyright"
         }
     }
 

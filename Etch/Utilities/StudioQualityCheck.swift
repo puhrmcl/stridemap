@@ -1,10 +1,11 @@
 import SwiftUI
 import UIKit
+import Vision
 
 /// Exercises production history and composition rules on the PR's simulator build.
 @MainActor
 struct StudioQualityCheckView: View {
-    static let expectedChecks = 55
+    static let expectedChecks = 63
     @State private var report = "Checking Studio…"
 
     var body: some View {
@@ -178,6 +179,42 @@ struct StudioQualityCheckView: View {
             layer("buildings", edition: $0)?["filter"] as? [String] == ["==", "$type", "Polygon"]
         })
 
+        // Geometry and text must survive the actual production render, not just a config roundtrip.
+        var plate = StudioRenderer.Request(run: maine, edition: .minimal)
+        plate.orientation = .landscape
+        plate.dataPlacement = .right
+        plate.mapLayoutRaw = MapLayout.nameplate.rawValue
+        expect("Landscape Nameplate resolves to stacked data", plate.effectiveDataPlacement == .bottom)
+        plate.mapLayoutRaw = MapLayout.statement.rawValue
+        expect("Side-column Statement preserves the chosen placement", plate.effectiveDataPlacement == .right)
+        plate.mapLayoutRaw = MapLayout.nameplate.rawValue
+        expect("Map raster resolution grows with the requested output",
+               StudioRenderer.panelRasterScale(size: CGSize(width: 1000, height: 1000), requestedPixelWidth: 3000) == 3)
+        expect("Map rasters respect the long-edge memory ceiling",
+               StudioRenderer.panelRasterScale(size: CGSize(width: 1640, height: 920), requestedPixelWidth: 9000) * 1640 <= StudioRenderer.maxPanelPixelWidth + 0.01)
+        expect("Printed OSM credit includes its source URL",
+               EtchCartography.printAttribution(for: .streets).contains("openstreetmap.org/copyright"))
+        // `PosterConfig()` does not compile from outside PosterConfig.swift: declaring
+        // `init(poster:)` suppressed the memberwise init, and the no-argument one is private.
+        // `makeDefault(for:)` is the public way to make a fresh recipe, and is also the honest
+        // subject of this assertion — "a new poster" is what that factory produces.
+        expect("New photo layouts start with one intentional image",
+               PosterConfig.makeDefault(for: maine).mapPhotoCount == 1)
+        maine.isRace = true
+        plate.titleOverride = "MESA MARATHON"
+        plate.titleFont = .modern
+        plate.heroMetric = .time
+        plate.statSlots = [.distance, .pace]
+        for aspect in PrintAspect.allCases {
+            plate.printAspect = aspect
+            let rendered = await StudioRenderer.image(for: plate, scale: 1)
+            let text = recognizedText(rendered).uppercased().filter { !$0.isWhitespace }
+            let ratio = rendered.map { $0.size.width / $0.size.height } ?? 0
+            expect("Landscape \\(aspect.label) retains title, result label and print shape",
+                   text.contains("MESAMARATHON") && text.contains("FINISHTIME")
+                       && abs(ratio - 1 / aspect.ratio) < 0.01)
+        }
+
         let passed = lines.count == Self.expectedChecks && !lines.contains { $0.hasPrefix("FAIL") }
         let complete = (["studio-quality \(AppInfo.changeTag)"] + lines + [
             "EXPECTED_CHECKS: \(Self.expectedChecks)", "RAN_CHECKS: \(lines.count)",
@@ -187,6 +224,17 @@ struct StudioQualityCheckView: View {
         if let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             try? complete.write(to: directory.appendingPathComponent("studio-quality-report.txt"), atomically: true, encoding: .utf8)
         }
+    }
+    private func recognizedText(_ image: UIImage?) -> String {
+        guard let cgImage = image?.cgImage else { return "" }
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.recognitionLanguages = ["en-US"]
+        request.usesLanguageCorrection = false
+        do {
+            try VNImageRequestHandler(cgImage: cgImage).perform([request])
+            return (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: " ")
+        } catch { return "" }
     }
 }
 
@@ -223,6 +271,7 @@ struct StudioPrintProofView: View {
                 config.family = name.contains("gallery") ? .gallery : .map
                 config.galleryDesign = .feature
                 config.orientation = landscape ? .landscape : .portrait
+                if name.contains("photo") { config.mapLayout = .photo; config.mapPhotoCount = 3 }
                 image = await StudioRenderer.image(for: config.request(for: subject), scale: 1)
             }
         }

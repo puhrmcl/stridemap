@@ -142,6 +142,15 @@ enum MapLayout: String, CaseIterable, Identifiable {
         case .fullBleed: return "Full Bleed"
         }
     }
+    var summary: String {
+        switch self {
+        case .nameplate: return "The place, the route, the achievement. Title and results stay visible in both orientations."
+        case .statement: return "A bold result with a supporting map and selected details."
+        case .minimal: return "A quieter composition with your title and date; supporting metrics are intentionally omitted."
+        case .photo: return "Your route alongside a photograph from the day. Start with one strong image."
+        case .fullBleed: return "An edge-to-edge map with your selected details set over the artwork."
+        }
+    }
     var icon: String {
         switch self {
         case .nameplate: return "textformat.size.larger"
@@ -287,7 +296,7 @@ struct PosterConfig: Equatable {
     /// A poster saved before this keeps whatever it was saved with; only new ones change.
     var mapLayout: MapLayout = .nameplate
     /// Map Photo layout: how many photos to show (1–3).
-    var mapPhotoCount: Int = 3
+    var mapPhotoCount: Int = 1
     var mapInset: Bool = false
     /// The athlete line: whose miles these are, and the pinned number they wore.
     var showAthlete: Bool = false
