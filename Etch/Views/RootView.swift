@@ -37,7 +37,6 @@ struct RootView: View {
 
     /// The brand splash covers the app on launch, then fades away.
     @State private var showSplash = true
-    @State private var worldReveal: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var isReady: Bool {
@@ -55,39 +54,21 @@ struct RootView: View {
                 content
                 if showSplash {
                     SplashView()
-                        .mask {
-                            GeometryReader { geometry in
-                                let logo = UIImage(named: "LaunchLogo")?.size ?? .zero
-                                let diameter = hypot(geometry.size.width, geometry.size.height) * 2.5
-                                ZStack {
-                                    Rectangle()
-                                    Circle()
-                                        .frame(width: diameter * worldReveal, height: diameter * worldReveal)
-                                        .position(x: geometry.size.width / 2 + logo.width * 0.46,
-                                                  y: geometry.size.height / 2 + logo.height * 0.216)
-                                        .blendMode(.destinationOut)
-                                }.compositingGroup()
-                            }
-                        }
-                        .allowsHitTesting(worldReveal == 0)
                         .transition(.opacity)
                         .zIndex(1)
                 }
             }
             .task {
-                // Let the signature settle before the handoff. Reduced Motion
-                // gets a short static handoff, without waiting for an animation it cannot see.
+                // Let the signature settle, then hand off with a plain fade.
+                //
+                // The circular reveal that used to open out of the logo's period onto the globe is
+                // gone: the wordmark growing from its own period is the signature, and following it
+                // with a second, larger expansion of the whole screen made the launch read as two
+                // animations competing rather than one. The fade lets the settled logo be the last
+                // thing seen.
                 do { try await Task.sleep(for: .milliseconds(reduceMotion ? 200 : SplashView.presentationMilliseconds)) }
                 catch { return }
-                if !reduceMotion && isReady && didCompleteSetup && appModel.selectedTab == .map {
-                    // The period opens onto the real, already interactive globe. No camera tour.
-                    withAnimation(.easeInOut(duration: 0.85)) { worldReveal = 1 }
-                    do { try await Task.sleep(for: .milliseconds(850)) }
-                    catch { return }
-                    showSplash = false
-                } else {
-                    withAnimation(.easeInOut(duration: reduceMotion ? 0.15 : 0.40)) { showSplash = false }
-                }
+                withAnimation(.easeInOut(duration: reduceMotion ? 0.15 : 0.40)) { showSplash = false }
             }
         }
     }
