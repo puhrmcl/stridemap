@@ -297,6 +297,8 @@ jobs:
           shoot anthology-editor     wall-art:ridgeline ""       20
           shoot lithograph-editor    city-index:country ""       20
           shoot map-proof            studio-proof:map ""         30
+          shoot map-landscape        studio-proof:map-landscape "" 30
+          shoot map-photo-landscape  studio-proof:map-photo-landscape "" 30
           shoot gallery-proof        studio-proof:gallery-landscape "" 30
           shoot anthology-proof      studio-proof:anthology ""   20
           shoot anthology-landscape  studio-proof:anthology-landscape "" 20

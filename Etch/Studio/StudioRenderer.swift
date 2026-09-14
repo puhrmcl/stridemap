@@ -7,8 +7,8 @@ import CoreImage
 /// the same composition, never an upscaled thumbnail.
 ///
 /// The composition is authored at a fixed point size; rendering at a higher `ImageRenderer`
-/// scale keeps the type and the route vector-crisp while the map/photo panel upsamples — which
-/// is acceptable because the panel is a muted background, not the subject.
+/// scale keeps type crisp. Map routes are currently rasterized into the map panel, so that
+/// panel must also request the output resolution; increasing only the sheet's DPI is insufficient.
 @MainActor
 enum StudioRenderer {
 
@@ -81,6 +81,17 @@ enum StudioRenderer {
         /// The print shape the artwork is composed into (2:3 primary, 4:5 secondary).
         var printAspect: PrintAspect = .twoThree
 
+        /// Every renderer stage must use the same placement as the composition.
+        /// Nameplate always stacks its title, map and result, including in landscape.
+        var effectiveDataPlacement: StudioDataPlacement {
+            layout == .classic && mapLayoutRaw == MapLayout.nameplate.rawValue && dataPlacement.isSide
+                ? .bottom : dataPlacement
+        }
+
+        var cartographyCredit: String? {
+            needsMapPanel ? EtchCartography.printAttribution(for: edition) : nil
+        }
+
         /// Photo/route-only Gallery designs do not depend on a basemap merely because their
         /// palette comes from a map edition. Invalid/legacy plans remain conservative.
         var needsMapPanel: Bool {
@@ -120,8 +131,8 @@ enum StudioRenderer {
         // Full Bleed runs the map across the entire sheet, so its panel is snapshotted at the
         // canvas shape rather than the square art panel — no stretch, no crop surprise.
         let panelSize = request.mapLayoutRaw == MapLayout.fullBleed.rawValue && request.layout == .classic
-            ? StudioComposition.canvasSize(request.orientation, request.dataPlacement, request.printAspect)
-            : StudioComposition.artSize(request.orientation, request.dataPlacement)
+            ? StudioComposition.canvasSize(request.orientation, request.effectiveDataPlacement, request.printAspect)
+            : StudioComposition.artSize(request.orientation, request.effectiveDataPlacement)
         if request.edition.isContour {
             let ground = request.groundColor ?? request.edition.ground
             return await PosterMap.topographicPanel(for: request.run, size: panelSize,
@@ -132,7 +143,17 @@ enum StudioRenderer {
         return await PosterMap.studioPanel(for: request.run, size: panelSize,
                                            edition: request.edition, route: request.routeColor,
                                            ground: request.groundColor ?? request.edition.ground,
-                                           requireOwnCartography: requireOwnCartography)
+                                           requireOwnCartography: requireOwnCartography,
+                                           rasterScale: panelRasterScale(size: panelSize, requestedPixelWidth: panelPixelWidth),
+                                           includeAttribution: !requireOwnCartography)
+    }
+
+    /// Honor output resolution without changing map framing or cartographic line weights.
+    /// Thumbnails stay light; large panels are capped by pixel count, not a misleading output DPI.
+    static func panelRasterScale(size: CGSize, requestedPixelWidth: CGFloat) -> CGFloat {
+        guard size.width > 0, size.height > 0, requestedPixelWidth.isFinite else { return 1 }
+        let desired = max(1, requestedPixelWidth / StudioComposition.width)
+        return min(desired, maxPanelPixelWidth / max(size.width, size.height))
     }
 
     /// Loads the composition's photos at a resolution matched to how many cells share the panel —
@@ -258,7 +279,7 @@ enum StudioRenderer {
             photoImages: photos,
             includeWeather: request.includeWeather, layout: request.layout,
             orientation: request.orientation,
-            dataPlacement: request.dataPlacement,
+            dataPlacement: request.effectiveDataPlacement,
             photoLayout: request.photoLayout,
             titleOverride: request.titleOverride,
             dateOverride: request.dateOverride,
@@ -301,7 +322,8 @@ enum StudioRenderer {
             galleryPhotoPicks: picks,
             photoFocusPoints: focuses,
             artHeightOverride: artHeight,
-            printAspect: request.printAspect
+            printAspect: request.printAspect,
+            cartographyCredit: request.cartographyCredit
         )
     }
 
@@ -325,9 +347,9 @@ enum StudioRenderer {
             && request.mapLayoutRaw == MapLayout.fullBleed.rawValue
         guard request.layout != .keepsake, !isFullBleed else { return (1, nil) }
 
-        let canvas = StudioComposition.canvasSize(request.orientation, request.dataPlacement,
+        let canvas = StudioComposition.canvasSize(request.orientation, request.effectiveDataPlacement,
                                                   request.printAspect)
-        let floor = StudioComposition.artFloor(request.orientation, request.dataPlacement,
+        let floor = StudioComposition.artFloor(request.orientation, request.effectiveDataPlacement,
                                                layout: request.layout, aspect: request.printAspect)
         let budget = canvas.height - floor
         guard budget > 0 else { return (1, nil) }
@@ -354,7 +376,7 @@ enum StudioRenderer {
 
         // The side-column landscape has no flexing art — its square panel is the sheet height —
         // so only the shrink applies there.
-        if request.orientation == .landscape && request.dataPlacement.isSide {
+        if request.orientation == .landscape && request.effectiveDataPlacement.isSide {
             return (scale, nil)
         }
         return (scale, max(1, canvas.height - fixed))
@@ -467,7 +489,7 @@ enum StudioRenderer {
     /// The export image. A `poster` renders at print resolution (~5400 px long edge ≈ 18″ @ 300 DPI);
     /// a social size renders at a lighter digital resolution (the matting happens inside `image`).
     static func printImage(for request: Request, longEdgePixels: CGFloat = 5400) async -> UIImage? {
-        let nominal = StudioComposition.canvasSize(request.orientation, request.dataPlacement,
+        let nominal = StudioComposition.canvasSize(request.orientation, request.effectiveDataPlacement,
                                                    request.printAspect)
         let compositionLongEdge = max(nominal.width, nominal.height)   // nominal points
         // Social exports don't need print DPI; ~2× the composition keeps files light to share.
@@ -486,8 +508,8 @@ enum StudioRenderer {
     /// square panel is 207 MB on its own. 5000 is the honest ceiling: on a 24″-wide sheet it is
     /// 208 DPI across the full width — above the 200 DPI floor this codebase already refuses to
     /// ship below — and the panel is a muted ground rather than the subject, while the type,
-    /// route and hairlines that the eye actually judges are drawn as vectors at the sheet's full
-    /// 300 DPI. It binds on almost nothing in practice: the editions that reach print are
+    /// and hairlines are drawn at the sheet's full resolution. Map routes share the panel's
+    /// raster resolution; this ceiling is not a promise of 300 DPI for every map at every size. It binds on almost nothing in practice: the editions that reach print are
     /// contour (drawn by us at any size), photo, and paper.
     static let maxPanelPixelWidth: CGFloat = 5000
 
@@ -519,7 +541,7 @@ enum StudioRenderer {
     /// - Returns: the file URL. The caller owns it and should remove it after upload.
     static func printFile(for request: Request, geometry: PrintGeometry,
                           reserveFraction: CGFloat = 0) async throws -> URL {
-        let canvas = StudioComposition.canvasSize(request.orientation, request.dataPlacement,
+        let canvas = StudioComposition.canvasSize(request.orientation, request.effectiveDataPlacement,
                                                   request.printAspect)
         let target = geometry.trimPixels
         // The composition's shape is authoritative; the print size sets how many pixels it becomes.

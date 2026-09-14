@@ -156,8 +156,11 @@ struct StudioDesignEditor: View {
                 // Layout thumbnails follow the current style and colour, so they re-render
                 // when either moves beneath them.
                 refreshKey: "layout-\(config.mapStyle.rawValue)-\(config.orientation.rawValue)-\(config.groundColor?.hexString ?? "-")-\(config.routeColor?.hexString ?? "-")",
-                cardWidth: 96
+                cardWidth: 112
             )
+            Text(config.mapLayout.summary)
+                .font(.etch(.caption)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
