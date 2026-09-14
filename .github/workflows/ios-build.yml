@@ -159,6 +159,7 @@ jobs:
 
           FAILED=0
           run_check scope-rule       scope-rule   0 60  || FAILED=1
+          run_check daily-story      daily-story  0 60 || FAILED=1
           run_check photo-memory     photo-memory 0 60 || FAILED=1
           run_check studio-quality   studio-quality 0 60 || FAILED=1
           run_check smart-layout     smart-layout 0 60  || FAILED=1
@@ -169,7 +170,7 @@ jobs:
 
           problems = []
           reports = sorted(glob.glob("check-reports/*-report.txt"))
-          EXPECTED_REPORTS = 5
+          EXPECTED_REPORTS = 6
           if len(reports) != EXPECTED_REPORTS:
               problems.append("expected %d reports, found %d: %s"
                               % (EXPECTED_REPORTS, len(reports), reports))
@@ -270,6 +271,7 @@ jobs:
           shoot activity-photos     activity-photos ""         10
           shoot activity-elevation  activity-elevation ""      10
           shoot milestones-story    milestones ""              20
+          shoot milestones-large    milestones-large ""        20
           shoot milestones-shell    tabs achievements          20
           # The book's picture-led pages. No book page had ever been photographed by CI before
           # the editorial redesign, so no printed layout in this project had ever been reviewed

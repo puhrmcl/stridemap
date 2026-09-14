@@ -231,6 +231,7 @@ struct PreviewHarnessView: View {
                             EventLibraryOverview(event: RaceCatalog.event(id: "mesa")!, year: 2026, expanded: true).padding(20)
                         }
                     }
+                case "milestones-large": HighlightsView(embedded: true).environment(\.dynamicTypeSize, .accessibility3)
                 case "milestones":      HighlightsView(embedded: true)
                 case "archive":         CollectionBrowserView(collection: .archive, runs: allRuns)
                 case "course":          CollectionBrowserView(collection: .course, runs: allRuns)
@@ -251,6 +252,7 @@ struct PreviewHarnessView: View {
                     if let subject { StudioPrintProofView(name: name, runs: allRuns, subject: subject) }
                 case "studio-accessibility":
                     if let subject { StudioView(run: subject).environment(\.dynamicTypeSize, .accessibility3) }
+                case "daily-story":     DailyStoryCheckView()
                 case "photo-memory":    PhotoMemoryCheckView()
                 case "memories":        PhotoMemoriesView()
                 // The route-aware orientation rule and the race panel's composition decisions,
