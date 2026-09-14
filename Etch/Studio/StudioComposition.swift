@@ -245,6 +245,8 @@ struct StudioComposition: View {
     /// The print shape this artwork is composed into. 2:3 is the primary — it serves 12×18, 16×24
     /// and 24×36, the entire launch catalogue.
     var printAspect: PrintAspect = .twoThree
+    /// Applied once to the complete sheet, outside all map/photo crops.
+    var cartographyCredit: String? = nil
 
     /// A font point size scaled by `textScale` — every `.etch(size:)` on the poster runs through
     /// this so one control resizes the whole composition's type together. `fitScale` folds in so an
@@ -433,7 +435,29 @@ struct StudioComposition: View {
                        height: measuring ? nil : Self.canvasSize(orientation, dataPlacement, printAspect).height)
             }
         }
+        // Reserve a footer by fitting the complete artwork uniformly into the remaining sheet.
+        // Unlike an overlay on the map, this cannot crop the source line or obscure the data.
+        .scaleEffect(creditArtScale, anchor: .top)
         .background(groundColor)
+        .overlay(alignment: .bottom) {
+            if let cartographyCredit, !measuring {
+                Text(cartographyCredit)
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(inkColor.opacity(0.8))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 48)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(groundColor)
+            }
+        }
+    }
+
+    private var creditArtScale: CGFloat {
+        guard cartographyCredit != nil, !measuring else { return 1 }
+        let canvas = Self.canvasSize(orientation, placement, printAspect)
+        return max(0.1, (canvas.height - 44) / canvas.height)
     }
 
     // MARK: Gallery layout — a curated row of photo / map tiles under a serif masthead.
@@ -1664,23 +1688,24 @@ struct StudioComposition: View {
                 .clipShape(.rect(cornerRadius: 14))
                 .frame(maxWidth: .infinity, maxHeight: sp(430))
         } else {
-            HStack(spacing: 14) {
-                ForEach(0..<n, id: \.self) { i in
-                    Group {
-                        if i < photos.count {
-                            Image(uiImage: photos[i])
-                                .resizable()
-                                .scaledToFill()
-                        } else {
-                            photoPlaceholderTile
+            GeometryReader { geometry in
+                let width = max(1, (geometry.size.width - CGFloat(n - 1) * 14) / CGFloat(n))
+                HStack(spacing: 14) {
+                    ForEach(0..<n, id: \.self) { i in
+                        Group {
+                            if i < photos.count {
+                                Image(uiImage: photos[i]).resizable().scaledToFill()
+                            } else {
+                                photoPlaceholderTile
+                            }
                         }
+                        .frame(width: width, height: geometry.size.height)
+                        .clipped()
+                        .clipShape(.rect(cornerRadius: 8))
                     }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: sp(360))
-                    .clipped()
-                    .clipShape(.rect(cornerRadius: 14))
                 }
             }
+            .frame(height: sp(isSideLayout ? 240 : 360))
         }
     }
 

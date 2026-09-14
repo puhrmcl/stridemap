@@ -89,7 +89,9 @@ enum PosterMap {
     static func studioPanel(for run: Run, size: CGSize, edition: StudioEdition,
                             route routeOverride: Color? = nil,
                             ground groundOverride: Color? = nil,
-                            requireOwnCartography: Bool = false) async -> UIImage? {
+                            requireOwnCartography: Bool = false,
+                            rasterScale: CGFloat = 2,
+                            includeAttribution: Bool = true) async -> UIImage? {
         guard let kind = edition.mapKind else { return nil }
         let coordinates = run.coordinates
         guard coordinates.count > 1 else { return nil }
@@ -101,7 +103,8 @@ enum PosterMap {
         // Separate source namespaces prevent a display-only Apple fallback from ever being
         // reused by Studio's strict preview or a physical print. Both can cache their own source.
         let paper = groundOverride ?? edition.ground
-        let key = panelKey(requireOwnCartography ? "studio-print-source" : "studio", run: run, size: size, edition: edition,
+        let namespace = requireOwnCartography ? "studio-print-source" : "studio"
+        let key = panelKey("\(namespace)-\(rasterScale)-credit-\(includeAttribution)", run: run, size: size, edition: edition,
                            route: routeOverride, ground: paper)
         if let cached = panelCache.object(forKey: key) { return cached }
 
@@ -114,19 +117,23 @@ enum PosterMap {
         // a tone that happens to be close to it.
         if EtchMapSnapshotter.canRender(edition),
            let own = await EtchMapSnapshotter.snapshot(for: coordinates, size: size,
-                                                       scale: 2, edition: edition, ground: paper) {
+                                                       scale: rasterScale, edition: edition, ground: paper) {
             // Satellite's authored look is muted photography — same 0.42 the Apple path uses,
             // so switching imagery sources never switches the edition's character.
             let saturation = edition.panelSaturation
                 ?? (edition.id == .satellite ? 0.42 : nil)
             let base = saturation.map { desaturated(own.image, saturation: $0) } ?? own.image
-            let finished = credited(overlay(
+            let composed = overlay(
                 groundMatched(washed(base, edition: edition), to: paper),
-                coordinates: coordinates, size: size, scale: 2,
+                coordinates: coordinates, size: size, scale: rasterScale,
                 edition: edition, route: routeOverride, isRace: run.isRace,
                 project: { own.frame.point(for: $0, in: size) }
-            ), paper: paper, line: EtchCartography.printAttribution(for: edition))
-            panelCache.setObject(finished, forKey: key)
+            )
+            let finished = includeAttribution
+                ? credited(composed, paper: paper, line: EtchCartography.printAttribution(for: edition)) : composed
+            if max(finished.size.width, finished.size.height) * finished.scale <= 2500 {
+                panelCache.setObject(finished, forKey: key, cost: Int(finished.size.width * finished.size.height * finished.scale * finished.scale * 4))
+            }
             return finished
         }
 
@@ -555,7 +562,8 @@ enum PosterMap {
     /// a single editing session starts hundreds of snapshotters and elevation fetches.
     private static let panelCache: NSCache<NSString, UIImage> = {
         let cache = NSCache<NSString, UIImage>()
-        cache.countLimit = 40          // panels are large; bound the set rather than the bytes
+        cache.countLimit = 12
+        cache.totalCostLimit = 96 * 1024 * 1024
         return cache
     }()
 
