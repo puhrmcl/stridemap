@@ -251,6 +251,19 @@ struct PreviewHarnessView: View {
                     if let subject { StudioPrintProofView(name: name, runs: allRuns, subject: subject) }
                 case "studio-accessibility":
                     if let subject { StudioView(run: subject).environment(\.dynamicTypeSize, .accessibility3) }
+                case "milestone-insights": MilestoneInsightsCheckView()
+                // The three new interactive sections composed on one scroll, because the
+                // Milestones page itself is far longer than a screenshot and the dial and the
+                // perspective bars sit below the fold on every device.
+                case "milestone-parts":
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 24) {
+                            MilestonePulse(runs: allRuns, scope: .all)
+                            MilestoneRhythm(runs: allRuns)
+                            MilestonePerspective(runs: allRuns)
+                        }
+                        .padding(20)
+                    }
                 case "photo-memory":    PhotoMemoryCheckView()
                 case "memories":        PhotoMemoriesView()
                 // The route-aware orientation rule and the race panel's composition decisions,

@@ -159,6 +159,7 @@ jobs:
 
           FAILED=0
           run_check scope-rule       scope-rule   0 60  || FAILED=1
+          run_check milestone-insights milestone-insights 0 60 || FAILED=1
           run_check photo-memory     photo-memory 0 60 || FAILED=1
           run_check studio-quality   studio-quality 0 60 || FAILED=1
           run_check smart-layout     smart-layout 0 60  || FAILED=1
@@ -169,7 +170,7 @@ jobs:
 
           problems = []
           reports = sorted(glob.glob("check-reports/*-report.txt"))
-          EXPECTED_REPORTS = 5
+          EXPECTED_REPORTS = 6
           if len(reports) != EXPECTED_REPORTS:
               problems.append("expected %d reports, found %d: %s"
                               % (EXPECTED_REPORTS, len(reports), reports))
@@ -270,6 +271,7 @@ jobs:
           shoot activity-photos     activity-photos ""         10
           shoot activity-elevation  activity-elevation ""      10
           shoot milestones-story    milestones ""              20
+          shoot milestone-parts     milestone-parts ""         28
           shoot milestones-shell    tabs achievements          20
           # The book's picture-led pages. No book page had ever been photographed by CI before
           # the editorial redesign, so no printed layout in this project had ever been reviewed
@@ -374,3 +376,27 @@ jobs:
             echo "No Package.resolved generated at $RESOLVED"
             find Etch.xcodeproj -name "Package.resolved" -print 2>/dev/null || true
           fi
+
+      # The behavioural reports again, as the last thing in the log.
+      #
+      # The visual review step emits tens of megabytes of base64 screenshots, and the log API
+      # returns a tail — so the reports, printed before those screenshots, fall off the end of
+      # what can be read back. That made a failing check unreadable at exactly the moment it
+      # mattered, three times, and sent the operator to an artifact the egress proxy blocks.
+      # Repeating them here costs a few kilobytes and puts the verdict where it can always be
+      # found.
+      - name: Behavioural reports (repeated, after the screenshots)
+        if: always()
+        run: |
+          shopt -s nullglob
+          FILES=(check-reports/*-report.txt)
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "No check reports were produced."
+            exit 0
+          fi
+          for FILE in "${FILES[@]}"; do
+            echo "── REPEAT $(basename "$FILE")"
+            cat "$FILE"
+            echo ""
+            echo "── END REPEAT"
+          done

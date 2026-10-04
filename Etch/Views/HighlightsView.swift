@@ -171,6 +171,16 @@ struct HighlightsView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 28) {
                         if !isSingleActivity { scopeSwitcher }
+                        // The interactive half of the page, top to bottom: what the history is
+                        // doing right now, the shape of the week underneath it, and the totals put
+                        // beside something picturable. Records and the year-by-year ledger stay at
+                        // the foot — they are a reference section, and a reference section is not
+                        // what anyone opens this tab for.
+                        if derived.ready && !scopedRuns.isEmpty {
+                            MilestonePulse(runs: scopedRuns, scope: scope)
+                            MilestoneRhythm(runs: scopedRuns)
+                            MilestonePerspective(runs: scopedRuns)
+                        }
                         featuredStory
                         memoriesSection
                         if derived.meaningInsights.count > 1 { meaningSection }
