@@ -376,3 +376,27 @@ jobs:
             echo "No Package.resolved generated at $RESOLVED"
             find Etch.xcodeproj -name "Package.resolved" -print 2>/dev/null || true
           fi
+
+      # The behavioural reports again, as the last thing in the log.
+      #
+      # The visual review step emits tens of megabytes of base64 screenshots, and the log API
+      # returns a tail — so the reports, printed before those screenshots, fall off the end of
+      # what can be read back. That made a failing check unreadable at exactly the moment it
+      # mattered, three times, and sent the operator to an artifact the egress proxy blocks.
+      # Repeating them here costs a few kilobytes and puts the verdict where it can always be
+      # found.
+      - name: Behavioural reports (repeated, after the screenshots)
+        if: always()
+        run: |
+          shopt -s nullglob
+          FILES=(check-reports/*-report.txt)
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "No check reports were produced."
+            exit 0
+          fi
+          for FILE in "${FILES[@]}"; do
+            echo "── REPEAT $(basename "$FILE")"
+            cat "$FILE"
+            echo ""
+            echo "── END REPEAT"
+          done
