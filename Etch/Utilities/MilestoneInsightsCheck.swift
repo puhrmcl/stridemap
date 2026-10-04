@@ -131,7 +131,7 @@ struct MilestoneInsightsCheckView: View {
         // the headline requires.
         var rhythmRuns: [Run] = []
         for week in 0..<8 { rhythmRuns.append(activity(day(thisYear, 1, 5 + week * 7, hour: 8))) }
-        rhythmRuns.append(activity(day(thisYear, 1, 10, hour: 23)))
+        rhythmRuns.append(activity(day(thisYear, 1, 10, hour: 2)))
         let rhythm = MilestoneInsights.rhythm(rhythmRuns, calendar: calendar)
 
         expect("Every activity lands in exactly one cell",
@@ -140,9 +140,12 @@ struct MilestoneInsightsCheckView: View {
         expect("Monday is the first column",
                rhythm.count(weekday: 0, band: .morning) == 8,
                "5 January 2026 is a Monday; a Sunday-first week would split the weekend")
-        expect("Late night counts as night, not evening",
+        // The night band is the wrap-around case — it is the `default` branch, the one that
+        // catches everything the explicit ranges miss, and so the one most able to silently
+        // swallow an hour that belongs elsewhere.
+        expect("The small hours count as night",
                rhythm.count(weekday: 5, band: .early) == 1,
-               "23:00 on a Saturday belongs to the night band")
+               "02:00 on a Saturday is night; 18:00-24:00 is evening and is tested by the bands above")
         expect("The peak is named", rhythm.peak?.band == .morning && rhythm.peak?.weekday == 0,
                "eight of nine activities share one cell")
 
