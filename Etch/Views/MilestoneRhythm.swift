@@ -36,7 +36,7 @@ struct MilestoneRhythm: View {
 
                 HStack(alignment: .center, spacing: 18) {
                     dial(grid)
-                        .frame(width: 190, height: 190)
+                        .frame(width: 200, height: 200)
                     legend(grid)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -58,10 +58,15 @@ struct MilestoneRhythm: View {
         GeometryReader { geometry in
             let side = min(geometry.size.width, geometry.size.height)
             let centre = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
-            let outer = side / 2
+            // The wheel stops short of the frame so the day initials have a ring of their own to
+            // sit in. They were drawn over the sectors in white, which is unreadable against a
+            // pale cell and barely better against a dark one — a label whose legibility depends
+            // on how busy that day was is not a label.
+            let outer = side / 2 * 0.82
+            let labelRadius = side / 2 * 0.95
             // The hub is left empty: a sector that converges to a point is unreadable at the
-            // centre and un-tappable, and the hole gives the day labels somewhere to breathe.
-            let inner = outer * 0.30
+            // centre and un-tappable, and the hole gives the total somewhere to sit.
+            let inner = outer * 0.26
             let ringWidth = (outer - inner) / CGFloat(MilestoneInsights.Band.allCases.count)
             let busiest = max(1, grid.busiest)
 
@@ -99,16 +104,15 @@ struct MilestoneRhythm: View {
                     }
                 }
 
-                // Day initials around the rim.
+                // Day initials, outside the wheel and on the card's own ground.
                 ForEach(0..<7, id: \.self) { weekday in
                     let mid = (angle(weekday) + angle(weekday + 1)) / 2
-                    let radius = outer * 0.84
+                    let isPeak = selected?.weekday == weekday
                     Text(MilestoneInsights.weekdayName(weekday, short: true))
                         .font(.etch(.caption2, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .shadow(radius: 1)
-                        .position(x: centre.x + radius * cos(mid * .pi / 180),
-                                  y: centre.y + radius * sin(mid * .pi / 180))
+                        .foregroundStyle(isPeak ? Theme.accent : Color.secondary)
+                        .position(x: centre.x + labelRadius * cos(mid * .pi / 180),
+                                  y: centre.y + labelRadius * sin(mid * .pi / 180))
                 }
 
                 Text("\(grid.total)")
