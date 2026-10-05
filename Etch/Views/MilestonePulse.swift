@@ -21,17 +21,56 @@ struct MilestonePulse: View {
     /// The scrubbed bucket label, for the month and year views.
     @State private var scrubBucket: String?
 
-    private var series: [MilestoneInsights.Series] {
-        MilestoneInsights.race(runs, metric: metric)
+    // MARK: Derived once, not once per read
+    //
+    // These were computed properties, and that froze the page. `series` alone is read a dozen
+    // times in one pass of `body` — the readout, the caption, the pacing line, the key, and
+    // several times inside the chart builder — and every read re-filtered and re-sorted the whole
+    // history. Scrubbing writes `scrubDay` on every touch-move, so a drag re-evaluated `body` at
+    // touch frequency and paid for all of it each time.
+    //
+    // The cache is keyed on what the series actually depends on. Scrubbing is deliberately not
+    // part of that key: moving a finger changes what is *read out*, never what is computed.
+
+    private struct Model {
+        var series: [MilestoneInsights.Series] = []
+        var buckets: [MilestoneInsights.Bucket] = []
+        var pacing: (delta: Double, lastYearToDate: Double)?
+        var bucketTotal: Double = 0
     }
 
-    private var buckets: [MilestoneInsights.Bucket] {
-        switch range {
-        case .year:   return []
-        case .months: return MilestoneInsights.months(runs, metric: metric)
-        case .all:    return MilestoneInsights.years(runs, metric: metric)
-        }
+    @State private var model = Model()
+
+    private struct ModelKey: Equatable {
+        var metric: MilestoneMetric
+        var range: MilestoneRange
+        var count: Int
+        var newestEdit: Double
     }
+
+    private var modelKey: ModelKey {
+        var newest = 0.0
+        for run in runs { newest = max(newest, run.updatedAt.timeIntervalSinceReferenceDate) }
+        return ModelKey(metric: metric, range: range, count: runs.count, newestEdit: newest)
+    }
+
+    private func rebuild() {
+        var next = Model()
+        switch range {
+        case .year:
+            next.series = MilestoneInsights.race(runs, metric: metric)
+            next.pacing = MilestoneInsights.pacing(next.series)
+        case .months:
+            next.buckets = MilestoneInsights.months(runs, metric: metric)
+        case .all:
+            next.buckets = MilestoneInsights.years(runs, metric: metric)
+        }
+        next.bucketTotal = next.buckets.reduce(0) { $0 + $1.value }
+        model = next
+    }
+
+    private var series: [MilestoneInsights.Series] { model.series }
+    private var buckets: [MilestoneInsights.Bucket] { model.buckets }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -43,6 +82,7 @@ struct MilestonePulse: View {
                 .animation(.easeInOut(duration: 0.35), value: range)
             rangeControl
         }
+        .onChange(of: modelKey, initial: true) { _, _ in rebuild() }
         .padding(18)
         .background(Theme.accent.opacity(0.06), in: .rect(cornerRadius: 24))
         .overlay {
@@ -125,7 +165,7 @@ struct MilestonePulse: View {
             if let label = scrubBucket, let hit = buckets.first(where: { $0.label == label }) {
                 return metric.format(hit.value)
             }
-            return metric.format(buckets.reduce(0) { $0 + $1.value })
+            return metric.format(model.bucketTotal)
         }
     }
 
@@ -135,7 +175,7 @@ struct MilestonePulse: View {
             if let day = scrubDay {
                 return "\(dayLabel(day)) · \(scrubComparison(day))"
             }
-            guard let pace = MilestoneInsights.pacing(series) else {
+            guard let pace = model.pacing else {
                 return "\(scopeNoun) this year so far."
             }
             let ahead = pace.delta >= 0
@@ -231,6 +271,7 @@ struct MilestonePulse: View {
             }
         }
         .chartXScale(domain: 1...366)
+        .chartYScale(domain: 0...valueCeiling)
         .chartXAxis {
             AxisMarks(values: [1, 60, 121, 182, 244, 305]) { value in
                 AxisGridLine().foregroundStyle(.secondary.opacity(0.12))
@@ -256,7 +297,12 @@ struct MilestonePulse: View {
             GeometryReader { geometry in
                 Rectangle().fill(.clear).contentShape(Rectangle())
                     .gesture(
-                        DragGesture(minimumDistance: 0)
+                        // Not `minimumDistance: 0`. A zero-distance drag recognises the moment a
+                        // finger lands, so the enclosing ScrollView never sees the touch and the
+                        // page simply stops scrolling anywhere over the chart — which reads as the
+                        // app having frozen. A few points of slop lets a vertical scroll win and
+                        // still leaves scrubbing immediate.
+                        DragGesture(minimumDistance: 6)
                             .onChanged { drag in
                                 guard let frame = proxy.plotFrame else { return }
                                 let x = drag.location.x - geometry[frame].origin.x
@@ -301,6 +347,7 @@ struct MilestonePulse: View {
                 .cornerRadius(5)
                 .opacity(scrubBucket == nil || scrubBucket == bucket.label ? 1 : 0.4)
         }
+        .chartYScale(domain: 0...valueCeiling)
         .chartXAxis {
             AxisMarks { value in
                 AxisValueLabel {
@@ -324,7 +371,12 @@ struct MilestonePulse: View {
             GeometryReader { geometry in
                 Rectangle().fill(.clear).contentShape(Rectangle())
                     .gesture(
-                        DragGesture(minimumDistance: 0)
+                        // Not `minimumDistance: 0`. A zero-distance drag recognises the moment a
+                        // finger lands, so the enclosing ScrollView never sees the touch and the
+                        // page simply stops scrolling anywhere over the chart — which reads as the
+                        // app having frozen. A few points of slop lets a vertical scroll win and
+                        // still leaves scrubbing immediate.
+                        DragGesture(minimumDistance: 6)
                             .onChanged { drag in
                                 guard let frame = proxy.plotFrame else { return }
                                 let x = drag.location.x - geometry[frame].origin.x
@@ -334,6 +386,18 @@ struct MilestonePulse: View {
                     )
             }
         }
+    }
+
+    /// The top of the value axis, never zero.
+    ///
+    /// A history with nothing in the chosen metric — Climb for someone who only logs flat
+    /// treadmill miles, any metric in an empty filtered scope — collapses the domain to 0...0.
+    /// Charts then divides by a zero range and hands SwiftUI non-finite frames, which is a
+    /// console error at best and a stuck layout at worst.
+    private var valueCeiling: Double {
+        let peak = max(series.map(\.total).max() ?? 0,
+                       buckets.map(\.value).max() ?? 0)
+        return peak > 0 ? peak * 1.08 : 1
     }
 
     /// The first day of each labelled month, so the axis reads Jan/Mar/May/… rather than 1/60/121.
