@@ -16,11 +16,20 @@ struct MilestoneRhythm: View {
 
     @State private var selected: (weekday: Int, band: MilestoneInsights.Band)?
 
-    private var rhythm: MilestoneInsights.Rhythm { MilestoneInsights.rhythm(runs) }
+    // Derived once per change of the history, not once per pass of `body`. Reading the grid
+    // re-sorted and re-bucketed the whole history, and `body` re-runs on every tap of a segment.
+    @State private var grid = MilestoneInsights.Rhythm(counts: [], total: 0, peak: nil)
+
+    private struct GridKey: Equatable { var count: Int; var newestEdit: Double }
+
+    private var gridKey: GridKey {
+        var newest = 0.0
+        for run in runs { newest = max(newest, run.updatedAt.timeIntervalSinceReferenceDate) }
+        return GridKey(count: runs.count, newestEdit: newest)
+    }
 
     var body: some View {
-        let grid = rhythm
-        return VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 14) {
             Text("Your rhythm")
                 .font(.etch(.title2, weight: .bold))
 
@@ -50,6 +59,9 @@ struct MilestoneRhythm: View {
         }
         .padding(18)
         .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 24))
+        .onChange(of: gridKey, initial: true) { _, _ in
+            grid = MilestoneInsights.rhythm(runs)
+        }
     }
 
     // MARK: The dial

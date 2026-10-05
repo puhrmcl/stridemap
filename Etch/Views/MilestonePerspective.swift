@@ -10,13 +10,20 @@ import SwiftUI
 struct MilestonePerspective: View {
     let runs: [Run]
 
-    private var comparisons: [MilestoneInsights.Comparison] {
-        MilestoneInsights.perspective(runs)
+    // Cached for the same reason the pulse and the dial are: deriving it walks and sorts the
+    // whole history, and this page re-renders far more often than the history changes.
+    @State private var items: [MilestoneInsights.Comparison] = []
+
+    private struct ItemsKey: Equatable { var count: Int; var newestEdit: Double }
+
+    private var itemsKey: ItemsKey {
+        var newest = 0.0
+        for run in runs { newest = max(newest, run.updatedAt.timeIntervalSinceReferenceDate) }
+        return ItemsKey(count: runs.count, newestEdit: newest)
     }
 
     var body: some View {
-        let items = comparisons
-        return Group {
+        Group {
             if !items.isEmpty {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("In perspective")
@@ -28,6 +35,9 @@ struct MilestonePerspective: View {
                     }
                 }
             }
+        }
+        .onChange(of: itemsKey, initial: true) { _, _ in
+            items = MilestoneInsights.perspective(runs)
         }
     }
 

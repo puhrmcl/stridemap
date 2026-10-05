@@ -115,8 +115,13 @@ enum MilestoneInsights {
     // MARK: The cumulative race
 
     struct Point: Identifiable, Equatable {
-        let id = UUID()
-        /// Position along the year, 1...366. The axis both series share.
+        /// The day *is* the identity. A fresh UUID per instance looks harmless on a value type
+        /// and is ruinous here: these points are rebuilt whenever the series is, so a UUID makes
+        /// every rebuild a completely new set of elements, and SwiftUI tears down and re-animates
+        /// the entire plot rather than updating it in place.
+        var id: Int { day }
+        /// Position along the year, 1...366. The axis both series share. Unique within a series
+        /// by construction — several activities on one date are folded into one point.
         let day: Int
         let date: Date
         /// The running total at this point.
