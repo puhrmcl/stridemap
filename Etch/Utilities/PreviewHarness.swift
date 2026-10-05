@@ -251,6 +251,9 @@ struct PreviewHarnessView: View {
                     if let subject { StudioPrintProofView(name: name, runs: allRuns, subject: subject) }
                 case "studio-accessibility":
                     if let subject { StudioView(run: subject).environment(\.dynamicTypeSize, .accessibility3) }
+                // Not named "timeline-…": the `hasPrefix("timeline")` case above would swallow
+                // it and open the Timeline instead, which writes no report and reds the build.
+                case "journeys":        TimelineJourneysCheckView()
                 case "milestone-insights": MilestoneInsightsCheckView()
                 // The three new interactive sections composed on one scroll, because the
                 // Milestones page itself is far longer than a screenshot and the dial and the
