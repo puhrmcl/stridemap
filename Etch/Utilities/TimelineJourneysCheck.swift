@@ -39,9 +39,11 @@ struct TimelineJourneysCheckView: View {
             calendar.date(from: DateComponents(year: y, month: m, day: d, hour: 9))!
         }
 
+        // Declaration order is call order in Swift, so this is fixed once here and every call
+        // below is written to match: where, then what it was called, then the rest.
         func activity(_ date: Date, at place: CLLocationCoordinate2D?,
-                      distance: Double = 10_000, name: String = "check",
                       city: String? = nil, state: String? = nil, country: String? = nil,
+                      name: String = "check", distance: Double = 10_000,
                       race: Bool = false, photos: Int = 0,
                       hidden: Bool = false, excluded: Bool = false) -> Run {
             let run = Run(provider: .healthKit, name: name, startDate: date, distance: distance,
@@ -180,11 +182,11 @@ struct TimelineJourneysCheckView: View {
         // ── Significance and rows
 
         let month = [
-            activity(day(2026, 2, 1), at: denver, distance: 5_000, name: "easy"),
-            activity(day(2026, 2, 3), at: denver, distance: 42_195, name: "marathon", race: true),
-            activity(day(2026, 2, 5), at: denver, distance: 8_000, name: "steady"),
-            activity(day(2026, 2, 7), at: denver, distance: 6_000, name: "shoot", photos: 4),
-            activity(day(2026, 2, 9), at: denver, distance: 5_000, name: "easy-2")
+            activity(day(2026, 2, 1), at: denver, name: "easy", distance: 5_000),
+            activity(day(2026, 2, 3), at: denver, name: "marathon", distance: 42_195, race: true),
+            activity(day(2026, 2, 5), at: denver, name: "steady", distance: 8_000),
+            activity(day(2026, 2, 7), at: denver, name: "shoot", distance: 6_000, photos: 4),
+            activity(day(2026, 2, 9), at: denver, name: "easy-2", distance: 5_000)
         ]
         let grades = TimelineJourneys.significance(in: month)
         expect("A race outranks its other reasons",
