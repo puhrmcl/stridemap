@@ -43,7 +43,7 @@ struct TimelineView: View {
     /// Months, All and Gallery are four ways of looking at the same activities — by year, by month,
     /// by activity, by photograph — so they belong in one control.
     enum Scope: String, CaseIterable, Identifiable {
-        case years = "Years", months = "Months", all = "All", gallery = "Gallery"
+        case years = "Years", trips = "Trips", months = "Months", all = "All", gallery = "Gallery"
         var id: String { rawValue }
     }
     @State private var scope: Scope = .years
@@ -64,6 +64,13 @@ struct TimelineView: View {
         var photos: [GalleryPhoto] = []
         var datesByID: [UUID: Date] = [:]
         var activityIDByPhoto: [String: UUID] = [:]
+        /// Where the reader went, newest first.
+        var trips: [TimelineJourneys.Trip] = []
+        /// Graded within each month, so "longest" means longest *that month* — which is what a
+        /// month page is actually claiming. Keyed by month-group id.
+        var significanceByMonth: [String: [UUID: TimelineJourneys.Significance]] = [:]
+        /// The same, graded within each trip. Keyed by trip id.
+        var significanceByTrip: [String: [UUID: TimelineJourneys.Significance]] = [:]
     }
 
     @State private var derived = Derived()
@@ -125,6 +132,16 @@ struct TimelineView: View {
         next.runsByYear = byYear
         next.datesByID = dates
 
+        // Where, and what mattered. Both walk the history, so both belong here rather than in a
+        // computed property a `body` pass can reach for a dozen times.
+        next.trips = TimelineJourneys.trips(in: scoped)
+        for trip in next.trips {
+            next.significanceByTrip[trip.id] = TimelineJourneys.significance(in: trip.runs)
+        }
+        for group in next.months {
+            next.significanceByMonth[group.id] = TimelineJourneys.significance(in: group.runs)
+        }
+
         derived = next
         if scope == .gallery && next.photos.isEmpty { visibleSpan.wrappedValue = nil }
     }
@@ -167,6 +184,7 @@ struct TimelineView: View {
         case .months:  return timelineMonths.last.map { AnyHashable($0.id) }
         case .all:     return timelineRuns.last.map { AnyHashable($0.id) }
         case .gallery: return photos.last.map { AnyHashable($0.id) }
+        case .trips:   return derived.trips.last.map { AnyHashable($0.id) }
         }
     }
 
@@ -191,6 +209,7 @@ struct TimelineView: View {
                             VStack(spacing: 0) {
                                 switch scope {
                                 case .years: yearsContent
+                                case .trips: tripsContent
                                 case .months: monthsContent
                                 case .all: allContent
                                 case .gallery: galleryContent
@@ -356,11 +375,38 @@ struct TimelineView: View {
         .padding(16)
     }
 
+    /// Where the reader went, as chapters. Empty is a real answer here and says so plainly —
+    /// most histories are mostly home, and an invented chapter would be worse than none.
+    @ViewBuilder private var tripsContent: some View {
+        if derived.trips.isEmpty {
+            ContentUnavailableView {
+                Label("No trips yet", systemImage: "airplane.departure")
+            } description: {
+                Text("When your activities cluster somewhere away from home, Etch collects them here as a chapter — where you were, how long for, and the photographs from it.")
+            }
+            .padding(.top, 60)
+        } else {
+            LazyVStack(alignment: .leading, spacing: 30) {
+                ForEach(derived.trips) { trip in
+                    TimelineTripChapter(
+                        trip: trip,
+                        significance: derived.significanceByTrip[trip.id] ?? [:],
+                        onOpen: { open($0) }
+                    )
+                    .id(trip.id)
+                }
+            }
+            .scrollTargetLayout()
+            .padding(.horizontal, 12)
+            .padding(.top, 6)
+        }
+    }
+
     private var monthsContent: some View {
         LazyVStack(alignment: .leading, spacing: 28) {
             ForEach(timelineMonths) { group in
                 Section {
-                    monthGrid(group.runs)
+                    monthGrid(group)
                 } header: {
                     sectionHeader(title: Format.monthYear(group.date),
                                   detail: "\(group.runs.count) · \(Format.distance(group.totalDistance, decimals: 0))")
@@ -373,26 +419,41 @@ struct TimelineView: View {
         .padding(.top, 4)
     }
 
+    /// A month, with its significant activities given the full width.
+    ///
+    /// The hero used to be whichever activity happened to be first in the month — an arbitrary
+    /// choice that put a Tuesday shakeout at the top as readily as a marathon, and left every
+    /// other activity in an identical square. Now the month is banded: races, personal bests, its
+    /// longest and its most photographed take the width and say why, and the rest fill strips of
+    /// three. The grading is done once per rebuild, not here.
     @ViewBuilder
-    private func monthGrid(_ monthRuns: [Run]) -> some View {
-        if let hero = monthRuns.first {
-            Button { open(hero) } label: {
-                RunMonthTile(run: hero, corner: 14)
-                    .frame(height: 170)
-            }
-            .buttonStyle(.plain)
-            .padding(.bottom, 6)
-        }
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: 3), spacing: 3) {
-            ForEach(monthRuns.dropFirst()) { run in
-                Button { open(run) } label: {
-                    Color.clear
-                        .aspectRatio(1, contentMode: .fit)
-                        .overlay { RunMonthTile(run: run, corner: 10) }
-                        .clipShape(.rect(cornerRadius: 10))
-                        .contentShape(.rect)
+    private func monthGrid(_ group: RunStatistics.MonthGroup) -> some View {
+        let grades = derived.significanceByMonth[group.id] ?? [:]
+        VStack(spacing: 3) {
+            ForEach(TimelineJourneys.rows(for: group.runs, significance: grades)) { row in
+                switch row {
+                case .hero(let run, let grade):
+                    TimelineHeroTile(run: run, significance: grade) { open(run) }
+                        .padding(.bottom, 3)
+                case .strip(let runs):
+                    HStack(spacing: 3) {
+                        ForEach(runs) { run in
+                            Button { open(run) } label: {
+                                Color.clear
+                                    .aspectRatio(1, contentMode: .fit)
+                                    .overlay { RunMonthTile(run: run, corner: 10) }
+                                    .clipShape(.rect(cornerRadius: 10))
+                                    .contentShape(.rect)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        if runs.count < 3 {
+                            ForEach(0..<(3 - runs.count), id: \.self) { _ in
+                                Color.clear.aspectRatio(1, contentMode: .fit)
+                            }
+                        }
+                    }
                 }
-                .buttonStyle(.plain)
             }
         }
     }
