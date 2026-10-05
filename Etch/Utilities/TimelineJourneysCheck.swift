@@ -44,11 +44,11 @@ struct TimelineJourneysCheckView: View {
         func activity(_ date: Date, at place: CLLocationCoordinate2D?,
                       city: String? = nil, state: String? = nil, country: String? = nil,
                       name: String = "check", distance: Double = 10_000,
-                      climb: Double = 50,
+                      seconds: Int = 3_600, climb: Double = 50,
                       race: Bool = false, photos: Int = 0,
                       hidden: Bool = false, excluded: Bool = false) -> Run {
             let run = Run(provider: .healthKit, name: name, startDate: date, distance: distance,
-                          movingTime: 3_600, elapsedTime: 3_600, elevationGain: climb,
+                          movingTime: seconds, elapsedTime: seconds, elevationGain: climb,
                           summaryPolyline: "", sportType: "Run", isRace: race,
                           excludedFromTotals: excluded)
             run.activityType = .run
@@ -187,12 +187,16 @@ struct TimelineJourneysCheckView: View {
         // small that hands a badge to an activity that did nothing special.
         var month: [Run] = (0..<12).map {
             activity(day(2026, 2, 1).addingTimeInterval(Double($0) * 2 * 86_400),
-                     at: denver, name: "easy-\($0)", distance: 5_000, climb: 0)
+                     at: denver, name: "easy-\($0)", distance: 5_000, seconds: 3_000, climb: 0)
         }
+        // A real finishing time, so the race is the fastest thing here and holds that record
+        // alongside the one it is actually graded on.
         let marathon = activity(day(2026, 2, 3), at: denver, name: "marathon",
-                                distance: 42_195, climb: 0, race: true)
+                                distance: 42_195, seconds: 12_000, climb: 0, race: true)
+        // Short and slow on purpose: outside every benchmark band, nowhere near the longest, and
+        // not the best pace — so the only thing left that distinguishes it is the photographs.
         let photographed = activity(day(2026, 2, 7), at: denver, name: "shoot",
-                                    distance: 6_000, climb: 0, photos: 4)
+                                    distance: 4_000, seconds: 3_600, climb: 0, photos: 4)
         month.append(marathon)
         month.append(photographed)
 
