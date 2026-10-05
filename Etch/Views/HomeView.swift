@@ -1463,8 +1463,28 @@ struct HomeView: View {
             NSLog("ETCHDIAG reveal: %@ %@ — %@", passed ? "PASS" : "FAIL", name, detail)
         }
 
+        /// Waits for a state to arrive instead of guessing how long it takes.
+        ///
+        /// Every wait here used to be a bare `Task.sleep` long enough to cover a seed, an
+        /// animation and a map layout on a quiet machine. On a loaded CI runner they are not
+        /// long enough, and the same commit then passes on one run and fails on the next —
+        /// which is worse than a slow check, because a flake teaches you to ignore the suite.
+        /// Polling makes the happy path faster as well: it stops waiting the moment it can.
+        func settle(_ limit: Double = 12, until condition: () -> Bool) async {
+            let deadline = Date().addingTimeInterval(limit)
+            while Date() < deadline {
+                if condition() { break }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
+
+        /// A margin after the state is right, before asserting that something did *not* happen.
+        /// A late refit arriving a beat after the focus is the whole defect these checks exist to
+        /// catch, so the negative assertions must not be made the instant the positive one holds.
+        func quietTail() async { try? await Task.sleep(for: .milliseconds(1_500)) }
+
         // The seed, the first rebuild and the map's first layout all have to land first.
-        try? await Task.sleep(for: .seconds(8))
+        await settle(20) { allRuns.filter { $0.startCoordinate != nil && !$0.isHidden }.count >= 3 }
 
         let located = allRuns.filter { $0.startCoordinate != nil && !$0.isHidden }
         guard located.count >= 3, let target = located.first else {
@@ -1482,7 +1502,7 @@ struct HomeView: View {
         // ── Stage the conflicting state: Favorites filter, States overlay up.
         appModel.filter.mode = .favorites
         withAnimation { locationOverlay = .states; showLocations = true }
-        try? await Task.sleep(for: .seconds(5))
+        await settle { showLocations && !visibleRuns.contains { $0.id == target.id } }
 
         check("Staged: overlay up, filter excludes the target",
               showLocations && !visibleRuns.contains { $0.id == target.id },
@@ -1492,7 +1512,11 @@ struct HomeView: View {
         appModel.startCameraLog()
         let accepted = appModel.reveal(target)
         check("The search result is accepted", accepted, "reveal returned \(accepted)")
-        try? await Task.sleep(for: .seconds(6))
+        await settle {
+            !showLocations && appModel.revealRequest == nil
+                && visibleRuns.contains { $0.id == target.id }
+        }
+        await quietTail()
 
         check("The overlay exits", !showLocations,
               "showLocations=\(showLocations) — a focus behind a place overview reveals nothing")
@@ -1516,7 +1540,10 @@ struct HomeView: View {
         // ── Repeated selection of the same activity.
         appModel.startCameraLog()
         _ = appModel.reveal(target)
-        try? await Task.sleep(for: .seconds(5))
+        await settle {
+            appModel.revealRequest == nil && appModel.cameraLog.last == "focus:\(target.id)"
+        }
+        await quietTail()
         check("Repeat selection focuses again", appModel.cameraLog.last == "focus:\(target.id)",
               "camera log: \(appModel.cameraLog.joined(separator: " → "))")
         check("Repeat selection completes too", appModel.revealRequest == nil,
@@ -1529,14 +1556,19 @@ struct HomeView: View {
         // with the right activity still selected — the original defect, and indistinguishable
         // from success in any end-state snapshot.
         appModel.filter.mode = .favorites
-        try? await Task.sleep(for: .seconds(4))
+        await settle { !showLocations && !visibleRuns.contains { $0.id == target.id } }
         check("Staged: no overlay, filter excludes the target",
               !showLocations && !visibleRuns.contains { $0.id == target.id },
               "showLocations=\(showLocations) targetDrawable=\(visibleRuns.contains { $0.id == target.id })")
 
         appModel.startCameraLog()
         _ = appModel.reveal(target)
-        try? await Task.sleep(for: .seconds(6))
+        await settle {
+            appModel.revealRequest == nil && appModel.cameraLog.contains("focus:\(target.id)")
+        }
+        // A deliberately generous tail: "no refit followed the focus" is the original defect, and
+        // the refit it has to rule out arrives *after* the filter clears.
+        try? await Task.sleep(for: .seconds(3))
         check("No overlay: the camera ends on the focus",
               appModel.cameraLog.last == "focus:\(target.id)",
               "camera log: \(appModel.cameraLog.joined(separator: " → "))")
@@ -1549,10 +1581,10 @@ struct HomeView: View {
         let hidden = located[1]
         hidden.isHidden = true
         try? modelContext.save()
-        try? await Task.sleep(for: .seconds(3))
+        await settle { !visibleRuns.contains { $0.id == hidden.id } }
         let selectionBefore = appModel.selectedRunID
         let hiddenAccepted = appModel.reveal(hidden)
-        try? await Task.sleep(for: .seconds(2))
+        await quietTail()
         check("A hidden activity is refused", !hiddenAccepted, "reveal returned \(hiddenAccepted)")
         check("A refused reveal changes nothing", appModel.selectedRunID == selectionBefore,
               "the selection must survive a result that cannot be shown")

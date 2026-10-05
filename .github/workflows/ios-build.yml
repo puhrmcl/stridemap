@@ -208,8 +208,12 @@ jobs:
                       fault("report lists %d result lines but claims %d checks"
                             % (len(passes) + len(failures), ran))
 
-              if failures:
-                  fault("%d failing check(s):\n  %s" % (len(failures), "\n  ".join(failures)))
+              # One fault per failing check, never a joined block: GitHub keeps only the first
+              # line of an `::error::` annotation, and the annotations are the only part of this
+              # log reachable from a machine that cannot fetch the log blob. A multi-line fault
+              # therefore reads as "1 failing check(s):" with the name of it thrown away.
+              for line in failures:
+                  fault(line)
 
               if len(verdict) != 1:
                   fault("expected exactly one RESULT: line, found %d" % len(verdict))
@@ -221,7 +225,9 @@ jobs:
 
           if problems:
               for p in problems:
-                  print("::error::%s" % p)
+                  # Belt and braces for the faults that are still inherently multi-line: flatten
+                  # rather than let an annotation silently truncate at the first newline.
+                  print("::error::%s" % p.replace("\n", " · "))
               sys.exit(1)
           PY
 
