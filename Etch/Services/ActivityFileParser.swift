@@ -33,7 +33,11 @@ enum ActivityFileError: Error, LocalizedError {
 enum ActivityFileParsing {
 
     /// Extensions the import UI should accept, including archives handled elsewhere.
-    static let supportedExtensions = ["gpx", "tcx", "fit"]
+    ///
+    /// `gz` earns its place: a Strava bulk export delivers most of its activities as `.gpx.gz`
+    /// and `.fit.gz`, so a picker that refuses them refuses the one path someone has to their
+    /// pre-Health history.
+    static let supportedExtensions = ["gpx", "tcx", "fit", "gz"]
 
     static func parser(forExtension ext: String) -> ActivityFileParser? {
         switch ext.lowercased() {
@@ -44,7 +48,14 @@ enum ActivityFileParsing {
         }
     }
 
+    /// A gzip member this large is refused rather than inflated — the import path holds whole
+    /// files in memory, and a few kilobytes of gzip can claim to expand to gigabytes.
+    static let maxInflatedBytes = 64 * 1024 * 1024
+
     static func parse(data: Data, fileName: String) throws -> [ImportedActivity] {
+        // Unwrapped before anything else looks at it, so both the sniffing below and every
+        // caller — picked file or archive entry — see the activity, not its envelope.
+        let (fileName, data) = GzipData.unwrap(name: fileName, data: data, limit: maxInflatedBytes)
         let ext = (fileName as NSString).pathExtension.lowercased()
         // Detect the real format from the file's contents first — the extension can be missing or
         // wrong. This matters since the picker accepts generic `.data` (so unknown-UTI files like

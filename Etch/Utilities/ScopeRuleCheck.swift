@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import Compression
 
 /// Proves the shared activity-scope rule and the reveal lifecycle, on a simulator, in CI.
 ///
@@ -36,7 +37,7 @@ struct ScopeRuleCheckView: View {
     /// How many assertions this screen is supposed to make. Written into the report and checked
     /// by the workflow, so a check that stops running — an early return, a block that throws, a
     /// case someone deleted — fails the job instead of producing a shorter all-green report.
-    static let expectedChecks = 45
+    static let expectedChecks = 54
 
     @State private var results: [Result] = []
     @State private var running = true
@@ -194,6 +195,7 @@ struct ScopeRuleCheckView: View {
         out += symbolChecks()
         out += revealChecks()
         out += mapPlaceChecks()
+        out += importChecks()
 
         // The count is itself an assertion, so an on-screen run is as honest as the report.
         if out.count != Self.expectedChecks {
@@ -308,6 +310,72 @@ struct ScopeRuleCheckView: View {
     }
 
     // MARK: The reveal lifecycle
+
+    /// Whether a compressed activity file actually imports.
+    ///
+    /// The one route someone has to history that predates their phone's Health store is their own
+    /// bulk export, and Strava ships those as a mix of `.gpx`, `.gpx.gz`, `.fit` and `.fit.gz`.
+    /// Matching on the outer `gz` skipped the compressed majority *silently* — no error, no failed
+    /// file, just "no activities found" over someone's whole running life. That is the failure
+    /// mode worth a check: not a crash, but a quiet nothing.
+    private func importChecks() -> [Result] {
+        var out: [Result] = []
+
+        func expect(_ name: String, _ actual: some Equatable, _ wanted: some Equatable, _ note: String) {
+            let passed = "\(actual)" == "\(wanted)"
+            out.append(Result(name: name, passed: passed,
+                              detail: passed ? note : "expected \(wanted), got \(actual) — \(note)"))
+        }
+
+        let gpx = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <gpx version="1.1" creator="check"><trk><name>Export check</name><trkseg>\
+        <trkpt lat="33.42" lon="-111.83"><ele>360</ele><time>2026-03-01T15:00:00Z</time></trkpt>\
+        <trkpt lat="33.43" lon="-111.84"><ele>362</ele><time>2026-03-01T15:10:00Z</time></trkpt>\
+        <trkpt lat="33.44" lon="-111.85"><ele>364</ele><time>2026-03-01T15:20:00Z</time></trkpt>\
+        </trkseg></trk></gpx>
+        """
+        let plain = Data(gpx.utf8)
+        let gzipped = GzipFixture.make(plain)
+
+        expect("The fixture really is a gzip member", GzipData.isGzipped(gzipped), true,
+               "otherwise everything below passes by testing nothing")
+
+        expect("A gzip member inflates to its original bytes",
+               GzipData.inflate(gzipped, limit: 1 << 20) == plain, true,
+               "header, payload and the 8-byte trailer all accounted for")
+
+        // The end-to-end claim: the dispatcher every import path goes through takes the
+        // compressed file and produces the activity, with no caller needing to know.
+        let parsed = (try? ActivityFileParsing.parse(data: gzipped, fileName: "4821.gpx.gz")) ?? []
+        expect("A gzipped export file imports as an activity", parsed.count, 1,
+               "the shape of a Strava bulk export entry")
+        expect("Its route survives the round trip", parsed.first?.coordinates.count ?? 0, 3,
+               "inflating must hand the parser whole bytes, not a slice with offset indices")
+
+        expect("An uncompressed file is passed through untouched",
+               GzipData.unwrap(name: "a.gpx", data: plain, limit: 1 << 20).data == plain, true,
+               "the common case must not be re-encoded or renamed")
+
+        expect("Unwrapping drops the gz suffix",
+               GzipData.unwrap(name: "4821.fit.gz", data: gzipped, limit: 1 << 20).name, "4821.fit",
+               "what is left is what decides the parser")
+
+        expect("A truncated member is refused, not guessed at",
+               GzipData.inflate(gzipped.prefix(12), limit: 1 << 20) == nil, true,
+               "a half-read file must fail as a file, never as a crash")
+
+        expect("Something that is not gzip is refused",
+               GzipData.inflate(plain, limit: 1 << 20) == nil, true,
+               "the magic number is the whole test")
+
+        // A few KB of gzip can claim to expand to gigabytes, and imports are read into memory.
+        expect("A member larger than the cap is refused",
+               GzipData.inflate(gzipped, limit: 8) == nil, true,
+               "refusing beats returning a truncated file that parses as a corrupt one")
+
+        return out
+    }
 
     /// What a cluster of activities on the map is called, and how big its bubble draws.
     ///
@@ -510,5 +578,49 @@ struct ScopeRuleCheckView: View {
             to: directory.appendingPathComponent("scope-rule-report.txt"),
             atomically: true, encoding: .utf8
         )
+    }
+}
+
+/// Builds a real gzip member, so the import check tests a decoder against the format rather than
+/// against a second copy of its own assumptions.
+///
+/// Apple's Compression framework emits raw DEFLATE, so the RFC 1952 envelope is added here: the
+/// fixed 10-byte header, then the payload, then CRC32 and the uncompressed length. The CRC is
+/// computed honestly even though the decoder ignores it — a fixture that cuts the same corner as
+/// the code it checks proves nothing about the day the code stops cutting it.
+enum GzipFixture {
+
+    static func make(_ data: Data) -> Data {
+        let source = [UInt8](data)
+        let capacity = max(source.count * 2, 1024)
+        var deflated = [UInt8](repeating: 0, count: capacity)
+        let produced = source.withUnsafeBufferPointer { input -> Int in
+            guard let inputBase = input.baseAddress else { return 0 }
+            return deflated.withUnsafeMutableBufferPointer { output -> Int in
+                guard let outputBase = output.baseAddress else { return 0 }
+                return compression_encode_buffer(outputBase, capacity,
+                                                 inputBase, source.count,
+                                                 nil, COMPRESSION_ZLIB)
+            }
+        }
+        guard produced > 0 else { return Data() }
+
+        var out = Data([0x1f, 0x8b, 0x08, 0x00, 0, 0, 0, 0, 0x00, 0xff])
+        out.append(contentsOf: deflated[0..<produced])
+        for shift in [0, 8, 16, 24] { out.append(UInt8((crc32(source) >> UInt32(shift)) & 0xff)) }
+        let size = UInt32(truncatingIfNeeded: source.count)
+        for shift in [0, 8, 16, 24] { out.append(UInt8((size >> UInt32(shift)) & 0xff)) }
+        return out
+    }
+
+    private static func crc32(_ bytes: [UInt8]) -> UInt32 {
+        var crc: UInt32 = 0xffff_ffff
+        for byte in bytes {
+            crc ^= UInt32(byte)
+            for _ in 0..<8 {
+                crc = (crc & 1) == 1 ? (crc >> 1) ^ 0xedb8_8320 : crc >> 1
+            }
+        }
+        return crc ^ 0xffff_ffff
     }
 }

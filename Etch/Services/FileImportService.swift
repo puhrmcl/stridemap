@@ -109,8 +109,9 @@ final class FileImportService {
         var foundActivityFile = false
 
         for entry in reader.entries where !entry.isDirectory {
-            let ext = (entry.name as NSString).pathExtension.lowercased()
-            guard ["gpx", "tcx", "fit", "json"].contains(ext) else { continue }
+            guard ["gpx", "tcx", "fit", "json"].contains(activityExtension(of: entry.name)) else {
+                continue
+            }
             guard entry.uncompressedSize <= Self.maxEntryBytes else { continue }
             if inflatedTotal + entry.uncompressedSize > Self.maxTotalBytes { break }
 
@@ -135,9 +136,19 @@ final class FileImportService {
         return (activities, failed)
     }
 
+    /// The extension that decides how a file is read, seen through a gzip envelope: a Strava
+    /// export's `12345678.fit.gz` is a FIT file, and matching on the outer `gz` would skip it.
+    nonisolated private static func activityExtension(of name: String) -> String {
+        let ext = (name as NSString).pathExtension.lowercased()
+        guard ext == "gz" else { return ext }
+        return ((name as NSString).deletingPathExtension as NSString).pathExtension.lowercased()
+    }
+
     /// Parses one extracted file by extension. JSON is routed to the Nike parser (which
     /// self-validates), so unrelated JSON in an export is quietly ignored.
     nonisolated private static func parseEntry(name: String, data: Data) throws -> [ImportedActivity] {
+        let (name, data) = GzipData.unwrap(name: name, data: data,
+                                           limit: ActivityFileParsing.maxInflatedBytes)
         switch (name as NSString).pathExtension.lowercased() {
         case "gpx": return try GPXParser().parse(data: data, fileName: name)
         case "tcx": return try TCXParser().parse(data: data, fileName: name)
