@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import Compression
+import SwiftData
 
 /// Proves the shared activity-scope rule and the reveal lifecycle, on a simulator, in CI.
 ///
@@ -37,7 +38,7 @@ struct ScopeRuleCheckView: View {
     /// How many assertions this screen is supposed to make. Written into the report and checked
     /// by the workflow, so a check that stops running — an early return, a block that throws, a
     /// case someone deleted — fails the job instead of producing a shorter all-green report.
-    static let expectedChecks = 61
+    static let expectedChecks = 65
 
     @State private var results: [Result] = []
     @State private var running = true
@@ -196,6 +197,7 @@ struct ScopeRuleCheckView: View {
         out += revealChecks()
         out += mapPlaceChecks()
         out += importChecks()
+        out += schemaChecks()
 
         // The count is itself an assertion, so an on-screen run is as honest as the report.
         if out.count != Self.expectedChecks {
@@ -310,6 +312,73 @@ struct ScopeRuleCheckView: View {
     }
 
     // MARK: The reveal lifecycle
+
+    /// That the store the app ships can be opened, and that its versioned description matches
+    /// what it actually contains.
+    ///
+    /// The failure this guards against has no symptom until the worst possible moment: a model
+    /// added to the app but not to `EtchSchemaV1` leaves the shipped schema describing something
+    /// other than what shipped, and nobody finds out until a later release tries to migrate from
+    /// a description that was never true. By then the libraries are on other people's phones.
+    private func schemaChecks() -> [Result] {
+        var out: [Result] = []
+
+        func expect(_ name: String, _ actual: some Equatable, _ wanted: some Equatable, _ note: String) {
+            let passed = "\(actual)" == "\(wanted)"
+            out.append(Result(name: name, passed: passed,
+                              detail: passed ? note : "expected \(wanted), got \(actual) — \(note)"))
+        }
+
+        let schema = Schema(versionedSchema: EtchSchemaV1.self)
+        // Sorted, not a Set: `expect` compares by interpolation and a Set's description order is
+        // not stable, so two equal sets can print differently and fail a passing claim.
+        let entities = schema.entities.map(\.name).sorted()
+
+        // Deliberately an exact set, not a "contains": the point is to fail when a model is added
+        // to the app and not to the version, which a containment check would wave through.
+        expect("The shipped schema is exactly what the app stores",
+               entities, ["Run", "SavedPoster"],
+               "a new @Model must be added to EtchSchemaV1 in the same change")
+
+        expect("The store declares a version", "\(EtchSchemaV1.versionIdentifier)", "1.0.0",
+               "an unversioned store is one a later release cannot migrate from")
+
+        expect("The plan knows one schema so far", EtchMigrationPlan.schemas.count, 1,
+               "and therefore has no stages to run yet")
+
+        // The claim that matters: a container opens under the plan and gives back what was put in.
+        var roundTripped = false
+        var detail = "wrote a run, reopened the store, read it back"
+        do {
+            let directory = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let url = directory.appendingPathComponent("schema-check.store")
+
+            let write = try ModelContainer(
+                for: schema, migrationPlan: EtchMigrationPlan.self,
+                configurations: ModelConfiguration(schema: schema, url: url))
+            let writeContext = ModelContext(write)
+            writeContext.insert(Run(provider: .healthKit, name: "schema check",
+                                    startDate: Date(timeIntervalSince1970: 1_780_000_000),
+                                    distance: 5_000, movingTime: 1_500, elapsedTime: 1_500,
+                                    elevationGain: 10, summaryPolyline: "", sportType: "Run"))
+            try writeContext.save()
+
+            let read = try ModelContainer(
+                for: schema, migrationPlan: EtchMigrationPlan.self,
+                configurations: ModelConfiguration(schema: schema, url: url))
+            let runs = try ModelContext(read).fetch(FetchDescriptor<Run>())
+            roundTripped = runs.count == 1 && runs.first?.name == "schema check"
+            if !roundTripped { detail = "read back \(runs.count) runs" }
+        } catch {
+            detail = "\(error)"
+        }
+        expect("A store opens under the migration plan", roundTripped, true, detail)
+
+        return out
+    }
 
     /// Whether a compressed activity file actually imports.
     ///

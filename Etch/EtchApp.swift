@@ -7,6 +7,10 @@ struct EtchApp: App {
     /// One shared container for the whole app.
     let modelContainer: ModelContainer
 
+    /// Set when the on-disk library could not be opened. The app then runs against an in-memory
+    /// store and says so, rather than pretending an empty library is the user's.
+    let storeFailure: Error?
+
     @State private var auth = StravaAuthService.shared
     @State private var healthKit: HealthKitService
     @State private var appModel = AppModel()
@@ -26,26 +30,32 @@ struct EtchApp: App {
         // prices and availability never flash a compiled value and then correct themselves.
         RemoteConfigService.loadCached()
 
-        do {
-            let container = try ModelContainer(for: Run.self, SavedPoster.self)
-            self.modelContainer = container
-            let health = HealthKitService()
-            _healthKit = State(initialValue: health)
-            _sync = State(
-                initialValue: SyncService(
-                    healthKit: health,
-                    auth: StravaAuthService.shared,
-                    context: container.mainContext
-                )
+        // A store that will not open is no longer a crash. Once there are real libraries on real
+        // devices, `fatalError` here is an app that cannot be launched at all by the people with
+        // the most to lose, and no route to telling them why.
+        let opening = StoreOpening.open()
+        self.modelContainer = opening.container
+        self.storeFailure = opening.failure
+        let health = HealthKitService()
+        _healthKit = State(initialValue: health)
+        _sync = State(
+            initialValue: SyncService(
+                healthKit: health,
+                auth: StravaAuthService.shared,
+                context: opening.container.mainContext
             )
-        } catch {
-            fatalError("Failed to create SwiftData container: \(error)")
-        }
+        )
     }
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            Group {
+                if let storeFailure {
+                    StoreUnavailableView(error: storeFailure)
+                } else {
+                    RootView()
+                }
+            }
                 .environment(auth)
                 .environment(healthKit)
                 .environment(appModel)
