@@ -227,7 +227,6 @@ struct HomeView: View {
         var runStartPoints: [RunMapPoint] = []
         var shownTotalRuns = 0
         var shownTotalDistance = 0.0
-        var geographySummary = ""
     }
 
     @State private var derived = Derived()
@@ -266,7 +265,6 @@ struct HomeView: View {
         next.years = stats.years
         next.shownTotalRuns = counting.totalRuns
         next.shownTotalDistance = counting.totalDistanceMeters
-        next.geographySummary = "\(stats.travelPlaces.count) cities · \(stats.states.count) states · \(stats.countries.count) countries"
 
         var located = 0
         var points: [RunMapPoint] = []
@@ -623,18 +621,10 @@ struct HomeView: View {
                     .padding(.horizontal, EtchHeaderMetrics.pillOuter)
                     .padding(.top, EtchHeaderMetrics.top - 9)   // less the pill's own vertical padding
                     .mapChromeAppearance(mapStyle)
-                if !showLocations {
-                    Text(derived.geographySummary.isEmpty ? "Your world, etched." : derived.geographySummary)
-                        .font(.etch(.caption, weight: .semibold))
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(.regularMaterial, in: .capsule)
-                        .padding(.top, 6)
-                        .opacity(worldOverview ? 1 : 0)
-                        .animation(.easeInOut(duration: reduceMotion ? 0.15 : 0.3), value: worldOverview)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(!worldOverview)
-                        .accessibilityLabel("Places in your selected history. " + derived.geographySummary)
-                }
+                // No geography summary here. "46 cities · 11 states · 1 countries" is a tally of
+                // the history, which is what Milestones is for; on the map it sat on top of the
+                // thing it was counting and told you nothing about the place you were looking at.
+                // The map's job at this zoom is to show *where*, not to restate *how many*.
                 }
             }
         }
@@ -1469,8 +1459,9 @@ struct HomeView: View {
         /// animation and a map layout on a quiet machine. On a loaded CI runner they are not
         /// long enough, and the same commit then passes on one run and fails on the next —
         /// which is worse than a slow check, because a flake teaches you to ignore the suite.
-        /// Polling makes the happy path faster as well: it stops waiting the moment it can.
-        func settle(_ limit: Double = 12, until condition: () -> Bool) async {
+        /// Polling makes the happy path faster as well: it stops waiting the moment it can, so a
+        /// generous cap costs a passing run nothing and only buys patience on a slow one.
+        func settle(_ limit: Double = 25, until condition: () -> Bool) async {
             let deadline = Date().addingTimeInterval(limit)
             while Date() < deadline {
                 if condition() { break }
@@ -1492,6 +1483,16 @@ struct HomeView: View {
                   "need at least three located activities, found \(located.count)")
             writeRevealReport(results)
             return
+        }
+
+        /// Everything that separates "the app decided not to" from "the app had not caught up
+        /// yet". Without it a failure here says only that the claim is false, which is exactly
+        /// how little the last investigation had to go on.
+        func state() -> String {
+            "derivedReady=\(derived.ready) visible=\(visibleRuns.count)/\(derived.scopedRuns.count)"
+                + " filter=\(appModel.filter.mode) locations=\(showLocations)"
+                + " request=\(appModel.revealRequest.map { "\($0.phase)" } ?? "nil")"
+                + " targetSelected=\(appModel.selectedRunID == target.id)"
         }
 
         // A library with favourites in it, and a target that is deliberately not one of them.
@@ -1521,18 +1522,20 @@ struct HomeView: View {
         check("The overlay exits", !showLocations,
               "showLocations=\(showLocations) — a focus behind a place overview reveals nothing")
         check("The route becomes drawable", visibleRuns.contains { $0.id == target.id },
-              "the conflicting Favorites filter was cleared, so the route map now holds the target")
+              "the conflicting Favorites filter was cleared, so the route map now holds the target — "
+                + state())
         check("The conflicting filter is gone", !appModel.filter.isActive,
               "filter.isActive=\(appModel.filter.isActive)")
         check("The target is selected", appModel.selectedRunID == target.id,
               "selectedRunID=\(appModel.selectedRunID?.uuidString ?? "nil")")
         check("The reveal completes", appModel.revealRequest == nil,
-              "the map consumed the camera command, so the request is no longer outstanding")
+              "the map consumed the camera command, so the request is no longer outstanding — "
+                + state())
 
         // The heart of it: a focus followed by a fit is the original defect, and it looks
         // identical to success in any end-state snapshot.
         check("The camera stays focused", appModel.cameraLog.last == "focus:\(target.id)",
-              "camera log: \(appModel.cameraLog.joined(separator: " → "))")
+              "camera log: [\(appModel.cameraLog.joined(separator: " → "))] " + state())
         check("Exactly one focus was issued",
               appModel.cameraLog.filter { $0.hasPrefix("focus:") }.count == 1,
               "camera log: \(appModel.cameraLog.joined(separator: " → "))")
@@ -1545,9 +1548,9 @@ struct HomeView: View {
         }
         await quietTail()
         check("Repeat selection focuses again", appModel.cameraLog.last == "focus:\(target.id)",
-              "camera log: \(appModel.cameraLog.joined(separator: " → "))")
+              "camera log: [\(appModel.cameraLog.joined(separator: " → "))] " + state())
         check("Repeat selection completes too", appModel.revealRequest == nil,
-              "a second tap on the same result must not leave a request outstanding")
+              "a second tap on the same result must not leave a request outstanding — " + state())
 
         // ── The same conflict with the overlay *off*, which is where the focus/fit race is
         // actually live: with no overlay, clearing the filter reaches `onChange(of: filter)`,
@@ -1571,7 +1574,7 @@ struct HomeView: View {
         try? await Task.sleep(for: .seconds(3))
         check("No overlay: the camera ends on the focus",
               appModel.cameraLog.last == "focus:\(target.id)",
-              "camera log: \(appModel.cameraLog.joined(separator: " → "))")
+              "camera log: [\(appModel.cameraLog.joined(separator: " → "))] " + state())
         check("No overlay: no refit followed the focus",
               !appModel.cameraLog.contains { $0.hasPrefix("fit") },
               "clearing the filter must not refit while the reveal is outstanding — "
