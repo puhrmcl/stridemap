@@ -48,7 +48,7 @@ struct AddHistoryView: View {
             } header: {
                 Text("Import files")
             } footer: {
-                Text("Select .fit, .gpx, or .tcx files, or a .zip export from another app.")
+                Text("Select .fit, .gpx or .tcx files — compressed (.gz) or not — or a .zip export from another app.")
             }
 
             Section {
@@ -131,6 +131,19 @@ struct ImportGuide: Identifiable {
     let note: String?
 
     static let providers: [ImportGuide] = [
+        // First, deliberately. Strava is where most people's full history lives, and the API
+        // route to it is capped at ten connected athletes — their own export is not capped at
+        // all, because the data is theirs.
+        ImportGuide(
+            id: "strava", name: "Strava", symbol: "figure.run.circle.fill",
+            steps: [
+                "Sign in at strava.com, open Settings, and scroll to My Account.",
+                "Under \"Download or Delete Your Account\", choose Get Started, then Request your archive.",
+                "Strava emails a link within a few hours — download the .zip before it expires.",
+                "Choose that .zip here. Etch reads the activities and their names from inside it."
+            ],
+            note: "No need to unzip. Everything stays on your phone — the export is never uploaded."
+        ),
         ImportGuide(
             id: "nike", name: "Nike Run Club", symbol: "figure.run.circle",
             steps: [
