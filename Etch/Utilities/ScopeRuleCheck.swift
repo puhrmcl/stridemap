@@ -37,7 +37,7 @@ struct ScopeRuleCheckView: View {
     /// How many assertions this screen is supposed to make. Written into the report and checked
     /// by the workflow, so a check that stops running — an early return, a block that throws, a
     /// case someone deleted — fails the job instead of producing a shorter all-green report.
-    static let expectedChecks = 54
+    static let expectedChecks = 61
 
     @State private var results: [Result] = []
     @State private var running = true
@@ -373,6 +373,57 @@ struct ScopeRuleCheckView: View {
         expect("A member larger than the cap is refused",
                GzipData.inflate(gzipped, limit: 8) == nil, true,
                "refusing beats returning a truncated file that parses as a corrupt one")
+
+        // ── What the export's own table adds back.
+
+        // Columns deliberately out of the documented order, with a name that contains a comma and
+        // a description that contains an escaped quote — both of which a split(",") gets wrong,
+        // and wrong in a way that shifts every later column.
+        let csv = """
+        Activity ID,Activity Name,Filename,Activity Type,Activity Gear,Activity Description,Commute
+        4821,"Long run, with Dan",activities/4821.gpx.gz,Run,Pegasus 41,"Said ""never again"" after",false
+        4822,Paddle at dawn,activities/4822.fit.gz,Kayaking,,,false
+        """
+        let index = StravaExportIndex(csv: csv)
+
+        expect("A name containing a comma survives the table",
+               index.entries["4821.gpx.gz"]?.name, Optional("Long run, with Dan"),
+               "quoted fields, not split on commas")
+
+        expect("An escaped quote is unescaped once",
+               index.entries["4821.gpx.gz"]?.description, Optional("Said \"never again\" after"),
+               "two doubled quotes inside a quoted field are one literal quote")
+
+        expect("Columns are found by name, not position",
+               index.entries["4821.gpx.gz"]?.gear, Optional("Pegasus 41"),
+               "the export's column order has changed between versions")
+
+        var run = ImportedActivity(provider: .unknown, externalID: "4821", startDate: .now,
+                                   distance: 10_000, movingTime: 3_000, elapsedTime: 3_000)
+        index.enrich(&run, fileName: "activities/4821.gpx.gz")
+        expect("A route file imports under its real name", run.name, Optional("Long run, with Dan"),
+               "the alternative is two thousand entries called Morning Run")
+
+        // The kind matters more than the name: a GPX track says nothing about what the activity
+        // was, so without this a kayak outing lands in the library as a run.
+        var paddle = ImportedActivity(provider: .unknown, externalID: "4822", startDate: .now,
+                                      distance: 8_000, movingTime: 3_600, elapsedTime: 3_600)
+        index.enrich(&paddle, fileName: "activities/4822.fit.gz")
+        expect("The export's own label decides the activity type",
+               paddle.activityType, ActivityType.paddle,
+               "Kayaking is a paddle, whatever the route file claims")
+
+        var named = ImportedActivity(provider: .unknown, externalID: "4821", startDate: .now,
+                                     distance: 10_000, movingTime: 3_000, elapsedTime: 3_000)
+        named.name = "From the file itself"
+        index.enrich(&named, fileName: "activities/4821.gpx.gz")
+        expect("A name the file carried is not overwritten", named.name,
+               Optional("From the file itself"),
+               "the file is better evidence than the export's summary of it")
+
+        expect("An export with no table enriches nothing",
+               StravaExportIndex(csv: "Activity ID,Activity Name\n1,Morning Run").isEmpty, true,
+               "with no Filename column there is no way to match a row to a file")
 
         return out
     }

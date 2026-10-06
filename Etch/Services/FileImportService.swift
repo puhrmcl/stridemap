@@ -108,6 +108,19 @@ final class FileImportService {
         var processed = 0
         var foundActivityFile = false
 
+        // Read in full before any route file, because it names them: the entry order inside a zip
+        // is the writer's business, and in a Strava export the table sorts after `activities/`.
+        var index = StravaExportIndex(csv: "")
+        if let csvEntry = reader.entries.first(where: {
+            !$0.isDirectory && StravaExportIndex.isIndexFile($0.name)
+                && $0.uncompressedSize <= Self.maxEntryBytes
+        }), let csvData = reader.data(for: csvEntry),
+           let csv = String(data: csvData, encoding: .utf8)
+                ?? String(data: csvData, encoding: .isoLatin1) {
+            index = StravaExportIndex(csv: csv)
+            inflatedTotal += csvData.count
+        }
+
         for entry in reader.entries where !entry.isDirectory {
             guard ["gpx", "tcx", "fit", "json"].contains(activityExtension(of: entry.name)) else {
                 continue
@@ -122,7 +135,11 @@ final class FileImportService {
             if let parsed = try? parseEntry(name: entry.name, data: entryData) {
                 // A .json that isn't a Nike activity returns []; only count real content.
                 if !parsed.isEmpty { foundActivityFile = true }
-                activities.append(contentsOf: parsed)
+                activities.append(contentsOf: parsed.map {
+                    var activity = $0
+                    index.enrich(&activity, fileName: entry.name)
+                    return activity
+                })
             } else {
                 foundActivityFile = true
                 failed.append(name)
