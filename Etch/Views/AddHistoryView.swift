@@ -91,7 +91,9 @@ struct AddHistoryView: View {
         var types = [
             UTType(filenameExtension: "gpx", conformingTo: .xml),
             UTType(filenameExtension: "tcx", conformingTo: .xml),
-            UTType(filenameExtension: "fit", conformingTo: .data)
+            UTType(filenameExtension: "fit", conformingTo: .data),
+            // A Strava export's activities arrive as .gpx.gz / .fit.gz.
+            UTType(filenameExtension: "gz", conformingTo: .data)
         ].compactMap { $0 }
         types.append(.data)
         types.append(.xml)
