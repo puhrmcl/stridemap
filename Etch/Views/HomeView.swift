@@ -227,7 +227,6 @@ struct HomeView: View {
         var runStartPoints: [RunMapPoint] = []
         var shownTotalRuns = 0
         var shownTotalDistance = 0.0
-        var geographySummary = ""
     }
 
     @State private var derived = Derived()
@@ -266,7 +265,6 @@ struct HomeView: View {
         next.years = stats.years
         next.shownTotalRuns = counting.totalRuns
         next.shownTotalDistance = counting.totalDistanceMeters
-        next.geographySummary = "\(stats.travelPlaces.count) cities · \(stats.states.count) states · \(stats.countries.count) countries"
 
         var located = 0
         var points: [RunMapPoint] = []
@@ -623,18 +621,10 @@ struct HomeView: View {
                     .padding(.horizontal, EtchHeaderMetrics.pillOuter)
                     .padding(.top, EtchHeaderMetrics.top - 9)   // less the pill's own vertical padding
                     .mapChromeAppearance(mapStyle)
-                if !showLocations {
-                    Text(derived.geographySummary.isEmpty ? "Your world, etched." : derived.geographySummary)
-                        .font(.etch(.caption, weight: .semibold))
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(.regularMaterial, in: .capsule)
-                        .padding(.top, 6)
-                        .opacity(worldOverview ? 1 : 0)
-                        .animation(.easeInOut(duration: reduceMotion ? 0.15 : 0.3), value: worldOverview)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(!worldOverview)
-                        .accessibilityLabel("Places in your selected history. " + derived.geographySummary)
-                }
+                // No geography summary here. "46 cities · 11 states · 1 countries" is a tally of
+                // the history, which is what Milestones is for; on the map it sat on top of the
+                // thing it was counting and told you nothing about the place you were looking at.
+                // The map's job at this zoom is to show *where*, not to restate *how many*.
                 }
             }
         }
