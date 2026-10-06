@@ -326,11 +326,11 @@ struct ScopeRuleCheckView: View {
         }
 
         expect("A place is named by its town",
-               MapPlaces.name(city: "Mesa", state: "AZ", country: "USA"), "Mesa",
+               MapPlaces.name(city: "Mesa", state: "AZ", country: "USA") ?? "", "Mesa",
                "the most specific thing known about where an activity started")
 
         expect("A town-less place falls back to its region",
-               MapPlaces.name(city: nil, state: "AZ", country: "USA"), "Arizona",
+               MapPlaces.name(city: nil, state: "AZ", country: "USA") ?? "", "Arizona",
                "and in the canonical form, so one region is never two labels")
 
         expect("A place with no geocode has no name",
@@ -338,11 +338,11 @@ struct ScopeRuleCheckView: View {
                "an indoor session placed by hand has coordinates but nothing to call them")
 
         expect("A cluster reads as where most of it happened",
-               MapPlaces.dominant(["Mesa", "Gilbert", "Mesa"]), "Mesa",
+               MapPlaces.dominant(["Mesa", "Gilbert", "Mesa"]) ?? "", "Mesa",
                "a cell straddling a city line must not be named by whichever run sorted first")
 
         expect("A tied cluster always picks the same name",
-               MapPlaces.dominant(["Gilbert", "Mesa"]), "Gilbert",
+               MapPlaces.dominant(["Gilbert", "Mesa"]) ?? "", "Gilbert",
                "ties break alphabetically, so a rebuild never flickers between two labels")
 
         // The defect in the screenshot: 316 and 557 drew at exactly the same size.
