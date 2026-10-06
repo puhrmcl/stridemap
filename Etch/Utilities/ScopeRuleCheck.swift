@@ -36,7 +36,7 @@ struct ScopeRuleCheckView: View {
     /// How many assertions this screen is supposed to make. Written into the report and checked
     /// by the workflow, so a check that stops running — an early return, a block that throws, a
     /// case someone deleted — fails the job instead of producing a shorter all-green report.
-    static let expectedChecks = 37
+    static let expectedChecks = 45
 
     @State private var results: [Result] = []
     @State private var running = true
@@ -193,6 +193,7 @@ struct ScopeRuleCheckView: View {
         out += paddlingChecks()
         out += symbolChecks()
         out += revealChecks()
+        out += mapPlaceChecks()
 
         // The count is itself an assertion, so an on-screen run is as honest as the report.
         if out.count != Self.expectedChecks {
@@ -307,6 +308,63 @@ struct ScopeRuleCheckView: View {
     }
 
     // MARK: The reveal lifecycle
+
+    /// What a cluster of activities on the map is called, and how big its bubble draws.
+    ///
+    /// The map's count bubbles answered "how many" and never "where", and their three fixed size
+    /// tiers capped out — so the two busiest places in a library drew identically however far
+    /// apart their totals were. Both are claims worth pinning: a name that flickers between two
+    /// spellings as the map rebuilds, or a size that stops responding above a threshold, is a map
+    /// that quietly misinforms.
+    private func mapPlaceChecks() -> [Result] {
+        var out: [Result] = []
+
+        func expect(_ name: String, _ actual: some Equatable, _ wanted: some Equatable, _ note: String) {
+            let passed = "\(actual)" == "\(wanted)"
+            out.append(Result(name: name, passed: passed,
+                              detail: passed ? note : "expected \(wanted), got \(actual) — \(note)"))
+        }
+
+        expect("A place is named by its town",
+               MapPlaces.name(city: "Mesa", state: "AZ", country: "USA"), "Mesa",
+               "the most specific thing known about where an activity started")
+
+        expect("A town-less place falls back to its region",
+               MapPlaces.name(city: nil, state: "AZ", country: "USA"), "Arizona",
+               "and in the canonical form, so one region is never two labels")
+
+        expect("A place with no geocode has no name",
+               MapPlaces.name(city: nil, state: nil, country: nil) == nil, true,
+               "an indoor session placed by hand has coordinates but nothing to call them")
+
+        expect("A cluster reads as where most of it happened",
+               MapPlaces.dominant(["Mesa", "Gilbert", "Mesa"]), "Mesa",
+               "a cell straddling a city line must not be named by whichever run sorted first")
+
+        expect("A tied cluster always picks the same name",
+               MapPlaces.dominant(["Gilbert", "Mesa"]), "Gilbert",
+               "ties break alphabetically, so a rebuild never flickers between two labels")
+
+        // The defect in the screenshot: 316 and 557 drew at exactly the same size.
+        let big = MapPlaces.diameter(count: 557, total: 1_148)
+        let smaller = MapPlaces.diameter(count: 316, total: 1_148)
+        expect("A busier place draws bigger", big > smaller, true,
+               "\(big) vs \(smaller) — fixed tiers capped out and drew these identically")
+
+        // Area tracks quantity, so four times the activity is twice the width — within a point
+        // of rounding, and only where neither end is pinned to the clamp.
+        let quarter = MapPlaces.diameter(count: 50, total: 1_000)
+        let quadruple = MapPlaces.diameter(count: 200, total: 1_000)
+        expect("Four times the activity is twice the width",
+               abs((quadruple - 26) - 2 * (quarter - 26)) <= 1, true,
+               "radius follows the square root of the share: \(quarter) → \(quadruple)")
+
+        expect("A bubble never collapses to nothing",
+               MapPlaces.diameter(count: 0, total: 0), 26.0,
+               "an empty or unknown library still draws a tappable disc")
+
+        return out
+    }
 
     /// Drives `Reveal` — the same functions `HomeView` and `AppModel` call — through the sequences
     /// that were broken.

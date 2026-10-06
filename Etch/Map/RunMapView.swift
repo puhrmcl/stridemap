@@ -275,7 +275,7 @@ struct RunMapView: UIViewRepresentable {
 
         /// Lightweight start points for the mapped runs, used to place tappable pins — with each
         /// run's pin kind (race / milestone / normal) so single-run pins can style themselves.
-        private var runPoints: [(id: UUID, coordinate: CLLocationCoordinate2D, kind: RunPinKind, type: ActivityType)] = []
+        private var runPoints: [(id: UUID, coordinate: CLLocationCoordinate2D, kind: RunPinKind, type: ActivityType, place: String?)] = []
         /// run id → its start coordinate, for framing a cluster's members on drill-in.
         private var coordByID: [UUID: CLLocationCoordinate2D] = [:]
         /// Our own zoom-aware clusters. MapKit's automatic clustering silently drops annotations
@@ -350,16 +350,18 @@ struct RunMapView: UIViewRepresentable {
 
             // Snapshot start points for the tappable pins (only mapped runs get one), each with its
             // pin kind — milestone (a record/superlative) wins over race, then plain.
-            runPoints = runs.compactMap { run -> (id: UUID, coordinate: CLLocationCoordinate2D, kind: RunPinKind, type: ActivityType)? in
+            runPoints = runs.compactMap { run -> (id: UUID, coordinate: CLLocationCoordinate2D, kind: RunPinKind, type: ActivityType, place: String?)? in
                 guard let coordinate = run.startCoordinate else { return nil }
+                // Carried per point so a cluster can be named for where most of it happened.
+                let place = MapPlaces.name(city: run.city, state: run.state, country: run.country)
                 // A route-less run the user hand-placed (indoor/treadmill) reads as a treadmill pin.
-                guard run.hasRoute else { return (run.id, coordinate, .indoor, run.activityType) }
+                guard run.hasRoute else { return (run.id, coordinate, .indoor, run.activityType, place) }
                 let isMilestone = parent.milestoneRunIDs.contains(run.id)
                 let kind: RunPinKind = run.isRace && isMilestone ? .raceMilestone
                     : isMilestone ? .milestone
                     : run.isRace ? .race
                     : .normal
-                return (run.id, coordinate, kind, run.activityType)
+                return (run.id, coordinate, kind, run.activityType, place)
             }
             coordByID = Dictionary(runPoints.map { ($0.id, $0.coordinate) }, uniquingKeysWith: { first, _ in first })
 
@@ -542,21 +544,25 @@ struct RunMapView: UIViewRepresentable {
             }
             let width = Double(map.bounds.width)
             guard width > 0 else { return }
-            // A cell ~68 screen points wide, expressed in map points so it's zoom-aware.
-            let cell = max(1, (map.visibleMapRect.width / width) * 68)
+            // A cell ~84 screen points wide, expressed in map points so it's zoom-aware. It was 68
+            // while the largest bubble was 58 across plus a ring and a shadow, so neighbouring
+            // cells touched by construction. A named bubble is wider still, and a sparser grid is
+            // the right trade at this zoom anyway: fewer, more meaningful places.
+            let cell = max(1, (map.visibleMapRect.width / width) * 84)
             let cellChanged = clusterCellSize <= 0 || abs(cell - clusterCellSize) / max(clusterCellSize, 1) > 0.25
             let represented = clusterAnnotations.reduce(0) { $0 + $1.runIDs.count }
             guard force || cellChanged || represented != points.count else { return }
 
-            var buckets: [String: (ids: [UUID], sumX: Double, sumY: Double, kind: RunPinKind, type: ActivityType)] = [:]
+            var buckets: [String: (ids: [UUID], sumX: Double, sumY: Double, kind: RunPinKind, type: ActivityType, places: [String])] = [:]
             for point in points {
                 let mp = MKMapPoint(point.coordinate)
                 let gx = Int(floor(mp.x / cell)), gy = Int(floor(mp.y / cell))
                 let key = "\(gx),\(gy)"
-                var bucket = buckets[key] ?? (ids: [], sumX: 0, sumY: 0, kind: .normal, type: .run)
+                var bucket = buckets[key] ?? (ids: [], sumX: 0, sumY: 0, kind: .normal, type: .run, places: [])
                 bucket.ids.append(point.id)
                 bucket.sumX += mp.x
                 bucket.sumY += mp.y
+                if let place = point.place { bucket.places.append(place) }
                 // A single-run cell shows that run's kind + activity glyph; a cell with several is
                 // a neutral count bubble (the type is unused there).
                 bucket.kind = bucket.ids.count == 1 ? point.kind : .normal
@@ -568,7 +574,9 @@ struct RunMapView: UIViewRepresentable {
             for bucket in buckets.values {
                 let n = Double(bucket.ids.count)
                 let coordinate = MKMapPoint(x: bucket.sumX / n, y: bucket.sumY / n).coordinate
-                newAnnotations.append(RunClusterAnnotation(runIDs: bucket.ids, coordinate: coordinate, kind: bucket.kind, activityType: bucket.type))
+                newAnnotations.append(RunClusterAnnotation(runIDs: bucket.ids, coordinate: coordinate,
+                                                          kind: bucket.kind, activityType: bucket.type,
+                                                          place: MapPlaces.dominant(bucket.places)))
             }
 
             map.removeAnnotations(clusterAnnotations)
@@ -584,6 +592,25 @@ struct RunMapView: UIViewRepresentable {
             clusterCellSize = 0
         }
 
+        /// Who survives a collision.
+        ///
+        /// Everything here used to be `.required`, which forbids MapKit from ever hiding an
+        /// annotation — so adjacent cells simply drew on top of each other and a "23" ended up
+        /// half-buried under a "316". Ranking them instead lets the bigger place win, which is
+        /// also the one whose name is worth the space.
+        private static func priority(forCount count: Int) -> MKFeatureDisplayPriority {
+            MKFeatureDisplayPriority(rawValue: 500 + Float(min(count, 400)))
+        }
+
+        /// A race or a record outranks every count bubble: a checkered flag vanishing under a
+        /// neighbouring cell's total defeats the point of marking it.
+        private static func priority(forKind kind: RunPinKind) -> MKFeatureDisplayPriority {
+            switch kind {
+            case .race, .milestone, .raceMilestone: return MKFeatureDisplayPriority(rawValue: 950)
+            case .normal, .indoor:                  return MKFeatureDisplayPriority(rawValue: 600)
+            }
+        }
+
         func mapView(_ mapView: MKMapView, viewFor annotation: any MKAnnotation) -> MKAnnotationView? {
             if annotation is MKUserLocation { return nil }
             guard let cluster = annotation as? RunClusterAnnotation else { return nil }
@@ -592,12 +619,13 @@ struct RunMapView: UIViewRepresentable {
             // are `.required` and carry no clusteringIdentifier, so MapKit never re-clusters or
             // hides them — our grid already resolved the density.
             if cluster.runIDs.count > 1 {
-                let id = "runCluster"
-                let view = (mapView.dequeueReusableAnnotationView(withIdentifier: id) as? CityClusterView)
-                    ?? CityClusterView(annotation: annotation, reuseIdentifier: id)
+                let id = "runPlaceCluster"
+                let view = (mapView.dequeueReusableAnnotationView(withIdentifier: id) as? RunPlaceClusterView)
+                    ?? RunPlaceClusterView(annotation: annotation, reuseIdentifier: id)
                 view.annotation = annotation
-                view.configure(count: cluster.runIDs.count, total: max(runPoints.count, 1))
-                view.displayPriority = .required
+                view.configure(count: cluster.runIDs.count, total: max(runPoints.count, 1),
+                               place: cluster.place)
+                view.displayPriority = Self.priority(forCount: cluster.runIDs.count)
                 return view
             }
 
@@ -607,7 +635,7 @@ struct RunMapView: UIViewRepresentable {
             view.annotation = annotation
             view.configure(cluster.kind, activityType: cluster.activityType)
             view.clusteringIdentifier = nil
-            view.displayPriority = .required
+            view.displayPriority = Self.priority(forKind: cluster.kind)
             return view
         }
 
@@ -980,12 +1008,118 @@ final class RunClusterAnnotation: NSObject, MKAnnotation {
     /// The run's activity type — drives the pin glyph for a plain (`.normal`) single-run pin so a
     /// ride reads as a bike, a hike as a hiker, etc. Unused for count bubbles and styled kinds.
     let activityType: ActivityType
+    /// What most of the cell's activities call this place — the label under a count bubble.
+    /// Nil when nothing in the cell was ever geocoded.
+    let place: String?
     @objc dynamic var coordinate: CLLocationCoordinate2D
-    init(runIDs: [UUID], coordinate: CLLocationCoordinate2D, kind: RunPinKind = .normal, activityType: ActivityType = .run) {
+    init(runIDs: [UUID], coordinate: CLLocationCoordinate2D, kind: RunPinKind = .normal,
+         activityType: ActivityType = .run, place: String? = nil) {
         self.runIDs = runIDs
         self.kind = kind
         self.activityType = activityType
+        self.place = place
         self.coordinate = coordinate
+    }
+}
+
+/// A place on the map: how many activities started there, and — once the cluster is big enough to
+/// be a place rather than an accident of zoom — what it is called.
+///
+/// The disc marks the spot and carries the magnitude in its area; the chip below it carries the
+/// identity. Two elements, one job each. The count alone never answered the question a map is
+/// for: "557" restates a number the header already shows, while "Phoenix" is the thing the reader
+/// actually recognises.
+final class RunPlaceClusterView: MKAnnotationView {
+    private let disc = UIView()
+    private let countLabel = UILabel()
+    private let chip = UIView()
+    private let nameLabel = UILabel()
+
+    private static let chipGap: CGFloat = 5
+    private static let chipHeight: CGFloat = 18
+    private static let maxChipWidth: CGFloat = 132
+
+    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+
+        // Ink glass with an Etch-Blue ring, so the map stays visible through it and the bubble
+        // speaks the brand instead of reading as a generic black blob.
+        disc.backgroundColor = UIColor(Theme.Brand.inkDeep).withAlphaComponent(0.66)
+        disc.layer.borderColor = UIColor(Theme.Palette.blueBright).withAlphaComponent(0.9).cgColor
+        disc.layer.borderWidth = 1.5
+        disc.layer.shadowColor = UIColor.black.cgColor
+        disc.layer.shadowOpacity = 0.35
+        disc.layer.shadowRadius = 5
+        disc.layer.shadowOffset = CGSize(width: 0, height: 2)
+        addSubview(disc)
+
+        countLabel.textColor = .white
+        countLabel.textAlignment = .center
+        countLabel.adjustsFontSizeToFitWidth = true
+        countLabel.minimumScaleFactor = 0.6
+        disc.addSubview(countLabel)
+
+        // The name gets its own ground rather than a drop shadow: white type has to stay legible
+        // over night imagery, desert satellite and the light standard map alike.
+        chip.backgroundColor = UIColor(Theme.Brand.inkDeep).withAlphaComponent(0.72)
+        chip.layer.cornerCurve = .continuous
+        addSubview(chip)
+
+        nameLabel.textColor = .white
+        nameLabel.textAlignment = .center
+        nameLabel.font = .systemFont(ofSize: 11, weight: .semibold)
+        nameLabel.lineBreakMode = .byTruncatingTail
+        chip.addSubview(nameLabel)
+
+        canShowCallout = false
+        // The chip hangs below the disc, so the footprint MapKit collides on is the pair, not
+        // the circle — otherwise two names would overlap while their discs cleared each other.
+        collisionMode = .rectangle
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func configure(count: Int, total: Int, place: String?) {
+        // Explicitly CGFloat: mixing it with Double in the frame maths below leans on implicit
+        // bridging and makes the arithmetic ambiguous to the type checker.
+        let diameter = CGFloat(MapPlaces.diameter(count: count, total: total))
+        countLabel.font = .monospacedDigitSystemFont(
+            ofSize: diameter >= 54 ? 18 : (diameter >= 40 ? 15 : 13), weight: .bold)
+        // Tabular digits so multi-bubble counts align optically at a glance.
+        countLabel.text = count.formatted()
+
+        let candidate = count >= MapPlaces.namingThreshold
+            ? place?.trimmingCharacters(in: .whitespacesAndNewlines) : nil
+        let name = (candidate?.isEmpty ?? true) ? nil : candidate
+        nameLabel.text = name
+        chip.isHidden = name == nil
+
+        var chipSize = CGSize.zero
+        if name != nil {
+            let text = nameLabel.sizeThatFits(CGSize(width: Self.maxChipWidth,
+                                                     height: Self.chipHeight))
+            chipSize = CGSize(width: min(Self.maxChipWidth, text.width.rounded()) + 12,
+                              height: Self.chipHeight)
+        }
+
+        let width = max(diameter, chipSize.width)
+        let height = diameter + (name == nil ? 0 : Self.chipGap + chipSize.height)
+        bounds = CGRect(x: 0, y: 0, width: width, height: height)
+
+        disc.frame = CGRect(x: (width - diameter) / 2, y: 0, width: diameter, height: diameter)
+        disc.layer.cornerRadius = diameter / 2
+        countLabel.frame = disc.bounds
+
+        if name != nil {
+            chip.frame = CGRect(x: (width - chipSize.width) / 2, y: diameter + Self.chipGap,
+                                width: chipSize.width, height: chipSize.height)
+            chip.layer.cornerRadius = chipSize.height / 2
+            nameLabel.frame = chip.bounds
+        }
+
+        // An annotation view is centred on its coordinate. Without this the disc and its chip
+        // would straddle the point together and every bubble would sit half a label too high.
+        centerOffset = CGPoint(x: 0, y: (height - diameter) / 2)
     }
 }
 
