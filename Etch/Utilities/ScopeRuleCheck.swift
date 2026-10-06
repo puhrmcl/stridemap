@@ -330,12 +330,14 @@ struct ScopeRuleCheckView: View {
         }
 
         let schema = Schema(versionedSchema: EtchSchemaV1.self)
-        let entities = Set(schema.entities.map(\.name))
+        // Sorted, not a Set: `expect` compares by interpolation and a Set's description order is
+        // not stable, so two equal sets can print differently and fail a passing claim.
+        let entities = schema.entities.map(\.name).sorted()
 
         // Deliberately an exact set, not a "contains": the point is to fail when a model is added
         // to the app and not to the version, which a containment check would wave through.
         expect("The shipped schema is exactly what the app stores",
-               entities, Set(["Run", "SavedPoster"]),
+               entities, ["Run", "SavedPoster"],
                "a new @Model must be added to EtchSchemaV1 in the same change")
 
         expect("The store declares a version", "\(EtchSchemaV1.versionIdentifier)", "1.0.0",
